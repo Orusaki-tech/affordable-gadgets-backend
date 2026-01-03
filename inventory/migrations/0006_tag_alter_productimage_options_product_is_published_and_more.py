@@ -246,6 +246,24 @@ class Migration(migrations.Migration):
                     END LOOP;
                 END $$;
                 
+                -- Drop any existing unique indexes on slug (Django creates these with hash suffixes)
+                DO $$
+                DECLARE
+                    idx_name text;
+                BEGIN
+                    FOR idx_name IN 
+                        SELECT indexname FROM pg_indexes 
+                        WHERE schemaname = 'public' 
+                        AND tablename = 'inventory_product' 
+                        AND (indexname LIKE '%slug%uniq%' OR indexname LIKE '%slug%_uniq')
+                    LOOP
+                        EXECUTE format('DROP INDEX IF EXISTS %I', idx_name);
+                    END LOOP;
+                END $$;
+                
+                -- Drop the specific index that's causing the error
+                DROP INDEX IF EXISTS inventory_product_slug_40cd5b78_uniq;
+                
                 -- Add unique constraint if it doesn't exist
                 DO $$
                 BEGIN
@@ -268,11 +286,16 @@ class Migration(migrations.Migration):
             """,
         ),
         # Update Django's migration state to reflect slug is unique
-        # This is safe because the constraint is already added by RunSQL above
-        migrations.AlterField(
-            model_name='product',
-            name='slug',
-            field=models.SlugField(blank=True, db_index=True, help_text='URL-friendly slug (auto-generated from product_name if not provided)', max_length=255, unique=True),
+        # Database operations are empty because constraint is already added by RunSQL above
+        SeparateDatabaseAndState(
+            database_operations=[],  # Constraint already added conditionally above
+            state_operations=[
+                migrations.AlterField(
+                    model_name='product',
+                    name='slug',
+                    field=models.SlugField(blank=True, db_index=True, help_text='URL-friendly slug (auto-generated from product_name if not provided)', max_length=255, unique=True),
+                ),
+            ],
         ),
         migrations.AddField(
             model_name='product',
