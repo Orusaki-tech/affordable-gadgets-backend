@@ -77,8 +77,8 @@ if not database_url:
             elif ':' in db_host and not db_host.startswith('postgres'):
                 db_host = db_host.split(':')[0]
     
-    # Clean up hostname - remove any trailing slashes or paths
-    db_host = db_host.strip().rstrip('/').split('/')[0].split('?')[0]
+    # Clean up hostname - remove any trailing slashes, paths, or invalid characters (like parentheses)
+    db_host = db_host.strip().rstrip('/').rstrip(')').rstrip('(').split('/')[0].split('?')[0]
     
     DATABASES = {
         'default': {
@@ -94,9 +94,11 @@ if not database_url:
         }
     }
 
-# Static files
+# Static files (use Cloudinary for production)
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+# Use Cloudinary for static files in production (serves from CDN)
+STATICFILES_STORAGE = 'cloudinary_storage.storage.StaticCloudinaryStorage'
 
 # Media files (use Cloudinary - already configured in base settings)
 MEDIA_URL = '/media/'
