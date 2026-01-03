@@ -28,5 +28,11 @@ python manage.py migrate --noinput || {
 echo "📤 Collecting static files and uploading to Cloudinary..."
 python manage.py collectstatic --noinput
 
+# Create superuser from environment variables (if provided)
+echo "👤 Creating superuser (if not exists)..."
+python manage.py create_superuser_from_env || {
+    echo "⚠️  Superuser creation encountered an error. Continuing with build..."
+}
+
 echo "✅ Build complete!"
 
