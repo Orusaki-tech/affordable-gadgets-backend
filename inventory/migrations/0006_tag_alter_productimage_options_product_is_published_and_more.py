@@ -102,6 +102,11 @@ class Migration(migrations.Migration):
         ),
         # Generate slugs for existing products
         migrations.RunPython(generate_slugs_for_products, reverse_generate_slugs),
+        # Drop duplicate index if it exists (handles partial migration scenarios)
+        migrations.RunSQL(
+            sql='DROP INDEX IF EXISTS inventory_product_slug_40cd5b78_like;',
+            reverse_sql=migrations.RunSQL.noop,
+        ),
         # Now make slug unique
         migrations.AlterField(
             model_name='product',
