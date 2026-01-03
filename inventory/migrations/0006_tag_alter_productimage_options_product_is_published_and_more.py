@@ -26,6 +26,77 @@ def reverse_generate_slugs(apps, schema_editor):
     Product.objects.all().update(slug='')
 
 
+def safely_add_columns_if_not_exists(apps, schema_editor):
+    """Safely add all columns from this migration if they don't already exist."""
+    with connection.cursor() as cursor:
+        # Check and add columns for inventory_product table
+        columns_to_add = [
+            ('is_published', 'BOOLEAN DEFAULT TRUE'),
+            ('keywords', 'VARCHAR(255)'),
+            ('long_description', 'TEXT'),
+            ('meta_description', 'TEXT'),
+            ('meta_title', 'VARCHAR(60)'),
+            ('og_image', 'VARCHAR(200)'),  # ImageField is stored as VARCHAR
+            ('product_highlights', 'JSONB DEFAULT \'[]\'::jsonb'),
+            ('product_video_file', 'VARCHAR(200)'),  # FileField is stored as VARCHAR
+            ('product_video_url', 'VARCHAR(500)'),
+            ('slug', 'VARCHAR(255)'),
+        ]
+        
+        for column_name, column_type in columns_to_add:
+            cursor.execute("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_schema = 'public' 
+                AND table_name = 'inventory_product' 
+                AND column_name = %s
+            """, [column_name])
+            if not cursor.fetchone():
+                try:
+                    cursor.execute(f'ALTER TABLE inventory_product ADD COLUMN {column_name} {column_type};')
+                    print(f"Added column inventory_product.{column_name}")
+                except Exception as e:
+                    print(f"Could not add column {column_name}: {e}")
+        
+        # Check and add columns for inventory_productimage table
+        image_columns_to_add = [
+            ('alt_text', 'VARCHAR(255)'),
+            ('display_order', 'INTEGER DEFAULT 0'),
+            ('image_caption', 'VARCHAR(255)'),
+        ]
+        
+        for column_name, column_type in image_columns_to_add:
+            cursor.execute("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_schema = 'public' 
+                AND table_name = 'inventory_productimage' 
+                AND column_name = %s
+            """, [column_name])
+            if not cursor.fetchone():
+                try:
+                    cursor.execute(f'ALTER TABLE inventory_productimage ADD COLUMN {column_name} {column_type};')
+                    print(f"Added column inventory_productimage.{column_name}")
+                except Exception as e:
+                    print(f"Could not add column {column_name}: {e}")
+
+
+def reverse_safely_add_columns(apps, schema_editor):
+    """Reverse operation - drop the columns."""
+    with connection.cursor() as cursor:
+        columns_to_drop = [
+            'is_published', 'keywords', 'long_description', 'meta_description',
+            'meta_title', 'og_image', 'product_highlights', 'product_video_file',
+            'product_video_url', 'slug'
+        ]
+        for column_name in columns_to_drop:
+            cursor.execute(f'ALTER TABLE inventory_product DROP COLUMN IF EXISTS {column_name};')
+        
+        image_columns_to_drop = ['alt_text', 'display_order', 'image_caption']
+        for column_name in image_columns_to_drop:
+            cursor.execute(f'ALTER TABLE inventory_productimage DROP COLUMN IF EXISTS {column_name};')
+
+
 
 
 class Migration(migrations.Migration):
@@ -81,56 +152,79 @@ class Migration(migrations.Migration):
             name='productimage',
             options={'ordering': ['display_order', 'id']},
         ),
-        migrations.AddField(
-            model_name='product',
-            name='is_published',
-            field=models.BooleanField(default=True, help_text='Whether product is published (visible on e-commerce site)'),
-        ),
-        migrations.AddField(
-            model_name='product',
-            name='keywords',
-            field=models.CharField(blank=True, help_text='Comma-separated keywords for SEO', max_length=255),
-        ),
-        migrations.AddField(
-            model_name='product',
-            name='long_description',
-            field=models.TextField(blank=True, help_text='Extended product description for detailed content'),
-        ),
-        migrations.AddField(
-            model_name='product',
-            name='meta_description',
-            field=models.TextField(blank=True, help_text='SEO description (150-160 chars recommended)', max_length=160),
-        ),
-        migrations.AddField(
-            model_name='product',
-            name='meta_title',
-            field=models.CharField(blank=True, help_text='SEO title (50-60 chars recommended)', max_length=60),
-        ),
-        migrations.AddField(
-            model_name='product',
-            name='og_image',
-            field=models.ImageField(blank=True, help_text='Social sharing image (Open Graph)', null=True, upload_to='og_images/%Y/%m/'),
-        ),
-        migrations.AddField(
-            model_name='product',
-            name='product_highlights',
-            field=models.JSONField(blank=True, default=list, help_text='List of key features/highlights (bullet points)'),
-        ),
-        migrations.AddField(
-            model_name='product',
-            name='product_video_file',
-            field=models.FileField(blank=True, help_text='Upload product video file', null=True, upload_to='product_videos/%Y/%m/'),
-        ),
-        migrations.AddField(
-            model_name='product',
-            name='product_video_url',
-            field=models.URLField(blank=True, help_text='Link to product video (YouTube, Vimeo, etc.)', max_length=500, null=True),
-        ),
-        # Add slug field without unique constraint first
-        migrations.AddField(
-            model_name='product',
-            name='slug',
-            field=models.SlugField(blank=True, help_text='URL-friendly slug (auto-generated from product_name if not provided)', max_length=255),
+        # Safely add all columns conditionally (handles partial migrations)
+        migrations.RunPython(safely_add_columns_if_not_exists, reverse_safely_add_columns),
+        # Update Django's migration state to reflect all fields exist
+        # Database operations are empty because columns are already added by RunPython above
+        SeparateDatabaseAndState(
+            database_operations=[],  # Columns already added conditionally above
+            state_operations=[
+                migrations.AddField(
+                    model_name='product',
+                    name='is_published',
+                    field=models.BooleanField(default=True, help_text='Whether product is published (visible on e-commerce site)'),
+                ),
+                migrations.AddField(
+                    model_name='product',
+                    name='keywords',
+                    field=models.CharField(blank=True, help_text='Comma-separated keywords for SEO', max_length=255),
+                ),
+                migrations.AddField(
+                    model_name='product',
+                    name='long_description',
+                    field=models.TextField(blank=True, help_text='Extended product description for detailed content'),
+                ),
+                migrations.AddField(
+                    model_name='product',
+                    name='meta_description',
+                    field=models.TextField(blank=True, help_text='SEO description (150-160 chars recommended)', max_length=160),
+                ),
+                migrations.AddField(
+                    model_name='product',
+                    name='meta_title',
+                    field=models.CharField(blank=True, help_text='SEO title (50-60 chars recommended)', max_length=60),
+                ),
+                migrations.AddField(
+                    model_name='product',
+                    name='og_image',
+                    field=models.ImageField(blank=True, help_text='Social sharing image (Open Graph)', null=True, upload_to='og_images/%Y/%m/'),
+                ),
+                migrations.AddField(
+                    model_name='product',
+                    name='product_highlights',
+                    field=models.JSONField(blank=True, default=list, help_text='List of key features/highlights (bullet points)'),
+                ),
+                migrations.AddField(
+                    model_name='product',
+                    name='product_video_file',
+                    field=models.FileField(blank=True, help_text='Upload product video file', null=True, upload_to='product_videos/%Y/%m/'),
+                ),
+                migrations.AddField(
+                    model_name='product',
+                    name='product_video_url',
+                    field=models.URLField(blank=True, help_text='Link to product video (YouTube, Vimeo, etc.)', max_length=500, null=True),
+                ),
+                migrations.AddField(
+                    model_name='product',
+                    name='slug',
+                    field=models.SlugField(blank=True, help_text='URL-friendly slug (auto-generated from product_name if not provided)', max_length=255),
+                ),
+                migrations.AddField(
+                    model_name='productimage',
+                    name='alt_text',
+                    field=models.CharField(blank=True, help_text='Required for SEO and accessibility', max_length=255),
+                ),
+                migrations.AddField(
+                    model_name='productimage',
+                    name='display_order',
+                    field=models.IntegerField(default=0, help_text='Order in which images should be displayed (lower numbers first)'),
+                ),
+                migrations.AddField(
+                    model_name='productimage',
+                    name='image_caption',
+                    field=models.CharField(blank=True, help_text='Optional caption for the image', max_length=255),
+                ),
+            ],
         ),
         # Generate slugs for existing products
         migrations.RunPython(generate_slugs_for_products, reverse_generate_slugs),
@@ -179,21 +273,6 @@ class Migration(migrations.Migration):
             model_name='product',
             name='slug',
             field=models.SlugField(blank=True, db_index=True, help_text='URL-friendly slug (auto-generated from product_name if not provided)', max_length=255, unique=True),
-        ),
-        migrations.AddField(
-            model_name='productimage',
-            name='alt_text',
-            field=models.CharField(blank=True, help_text='Required for SEO and accessibility', max_length=255),
-        ),
-        migrations.AddField(
-            model_name='productimage',
-            name='display_order',
-            field=models.IntegerField(default=0, help_text='Order in which images should be displayed (lower numbers first)'),
-        ),
-        migrations.AddField(
-            model_name='productimage',
-            name='image_caption',
-            field=models.CharField(blank=True, help_text='Optional caption for the image', max_length=255),
         ),
         migrations.AddField(
             model_name='product',
