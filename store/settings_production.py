@@ -12,9 +12,22 @@ SECRET_KEY = os.environ.get('SECRET_KEY')
 if not SECRET_KEY:
     raise ValueError("SECRET_KEY environment variable must be set in production")
 
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '').split(',')
-if not ALLOWED_HOSTS or ALLOWED_HOSTS == ['']:
-    raise ValueError("ALLOWED_HOSTS environment variable must be set in production")
+# Parse ALLOWED_HOSTS from environment variable
+ALLOWED_HOSTS = [host.strip() for host in os.environ.get('ALLOWED_HOSTS', '').split(',') if host.strip()]
+
+# Automatically add Render domain if RENDER_EXTERNAL_HOSTNAME is set (Render provides this)
+# This is the actual hostname Render assigns to your service
+render_hostname = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
+if render_hostname and render_hostname not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(render_hostname)
+
+# If ALLOWED_HOSTS is still empty, raise an error
+if not ALLOWED_HOSTS:
+    raise ValueError(
+        "ALLOWED_HOSTS environment variable must be set in production. "
+        "On Render, you can set it to your service domain (e.g., affordable-gadgets-backend.onrender.com) "
+        "or it will be auto-detected from RENDER_EXTERNAL_HOSTNAME if available."
+    )
 
 # Database (use PostgreSQL in production)
 DATABASES = {
