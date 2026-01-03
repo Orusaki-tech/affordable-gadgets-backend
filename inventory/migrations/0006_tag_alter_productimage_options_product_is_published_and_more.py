@@ -246,23 +246,45 @@ class Migration(migrations.Migration):
                     END LOOP;
                 END $$;
                 
-                -- Drop any existing unique indexes on slug (Django creates these with hash suffixes)
+                -- Drop any existing unique constraints on slug (Django creates these with hash suffixes)
+                -- Note: In PostgreSQL, UNIQUE constraints create indexes with the same name
+                -- We must drop the constraint, not the index
+                DO $$
+                DECLARE
+                    con_name text;
+                BEGIN
+                    FOR con_name IN 
+                        SELECT conname FROM pg_constraint 
+                        WHERE conrelid = 'inventory_product'::regclass 
+                        AND contype = 'u'
+                        AND (conname LIKE '%slug%uniq%' OR conname LIKE '%slug%_uniq' OR conname LIKE '%slug%')
+                    LOOP
+                        -- Skip our target constraint name
+                        IF con_name != 'inventory_product_slug_key' THEN
+                            EXECUTE format('ALTER TABLE inventory_product DROP CONSTRAINT IF EXISTS %I', con_name);
+                        END IF;
+                    END LOOP;
+                END $$;
+                
+                -- Drop the specific constraint that's causing the error
+                ALTER TABLE inventory_product DROP CONSTRAINT IF EXISTS inventory_product_slug_40cd5b78_uniq;
+                
+                -- Also drop any standalone unique indexes (not constraints) on slug
                 DO $$
                 DECLARE
                     idx_name text;
                 BEGIN
                     FOR idx_name IN 
-                        SELECT indexname FROM pg_indexes 
-                        WHERE schemaname = 'public' 
-                        AND tablename = 'inventory_product' 
-                        AND (indexname LIKE '%slug%uniq%' OR indexname LIKE '%slug%_uniq')
+                        SELECT i.indexname FROM pg_indexes i
+                        LEFT JOIN pg_constraint c ON c.conname = i.indexname
+                        WHERE i.schemaname = 'public' 
+                        AND i.tablename = 'inventory_product' 
+                        AND (i.indexname LIKE '%slug%uniq%' OR i.indexname LIKE '%slug%_uniq')
+                        AND c.conname IS NULL  -- Only indexes that are NOT constraints
                     LOOP
                         EXECUTE format('DROP INDEX IF EXISTS %I', idx_name);
                     END LOOP;
                 END $$;
-                
-                -- Drop the specific index that's causing the error
-                DROP INDEX IF EXISTS inventory_product_slug_40cd5b78_uniq;
                 
                 -- Add unique constraint if it doesn't exist
                 DO $$
