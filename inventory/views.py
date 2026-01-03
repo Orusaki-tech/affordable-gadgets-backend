@@ -1,0 +1,3556 @@
+import logging
+
+from rest_framework import viewsets, generics, permissions, exceptions
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from django.db import transaction
+from decimal import Decimal
+from django.db.models import F, Count, Min, Max, Q # Added Count, Min, Max, Q for aggregation/filtering
+from rest_framework.decorators import action # Required for potential custom actions
+from rest_framework import generics, permissions
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+# NEW IMPORTS for Filtering and Searching
+from rest_framework import filters
+from django_filters.rest_framework import DjangoFilterBackend
+from django.utils import timezone
+from datetime import timedelta
+from django.contrib.contenttypes.models import ContentType
+from django.conf import settings 
+from django.http import HttpResponse, FileResponse
+from django.core.files.base import ContentFile
+from .serializers import CustomerRegistrationSerializer, CustomerLoginSerializer 
+
+# Assume these models are imported from your app's models.py
+from .models import (
+    Product, ProductAccessory, Review, Color, UnitAcquisitionSource, 
+    InventoryUnit, Order, OrderItem, Customer, Admin, User,  ProductImage, InventoryUnitImage,
+    AdminRole, ReservationRequest, ReturnRequest, UnitTransfer, Notification, AuditLog, Tag,
+    Brand, Lead, LeadItem, Cart, CartItem, Promotion, PromotionType, Receipt
+)
+
+# Assume these serializers are defined in your app's serializers.py
+from .permissions import (
+    IsAdminOrReadOnly, IsAdminUser, IsCustomerOwnerOrAdmin, IsReviewOwnerOrAdmin,
+    HasRole, IsSalesperson, IsInventoryManager, IsContentCreator,
+    IsSalespersonOrInventoryManager, CanReserveUnits, CanApproveRequests,
+    IsSalespersonOrInventoryManagerOrMarketingManagerReadOnly,
+    CanCreateReviews, IsInventoryManagerOrSalespersonReadOnly,
+    IsInventoryManagerOrReadOnly, IsSuperuser, IsMarketingManager, IsOrderManager,
+    IsInventoryManagerOrMarketingManagerReadOnly, IsContentCreatorOrInventoryManager,
+    get_admin_from_user
+)
+from .serializers import (
+    ProductImageSerializer, ProductSerializer, ProductAccessorySerializer, ReviewSerializer, 
+    ColorSerializer, UnitAcquisitionSourceSerializer, InventoryUnitSerializer,
+    OrderSerializer, OrderItemSerializer, CustomerProfileUpdateSerializer, 
+    AdminSerializer, AdminCreateSerializer, AdminRoleSerializer, DiscountCalculatorSerializer, 
+    CustomerRegistrationSerializer, # <--- NEW: Import the Registration Serializer
+    PublicInventoryUnitSerializer, InventoryUnitImageSerializer,
+    ReservationRequestSerializer, ReturnRequestSerializer, UnitTransferSerializer, NotificationSerializer,
+    AuditLogSerializer, TagSerializer, BrandSerializer, LeadSerializer, CartSerializer, PromotionSerializer,
+    PromotionTypeSerializer,
+)
+from .services.lead_service import LeadService
+
+logger = logging.getLogger(__name__)
+
+
+# --- CORE INVENTORY AND CATALOG VIEWSETS ---
+
+class ProductViewSet(viewsets.ModelViewSet):
+    """
+    CRUD for Product Templates.
+    - Public: Read-only access
+    - Inventory Manager: Full CRUD access
+    - Content Creator: Can edit content fields (descriptions, images, SEO) but NOT inventory fields, and CANNOT delete products
+    - Salesperson: Read-only access
+    - Superuser: Full access
+    """
+    queryset = Product.objects.all()
+    serializer_class = ProductSerializer
+    
+    def get_queryset(self):
+        """Filter products by admin's assigned brands."""
+        queryset = super().get_queryset()
+        user = self.request.user
+        
+        # Superuser sees all products
+        if user.is_superuser:
+            return queryset
+        
+        # For staff users (admins), filter by their assigned brands
+        if user.is_staff:
+            try:
+                admin = Admin.objects.get(user=user)
+                if admin.is_global_admin:
+                    return queryset
+                
+                # Salespersons need to see all products to make reservations
+                # They should see all products regardless of brand assignment
+                if admin.is_salesperson:
+                    return queryset
+                
+                # Inventory Managers need to see all products to manage inventory
+                # They should see all products regardless of brand assignment
+                if admin.is_inventory_manager:
+                    return queryset
+                
+                # Marketing Managers need to see all products to view and attach promotions
+                # They should see all products regardless of brand assignment
+                if admin.is_marketing_manager:
+                    return queryset
+                
+                # Content Creators need to see all products to select them for reviews
+                # They should see all products regardless of brand assignment
+                if admin.is_content_creator:
+                    return queryset
+                
+                # Filter products by admin's assigned brands (for other roles)
+                if admin.brands.exists():
+                    # Products can be associated with multiple brands or be global
+                    # Show products that are either:
+                    # 1. Associated with one of admin's brands
+                    # 2. Global products (no brand association or is_global=True)
+                    queryset = queryset.filter(
+                        Q(brands__in=admin.brands.all()) | 
+                        Q(brands__isnull=True) | 
+                        Q(is_global=True)
+                    ).distinct()
+                else:
+                    # Admin with no brands sees nothing (except salespersons, inventory managers, and marketing managers who see all)
+                    return queryset.none()
+            except Admin.DoesNotExist:
+                # Staff user without admin profile sees nothing
+                return queryset.none()
+        
+        return queryset
+    
+    def get_permissions(self):
+        """Apply different permissions based on action"""
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            # For write operations, allow Content Creators and Inventory Managers, but NOT Marketing Managers
+            # Marketing Managers can only read products and attach promotions
+            from .permissions import IsContentCreatorOrInventoryManager
+            return [IsContentCreatorOrInventoryManager()]
+        # For read operations, allow Salespersons, Inventory Managers, and Marketing Managers (read-only for Salespersons and Marketing Managers)
+        return [IsSalespersonOrInventoryManagerOrMarketingManagerReadOnly()]
+    
+    def perform_create(self, serializer):
+        """Set created_by and updated_by, and auto-assign to admin's brands if not specified."""
+        # Get the admin profile
+        try:
+            admin = Admin.objects.get(user=self.request.user)
+        except Admin.DoesNotExist:
+            admin = None
+        
+        # Save the product instance first
+        product_instance = serializer.save(created_by=self.request.user, updated_by=self.request.user)
+        
+        # Auto-assign to admin's brands if brand_ids not explicitly provided
+        if admin and admin.brands.exists() and not admin.is_global_admin:
+            # Check if brand_ids were provided in the request
+            brand_ids_provided = 'brand_ids' in self.request.data
+            
+            if not brand_ids_provided:
+                # No brand_ids provided - auto-assign to admin's brands
+                product_instance.brands.set(admin.brands.all())
+            elif self.request.data.get('brand_ids') is None or (
+                isinstance(self.request.data.get('brand_ids'), list) and 
+                len(self.request.data.get('brand_ids', [])) == 0
+            ):
+                # Empty brand_ids list provided - auto-assign to admin's brands
+                product_instance.brands.set(admin.brands.all())
+            # If brand_ids were provided and not empty, the serializer will handle it
+        elif admin and admin.is_global_admin:
+            # Global admin - don't auto-assign, let them choose
+            pass
+        else:
+            # No admin or admin has no brands - assign to default brand if exists
+            default_brand = Brand.objects.filter(code='AFFORDABLE_GADGETS', is_active=True).first()
+            if default_brand:
+                product_instance.brands.set([default_brand])
+    
+    def perform_update(self, serializer):
+        """Update updated_by and auto-assign to admin's brands if product has no brands."""
+        product_instance = serializer.save(updated_by=self.request.user)
+        
+        # Auto-assign to admin's brands if product has no brands and admin has brands
+        if not product_instance.brands.exists():
+            try:
+                admin = Admin.objects.get(user=self.request.user)
+                if admin and admin.brands.exists() and not admin.is_global_admin:
+                    product_instance.brands.set(admin.brands.all())
+            except Admin.DoesNotExist:
+                # If no admin, try to assign to default brand
+                default_brand = Brand.objects.filter(code='AFFORDABLE_GADGETS', is_active=True).first()
+                if default_brand:
+                    product_instance.brands.set([default_brand])
+    
+    @action(detail=True, methods=['patch'], permission_classes=[IsContentCreator])
+    def update_content(self, request, pk=None):
+        """
+        Custom action for Content Creators to update only content fields.
+        This allows Content Creators to update product content without touching inventory fields.
+        """
+        product = self.get_object()
+        
+        # Define allowed content fields
+        content_fields = {
+            'product_name', 'product_description', 'long_description',
+            'meta_title', 'meta_description', 'slug', 'keywords', 'og_image',
+            'product_highlights', 'is_published',
+            'product_video_url', 'product_video_file', 'tag_ids'
+        }
+        
+        # Filter request data to only include content fields
+        content_data = {k: v for k, v in request.data.items() if k in content_fields}
+        
+        serializer = self.get_serializer(product, data=content_data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(updated_by=request.user)
+        
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['get'], url_path='stock-summary', permission_classes=[IsSalespersonOrInventoryManagerOrMarketingManagerReadOnly])
+    def stock_summary(self, request, pk=None):
+        """
+        Custom action to retrieve the available inventory count, min price, and max price 
+        for a specific Product (template). Accessible by staff users (read-only).
+        
+        Example URL: /api/products/{product_id}/stock-summary/
+        """
+        try:
+            # 1. Get the specific Product Template
+            product = self.get_object()
+        except exceptions.NotFound:
+            return Response({"detail": "Product not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # 2. Filter Inventory Units by the product template and availability
+        # We use a Q object to specify Inventory Units that are currently marked 'AVAILABLE'
+        # The related name from Product to InventoryUnit is 'inventory_units'
+        inventory_queryset = product.inventory_units.filter(
+            sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE 
+        )
+
+        # 3. Perform Aggregation
+        summary = inventory_queryset.aggregate(
+            total_available_stock=Count('id'),
+            min_price=Min('selling_price'),
+            max_price=Max('selling_price')
+        )
+
+        # 4. Construct the response data
+        response_data = {
+            "product_id": product.pk,
+            "product_name": product.product_name,
+            "available_stock": summary['total_available_stock'],
+            "min_price": summary['min_price'] if summary['min_price'] is not None else 0.00,
+            "max_price": summary['max_price'] if summary['max_price'] is not None else 0.00,
+            "currency": "KES", # Assuming KES, adapt as needed
+        }
+        
+        return Response(response_data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['get'], url_path='available-units', permission_classes=[permissions.AllowAny])
+    def available_units(self, request, pk=None):
+        """
+        Public: List available units (public fields) for a specific product template, paginated.
+        Intended for product detail pages to show purchasable configurations.
+        """
+        product = self.get_object()
+        qs = product.inventory_units.filter(
+            sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE
+        ).select_related('product_color').order_by('selling_price')
+
+        page = self.paginate_queryset(qs)
+        serializer = PublicInventoryUnitSerializer(page, many=True)
+        return self.get_paginated_response(serializer.data)
+
+
+class ProductImageViewSet(viewsets.ModelViewSet):
+    """
+    CRUD for individual product images.
+    Only Admins can add/manage images; everyone can view product images 
+    (which are nested in ProductViewSet).
+    Uses IsAdminOrReadOnly.
+    """
+    queryset = ProductImage.objects.all().select_related('product')
+    serializer_class = ProductImageSerializer
+    permission_classes = [IsAdminOrReadOnly]
+    parser_classes = [MultiPartParser, FormParser]
+
+class InventoryUnitImageViewSet(viewsets.ModelViewSet):
+    """
+    CRUD for individual inventory unit images.
+    Only Admins can add/manage images; everyone can view unit images 
+    (which are nested in InventoryUnitViewSet).
+    Uses IsAdminOrReadOnly.
+    """
+    queryset = InventoryUnitImage.objects.all().select_related('inventory_unit')
+    serializer_class = InventoryUnitImageSerializer
+    permission_classes = [IsAdminOrReadOnly]
+    parser_classes = [MultiPartParser, FormParser]
+
+class InventoryUnitViewSet(viewsets.ModelViewSet):
+    """
+    CRUD for individual physical Inventory Units.
+    - Inventory Manager: Full access (read/write)
+    - Marketing Manager: Read-only access
+    - Salesperson: Read-only access
+    - Superuser: Full access
+    
+    NEW: Includes filtering and searching capabilities for efficient inventory management.
+    """
+    # Optimized queryset for related field lookups
+    queryset = InventoryUnit.objects.all().select_related('product_template', 'product_color', 'acquisition_source_details', 'reserved_by__user')
+    serializer_class = InventoryUnitSerializer
+    permission_classes = [IsInventoryManagerOrMarketingManagerReadOnly]
+    
+    # 1. Add Filter Backends
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    
+    # 2. Define fields for Filtering (Exact matches, ranges, etc.)
+    filterset_fields = {
+        'product_template': ['exact'],             # Filter by Product Template ID
+        'product_template__product_type': ['exact'], # Filter by Phone, Laptop, Accessory, etc.
+        'product_template__brand': ['exact'],      # Filter by Brand (Apple, Samsung, etc.)
+        'condition': ['exact'],                    # Filter by unit Condition (New, Used)
+        'sale_status': ['exact'],                  # Filter by unit Sale Status (Available, Sold, etc.)
+        'selling_price': ['lte', 'gte', 'exact'],  # Filter by price range (less than/greater than or equal to)
+        'storage_gb': ['exact', 'gte'],            # Filter by minimum storage
+        'ram_gb': ['exact', 'gte'],                # Filter by minimum RAM
+    }
+    
+    # 3. Define fields for Searching (Partial matches across text fields)
+    search_fields = [
+        '=serial_number', # Exact match on SN
+        '=imei',          # Exact match on IMEI
+        'product_template__product_name', # Search within product name
+        'product_template__model_series'  # Search within model series
+    ]
+    
+    # 4. Define fields for Ordering
+    ordering_fields = ['selling_price', 'date_sourced', 'storage_gb']
+    
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
+    def approve_buyback(self, request, pk=None):
+        """
+        Admin action to approve a RETURNED buyback item and make it AVAILABLE.
+        Only buyback items (source=BB) with status RETURNED can be approved.
+        """
+        unit = self.get_object()
+        
+        if unit.sale_status != InventoryUnit.SaleStatusChoices.RETURNED:
+            return Response(
+                {"error": "Only RETURNED items can be approved."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if unit.source != InventoryUnit.SourceChoices.BUYBACK_CUSTOMER:
+            return Response(
+                {"error": "Only buyback items can be approved."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        unit.sale_status = InventoryUnit.SaleStatusChoices.AVAILABLE
+        unit.save()
+        
+        serializer = self.get_serializer(unit)
+        return Response({
+            "message": "Buyback item approved and made available.",
+            "unit": serializer.data
+        })
+    
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
+    def create_order(self, request, pk=None):
+        """Create an order from a RESERVED unit - transitions to PENDING_PAYMENT."""
+        from inventory.services.customer_service import CustomerService
+        
+        try:
+            unit = self.get_object()
+        except Exception as e:
+            logger.error(f"Error getting unit {pk}: {str(e)}", exc_info=True)
+            return Response({
+                'error': f'Unit not found: {str(e)}'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Check if unit is RESERVED
+        if unit.sale_status != InventoryUnit.SaleStatusChoices.RESERVED:
+            return Response({
+                'error': f'Unit must be RESERVED to create order. Current status: {unit.get_sale_status_display()}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get required data from request
+        customer_name = request.data.get('customer_name')
+        customer_phone = request.data.get('customer_phone')
+        brand_id = request.data.get('brand_id')
+        
+        if not customer_name or not customer_phone:
+            return Response({
+                'error': 'customer_name and customer_phone are required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not brand_id:
+            return Response({
+                'error': 'brand_id is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Convert brand_id to int if it's a string
+        try:
+            brand_id = int(brand_id)
+        except (ValueError, TypeError):
+            return Response({
+                'error': f'brand_id must be a valid integer, got: {brand_id}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate brand exists
+        try:
+            brand = Brand.objects.get(id=brand_id, is_active=True)
+        except Brand.DoesNotExist:
+            logger.warning(f"Brand {brand_id} not found or inactive")
+            return Response({'error': 'Brand not found or inactive'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error getting brand {brand_id}: {str(e)}", exc_info=True)
+            return Response({
+                'error': f'Error validating brand: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        try:
+            with transaction.atomic():
+                # Get or create customer
+                try:
+                    customer, created = CustomerService.get_or_create_customer(
+                        name=customer_name,
+                        phone=customer_phone
+                    )
+                except Exception as e:
+                    logger.error(f"Error creating/getting customer: {str(e)}", exc_info=True)
+                    return Response({
+                        'error': f'Failed to create/get customer: {str(e)}'
+                    }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                
+                # Create order
+                try:
+                    order = Order.objects.create(
+                        customer=customer,
+                        user=customer.user if customer.user else None,
+                        brand=brand,
+                        order_source=Order.OrderSourceChoices.WALK_IN,
+                        status=Order.StatusChoices.PENDING,
+                        total_amount=unit.selling_price
+                    )
+                except Exception as e:
+                    logger.error(f"Error creating order: {str(e)}", exc_info=True)
+                    return Response({
+                        'error': f'Failed to create order: {str(e)}'
+                    }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                
+                # Create order item
+                try:
+                    OrderItem.objects.create(
+                        order=order,
+                        inventory_unit=unit,
+                        quantity=1,
+                        unit_price_at_purchase=unit.selling_price
+                    )
+                except Exception as e:
+                    logger.error(f"Error creating order item: {str(e)}", exc_info=True)
+                    return Response({
+                        'error': f'Failed to create order item: {str(e)}'
+                    }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                
+                # Transition unit to PENDING_PAYMENT
+                try:
+                    unit.sale_status = InventoryUnit.SaleStatusChoices.PENDING_PAYMENT
+                    unit.save(update_fields=['sale_status'])
+                except Exception as e:
+                    logger.error(f"Error updating unit status: {str(e)}", exc_info=True)
+                    return Response({
+                        'error': f'Failed to update unit status: {str(e)}'
+                    }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                
+                return Response({
+                    'message': 'Order created successfully',
+                    'order_id': str(order.order_id),
+                    'unit_status': unit.get_sale_status_display(),
+                    'customer_id': customer.id,
+                    'customer_created': created
+                }, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            logger.error(f"Unexpected error in create_order: {str(e)}", exc_info=True)
+            return Response({
+                'error': f'Unexpected error: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['get'], permission_classes=[IsInventoryManagerOrSalespersonReadOnly])
+    def export_csv(self, request):
+        """Export inventory units to CSV file."""
+        import csv
+        from django.http import HttpResponse
+        
+        # Get all units with filters applied
+        queryset = self.filter_queryset(self.get_queryset())
+        
+        # Create HTTP response with CSV
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="inventory_units_{timezone.now().strftime("%Y%m%d_%H%M%S")}.csv"'
+        
+        writer = csv.writer(response)
+        # Write header
+        writer.writerow([
+            'ID', 'Serial Number', 'IMEI', 'Product', 'Color', 'Condition', 'Grade',
+            'Storage (GB)', 'RAM (GB)', 'Selling Price', 'Sale Status', 'Source', 
+            'Date Sourced', 'Reserved By', 'Reserved Until', 'Notes'
+        ])
+        
+        # Write data
+        for unit in queryset:
+            writer.writerow([
+                unit.id,
+                unit.serial_number or '',
+                unit.imei or '',
+                unit.product_template_name or '',
+                unit.product_color.name if unit.product_color else '',
+                unit.condition or '',
+                unit.grade or '',
+                unit.storage_gb or '',
+                unit.ram_gb or '',
+                str(unit.selling_price) if unit.selling_price else '',
+                unit.sale_status or '',
+                unit.acquisition_source_details.name if unit.acquisition_source_details else '',
+                unit.date_sourced.strftime('%Y-%m-%d') if unit.date_sourced else '',
+                unit.reserved_by_username or '',
+                unit.reserved_until.strftime('%Y-%m-%d %H:%M') if unit.reserved_until else '',
+                unit.notes or ''
+            ])
+        
+        return response
+    
+    @action(detail=False, methods=['post'], permission_classes=[CanApproveRequests])
+    def import_csv(self, request):
+        """Import inventory units from CSV file."""
+        import csv
+        import io
+        
+        csv_file = request.FILES.get('file')
+        if not csv_file:
+            return Response(
+                {"error": "No file provided"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if not csv_file.name.endswith('.csv'):
+            return Response(
+                {"error": "File must be a CSV"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Read CSV
+        decoded_file = csv_file.read().decode('utf-8')
+        io_string = io.StringIO(decoded_file)
+        reader = csv.DictReader(io_string)
+        
+        created_count = 0
+        failed_count = 0
+        errors = []
+        
+        try:
+            with transaction.atomic():
+                for row_num, row in enumerate(reader, start=2):  # Start at 2 to account for header
+                    try:
+                        # Basic validation
+                        if not row.get('Product') or not row.get('Selling Price'):
+                            errors.append(f"Row {row_num}: Missing required fields (Product, Selling Price)")
+                            failed_count += 1
+                            continue
+                        
+                        # Find product by name
+                        product = Product.objects.filter(product_name=row['Product']).first()
+                        if not product:
+                            errors.append(f"Row {row_num}: Product '{row['Product']}' not found")
+                            failed_count += 1
+                            continue
+                        
+                        # Create unit
+                        unit = InventoryUnit.objects.create(
+                            product_template=product,
+                            serial_number=row.get('Serial Number'),
+                            imei=row.get('IMEI'),
+                            condition=row.get('Condition', 'N'),
+                            grade=row.get('Grade'),
+                            storage_gb=int(row['Storage (GB)']) if row.get('Storage (GB)') else None,
+                            ram_gb=int(row['RAM (GB)']) if row.get('RAM (GB)') else None,
+                            selling_price=Decimal(row['Selling Price']),
+                            sale_status=row.get('Sale Status', 'AV'),
+                            notes=row.get('Notes', ''),
+                            created_by=request.user,
+                        )
+                        created_count += 1
+                        
+                        # Log the import
+                        AuditLog.log_action(
+                            user=request.user,
+                            action=AuditLog.ActionType.CREATE,
+                            obj=unit,
+                            new_data={'source': 'CSV Import'},
+                            request=request
+                        )
+                        
+                    except Exception as e:
+                        errors.append(f"Row {row_num}: {str(e)}")
+                        failed_count += 1
+                
+                # If too many errors, rollback
+                if failed_count > created_count:
+                    raise Exception("Too many errors, import cancelled")
+        
+        except Exception as e:
+            return Response({
+                "error": f"Import failed: {str(e)}",
+                "created": 0,
+                "failed": failed_count,
+                "errors": errors[:10]  # Limit error messages
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response({
+            "success": True,
+            "created": created_count,
+            "failed": failed_count,
+            "errors": errors[:10] if errors else None
+        }, status=status.HTTP_200_OK)
+    
+    @action(detail=False, methods=['post'], permission_classes=[CanApproveRequests])
+    def bulk_update(self, request):
+        """
+        Bulk update operations for inventory units (Inventory Manager only).
+        Supports: price updates, status changes, archiving (for sold units).
+        
+        Request body:
+        {
+            "unit_ids": [1, 2, 3],
+            "operation": "update_price" | "update_status" | "archive",
+            "data": { ... operation-specific data ... }
+        }
+        """
+        unit_ids = request.data.get('unit_ids', [])
+        operation = request.data.get('operation')
+        data = request.data.get('data', {})
+        
+        if not unit_ids or not isinstance(unit_ids, list):
+            return Response(
+                {"error": "unit_ids must be a non-empty list"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if len(unit_ids) > 100:
+            return Response(
+                {"error": "Maximum 100 units can be updated at once"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Fetch the units
+        units = InventoryUnit.objects.filter(id__in=unit_ids)
+        
+        if units.count() != len(unit_ids):
+            return Response(
+                {"error": f"Some unit IDs not found. Requested: {len(unit_ids)}, Found: {units.count()}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        updated_count = 0
+        errors = []
+        
+        try:
+            with transaction.atomic():
+                if operation == 'update_price':
+                    new_price = data.get('selling_price')
+                    if not new_price:
+                        return Response(
+                            {"error": "selling_price is required for update_price operation"},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+                    
+                    # Update prices
+                    for unit in units:
+                        unit.selling_price = Decimal(str(new_price))
+                        unit.save(update_fields=['selling_price', 'updated_at'])
+                        updated_count += 1
+                    
+                    message = f"Successfully updated price for {updated_count} unit(s)"
+                
+                elif operation == 'update_status':
+                    new_status = data.get('sale_status')
+                    if not new_status:
+                        return Response(
+                            {"error": "sale_status is required for update_status operation"},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+                    
+                    # Validate status
+                    valid_statuses = [choice[0] for choice in InventoryUnit.SaleStatusChoices.choices]
+                    if new_status not in valid_statuses:
+                        return Response(
+                            {"error": f"Invalid status. Must be one of: {valid_statuses}"},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+                    
+                    # Update status
+                    for unit in units:
+                        # Prevent changing status of sold units
+                        if unit.sale_status == InventoryUnit.SaleStatusChoices.SOLD:
+                            errors.append(f"Unit #{unit.id} is already sold and cannot be modified")
+                            continue
+                        
+                        unit.sale_status = new_status
+                        unit.save(update_fields=['sale_status', 'updated_at'])
+                        updated_count += 1
+                    
+                    message = f"Successfully updated status for {updated_count} unit(s)"
+                
+                elif operation == 'archive':
+                    # Archive sold units (soft delete - mark as archived)
+                    for unit in units:
+                        if unit.sale_status != InventoryUnit.SaleStatusChoices.SOLD:
+                            errors.append(f"Unit #{unit.id} must be SOLD before archiving")
+                            continue
+                        
+                        # Mark as archived (you may want to add an 'is_archived' field to the model)
+                        # For now, we'll just add a note in the description
+                        unit.notes = (unit.notes or '') + f" [ARCHIVED: {timezone.now()}]"
+                        unit.save(update_fields=['notes', 'updated_at'])
+                        updated_count += 1
+                    
+                    message = f"Successfully archived {updated_count} unit(s)"
+                
+                else:
+                    return Response(
+                        {"error": f"Invalid operation: {operation}. Must be: update_price, update_status, or archive"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                return Response({
+                    "success": True,
+                    "message": message,
+                    "updated_count": updated_count,
+                    "errors": errors if errors else None
+                }, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            return Response(
+                {"error": f"Bulk operation failed: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+# --- NEW: CUSTOMER-FACING SEARCH VIEW ---
+
+class PhoneSearchByBudgetView(generics.ListAPIView):
+    """
+    GET: Allows customers to search for available phone Inventory Units 
+    within a specified budget range.
+    
+    Query Params required:
+    - min_price (required, decimal)
+    - max_price (required, decimal)
+    
+    Example URL: /api/phone-search/?min_price=15000&max_price=30000
+    """
+    serializer_class = PublicInventoryUnitSerializer
+    permission_classes = [permissions.AllowAny] 
+    
+    def get_queryset(self):
+        # Retrieve and validate query parameters
+        min_price_str = self.request.query_params.get('min_price')
+        max_price_str = self.request.query_params.get('max_price')
+
+        if not min_price_str or not max_price_str:
+            # Raise exception if required params are missing
+            raise exceptions.ParseError(
+                "Both 'min_price' and 'max_price' query parameters are required for budget search."
+            )
+
+        try:
+            min_price = Decimal(min_price_str)
+            max_price = Decimal(max_price_str)
+        except Exception:
+            # Raise exception if prices are not valid numbers
+            raise exceptions.ParseError("Prices must be valid numeric values.")
+            
+        if min_price > max_price:
+             raise exceptions.ParseError("Minimum price cannot be greater than maximum price.")
+
+        # 1. Start with available inventory units
+        queryset = InventoryUnit.objects.filter(
+            sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+            # 2. Filter by Product Type: 'Phone' (case-insensitive for safety)
+            product_template__product_type__iexact='Phone' 
+        )
+        
+        # 3. Filter by Price Range
+        queryset = queryset.filter(
+            selling_price__gte=min_price,
+            selling_price__lte=max_price
+        )
+        
+        # 4. Optimize lookup for nested serializer display
+        queryset = queryset.select_related(
+            'product_template', 
+            'product_color'
+        ).order_by('selling_price') # Order by ascending price
+        
+        return queryset
+
+
+class PublicAvailableUnitsView(generics.ListAPIView):
+    """
+    Public: Browse all available units (public fields), with optional filters.
+    Intended for storefront discovery pages (shop/browse/search).
+    """
+    permission_classes = [permissions.AllowAny]
+    serializer_class = PublicInventoryUnitSerializer
+
+    def get_queryset(self):
+        qs = InventoryUnit.objects.filter(
+            sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE
+        ).select_related('product_template', 'product_color').order_by('selling_price')
+
+        brand = self.request.query_params.get('brand')
+        if brand:
+            qs = qs.filter(product_template__brand__iexact=brand)
+
+        product_type = self.request.query_params.get('product_type')
+        if product_type:
+            qs = qs.filter(product_template__product_type__iexact=product_type)
+
+        return qs
+
+
+# --- SALES AND REVIEWS VIEWSETS ---
+
+class ReviewViewSet(viewsets.ModelViewSet):
+    """
+    Handles customer and admin reviews.
+    - Everyone can read (GET).
+    - Authenticated users can create (POST).
+    - Owners or Admins can update/delete (PUT/PATCH/DELETE).
+    - Uses IsReviewOwnerOrAdmin.
+    - Supports video file uploads via multipart/form-data.
+    """
+    queryset = Review.objects.all().select_related('product', 'customer__user').order_by('-date_posted')
+    serializer_class = ReviewSerializer
+    permission_classes = [IsReviewOwnerOrAdmin]  # Base permission, overridden in get_permissions
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['product']  # Allow filtering by product ID
+    search_fields = ['comment', 'product__product_name']
+    ordering_fields = ['date_posted', 'rating']
+    ordering = ['-date_posted']  # Default ordering
+    
+    def get_queryset(self):
+        """Filter reviews by brand for public API."""
+        queryset = super().get_queryset()
+        
+        # For public API, filter by brand if available
+        brand = getattr(self.request, 'brand', None)
+        if brand:
+            queryset = queryset.filter(product__brand=brand)
+        
+        return queryset
+    
+    # Enable multipart parsing for file uploads
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get_permissions(self):
+        """Apply role-based permissions."""
+        # Allow public read access (list and retrieve)
+        if self.action in ['list', 'retrieve']:
+            return [permissions.AllowAny()]
+        elif self.action == 'create':
+            # For staff users, check if they're Content Creator
+            # For non-staff, allow authenticated customers
+            if self.request.user.is_authenticated and self.request.user.is_staff:
+                return [CanCreateReviews()]
+            elif self.request.user.is_authenticated:
+                return [permissions.IsAuthenticated()]
+        elif self.action in ['update', 'partial_update', 'destroy']:
+            # Content Creators can edit/delete all reviews
+            if self.request.user.is_authenticated and self.request.user.is_staff:
+                admin = get_admin_from_user(self.request.user)
+                if admin and admin.is_content_creator:
+                    return [IsAdminUser()]  # Allow Content Creators to edit any review
+        return [IsReviewOwnerOrAdmin()]
+    
+    def perform_create(self, serializer):
+        """
+        Injects the authenticated user's Customer profile into the Review before saving.
+        If user is admin (Content Creator), customer is set to None (admin review).
+        """
+        if not self.request.user.is_authenticated:
+            raise exceptions.AuthenticationFailed("You must be logged in to post a review.")
+
+        # Check if user is admin (staff) - Content Creator or other admin
+        if self.request.user.is_staff:
+            # Admin/Content Creator can create reviews without a customer profile
+            serializer.save(customer=None)
+        else:
+            # Regular customers must have a Customer profile
+            try:
+                customer = Customer.objects.get(user=self.request.user)
+                serializer.save(customer=customer)
+            except Customer.DoesNotExist:
+                raise exceptions.PermissionDenied("Review creation requires a valid Customer profile.")
+    
+    @action(detail=False, methods=['post'], permission_classes=[IsAdminUser])
+    def bulk_action(self, request):
+        """
+        Bulk actions for reviews (approve, reject, delete, hide).
+        Content Creators can use this to moderate reviews.
+        """
+        action_type = request.data.get('action')  # 'approve', 'reject', 'delete', 'hide'
+        review_ids = request.data.get('review_ids', [])
+        
+        if not action_type or not review_ids:
+            return Response(
+                {'error': 'action and review_ids are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        reviews = Review.objects.filter(id__in=review_ids)
+        
+        if action_type == 'delete':
+            count = reviews.count()
+            reviews.delete()
+            return Response({'message': f'{count} review(s) deleted successfully'})
+        elif action_type == 'hide':
+            # Add a hidden flag if needed, or use a status field
+            # For now, we'll just return success
+            return Response({'message': f'{reviews.count()} review(s) hidden successfully'})
+        else:
+            return Response(
+                {'error': f'Unknown action: {action_type}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
+class AdminRoleViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for listing available admin roles.
+    Read-only access to see what roles can be assigned.
+    """
+    queryset = AdminRole.objects.all()
+    serializer_class = AdminRoleSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = None  # Return all roles without pagination
+
+
+class TagViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing product tags.
+    - All authenticated staff users can read
+    - Content Creators and Inventory Managers can create/edit/delete
+    """
+    queryset = Tag.objects.all()
+    serializer_class = TagSerializer
+    permission_classes = [IsAdminOrReadOnly]
+    pagination_class = None  # Return all tags without pagination (reasonable assumption)
+
+
+class AdminViewSet(viewsets.ModelViewSet):
+    """
+    Admin management ViewSet. Superuser-only access.
+    - List all admins
+    - Create new admin accounts
+    - Retrieve/Update/Delete admin profiles
+    - Assign/remove roles
+    """
+    queryset = Admin.objects.all().select_related('user').prefetch_related('roles', 'brands').order_by('-id')
+    permission_classes = [IsSuperuser]
+    
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return AdminCreateSerializer
+        return AdminSerializer
+    
+    def get_queryset(self):
+        """Return admins with user details for list view."""
+        return Admin.objects.all().select_related('user').prefetch_related('roles', 'brands').order_by('-user__date_joined')
+    
+    def create(self, request, *args, **kwargs):
+        """Override create to provide better error handling."""
+        from rest_framework import serializers
+
+        try:
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            self.perform_create(serializer)
+            headers = self.get_success_headers(serializer.data)
+            return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        except serializers.ValidationError as e:
+            # Return validation errors in a clear format
+            logger.error(f"Admin creation validation error: {e.detail}")
+            return Response(
+                {"error": "Validation failed", "details": e.detail},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as e:
+            # Catch any other exceptions and return a proper error message
+            import traceback
+
+            error_trace = traceback.format_exc()
+            logger.error(f"Admin creation error: {str(e)}\n{error_trace}")
+            return Response(
+                {
+                    "error": "Failed to create admin",
+                    "detail": str(e)
+                    if settings.DEBUG
+                    else "An error occurred while creating the admin account. Please check that all fields are valid and the admin code is unique.",
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+    
+    @action(detail=True, methods=['post', 'put'], url_path='roles')
+    def assign_roles(self, request, pk=None):
+        """Assign or update roles for an admin."""
+        admin = self.get_object()
+        role_ids = request.data.get('role_ids', [])
+        
+        if not isinstance(role_ids, list):
+            return Response({'error': 'role_ids must be a list'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            roles = AdminRole.objects.filter(id__in=role_ids)
+            admin.roles.set(roles)
+            serializer = self.get_serializer(admin)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['post', 'put'], url_path='brands')
+    def assign_brands(self, request, pk=None):
+        """Assign or update brands for an admin."""
+        admin = self.get_object()
+        brand_ids = request.data.get('brand_ids', [])
+        is_global = request.data.get('is_global_admin', False)
+        
+        if not isinstance(brand_ids, list):
+            return Response(
+                {'error': 'brand_ids must be a list'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # Update global admin flag
+            admin.is_global_admin = is_global
+            admin.save()
+            
+            # Assign brands (empty list = no brands, global admin can have empty brands)
+            if not is_global:
+                brands = Brand.objects.filter(id__in=brand_ids, is_active=True)
+                admin.brands.set(brands)
+            else:
+                # Global admin doesn't need specific brand assignments
+                admin.brands.clear()
+            
+            serializer = self.get_serializer(admin)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response(
+                {'error': str(e)}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    def perform_destroy(self, instance):
+        """
+        Override to delete the associated User when an Admin is deleted.
+        This allows the email and username to be reused for new admin accounts.
+        
+        Note: The User is only deleted if it's not associated with a Customer.
+        If the User has a Customer profile, we keep the User but remove the Admin association.
+        """
+        user = instance.user
+        admin_code = instance.admin_code
+        
+        logger.info(f"Deleting admin {admin_code} and associated user {user.username if user else 'None'}")
+        
+        # Delete the Admin instance first
+        instance.delete()
+        
+        # Delete the associated User if it exists and has no Customer profile
+        # This allows the email and username to be reused for new admin accounts
+        if user:
+            try:
+                # Check if user has a Customer profile
+                has_customer = hasattr(user, 'customer') and user.customer is not None
+                
+                if has_customer:
+                    logger.warning(
+                        f"User {user.username} has a Customer profile. "
+                        f"Keeping User but Admin association removed. "
+                        f"Email/username will not be available for reuse."
+                    )
+                else:
+                    # Safe to delete the User - no Customer profile exists
+                    user.delete()
+                    logger.info(f"Successfully deleted user {user.username} associated with admin {admin_code}")
+            except Exception as e:
+                logger.error(f"Error deleting user {user.username}: {str(e)}")
+                # Don't raise exception - admin is already deleted
+                # Just log the error
+
+
+class OrderViewSet(viewsets.ModelViewSet):
+    """
+    Handles Order creation and management.
+    - Admins can view/manage all orders.
+    - Customers can only view/manage their own orders.
+    - Guest users can create orders (no login required).
+    """
+    serializer_class = OrderSerializer
+    
+    def get_permissions(self):
+        """
+        Allow unauthenticated access for:
+        - create (order creation)
+        - initiate_payment (payment initiation for guest checkout)
+        - payment_status (checking payment status for guest checkout)
+        Require authentication for all other actions.
+        """
+        if self.action in ['create', 'initiate_payment', 'payment_status']:
+            return [permissions.AllowAny()]
+        return [permissions.IsAuthenticated()]
+
+    def get_queryset(self):
+        """
+        Filters the queryset:
+        - Salespersons: See all their orders (PENDING and PAID) from their assigned brands
+        - Order Managers: See only orders where payment is confirmed (PAID, DELIVERED, CANCELED)
+        - Superusers/Global Admins: See all orders
+        - Customers: See only their own orders
+        Includes extensive prefetching for N+1 query optimization.
+        """
+        # Base query for all users
+        queryset = Order.objects.all().order_by('-created_at').select_related('customer__user', 'brand')
+        
+        # Prefetch related data to optimize nested serializer lookups:
+        queryset = queryset.prefetch_related(
+            # Prefetch all order items for the order
+            'order_items',
+            # Prefetch the InventoryUnit linked to each OrderItem
+            'order_items__inventory_unit',
+            # Prefetch the Product Template linked to the Inventory Unit
+            'order_items__inventory_unit__product_template',
+            # Prefetch the Color linked to the Inventory Unit
+            'order_items__inventory_unit__product_color',
+            # Prefetch source_lead for online orders (to get delivery address and phone)
+            'source_lead'
+        )
+
+        if self.request.user.is_staff:
+            user = self.request.user
+            
+            # Superuser sees all orders
+            if user.is_superuser:
+                return queryset
+            
+            try:
+                admin = Admin.objects.get(user=user)
+                
+                if admin.is_global_admin:
+                    # Global admins see all orders
+                    return queryset
+                
+                # Salespersons see all their orders (PENDING and PAID) from their assigned brands
+                if admin.is_salesperson:
+                    if admin.brands.exists():
+                        # Filter by orders from salesperson's assigned brands
+                        queryset = queryset.filter(brand__in=admin.brands.all())
+                    else:
+                        # Salesperson with no brands sees only WALK_IN orders (they created)
+                        queryset = queryset.filter(order_source=Order.OrderSourceChoices.WALK_IN)
+                    return queryset
+                
+                # Order Managers only see ONLINE orders where payment is confirmed
+                # Walk-in orders are handled by salespersons
+                if admin.is_order_manager:
+                    queryset = queryset.filter(
+                        order_source=Order.OrderSourceChoices.ONLINE,  # Only ONLINE orders
+                        status__in=[
+                            Order.StatusChoices.PAID,
+                            Order.StatusChoices.DELIVERED,
+                            Order.StatusChoices.CANCELED
+                        ]
+                    )
+                    # Filter by assigned brands if not global
+                    if admin.brands.exists():
+                        queryset = queryset.filter(brand__in=admin.brands.all())
+                    return queryset
+                
+                # Other admins filter by brand
+                if admin.brands.exists():
+                    queryset = queryset.filter(brand__in=admin.brands.all())
+                else:
+                    return Order.objects.none()
+            except Admin.DoesNotExist:
+                # Staff user without admin profile sees nothing
+                return Order.objects.none()
+        
+        # Non-staff users (Customers) filter by their own Customer profile
+        if not self.request.user.is_authenticated:
+            # Unauthenticated users can only access orders by order_id (via detail view)
+            # They cannot list orders
+            if self.action == 'list':
+                return Order.objects.none()
+            # For detail/retrieve, allow access (will be filtered by order_id lookup)
+            return queryset
+        
+        try:
+            customer = Customer.objects.get(user=self.request.user)
+            return queryset.filter(customer=customer)
+        except Customer.DoesNotExist:
+            # If an authenticated user somehow lacks a Customer profile, show nothing
+            return Order.objects.none()
+
+    @transaction.atomic
+    def perform_create(self, serializer):
+        """
+        Creates order for authenticated or guest customers.
+        For guest customers, creates/gets customer from form data.
+        The OrderSerializer's .create() method handles the full, atomic inventory update logic.
+        """
+        from inventory.services.customer_service import CustomerService
+        
+        # Get customer data from request
+        customer_name = self.request.data.get('customer_name')
+        customer_phone = self.request.data.get('customer_phone')
+        customer_email = self.request.data.get('customer_email')
+        delivery_address = self.request.data.get('delivery_address')
+        
+        if self.request.user.is_authenticated:
+            # Authenticated user - use existing customer
+            try:
+                customer = Customer.objects.get(user=self.request.user)
+                user = self.request.user
+            except Customer.DoesNotExist:
+                raise exceptions.PermissionDenied("Cannot place order without a Customer profile.")
+        else:
+            # Guest customer - create/get customer from form data
+            if not customer_name or not customer_phone:
+                raise exceptions.ValidationError({
+                    'customer_name': 'This field is required for guest orders.',
+                    'customer_phone': 'This field is required for guest orders.'
+                })
+            
+            customer, _ = CustomerService.get_or_create_customer(
+                name=customer_name,
+                phone=customer_phone,
+                email=customer_email,
+                delivery_address=delivery_address
+            )
+            user = None  # No user account for guest customers
+        
+        # Set order_source to ONLINE for guest orders (or if not specified)
+        # Also add it to validated_data so serializer can access it
+        order_source = self.request.data.get('order_source', Order.OrderSourceChoices.ONLINE)
+        if 'order_source' not in serializer.validated_data:
+            serializer.validated_data['order_source'] = order_source
+        
+        # Save the order, passing the customer, user, and order_source to the serializer's create() method
+        # The serializer handles the rest (OrderItem creation, inventory deduction, total calculation).
+        serializer.save(customer=customer, user=user, order_source=order_source)
+    
+    def update(self, request, *args, **kwargs):
+        """
+        Override update to allow partial updates (status-only updates).
+        This allows updating just the status without requiring all fields.
+        """
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)  # Always use partial=True
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        
+        # Refresh from DB to get latest state
+        instance.refresh_from_db()
+        if getattr(instance, '_prefetched_objects_cache', None):
+            instance._prefetched_objects_cache = {}
+        
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+    
+    def perform_update(self, serializer):
+        """
+        Handle order status updates. When order is canceled, restore inventory units.
+        - Website orders (ONLINE) → AVAILABLE
+        - Inventory system orders (WALK_IN) → RESERVED (salespersons can create return requests)
+        """
+        instance = serializer.instance
+        old_status = instance.status
+        
+        # Get the new status from validated data
+        new_status = serializer.validated_data.get('status', old_status)
+        
+        # If order is being canceled, restore inventory units
+        if new_status == Order.StatusChoices.CANCELED and old_status != Order.StatusChoices.CANCELED:
+            with transaction.atomic():
+                # Restore all inventory units in this order
+                for order_item in instance.order_items.all():
+                    if order_item.inventory_unit:
+                        unit = order_item.inventory_unit
+                        # Only restore if unit is SOLD or PENDING_PAYMENT
+                        if unit.sale_status in [
+                            InventoryUnit.SaleStatusChoices.SOLD,
+                            InventoryUnit.SaleStatusChoices.PENDING_PAYMENT
+                        ]:
+                            # Website orders → AVAILABLE
+                            if instance.order_source == Order.OrderSourceChoices.ONLINE:
+                                unit.sale_status = InventoryUnit.SaleStatusChoices.AVAILABLE
+                            # Inventory system orders → RESERVED
+                            elif instance.order_source == Order.OrderSourceChoices.WALK_IN:
+                                unit.sale_status = InventoryUnit.SaleStatusChoices.RESERVED
+                            
+                            # Clear any reservation timestamps
+                            unit.reserved_by = None
+                            unit.reserved_until = None
+                            unit.save(update_fields=['sale_status', 'reserved_by', 'reserved_until'])
+        
+        # Save the order with updated status
+        # The serializer.update() method already set instance.status, so save() will persist it
+        serializer.save()
+        
+        # Explicitly ensure status is saved (in case serializer.save() didn't pick it up)
+        if 'status' in serializer.validated_data:
+            instance.status = serializer.validated_data['status']
+            instance.save(update_fields=['status'])
+    
+    @action(detail=True, methods=['post'])
+    def confirm_payment(self, request, pk=None):
+        """Confirm payment for an order - transitions units from PENDING_PAYMENT to SOLD and status to PAID."""
+        order = self.get_object()
+        
+        # Check permissions (salespersons can confirm their own orders, Order Managers can confirm any)
+        if not request.user.is_staff:
+            raise exceptions.PermissionDenied("Only staff can confirm payment.")
+        
+        # Check if order is already paid
+        if order.status == Order.StatusChoices.PAID:
+            return Response({
+                'message': 'Payment already confirmed for this order.',
+                'order_id': str(order.order_id),
+                'order_status': order.get_status_display()
+            })
+        
+        # Salespersons can only confirm orders from their assigned brands
+        try:
+            admin = Admin.objects.get(user=request.user)
+            if admin.is_salesperson and not admin.is_global_admin:
+                # Check if order is from salesperson's brand
+                if order.brand and order.brand not in admin.brands.all():
+                    raise exceptions.PermissionDenied("You can only confirm payment for orders from your assigned brands.")
+        except Admin.DoesNotExist:
+            pass
+        
+        with transaction.atomic():
+            # Get all order items
+            order_items = order.order_items.all()
+            
+            if not order_items.exists():
+                return Response({'error': 'Order has no items'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Transition all units from PENDING_PAYMENT to SOLD
+            units_updated = []
+            for order_item in order_items:
+                unit = order_item.inventory_unit
+                if unit and unit.sale_status == InventoryUnit.SaleStatusChoices.PENDING_PAYMENT:
+                    unit.sale_status = InventoryUnit.SaleStatusChoices.SOLD
+                    unit.save(update_fields=['sale_status'])
+                    units_updated.append(unit.id)
+            
+            if not units_updated:
+                return Response({
+                    'message': 'No units with PENDING_PAYMENT status found. Payment may already be confirmed.',
+                    'units_updated': 0
+                })
+            
+            # Update order status to PAID (now visible to Order Manager)
+            order.status = Order.StatusChoices.PAID
+            order.save(update_fields=['status'])
+            
+            # Clear the associated cart if it exists (cart is linked to lead, which is linked to order)
+            # This ensures the customer's cart is cleared once payment is confirmed
+            cart_cleared = False
+            try:
+                if hasattr(order, 'source_lead') and order.source_lead:
+                    lead = order.source_lead
+                    if hasattr(lead, 'cart') and lead.cart:
+                        cart = lead.cart
+                        cart.delete()
+                        cart_cleared = True
+                        print(f"Cart {cart.id} deleted after payment confirmed for order {order.order_id}")
+            except Exception as e:
+                # Log but don't fail payment confirmation if cart deletion fails
+                print(f"Warning: Could not delete cart after payment confirmation: {e}")
+            
+            message = f'Payment confirmed. {len(units_updated)} unit(s) marked as SOLD. Order is now visible to Order Managers.'
+            if cart_cleared:
+                message += ' Cart has been cleared.'
+            
+            return Response({
+                'message': message,
+                'units_updated': units_updated,
+                'order_id': str(order.order_id),
+                'order_status': order.get_status_display(),
+                'cart_cleared': cart_cleared
+            })
+    
+    @action(detail=True, methods=['get'], url_path='receipt')
+    def get_receipt(self, request, pk=None):
+        """Generate and return receipt HTML/PDF."""
+        import os
+        order = self.get_object()
+        
+        # Check permissions - customer can only view their own receipts
+        if not request.user.is_staff:
+            if order.customer.user != request.user:
+                return Response(
+                    {'error': 'You do not have permission to view this receipt.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        
+        from inventory.services.receipt_service import ReceiptService
+        from inventory.models import Receipt
+        
+        format_type = request.query_params.get('format', 'html')  # html or pdf
+        
+        try:
+            if format_type == 'pdf':
+                # Generate or get existing receipt
+                receipt, _ = Receipt.objects.get_or_create(order=order)
+                if not receipt.pdf_file or (receipt.pdf_file and not os.path.exists(receipt.pdf_file.path)):
+                    pdf_bytes = ReceiptService.generate_receipt_pdf(order)
+                    pdf_filename = f"receipt_{order.order_id}_{receipt.receipt_number}.pdf"
+                    pdf_path = os.path.join('receipts', timezone.now().strftime('%Y/%m'), pdf_filename)
+                    receipt.pdf_file.save(pdf_path, ContentFile(pdf_bytes), save=True)
+                
+                response = FileResponse(
+                    open(receipt.pdf_file.path, 'rb'),
+                    content_type='application/pdf'
+                )
+                response['Content-Disposition'] = f'attachment; filename="receipt_{receipt.receipt_number}.pdf"'
+                return response
+            else:
+                html_content = ReceiptService.generate_receipt_html(order)
+                return HttpResponse(html_content, content_type='text/html')
+                
+        except Exception as e:
+            logger.error(f"Error generating receipt for order {order.order_id}: {e}")
+            return Response(
+                {'error': 'Failed to generate receipt'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=True, methods=['post'], permission_classes=[permissions.AllowAny], authentication_classes=[])
+    def initiate_payment(self, request, pk=None):
+        """Initiate Pesapal payment for an order."""
+        print(f"\n[PESAPAL] ========== VIEW: INITIATE PAYMENT START ==========")
+        print(f"[PESAPAL] Order PK: {pk}")
+        print(f"[PESAPAL] Request Method: {request.method}")
+        import json
+        print(f"[PESAPAL] Request Data: {json.dumps(request.data, indent=2, default=str)}")
+        print(f"[PESAPAL] User Authenticated: {request.user.is_authenticated}")
+        
+        try:
+            from inventory.services.pesapal_payment_service import PesapalPaymentService
+            
+            print(f"[PESAPAL] Getting order object...")
+            order = self.get_object()
+            print(f"[PESAPAL] Order retrieved - ID: {order.order_id}, Status: {order.status}, Amount: {order.total_amount}")
+            
+            service = PesapalPaymentService()
+            
+            if order.status != Order.StatusChoices.PENDING:
+                print(f"[PESAPAL] ========== VIEW: INITIATE PAYMENT FAILED ==========")
+                print(f"[PESAPAL] ERROR: Order is already {order.status}")
+                print(f"[PESAPAL] ==================================================\n")
+                return Response(
+                    {'error': f'Order is already {order.status}. Cannot initiate payment.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            if order.total_amount <= 0:
+                print(f"[PESAPAL] ========== VIEW: INITIATE PAYMENT FAILED ==========")
+                print(f"[PESAPAL] ERROR: Order total amount must be greater than 0")
+                print(f"[PESAPAL] ==================================================\n")
+                return Response(
+                    {'error': 'Order total amount must be greater than 0'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            callback_url = request.data.get('callback_url')
+            if not callback_url:
+                callback_url = getattr(settings, 'PESAPAL_CALLBACK_URL', '')
+                if not callback_url:
+                    print(f"[PESAPAL] ========== VIEW: INITIATE PAYMENT FAILED ==========")
+                    print(f"[PESAPAL] ERROR: callback_url is required")
+                    print(f"[PESAPAL] ==================================================\n")
+                    return Response(
+                        {'error': 'callback_url is required'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            
+            cancellation_url = request.data.get('cancellation_url', callback_url)
+            customer = request.data.get('customer', None)
+            billing_address = request.data.get('billing_address', None)
+            
+            print(f"[PESAPAL] Calling service.initiate_payment...")
+            result = service.initiate_payment(
+                order=order,
+                callback_url=callback_url,
+                cancellation_url=cancellation_url,
+                customer=customer,
+                billing_address=billing_address
+            )
+            
+            print(f"[PESAPAL] Service result: {json.dumps(result, indent=2, default=str)}")
+            
+            if not result.get('success'):
+                print(f"[PESAPAL] ========== VIEW: INITIATE PAYMENT FAILED ==========")
+                print(f"[PESAPAL] Service returned failure")
+                print(f"[PESAPAL] ==================================================\n")
+                return Response(result, status=status.HTTP_400_BAD_REQUEST)
+            
+            print(f"[PESAPAL] ========== VIEW: INITIATE PAYMENT SUCCESS ==========")
+            print(f"[PESAPAL] Returning success response to client")
+            print(f"[PESAPAL] ===================================================\n")
+            return Response(result, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            import traceback
+            error_msg = f"Error initiating payment for order {pk}: {str(e)}"
+            print(f"[PESAPAL] ========== VIEW: INITIATE PAYMENT EXCEPTION ==========")
+            print(f"[PESAPAL] ERROR: {error_msg}")
+            print(f"[PESAPAL] Traceback:\n{traceback.format_exc()}")
+            print(f"[PESAPAL] =====================================================\n")
+            logger.error(f"{error_msg}\n{traceback.format_exc()}")
+            return Response(
+                {
+                    'error': 'Failed to initiate payment',
+                    'detail': str(e) if settings.DEBUG else 'An error occurred while initiating payment. Please try again or contact support.'
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=True, methods=['get'], permission_classes=[permissions.AllowAny], authentication_classes=[])
+    def payment_status(self, request, pk=None):
+        """Get payment status for an order."""
+        print(f"\n[PESAPAL] ========== VIEW: PAYMENT STATUS START ==========")
+        print(f"[PESAPAL] Order PK: {pk}")
+        print(f"[PESAPAL] Request Method: {request.method}")
+        
+        try:
+            from inventory.services.pesapal_payment_service import PesapalPaymentService
+            import json
+            
+            order = self.get_object()
+            print(f"[PESAPAL] Order retrieved - ID: {order.order_id}")
+            
+            service = PesapalPaymentService()
+            
+            print(f"[PESAPAL] Calling service.get_payment_status...")
+            result = service.get_payment_status(order)
+            
+            print(f"[PESAPAL] Service result: {json.dumps(result, indent=2, default=str)}")
+            print(f"[PESAPAL] ========== VIEW: PAYMENT STATUS SUCCESS ==========\n")
+            return Response(result, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            print(f"[PESAPAL] ========== VIEW: PAYMENT STATUS EXCEPTION ==========")
+            print(f"[PESAPAL] ERROR: {str(e)}")
+            import traceback
+            print(f"[PESAPAL] Traceback:\n{traceback.format_exc()}")
+            print(f"[PESAPAL] ===================================================\n")
+            logger.error(f"Error getting payment status: {str(e)}", exc_info=True)
+            return Response(
+                {'error': 'Failed to get payment status'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class OrderItemViewSet(viewsets.ModelViewSet):
+    """
+    CRUD for Order Items. Strictly Admin-only access.
+    Generally used only for reporting and admin-level viewing of existing orders.
+    Uses IsAdminUser.
+    """
+    queryset = OrderItem.objects.all().select_related('order', 'inventory_unit')
+    serializer_class = OrderItemSerializer
+    permission_classes = [IsAdminUser]
+
+# --- LOOKUP TABLES VIEWSETS ---
+
+class ColorViewSet(viewsets.ModelViewSet):
+    """
+    Color lookup table. Admin-only write, public read.
+    Uses IsAdminOrReadOnly.
+    """
+    queryset = Color.objects.all()
+    serializer_class = ColorSerializer
+    permission_classes = [IsAdminOrReadOnly]
+
+class UnitAcquisitionSourceViewSet(viewsets.ModelViewSet):
+    """
+    Acquisition Source lookup table. Admin-only write, public read.
+    Uses IsAdminOrReadOnly.
+    """
+    queryset = UnitAcquisitionSource.objects.all()
+    serializer_class = UnitAcquisitionSourceSerializer
+    permission_classes = [IsAdminOrReadOnly]
+
+class ProductAccessoryViewSet(viewsets.ModelViewSet):
+    """
+    Link model between products and accessories. Admin-only write, public read.
+    Uses IsAdminOrReadOnly.
+    Allows all product types to have accessories (including accessories having accessories).
+    """
+    queryset = ProductAccessory.objects.all().select_related('main_product', 'accessory')
+    serializer_class = ProductAccessorySerializer
+    permission_classes = [IsAdminOrReadOnly]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['main_product', 'accessory']
+    
+    def get_serializer_context(self):
+        """Add request to serializer context for absolute URL building."""
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+
+# --- CUSTOM APIVIEW ENDPOINTS ---
+
+# Use APIView or GenericAPIView for simple, non-model specific operations
+class CustomerRegistrationView(generics.CreateAPIView):
+    """
+    Handles POST requests to /register/ to create a new User and Customer instance.
+    - Uses CustomerRegistrationSerializer for validation and atomic creation.
+    - Does not require authentication (AllowAny).
+    - Returns the created user data and the authentication token.
+    """
+    serializer_class = CustomerRegistrationSerializer
+    permission_classes = (permissions.AllowAny,)
+
+    # The CreateAPIView handles the POST request logic automatically:
+    # 1. Takes data from the request.
+    # 2. Passes it to serializer (CustomerRegistrationSerializer).
+    # 3. Calls serializer.is_valid(raise_exception=True).
+    # 4. Calls serializer.save() which executes your custom .create() method.
+    # 5. Returns 201 Created with the data from .to_representation().
+    pass
+    
+# NOTE: Include your other views here (e.g., ProductListView, OrderCreateView, etc.)
+
+class CustomerLoginView(generics.GenericAPIView):
+    """
+    POST: Authenticates a user (customer) and returns their authentication token 
+    and basic user details (email, user_id).
+    - Uses CustomerLoginSerializer for credential validation and token retrieval.
+    """
+    serializer_class = CustomerLoginSerializer
+    permission_classes = (permissions.AllowAny,)
+
+    def post(self, request, *args, **kwargs):
+        # 1. Pass data to the serializer for validation (where the authentication happens)
+        serializer = self.get_serializer(data=request.data)
+        
+        # This calls serializer.validate(), which attempts authentication and raises 
+        # an exception if authentication fails.
+        serializer.is_valid(raise_exception=True)
+        
+        # 2. If valid, return the data populated by the serializer's validate method 
+        # (token, user_id, email).
+        return Response(serializer.validated_data, status=status.HTTP_200_OK)
+    
+class CustomerLogoutView(generics.GenericAPIView):
+    """
+    POST: Logs out the user by deleting their authentication token.
+    Requires authentication (IsAuthenticated) via the provided token header.
+    """
+    # Restrict the view to only allow POST requests. This prevents the GET request 
+    # (which triggers the browsable API) from demanding a serializer.
+    http_method_names = ['post']
+    
+    # Only authenticated users can perform this action
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        try:
+            # TokenAuthentication attaches the Token instance to request.auth.
+            if request.auth:
+                request.auth.delete() # Deletes the token from the database
+                return Response({"detail": "Successfully logged out. Token deleted."}, status=status.HTTP_200_OK)
+            else:
+                # Should not be reached if IsAuthenticated is working, but safe check.
+                return Response({"detail": "Logout attempted without an active token."}, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            # Handle unexpected errors during deletion
+            return Response({"detail": "An error occurred during logout."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+class CustomerProfileView(generics.RetrieveUpdateAPIView):
+    """
+    GET: Retrieve the authenticated user's Customer profile.
+    PUT/PATCH: Update the authenticated user's Customer profile.
+    Uses IsCustomerOwnerOrAdmin.
+    """
+    # Swapping to the correct serializer for profile updates
+    serializer_class = CustomerProfileUpdateSerializer 
+    permission_classes = [IsCustomerOwnerOrAdmin]
+
+    def get_object(self):
+        """Returns the Customer object linked to the authenticated user."""
+        try:
+            # Ensure the user is authenticated before attempting to fetch the profile
+            if not self.request.user.is_authenticated:
+                 raise exceptions.AuthenticationFailed("Authentication credentials were not provided.")
+                 
+            return Customer.objects.get(user=self.request.user)
+        except Customer.DoesNotExist:
+            raise exceptions.NotFound("Customer profile not found for the authenticated user.")
+
+class AdminProfileView(generics.RetrieveAPIView):
+    """
+    GET: Retrieve the authenticated user's Admin profile. Admin-only access.
+    Creates Admin profile if it doesn't exist (for staff users without Admin profile).
+    """
+    serializer_class = AdminSerializer 
+    permission_classes = [IsAdminUser]
+
+    def get_object(self):
+        """Returns the Admin object linked to the authenticated staff user."""
+        try:
+            return Admin.objects.get(user=self.request.user)
+        except Admin.DoesNotExist:
+            # Auto-create Admin profile for staff users
+            if self.request.user.is_staff:
+                admin_code = f"ADM-{self.request.user.username.upper()[:10]}"
+                admin = Admin.objects.create(user=self.request.user, admin_code=admin_code)
+                return admin
+            else:
+                raise exceptions.NotFound("Admin profile not found for the authenticated admin user.")
+
+
+
+
+class DiscountCalculatorView(generics.GenericAPIView):
+    """
+    Utility endpoint to calculate a final price based on various discounts and rules.
+    This is a complex business logic endpoint, requiring POST data.
+    """
+    serializer_class = DiscountCalculatorSerializer
+    permission_classes = [permissions.AllowAny] # Usually accessible by anyone browsing
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        # 1. Get validated input data
+        original_price = serializer.validated_data['original_price']
+        
+        # The DiscountCalculatorSerializer from our previous step only calculated percentage,
+        # but the request likely sent 'base_price', 'discount_code', and 'customer_status'.
+        # Assuming the POST request provides the fields needed for the logic below:
+        base_price = original_price 
+        discount_code = request.data.get('discount_code', '')
+        customer_status = request.data.get('customer_status', '')
+
+        final_price = base_price
+
+        # --- Example Discount Logic (Placeholder) ---
+        if discount_code.upper() == 'SUMMER20':
+            final_price *= Decimal('0.80') # 20% off
+        
+        if customer_status.upper() == 'VIP':
+            final_price *= Decimal('0.95') # Additional 5% off
+
+        return Response({
+            'original_price': base_price,
+            'final_price': round(final_price, 2),
+            'currency': 'KES',
+            'details': f"Applied discount code '{discount_code or 'None'}' and status '{customer_status or 'None'}'."
+        })
+
+
+# -------------------------------------------------------------------------
+# REQUEST MANAGEMENT VIEWSETS
+# -------------------------------------------------------------------------
+# -------------------------------------------------------------------------
+# REQUEST MANAGEMENT VIEWSETS
+# -------------------------------------------------------------------------
+
+class ReservationRequestViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing reservation requests.
+    - Salespersons can create requests and view their own
+    - Inventory Managers can approve/reject and view all pending requests
+    """
+    serializer_class = ReservationRequestSerializer
+    permission_classes = [IsAdminUser]
+    
+    def get_queryset(self):
+        """Filter queryset based on user role."""
+        user = self.request.user
+        if not user.is_authenticated:
+            return ReservationRequest.objects.none()
+        
+        # Superuser sees all
+        if user.is_superuser:
+            return ReservationRequest.objects.all().select_related(
+                'requesting_salesperson__user', 'inventory_unit__product_template', 'approved_by__user'
+            ).prefetch_related('inventory_units__product_template')
+        
+        try:
+            admin = Admin.objects.get(user=user)
+        except Admin.DoesNotExist:
+            return ReservationRequest.objects.none()
+        
+        # Inventory Manager sees all requests (pending, approved, rejected, expired)
+        # This allows them to see the status changes after approval and manage all requests
+        if admin.is_inventory_manager:
+            return ReservationRequest.objects.all().select_related(
+                'requesting_salesperson__user', 'inventory_unit__product_template', 'approved_by__user'
+            ).prefetch_related('inventory_units__product_template')
+        
+        # Salesperson sees only their own requests
+        if admin.is_salesperson:
+            return ReservationRequest.objects.filter(
+                requesting_salesperson=admin
+            ).select_related('requesting_salesperson__user', 'inventory_unit__product_template', 'approved_by__user').prefetch_related('inventory_units__product_template')
+        
+        return ReservationRequest.objects.none()
+    
+    def get_permissions(self):
+        """Apply role-based permissions."""
+        if self.action == 'create':
+            return [CanReserveUnits()]
+        elif self.action in ['update', 'partial_update']:
+            # Allow salespersons to edit their own PENDING requests
+            # Allow inventory managers to approve/reject
+            # Get object directly from DB to avoid recursion (don't use get_object() which triggers permission checks)
+            request_obj = None
+            pk = self.kwargs.get('pk')
+            if pk:
+                try:
+                    request_obj = ReservationRequest.objects.get(pk=pk)
+                except ReservationRequest.DoesNotExist:
+                    pass
+            
+            if request_obj and request_obj.status == ReservationRequest.StatusChoices.PENDING:
+                try:
+                    admin = Admin.objects.get(user=self.request.user)
+                    # Salesperson can edit their own pending requests
+                    if admin.is_salesperson and request_obj.requesting_salesperson == admin:
+                        return [IsAdminUser()]  # Allow edit
+                except Admin.DoesNotExist:
+                    pass
+            # For approval/rejection, require CanApproveRequests
+            return [CanApproveRequests()]
+        return [IsAdminUser()]
+    
+    def update(self, request, *args, **kwargs):
+        """Override update to ensure we return the refreshed object after approval/rejection."""
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        
+        # Call perform_update which handles the actual approval/rejection logic
+        # Pass the instance to ensure we're working with the same object
+        self.perform_update(serializer, instance=instance)
+        
+        # Refresh the instance from database to ensure we have the latest state
+        instance.refresh_from_db()
+        
+        # Return the updated object
+        if getattr(instance, '_prefetched_objects_cache', None):
+            # If 'prefetch_related' has been applied to a queryset, we need to
+            # forcibly invalidate the prefetch cache on the instance.
+            instance._prefetched_objects_cache = {}
+        
+        # Re-serialize the refreshed instance
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+    
+    def perform_update(self, serializer, instance=None):
+        """Handle approval/rejection of reservation requests or editing PENDING requests."""
+        try:
+            # Use the passed instance if provided, otherwise get it
+            request_obj = instance if instance is not None else self.get_object()
+            new_status = serializer.validated_data.get('status')
+            logger.info(
+                "ReservationRequestViewSet.perform_update called",
+                extra={
+                    "request_id": request_obj.id,
+                    "current_status": request_obj.status,
+                    "incoming_validated_data": serializer.validated_data,
+                    "new_status": new_status,
+                    "request_user": getattr(self.request.user, "username", None),
+                },
+            )
+            
+            # If status is not being changed and request is PENDING, allow editing units/notes
+            if not new_status or new_status == request_obj.status:
+                if request_obj.status == ReservationRequest.StatusChoices.PENDING:
+                    # This is an edit operation (units or notes)
+                    try:
+                        serializer.save()
+                        logger.info(f"Successfully saved edit to reservation request {request_obj.id}")
+                        return
+                    except Exception as e:
+                        import traceback
+                        logger.error(f"Error saving edit to reservation request {request_obj.id}: {str(e)}\n{traceback.format_exc()}")
+                        raise
+            
+            # Status change operation (approval/rejection)
+            if new_status == ReservationRequest.StatusChoices.APPROVED:
+                # Get approving admin
+                try:
+                    approving_admin = Admin.objects.get(user=self.request.user)
+                    if not approving_admin.is_inventory_manager:
+                        logger.warning(f"User {self.request.user.username} attempted to approve but is not an inventory manager")
+                        raise exceptions.PermissionDenied("Only Inventory Managers can approve reservation requests.")
+                except Admin.DoesNotExist:
+                    logger.error(f"Admin profile not found for user {self.request.user.username}")
+                    raise exceptions.PermissionDenied("Admin profile required.")
+                
+                approved_at = timezone.now()
+                expires_at = approved_at + timedelta(days=2)
+
+                # Expire any other active approvals for units in this request (regardless of salesperson)
+                units_to_reserve = request_obj.inventory_units.all()
+                if not units_to_reserve.exists() and request_obj.inventory_unit:
+                    units_to_reserve = [request_obj.inventory_unit]
+                
+                unit_ids = [unit.id for unit in units_to_reserve]
+                
+                # Find other approved requests that include any of these units
+                other_active_approvals = ReservationRequest.objects.filter(
+                    inventory_units__id__in=unit_ids,
+                    status=ReservationRequest.StatusChoices.APPROVED,
+                ).exclude(pk=request_obj.pk).distinct()
+                
+                # Also check old single unit field
+                if request_obj.inventory_unit:
+                    other_active_approvals_old = ReservationRequest.objects.filter(
+                        inventory_unit=request_obj.inventory_unit,
+                        status=ReservationRequest.StatusChoices.APPROVED,
+                    ).exclude(pk=request_obj.pk).distinct()
+                    # Combine both querysets - both must have distinct() before combining
+                    other_active_approvals = (other_active_approvals | other_active_approvals_old).distinct()
+
+                if other_active_approvals.exists():
+                    logger.info(
+                        "Expiring other approved reservations for unit before approval",
+                        extra={
+                            "current_request_id": request_obj.id,
+                            "unit_id": request_obj.inventory_unit_id,
+                            "other_request_ids": list(other_active_approvals.values_list("id", flat=True)),
+                        },
+                    )
+                    other_active_approvals.update(
+                        status=ReservationRequest.StatusChoices.EXPIRED,
+                        expires_at=timezone.now(),
+                    )
+
+                    # Release unit associations from previously approved requests
+                    for expired_req in other_active_approvals:
+                        # Handle new ManyToMany field
+                        expired_units = expired_req.inventory_units.all()
+                        if not expired_units.exists() and expired_req.inventory_unit:
+                            expired_units = [expired_req.inventory_unit]
+                        
+                        for unit in expired_units:
+                            if unit.reserved_by == expired_req.requesting_salesperson:
+                                unit.reserved_by = None
+                                unit.reserved_until = None
+                                unit.sale_status = InventoryUnit.SaleStatusChoices.AVAILABLE
+                                unit.save(update_fields=["reserved_by", "reserved_until", "sale_status"])
+                
+                # Save the approval - explicitly set all fields on the instance
+                # This ensures the status is actually saved to the database
+                request_obj.approved_by = approving_admin
+                request_obj.approved_at = approved_at
+                request_obj.expires_at = expires_at
+                request_obj.status = new_status
+                
+                # Save the instance directly to ensure status is persisted
+                request_obj.save(update_fields=['approved_by', 'approved_at', 'expires_at', 'status'])
+                
+                # Also update the serializer's instance to keep it in sync
+                serializer.instance = request_obj
+                
+                # Log the saved status to verify it was saved correctly
+                logger.info(
+                    f"Reservation request {request_obj.id} approved. Status after save: {request_obj.status}, "
+                    f"Approved by: {approving_admin.user.username}, Approved at: {request_obj.approved_at}"
+                )
+                
+                # Refresh the object from database to ensure we have the latest state
+                request_obj.refresh_from_db()
+                
+                # Double-check the status was saved
+                if request_obj.status != ReservationRequest.StatusChoices.APPROVED:
+                    logger.error(
+                        f"CRITICAL: Reservation request {request_obj.id} status is {request_obj.status} "
+                        f"after save, expected {ReservationRequest.StatusChoices.APPROVED}"
+                    )
+                
+                # Update all inventory units in the request
+                units = request_obj.inventory_units.all()
+                if not units.exists() and request_obj.inventory_unit:
+                    # Fallback to old single unit during migration
+                    units = [request_obj.inventory_unit]
+                
+                unit_names = []
+                for unit in units:
+                    unit.sale_status = InventoryUnit.SaleStatusChoices.RESERVED
+                    unit.reserved_by = request_obj.requesting_salesperson
+                    unit.reserved_until = timezone.now() + timedelta(days=2)
+                    unit.save()
+                    unit_names.append(unit.product_template.product_name)
+                
+                # Create notification message
+                if len(unit_names) == 1:
+                    message = f"Your reservation request for {unit_names[0]} has been approved."
+                else:
+                    message = f"Your reservation request for {len(unit_names)} units has been approved."
+                
+                # Create notifications - wrap in try-except to prevent notification errors from breaking approval
+                try:
+                    Notification.objects.create(
+                        recipient=request_obj.requesting_salesperson.user,
+                        notification_type=Notification.NotificationType.RESERVATION_APPROVED,
+                        title="Reservation Approved",
+                        message=message,
+                        content_type=ContentType.objects.get_for_model(ReservationRequest),
+                        object_id=request_obj.id
+                    )
+                    logger.info(f"Created approval notification for salesperson {request_obj.requesting_salesperson.user.username} for request {request_obj.id}")
+                except Exception as e:
+                    logger.error(f"Failed to create approval notification for salesperson {request_obj.requesting_salesperson.user.username} for request {request_obj.id}: {str(e)}")
+                    # Don't raise - notification failure shouldn't break approval
+                
+                # Notify inventory managers and superusers
+                approval_message = f"Reservation for {len(unit_names)} unit(s) has been approved." if len(unit_names) > 1 else f"Reservation for {unit_names[0]} has been approved."
+                
+                try:
+                    managers = Admin.objects.filter(roles__name=AdminRole.RoleChoices.INVENTORY_MANAGER).select_related('user')
+                    for manager in managers:
+                        try:
+                            Notification.objects.create(
+                                recipient=manager.user,
+                                notification_type=Notification.NotificationType.REQUEST_PENDING_APPROVAL,
+                                title="New Reservation Approved",
+                                message=approval_message,
+                                content_type=ContentType.objects.get_for_model(ReservationRequest),
+                                object_id=request_obj.id
+                            )
+                        except Exception as e:
+                            logger.error(f"Failed to create notification for manager {manager.user.username}: {str(e)}")
+                    
+                    superusers = User.objects.filter(is_superuser=True)
+                    for superuser in superusers:
+                        try:
+                            Notification.objects.create(
+                                recipient=superuser,
+                                notification_type=Notification.NotificationType.RESERVATION_APPROVED,
+                                title="Reservation Approved",
+                                message=approval_message,
+                                content_type=ContentType.objects.get_for_model(ReservationRequest),
+                                object_id=request_obj.id
+                            )
+                        except Exception as e:
+                            logger.error(f"Failed to create notification for superuser {superuser.username}: {str(e)}")
+                except Exception as e:
+                    logger.error(f"Error creating manager/superuser notifications for request {request_obj.id}: {str(e)}")
+                    # Don't raise - notification failure shouldn't break approval
+            
+            elif new_status == ReservationRequest.StatusChoices.REJECTED:
+                try:
+                    approving_admin = Admin.objects.get(user=self.request.user)
+                    if not approving_admin.is_inventory_manager:
+                        logger.warning(f"User {self.request.user.username} attempted to reject but is not an inventory manager")
+                        raise exceptions.PermissionDenied("Only Inventory Managers can reject reservation requests.")
+                except Admin.DoesNotExist:
+                    logger.error(f"Admin profile not found for user {self.request.user.username}")
+                    raise exceptions.PermissionDenied("Admin profile required.")
+                
+                # Save the rejection - explicitly set all fields on the instance
+                request_obj.approved_by = approving_admin
+                request_obj.approved_at = timezone.now()
+                request_obj.status = new_status
+                
+                # Save the instance directly to ensure status is persisted
+                request_obj.save(update_fields=['approved_by', 'approved_at', 'status'])
+                
+                # Also update the serializer's instance to keep it in sync
+                serializer.instance = request_obj
+                
+                # Log the saved status
+                logger.info(
+                    f"Reservation request {request_obj.id} rejected. Status after save: {request_obj.status}, "
+                    f"Rejected by: {approving_admin.user.username}"
+                )
+                
+                # Refresh to verify
+                request_obj.refresh_from_db()
+                
+                # Get unit names for notification
+                units = request_obj.inventory_units.all()
+                if not units.exists() and request_obj.inventory_unit:
+                    units = [request_obj.inventory_unit]
+                
+                unit_names = [unit.product_template.product_name for unit in units]
+                rejection_message = f"Your reservation request for {len(unit_names)} unit(s) has been rejected." if len(unit_names) > 1 else f"Your reservation request for {unit_names[0]} has been rejected."
+                
+                # Create notification - wrap in try-except to prevent notification errors from breaking rejection
+                try:
+                    Notification.objects.create(
+                        recipient=request_obj.requesting_salesperson.user,
+                        notification_type=Notification.NotificationType.RESERVATION_REJECTED,
+                        title="Reservation Rejected",
+                        message=rejection_message,
+                        content_type=ContentType.objects.get_for_model(ReservationRequest),
+                        object_id=request_obj.id
+                    )
+                    logger.info(f"Created rejection notification for salesperson {request_obj.requesting_salesperson.user.username} for request {request_obj.id}")
+                except Exception as e:
+                    logger.error(f"Failed to create rejection notification for salesperson {request_obj.requesting_salesperson.user.username} for request {request_obj.id}: {str(e)}")
+                    # Don't raise - notification failure shouldn't break rejection
+            else:
+                serializer.save()
+        
+        except Exception as e:
+            import traceback
+            error_msg = f"Error updating reservation request {request_obj.id if 'request_obj' in locals() else 'unknown'}: {str(e)}"
+            logger.error(f"{error_msg}\n{traceback.format_exc()}")
+            # Re-raise with more context
+            if isinstance(e, (exceptions.PermissionDenied, exceptions.ValidationError)):
+                raise
+            raise exceptions.ValidationError(f"Failed to update reservation request: {str(e)}")
+
+
+class ReturnRequestViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing return requests (bulk returns of reserved units).
+    - Salespersons can create return requests for their reserved units
+    - Inventory Managers can approve/reject return requests
+    """
+    serializer_class = ReturnRequestSerializer
+    permission_classes = [IsAdminUser]
+    
+    def get_queryset(self):
+        """Filter queryset based on user role."""
+        user = self.request.user
+        if not user.is_authenticated:
+            return ReturnRequest.objects.none()
+        
+        queryset = ReturnRequest.objects.none()
+        
+        if user.is_superuser:
+            queryset = ReturnRequest.objects.all()
+        else:
+            try:
+                admin = Admin.objects.get(user=user)
+            except Admin.DoesNotExist:
+                return ReturnRequest.objects.none()
+            
+            if admin.is_inventory_manager:
+                queryset = ReturnRequest.objects.all()
+            elif admin.is_salesperson:
+                queryset = ReturnRequest.objects.filter(
+                    requesting_salesperson=admin
+                )
+            else:
+                return ReturnRequest.objects.none()
+        
+        # Optional status filter (?status=PE/AP/RE)
+        status_param = self.request.query_params.get('status')
+        if status_param and status_param in dict(ReturnRequest.StatusChoices.choices):
+            queryset = queryset.filter(status=status_param)
+        
+        return queryset.select_related(
+            'requesting_salesperson__user', 'approved_by__user'
+        ).prefetch_related('inventory_units__product_template')
+    
+    def get_permissions(self):
+        """Apply role-based permissions."""
+        if self.action == 'create':
+            return [IsSalesperson()]
+        elif self.action in ['update', 'partial_update']:
+            return [CanApproveRequests()]
+        return [IsAdminUser()]
+    
+    def perform_update(self, serializer):
+        """Handle approval/rejection of return requests."""
+        request_obj = self.get_object()
+        new_status = serializer.validated_data.get('status')
+        
+        if new_status == ReturnRequest.StatusChoices.APPROVED:
+            try:
+                approving_admin = Admin.objects.get(user=self.request.user)
+            except Admin.DoesNotExist:
+                raise exceptions.PermissionDenied("Admin profile required.")
+            
+            serializer.save(
+                approved_by=approving_admin,
+                approved_at=timezone.now(),
+                status=new_status
+            )
+            
+            # Update all inventory units: RESERVED → AVAILABLE
+            units = request_obj.inventory_units.all()
+            for unit in units:
+                unit.sale_status = InventoryUnit.SaleStatusChoices.AVAILABLE
+                unit.reserved_by = None
+                unit.reserved_until = None
+                unit.save()
+
+            # Mark any related approved reservation requests as returned
+            ReservationRequest.objects.filter(
+                inventory_unit__in=units,
+                requesting_salesperson=request_obj.requesting_salesperson,
+                status=ReservationRequest.StatusChoices.APPROVED
+            ).update(
+                status=ReservationRequest.StatusChoices.RETURNED,
+                expires_at=timezone.now()
+            )
+            
+            # Create notifications
+            Notification.objects.create(
+                recipient=request_obj.requesting_salesperson.user,
+                notification_type=Notification.NotificationType.RETURN_APPROVED,
+                title="Return Approved",
+                message=f"Your return request for {units.count()} unit(s) has been approved. Units are now available.",
+                content_type=ContentType.objects.get_for_model(ReturnRequest),
+                object_id=request_obj.id
+            )
+            
+            # Notify inventory managers and superusers
+            managers = Admin.objects.filter(roles__name=AdminRole.RoleChoices.INVENTORY_MANAGER).select_related('user')
+            for manager in managers:
+                Notification.objects.create(
+                    recipient=manager.user,
+                    notification_type=Notification.NotificationType.RETURN_APPROVED,
+                    title="Return Approved",
+                    message=f"Return request for {units.count()} unit(s) has been approved.",
+                    content_type=ContentType.objects.get_for_model(ReturnRequest),
+                    object_id=request_obj.id
+                )
+            
+            superusers = User.objects.filter(is_superuser=True)
+            for superuser in superusers:
+                Notification.objects.create(
+                    recipient=superuser,
+                    notification_type=Notification.NotificationType.RETURN_APPROVED,
+                    title="Return Approved",
+                    message=f"Return request for {units.count()} unit(s) has been approved.",
+                    content_type=ContentType.objects.get_for_model(ReturnRequest),
+                    object_id=request_obj.id
+                )
+        
+        elif new_status == ReturnRequest.StatusChoices.REJECTED:
+            try:
+                approving_admin = Admin.objects.get(user=self.request.user)
+            except Admin.DoesNotExist:
+                raise exceptions.PermissionDenied("Admin profile required.")
+            
+            serializer.save(
+                approved_by=approving_admin,
+                approved_at=timezone.now(),
+                status=new_status
+            )
+            
+            Notification.objects.create(
+                recipient=request_obj.requesting_salesperson.user,
+                notification_type=Notification.NotificationType.RETURN_REJECTED,
+                title="Return Rejected",
+                message=f"Your return request for {request_obj.inventory_units.count()} unit(s) has been rejected.",
+                content_type=ContentType.objects.get_for_model(ReturnRequest),
+                object_id=request_obj.id
+            )
+        else:
+            serializer.save()
+    
+    @action(detail=False, methods=['post'], permission_classes=[CanApproveRequests])
+    def bulk_approve(self, request):
+        """Bulk approve multiple return requests."""
+        request_ids = request.data.get('request_ids', [])
+        if not request_ids:
+            return Response({'error': 'request_ids required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            approving_admin = Admin.objects.get(user=request.user)
+        except Admin.DoesNotExist:
+            return Response({'error': 'Admin profile required'}, status=status.HTTP_403_FORBIDDEN)
+        
+        approved_count = 0
+        with transaction.atomic():
+            requests = ReturnRequest.objects.filter(
+                id__in=request_ids,
+                status=ReturnRequest.StatusChoices.PENDING
+            )
+            
+            for req in requests:
+                req.status = ReturnRequest.StatusChoices.APPROVED
+                req.approved_by = approving_admin
+                req.approved_at = timezone.now()
+                req.save()
+                
+                # Update units
+                for unit in req.inventory_units.all():
+                    unit.sale_status = InventoryUnit.SaleStatusChoices.AVAILABLE
+                    unit.reserved_by = None
+                    unit.reserved_until = None
+                    unit.save()
+                
+                approved_count += 1
+        
+        return Response({'message': f'{approved_count} return requests approved'}, status=status.HTTP_200_OK)
+
+
+class UnitTransferViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing unit transfers between salespersons.
+    - Salespersons can request transfers
+    - Inventory Managers can approve/reject transfers
+    """
+    serializer_class = UnitTransferSerializer
+    permission_classes = [IsAdminUser]
+    
+    def get_queryset(self):
+        """Filter queryset based on user role."""
+        user = self.request.user
+        if not user.is_authenticated:
+            return UnitTransfer.objects.none()
+        
+        if user.is_superuser:
+            return UnitTransfer.objects.all().select_related(
+                'inventory_unit__product_template', 'from_salesperson__user',
+                'to_salesperson__user', 'approved_by__user'
+            )
+        
+        try:
+            admin = Admin.objects.get(user=user)
+        except Admin.DoesNotExist:
+            return UnitTransfer.objects.none()
+        
+        if admin.is_inventory_manager:
+            return UnitTransfer.objects.filter(
+                status=UnitTransfer.StatusChoices.PENDING
+            ).select_related('inventory_unit__product_template', 'from_salesperson__user', 'to_salesperson__user', 'approved_by__user')
+        
+        if admin.is_salesperson:
+            return UnitTransfer.objects.filter(
+                Q(from_salesperson=admin) | Q(to_salesperson=admin)
+            ).select_related('inventory_unit__product_template', 'from_salesperson__user', 'to_salesperson__user', 'approved_by__user')
+        
+        return UnitTransfer.objects.none()
+    
+    def get_permissions(self):
+        """Apply role-based permissions."""
+        if self.action == 'create':
+            return [IsSalesperson()]
+        elif self.action in ['update', 'partial_update']:
+            return [CanApproveRequests()]
+        return [IsAdminUser()]
+    
+    def perform_create(self, serializer):
+        """Handle creation of transfer requests and notify Inventory Managers."""
+        transfer_obj = serializer.save()
+        
+        # Notify all Inventory Managers about the new transfer request
+        managers = Admin.objects.filter(roles__name=AdminRole.RoleChoices.INVENTORY_MANAGER).select_related('user')
+        unit = transfer_obj.inventory_unit
+        
+        for manager in managers:
+            Notification.objects.create(
+                recipient=manager.user,
+                notification_type=Notification.NotificationType.REQUEST_PENDING_APPROVAL,
+                title="New Unit Transfer Request",
+                message=f"Unit {unit.product_template.product_name} (#{unit.serial_number or unit.id}) transfer requested from {transfer_obj.from_salesperson.user.username} to {transfer_obj.to_salesperson.user.username}. Review and approve if needed.",
+                content_type=ContentType.objects.get_for_model(UnitTransfer),
+                object_id=transfer_obj.id
+            )
+        
+        # Also notify superusers
+        superusers = User.objects.filter(is_superuser=True)
+        for superuser in superusers:
+            Notification.objects.create(
+                recipient=superuser,
+                notification_type=Notification.NotificationType.REQUEST_PENDING_APPROVAL,
+                title="New Unit Transfer Request",
+                message=f"Unit {unit.product_template.product_name} (#{unit.serial_number or unit.id}) transfer requested from {transfer_obj.from_salesperson.user.username} to {transfer_obj.to_salesperson.user.username}.",
+                content_type=ContentType.objects.get_for_model(UnitTransfer),
+                object_id=transfer_obj.id
+            )
+    
+    def perform_update(self, serializer):
+        """Handle approval/rejection of transfer requests."""
+        transfer_obj = self.get_object()
+        new_status = serializer.validated_data.get('status')
+        
+        if new_status == UnitTransfer.StatusChoices.APPROVED:
+            try:
+                approving_admin = Admin.objects.get(user=self.request.user)
+            except Admin.DoesNotExist:
+                raise exceptions.PermissionDenied("Admin profile required.")
+            
+            serializer.save(
+                approved_by=approving_admin,
+                approved_at=timezone.now(),
+                status=new_status
+            )
+            
+            # Update inventory unit: change reserved_by
+            unit = transfer_obj.inventory_unit
+            unit.reserved_by = transfer_obj.to_salesperson
+            unit.save()
+            
+            # Create notifications
+            Notification.objects.create(
+                recipient=transfer_obj.from_salesperson.user,
+                notification_type=Notification.NotificationType.TRANSFER_APPROVED,
+                title="Transfer Approved",
+                message=f"Unit {unit.product_template.product_name} has been transferred to {transfer_obj.to_salesperson.user.username}.",
+                content_type=ContentType.objects.get_for_model(UnitTransfer),
+                object_id=transfer_obj.id
+            )
+            
+            Notification.objects.create(
+                recipient=transfer_obj.to_salesperson.user,
+                notification_type=Notification.NotificationType.TRANSFER_APPROVED,
+                title="Unit Transferred",
+                message=f"Unit {unit.product_template.product_name} has been transferred to you from {transfer_obj.from_salesperson.user.username}.",
+                content_type=ContentType.objects.get_for_model(UnitTransfer),
+                object_id=transfer_obj.id
+            )
+            
+            # Notify Inventory Managers about completed transfer
+            managers = Admin.objects.filter(roles__name=AdminRole.RoleChoices.INVENTORY_MANAGER).select_related('user')
+            for manager in managers:
+                Notification.objects.create(
+                    recipient=manager.user,
+                    notification_type=Notification.NotificationType.TRANSFER_APPROVED,
+                    title="Unit Transfer Completed",
+                    message=f"Unit {unit.product_template.product_name} (#{unit.serial_number or unit.id}) transferred from {transfer_obj.from_salesperson.user.username} to {transfer_obj.to_salesperson.user.username}. This may affect return requests.",
+                content_type=ContentType.objects.get_for_model(UnitTransfer),
+                object_id=transfer_obj.id
+            )
+            
+            # Notify superusers
+            superusers = User.objects.filter(is_superuser=True)
+            for superuser in superusers:
+                Notification.objects.create(
+                    recipient=superuser,
+                    notification_type=Notification.NotificationType.UNIT_RESERVED,
+                    title="Unit Transfer Completed",
+                    message=f"Unit {unit.product_template.product_name} transferred from {transfer_obj.from_salesperson.user.username} to {transfer_obj.to_salesperson.user.username}.",
+                    content_type=ContentType.objects.get_for_model(UnitTransfer),
+                    object_id=transfer_obj.id
+                )
+        
+        elif new_status == UnitTransfer.StatusChoices.REJECTED:
+            try:
+                approving_admin = Admin.objects.get(user=self.request.user)
+            except Admin.DoesNotExist:
+                raise exceptions.PermissionDenied("Admin profile required.")
+            
+            serializer.save(
+                approved_by=approving_admin,
+                approved_at=timezone.now(),
+                status=new_status
+            )
+            
+            Notification.objects.create(
+                recipient=transfer_obj.from_salesperson.user,
+                notification_type=Notification.NotificationType.TRANSFER_REJECTED,
+                title="Transfer Rejected",
+                message=f"Your transfer request for {transfer_obj.inventory_unit.product_template.product_name} has been rejected.",
+                content_type=ContentType.objects.get_for_model(UnitTransfer),
+                object_id=transfer_obj.id
+            )
+        else:
+            serializer.save()
+
+
+class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for notifications (read-only, with mark-as-read action).
+    """
+    serializer_class = NotificationSerializer
+    permission_classes = [IsAdminUser]
+    
+    def get_queryset(self):
+        """Return notifications for current user."""
+        user = self.request.user
+        if not user.is_authenticated:
+            return Notification.objects.none()
+        
+        return Notification.objects.filter(recipient=user).order_by('-created_at')
+    
+    @action(detail=True, methods=['post'])
+    def mark_read(self, request, pk=None):
+        """Mark a notification as read."""
+        notification = self.get_object()
+        notification.is_read = True
+        notification.save()
+        return Response({'status': 'marked as read'}, status=status.HTTP_200_OK)
+    
+    @action(detail=False, methods=['get'])
+    def unread_count(self, request):
+        """Get count of unread notifications."""
+        count = Notification.objects.filter(recipient=request.user, is_read=False).count()
+        return Response({'unread_count': count}, status=status.HTTP_200_OK)
+
+
+class ReportsViewSet(viewsets.ViewSet):
+    """
+    ViewSet for inventory reports (Inventory Manager only).
+    Provides various analytical reports for decision-making.
+    """
+    permission_classes = [CanApproveRequests]  # Inventory Manager or Superuser
+    
+    @action(detail=False, methods=['get'])
+    def inventory_value(self, request):
+        """Get inventory value report."""
+        from .reports import get_inventory_value_report
+        report_data = get_inventory_value_report()
+        return Response(report_data, status=status.HTTP_200_OK)
+    
+    @action(detail=False, methods=['get'])
+    def stock_movement(self, request):
+        """Get stock movement report."""
+        from .reports import get_stock_movement_report
+        days = int(request.query_params.get('days', 30))
+        report_data = get_stock_movement_report(days=days)
+        return Response(report_data, status=status.HTTP_200_OK)
+    
+    @action(detail=False, methods=['get'])
+    def product_performance(self, request):
+        """Get product performance report."""
+        from .reports import get_product_performance
+        report_data = get_product_performance()
+        return Response(report_data, status=status.HTTP_200_OK)
+    
+    @action(detail=False, methods=['get'])
+    def aging_inventory(self, request):
+        """Get aging inventory report."""
+        from .reports import get_aging_inventory
+        days_threshold = int(request.query_params.get('days', 30))
+        report_data = get_aging_inventory(days_threshold=days_threshold)
+        return Response(report_data, status=status.HTTP_200_OK)
+    
+    @action(detail=False, methods=['get'])
+    def salesperson_performance(self, request):
+        """Get salesperson performance report."""
+        from .reports import get_salesperson_performance
+        days = int(request.query_params.get('days', 30))
+        report_data = get_salesperson_performance(days=days)
+        return Response(report_data, status=status.HTTP_200_OK)
+    
+    @action(detail=False, methods=['get'])
+    def request_management(self, request):
+        """Get request management statistics."""
+        from .reports import get_request_management_stats
+        days = int(request.query_params.get('days', 30))
+        report_data = get_request_management_stats(days=days)
+        return Response(report_data, status=status.HTTP_200_OK)
+
+
+class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for audit logs (Inventory Manager and Superuser only).
+    Read-only access to view system audit trail.
+    """
+    serializer_class = AuditLogSerializer
+    permission_classes = [CanApproveRequests]  # Inventory Manager or Superuser
+    
+    def get_queryset(self):
+        """Return audit logs with optional filtering."""
+        queryset = AuditLog.objects.all().select_related('user')
+        
+        # Filter by user
+        user_id = self.request.query_params.get('user_id')
+        if user_id:
+            queryset = queryset.filter(user_id=user_id)
+        
+        # Filter by action
+        action = self.request.query_params.get('action')
+        if action:
+            queryset = queryset.filter(action=action)
+        
+        # Filter by model
+        model_name = self.request.query_params.get('model_name')
+        if model_name:
+            queryset = queryset.filter(model_name=model_name)
+        
+        # Filter by date range
+        date_from = self.request.query_params.get('date_from')
+        if date_from:
+            queryset = queryset.filter(timestamp__gte=date_from)
+        
+        date_to = self.request.query_params.get('date_to')
+        if date_to:
+            queryset = queryset.filter(timestamp__lte=date_to)
+        
+        return queryset
+
+
+class StockAlertsViewSet(viewsets.ViewSet):
+    """
+    ViewSet for stock alerts (Inventory Manager only).
+    Returns alerts for low stock, expiring reservations, and status issues.
+    """
+    permission_classes = [CanApproveRequests]  # Inventory Manager or Superuser
+    
+    def list(self, request):
+        """Get all stock alerts."""
+        alerts = []
+        
+        # 1. Low Stock Alerts - Products with fewer than min_stock_threshold units available
+        low_stock_products = Product.objects.annotate(
+            available_count=Count('inventory_units', filter=Q(inventory_units__sale_status='AV'))
+        ).filter(
+            Q(min_stock_threshold__isnull=False) & Q(available_count__lt=F('min_stock_threshold'))
+        )
+        
+        for product in low_stock_products:
+            alerts.append({
+                'id': f'low-stock-{product.id}',
+                'type': 'low_stock',
+                'severity': 'high' if product.available_count == 0 else 'medium',
+                'title': f'Low Stock: {product.product_name}',
+                'message': f'Only {product.available_count} unit(s) available. Minimum threshold is {product.min_stock_threshold}.',
+                'product_id': product.id,
+                'product_name': product.product_name,
+                'current_stock': product.available_count,
+                'min_threshold': product.min_stock_threshold,
+                'action': 'restock',
+            })
+        
+        # 2. Expiring Reservation Alerts - Reserved units expiring within 24 hours
+        expiring_soon = timezone.now() + timedelta(hours=24)
+        expiring_units = InventoryUnit.objects.filter(
+            sale_status='RS',
+            reserved_until__isnull=False,
+            reserved_until__lte=expiring_soon,
+            reserved_until__gt=timezone.now()
+        ).select_related('product_template', 'reserved_by')
+        
+        for unit in expiring_units:
+            hours_left = (unit.reserved_until - timezone.now()).total_seconds() / 3600
+            alerts.append({
+                'id': f'expiring-{unit.id}',
+                'type': 'expiring_reservation',
+                'severity': 'medium' if hours_left > 6 else 'high',
+                'title': f'Reservation Expiring: {unit.product_template_name or "Unit"}',
+                'message': f'Unit #{unit.id} reserved by {unit.reserved_by_username} expires in {int(hours_left)} hour(s).',
+                'unit_id': unit.id,
+                'serial_number': unit.serial_number,
+                'reserved_by': unit.reserved_by_username,
+                'expires_at': unit.reserved_until.isoformat() if unit.reserved_until else None,
+                'hours_remaining': round(hours_left, 1),
+                'action': 'release_or_extend',
+            })
+        
+        # 3. Out of Stock Alerts - Products with no available units
+        out_of_stock_products = Product.objects.annotate(
+            available_count=Count('inventory_units', filter=Q(inventory_units__sale_status='AV'))
+        ).filter(available_count=0, is_discontinued=False)
+        
+        for product in out_of_stock_products:
+            alerts.append({
+                'id': f'out-of-stock-{product.id}',
+                'type': 'out_of_stock',
+                'severity': 'critical',
+                'title': f'Out of Stock: {product.product_name}',
+                'message': f'No available units for {product.product_name}. Consider restocking.',
+                'product_id': product.id,
+                'product_name': product.product_name,
+                'action': 'restock',
+            })
+        
+        # 4. Pending Approvals - Requests waiting for approval
+        pending_reservations = ReservationRequest.objects.filter(status='PE').count()
+        pending_returns = ReturnRequest.objects.filter(status='PE').count()
+        pending_transfers = UnitTransfer.objects.filter(status='PE').count()
+        
+        if pending_reservations > 0:
+            alerts.append({
+                'id': 'pending-reservations',
+                'type': 'pending_approval',
+                'severity': 'low',
+                'title': f'{pending_reservations} Pending Reservation Request(s)',
+                'message': f'{pending_reservations} reservation request(s) waiting for approval.',
+                'count': pending_reservations,
+                'action': 'approve_requests',
+                'link': '/reservation-requests',
+            })
+        
+        if pending_returns > 0:
+            alerts.append({
+                'id': 'pending-returns',
+                'type': 'pending_approval',
+                'severity': 'low',
+                'title': f'{pending_returns} Pending Return Request(s)',
+                'message': f'{pending_returns} return request(s) waiting for approval.',
+                'count': pending_returns,
+                'action': 'approve_requests',
+                'link': '/return-requests',
+            })
+        
+        if pending_transfers > 0:
+            alerts.append({
+                'id': 'pending-transfers',
+                'type': 'pending_approval',
+                'severity': 'low',
+                'title': f'{pending_transfers} Pending Transfer Request(s)',
+                'message': f'{pending_transfers} transfer request(s) waiting for approval.',
+                'count': pending_transfers,
+                'action': 'approve_requests',
+                'link': '/unit-transfers',
+            })
+        
+        # Sort alerts by severity (critical > high > medium > low)
+        severity_order = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3}
+        alerts.sort(key=lambda x: severity_order.get(x['severity'], 4))
+        
+        return Response({
+            'count': len(alerts),
+            'alerts': alerts
+        }, status=status.HTTP_200_OK)
+
+
+# -------------------------------------------------------------------------
+# BRAND & LEAD MANAGEMENT VIEWSETS
+# -------------------------------------------------------------------------
+
+class BrandViewSet(viewsets.ModelViewSet):
+    """Brand management ViewSet."""
+    queryset = Brand.objects.all()
+    serializer_class = BrandSerializer
+    permission_classes = [IsAdminUser]
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+        
+        # Superuser sees all brands
+        if user.is_superuser:
+            return queryset
+        
+        # Check if admin is global admin
+        try:
+            admin = Admin.objects.get(user=user)
+            if admin.is_global_admin:
+                return queryset
+            
+            # Filter by admin's assigned brands
+            if admin.brands.exists():
+                return queryset.filter(id__in=admin.brands.values_list('id', flat=True))
+        except Admin.DoesNotExist:
+            pass
+        
+        return queryset.none()
+
+
+class LeadViewSet(viewsets.ModelViewSet):
+    """Lead management for salespersons only."""
+    serializer_class = LeadSerializer
+    permission_classes = [IsAdminUser]  # Base permission, refined in get_permissions
+    
+    def get_permissions(self):
+        """Restrict all lead actions to salespersons only."""
+        # For all actions (list, retrieve, create, update, delete, and custom actions),
+        # only salespersons should have access
+        return [IsSalesperson()]
+    
+    def get_queryset(self):
+        user = self.request.user
+        brand = getattr(self.request, 'brand', None)
+        
+        queryset = Lead.objects.all().select_related(
+            'customer', 'brand', 'assigned_salesperson__user', 'order'
+        ).prefetch_related('items__inventory_unit__product_template')
+        
+        # Filter by brand if specified
+        if brand:
+            queryset = queryset.filter(brand=brand)
+        
+        # Filter by status
+        status_filter = self.request.query_params.get('status')
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        
+        # Superuser sees all
+        if user.is_superuser:
+            return queryset
+        
+        # Only salespersons can see leads (inventory managers cannot)
+        try:
+            admin = Admin.objects.get(user=user)
+            if admin.is_salesperson:
+                if admin.brands.exists() and not admin.is_global_admin:
+                    queryset = queryset.filter(brand__in=admin.brands.all())
+                elif admin.is_global_admin:
+                    # Global admins see all leads
+                    pass
+            else:
+                # Other roles (including inventory managers) don't see leads
+                return Lead.objects.none()
+        except Admin.DoesNotExist:
+            return Lead.objects.none()
+        
+        return queryset
+    
+    @action(detail=True, methods=['post'])
+    def assign(self, request, pk=None):
+        """Self-assign lead (salesperson claims lead). Only salespersons can claim leads."""
+        import json
+        import os
+        
+        log_path = '/Users/shwariphones/Desktop/shwari-django/Shwari/.cursor/debug.log'
+        
+        #region agent log
+        try:
+            with open(log_path, 'a') as f:
+                f.write(json.dumps({
+                    'sessionId': 'debug-session',
+                    'runId': 'run1',
+                    'hypothesisId': 'A',
+                    'location': 'views.py:2810',
+                    'message': 'LeadViewSet.assign() ENTRY',
+                    'data': {
+                        'user_id': request.user.id if request.user.is_authenticated else None,
+                        'username': request.user.username if request.user.is_authenticated else None,
+                        'is_staff': request.user.is_staff if request.user.is_authenticated else False,
+                        'lead_id': pk
+                    },
+                    'timestamp': int(__import__('time').time() * 1000)
+                }) + '\n')
+        except: pass
+        #endregion
+        
+        lead = self.get_object()
+        
+        #region agent log
+        try:
+            with open(log_path, 'a') as f:
+                f.write(json.dumps({
+                    'sessionId': 'debug-session',
+                    'runId': 'run1',
+                    'hypothesisId': 'B',
+                    'location': 'views.py:2813',
+                    'message': 'BEFORE checking admin and salesperson status',
+                    'data': {
+                        'lead_id': lead.id,
+                        'lead_brand_id': lead.brand.id if lead.brand else None,
+                        'lead_brand_name': lead.brand.name if lead.brand else None
+                    },
+                    'timestamp': int(__import__('time').time() * 1000)
+                }) + '\n')
+        except: pass
+        #endregion
+        
+        try:
+            admin = Admin.objects.get(user=request.user)
+            
+            #region agent log
+            try:
+                with open(log_path, 'a') as f:
+                    f.write(json.dumps({
+                        'sessionId': 'debug-session',
+                        'runId': 'run1',
+                        'hypothesisId': 'B',
+                        'location': 'views.py:2815',
+                        'message': 'Admin found - checking salesperson status',
+                        'data': {
+                            'admin_id': admin.id,
+                            'admin_code': admin.admin_code,
+                            'is_salesperson': admin.is_salesperson,
+                            'is_global_admin': admin.is_global_admin,
+                            'user_roles': list(admin.roles.values_list('name', flat=True)),
+                            'admin_brand_ids': list(admin.brands.values_list('id', flat=True))
+                        },
+                        'timestamp': int(__import__('time').time() * 1000)
+                    }) + '\n')
+            except: pass
+            #endregion
+            
+            # Double-check: Only salespersons can assign leads (permission should catch this, but verify)
+            if not admin.is_salesperson and not request.user.is_superuser:
+                #region agent log
+                try:
+                    with open(log_path, 'a') as f:
+                        f.write(json.dumps({
+                            'sessionId': 'debug-session',
+                            'runId': 'run1',
+                            'hypothesisId': 'C',
+                            'location': 'views.py:2816',
+                            'message': 'PERMISSION DENIED: User is not a salesperson',
+                            'data': {
+                                'admin_id': admin.id,
+                                'is_salesperson': admin.is_salesperson,
+                                'roles': list(admin.roles.values_list('name', flat=True))
+                            },
+                            'timestamp': int(__import__('time').time() * 1000)
+                        }) + '\n')
+                except: pass
+                #endregion
+                return Response(
+                    {'error': 'Only salespersons can assign leads'}, 
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            
+            # Validate salesperson is associated with lead's brand (unless global admin)
+            if not admin.is_global_admin and not request.user.is_superuser:
+                if lead.brand not in admin.brands.all():
+                    #region agent log
+                    try:
+                        with open(log_path, 'a') as f:
+                            f.write(json.dumps({
+                                'sessionId': 'debug-session',
+                                'runId': 'run1',
+                                'hypothesisId': 'E',
+                                'location': 'views.py:2820',
+                                'message': 'PERMISSION DENIED: Salesperson not associated with lead brand',
+                                'data': {
+                                    'lead_brand_id': lead.brand.id,
+                                    'admin_brand_ids': list(admin.brands.values_list('id', flat=True)),
+                                    'is_global_admin': admin.is_global_admin
+                                },
+                                'timestamp': int(__import__('time').time() * 1000)
+                            }) + '\n')
+                    except: pass
+                    #endregion
+                    return Response(
+                        {'error': 'You are not associated with this lead\'s brand'}, 
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+            
+            # Allow salespersons to claim leads even if already assigned (reassignment)
+            # This allows any salesperson to claim any lead for their brand
+            lead.assigned_salesperson = admin
+            lead.save()
+            
+            #region agent log
+            try:
+                with open(log_path, 'a') as f:
+                    f.write(json.dumps({
+                        'sessionId': 'debug-session',
+                        'runId': 'run1',
+                        'hypothesisId': 'D',
+                        'location': 'views.py:2826',
+                        'message': 'SUCCESS: Lead assigned to salesperson',
+                        'data': {
+                            'lead_id': lead.id,
+                            'assigned_admin_id': admin.id,
+                            'assigned_admin_code': admin.admin_code
+                        },
+                        'timestamp': int(__import__('time').time() * 1000)
+                    }) + '\n')
+            except: pass
+            #endregion
+            
+            return Response({'message': 'Lead assigned successfully'})
+        except Admin.DoesNotExist:
+            #region agent log
+            try:
+                with open(log_path, 'a') as f:
+                    f.write(json.dumps({
+                        'sessionId': 'debug-session',
+                        'runId': 'run1',
+                        'hypothesisId': 'F',
+                        'location': 'views.py:2828',
+                        'message': 'ERROR: Admin profile not found',
+                        'data': {'user_id': request.user.id},
+                        'timestamp': int(__import__('time').time() * 1000)
+                    }) + '\n')
+            except: pass
+            #endregion
+            return Response(
+                {'error': 'Admin profile not found'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    @action(detail=True, methods=['post'])
+    def contact(self, request, pk=None):
+        """Mark lead as contacted. Only salespersons can mark leads as contacted."""
+        lead = self.get_object()
+        
+        # Verify user is a salesperson
+        try:
+            admin = Admin.objects.get(user=request.user)
+            if not admin.is_salesperson and not request.user.is_superuser:
+                return Response(
+                    {'error': 'Only salespersons can mark leads as contacted'}, 
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            
+            # Verify salesperson is assigned to this lead or is global admin
+            if not request.user.is_superuser and not admin.is_global_admin:
+                if lead.assigned_salesperson != admin:
+                    return Response(
+                        {'error': 'You can only mark leads as contacted if you are assigned to them'}, 
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+        except Admin.DoesNotExist:
+            return Response(
+                {'error': 'Admin profile not found'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        lead.status = Lead.StatusChoices.CONTACTED
+        lead.contacted_at = timezone.now()
+        lead.salesperson_notes = request.data.get('notes', '')
+        lead.save()
+        return Response({'message': 'Lead marked as contacted'})
+    
+    @action(detail=True, methods=['post'])
+    def convert(self, request, pk=None):
+        """Convert lead to order. Only salespersons can convert leads."""
+        lead = self.get_object()
+        try:
+            admin = Admin.objects.get(user=request.user)
+            
+            # Verify user is a salesperson
+            if not admin.is_salesperson and not request.user.is_superuser:
+                return Response(
+                    {'error': 'Only salespersons can convert leads to orders'}, 
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            
+            # Verify salesperson is assigned to this lead or is global admin
+            if not request.user.is_superuser and not admin.is_global_admin:
+                if lead.assigned_salesperson != admin:
+                    return Response(
+                        {'error': 'You can only convert leads that are assigned to you'}, 
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+            
+            if lead.status != Lead.StatusChoices.CONTACTED:
+                return Response(
+                    {'error': 'Lead must be contacted first'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            order = LeadService.convert_lead_to_order(lead, admin)
+            return Response({
+                'message': 'Lead converted to order',
+                'order_id': str(order.order_id)
+            })
+        except Admin.DoesNotExist:
+            return Response(
+                {'error': 'Admin profile not found'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            return Response(
+                {'error': str(e)}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    @action(detail=True, methods=['post'])
+    def close(self, request, pk=None):
+        """Close lead (no sale) and release inventory units back to stock. Only salespersons can close leads."""
+        from inventory.models import Cart, InventoryUnit
+        from django.db import transaction
+        
+        lead = self.get_object()
+        
+        # Verify user is a salesperson
+        try:
+            admin = Admin.objects.get(user=request.user)
+            if not admin.is_salesperson and not request.user.is_superuser:
+                return Response(
+                    {'error': 'Only salespersons can close leads'}, 
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            
+            # Verify salesperson is assigned to this lead or is global admin
+            if not request.user.is_superuser and not admin.is_global_admin:
+                if lead.assigned_salesperson != admin:
+                    return Response(
+                        {'error': 'You can only close leads that are assigned to you'}, 
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+        except Admin.DoesNotExist:
+            return Response(
+                {'error': 'Admin profile not found'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        with transaction.atomic():
+            # Update lead status
+            lead.status = Lead.StatusChoices.CLOSED
+            lead.salesperson_notes = request.data.get('notes', '')
+            lead.save()
+            
+            # Free up all inventory units in this lead
+            lead_items = lead.items.all()
+            units_freed = []
+            
+            for lead_item in lead_items:
+                unit = lead_item.inventory_unit
+                # Only free units that are RESERVED (not already SOLD or AVAILABLE)
+                if unit.sale_status == InventoryUnit.SaleStatusChoices.RESERVED:
+                    unit.sale_status = InventoryUnit.SaleStatusChoices.AVAILABLE
+                    unit.reserved_by = None
+                    unit.reserved_until = None
+                    unit.save()
+                    units_freed.append(unit)
+            
+            return Response({
+                'message': f'Lead closed. {len(units_freed)} unit(s) released back to stock.',
+                'units_freed': len(units_freed)
+            })
+
+
+class PromotionTypeViewSet(viewsets.ModelViewSet):
+    """PromotionType management ViewSet (admin and marketing managers)."""
+    queryset = PromotionType.objects.filter(is_active=True)
+    serializer_class = PromotionTypeSerializer
+    permission_classes = [IsAdminUser | IsMarketingManager]
+    
+    def get_queryset(self):
+        """Return all promotion types (active and inactive) for admins."""
+        queryset = PromotionType.objects.all()
+        
+        # Filter by is_active if provided
+        is_active = self.request.query_params.get('is_active')
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+        
+        return queryset.order_by('display_order', 'name')
+
+
+class PromotionViewSet(viewsets.ModelViewSet):
+    """Promotion management ViewSet (admin and marketing managers)."""
+    queryset = Promotion.objects.all()
+    serializer_class = PromotionSerializer
+    permission_classes = [IsAdminUser | IsMarketingManager]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]  # Support file uploads
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        brand = getattr(self.request, 'brand', None)
+        user = self.request.user
+        
+        # Filter by brand if specified
+        if brand:
+            queryset = queryset.filter(brand=brand)
+        
+        # Filter by status
+        is_active = self.request.query_params.get('is_active')
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+        
+        # Superuser sees all
+        if user.is_superuser:
+            return queryset
+        
+        # Filter by admin's assigned brands
+        try:
+            admin = Admin.objects.get(user=user)
+            if admin.is_global_admin:
+                return queryset
+            if admin.brands.exists():
+                queryset = queryset.filter(brand__in=admin.brands.all())
+        except Admin.DoesNotExist:
+            return Promotion.objects.none()
+        
+        return queryset
+    
+    def perform_create(self, serializer):
+        """Set created_by to current admin and validate promotion requirements."""
+        try:
+            admin = Admin.objects.get(user=self.request.user)
+        except Admin.DoesNotExist:
+            admin = None
+        
+        # Validate: require at least one product or product_type
+        # Handle products from both JSON and FormData
+        if 'products' in self.request.data:
+            products = self.request.data.get('products', [])
+            # Handle QueryDict (FormData) format
+            if hasattr(self.request.data, 'getlist'):
+                products_list = self.request.data.getlist('products')
+                has_products = len(products_list) > 0 and any(p for p in products_list if p)
+            elif isinstance(products, list):
+                has_products = len(products) > 0
+            else:
+                has_products = bool(products)
+        else:
+            has_products = False
+        
+        product_types = self.request.data.get('product_types', '')
+        
+        if not has_products and not product_types:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({
+                'non_field_errors': ['At least one product or product type must be specified.']
+            })
+        
+        # Validate: cannot use both discount_percentage and discount_amount
+        discount_percentage = self.request.data.get('discount_percentage')
+        discount_amount = self.request.data.get('discount_amount')
+        
+        if discount_percentage and discount_amount:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({
+                'non_field_errors': ['Cannot use both discount_percentage and discount_amount. Use one or the other.']
+            })
+        
+        # Validate: start_date must be before end_date
+        start_date = self.request.data.get('start_date')
+        end_date = self.request.data.get('end_date')
+        
+        if start_date and end_date:
+            from django.utils.dateparse import parse_datetime
+            start = parse_datetime(start_date)
+            end = parse_datetime(end_date)
+            if start and end and start >= end:
+                from rest_framework.exceptions import ValidationError
+                raise ValidationError({
+                    'non_field_errors': ['Start date must be before end date.']
+                })
+        
+        # Validate: display_locations
+        display_locations = self.request.data.get('display_locations', [])
+        # Parse JSON string if it comes from FormData
+        if isinstance(display_locations, str):
+            import json
+            try:
+                display_locations = json.loads(display_locations)
+                # Update request.data with parsed value so serializer can use it
+                if hasattr(self.request.data, '_mutable'):
+                    self.request.data._mutable = True
+                self.request.data['display_locations'] = display_locations
+                if hasattr(self.request.data, '_mutable'):
+                    self.request.data._mutable = False
+            except (json.JSONDecodeError, ValueError):
+                from rest_framework.exceptions import ValidationError
+                raise ValidationError({
+                    'display_locations': ['Display locations must be valid JSON.']
+                })
+        if not isinstance(display_locations, list):
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({
+                'display_locations': ['Display locations must be a list.']
+            })
+        
+        # Parse is_active from FormData (handle both string and boolean)
+        if 'is_active' in self.request.data:
+            is_active_value = self.request.data['is_active']
+            if isinstance(is_active_value, str):
+                # Convert string 'true'/'false' to boolean
+                is_active_bool = is_active_value.lower() == 'true'
+                if hasattr(self.request.data, '_mutable'):
+                    self.request.data._mutable = True
+                self.request.data['is_active'] = is_active_bool
+                if hasattr(self.request.data, '_mutable'):
+                    self.request.data._mutable = False
+        
+        valid_locations = ['stories_carousel', 'special_offers', 'flash_sales']
+        invalid_locations = [loc for loc in display_locations if loc not in valid_locations]
+        if invalid_locations:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({
+                'display_locations': [f'Invalid location(s): {", ".join(invalid_locations)}. Valid options: {", ".join(valid_locations)}.']
+            })
+        
+        # Validate: banner_image required for stories_carousel
+        if 'stories_carousel' in display_locations:
+            banner_image = self.request.data.get('banner_image')
+            if not banner_image and not serializer.instance:
+                from rest_framework.exceptions import ValidationError
+                raise ValidationError({
+                    'banner_image': ['Banner image is required when selecting Stories Carousel as a display location.']
+                })
+            elif serializer.instance and not banner_image and not serializer.instance.banner_image:
+                from rest_framework.exceptions import ValidationError
+                raise ValidationError({
+                    'banner_image': ['Banner image is required when selecting Stories Carousel as a display location.']
+                })
+        
+        # Auto-assign brand if not provided and admin has brands
+        brand_id = self.request.data.get('brand')
+        if not brand_id and admin and admin.brands.exists() and not admin.is_global_admin:
+            # Auto-assign to first brand if admin has only one, or require selection if multiple
+            if admin.brands.count() == 1:
+                brand_id = admin.brands.first().id
+                # Update request.data to include the brand
+                if hasattr(self.request.data, '_mutable'):
+                    self.request.data._mutable = True
+                self.request.data['brand'] = brand_id
+                if hasattr(self.request.data, '_mutable'):
+                    self.request.data._mutable = False
+            else:
+                # Multiple brands - require explicit selection
+                from rest_framework.exceptions import ValidationError
+                raise ValidationError({
+                    'brand': ['You are assigned to multiple brands. Please select which brand this promotion is for.']
+                })
+        
+        # Ensure brand is from admin's assigned brands (for non-superusers)
+        user = self.request.user
+        if admin and not admin.is_global_admin and not user.is_superuser:
+            if brand_id:
+                if admin.brands.exists():
+                    if not admin.brands.filter(id=brand_id).exists():
+                        from rest_framework.exceptions import PermissionDenied
+                        raise PermissionDenied('You can only create promotions for your assigned brands.')
+                else:
+                    # Admin with no assigned brands cannot create promotions
+                    from rest_framework.exceptions import PermissionDenied
+                    raise PermissionDenied('You must be assigned to at least one brand to create promotions.')
+        
+        # Promotion code will be auto-generated in model's save() method if not provided
+        promotion_instance = serializer.save(created_by=admin)
+        
+        # Handle products ManyToMany field (needs to be set after instance is created)
+        # Always process products, even if empty (to clear existing associations if needed)
+        product_ids = []
+        
+        # Check if products are in request data
+        if 'products' in self.request.data:
+            products = self.request.data.get('products', [])
+            # Handle both list and QueryDict (FormData) formats
+            if hasattr(self.request.data, 'getlist'):
+                # QueryDict format (from FormData) - getlist returns all values
+                product_ids = [int(p) for p in self.request.data.getlist('products') if p]
+            elif isinstance(products, list):
+                product_ids = [int(p) if isinstance(p, (int, str)) else (p.id if hasattr(p, 'id') else p) for p in products if p]
+            elif products:
+                product_ids = [int(products)] if str(products).isdigit() else []
+        
+        # Set products (empty list clears all products)
+        promotion_instance.products.set(product_ids)
+        
+        # If promotion_code was provided, ensure it's unique
+        promotion_code = self.request.data.get('promotion_code')
+        if promotion_code:
+            if Promotion.objects.filter(promotion_code=promotion_code).exclude(id=promotion_instance.id).exists():
+                from rest_framework.exceptions import ValidationError
+                raise ValidationError({
+                    'promotion_code': ['A promotion with this code already exists.']
+                })
+            promotion_instance.promotion_code = promotion_code
+            promotion_instance.save()
+    
+    def perform_update(self, serializer):
+        """Allow update only if user owns the promotion (for Marketing Managers)."""
+        instance = serializer.instance
+        user = self.request.user
+        
+        # Superusers and global admins can edit any promotion
+        if user.is_superuser:
+            serializer.save()
+            return
+        
+        try:
+            admin = Admin.objects.get(user=user)
+            if admin.is_global_admin:
+                serializer.save()
+                return
+        except Admin.DoesNotExist:
+            pass
+        
+        # Marketing Managers can only edit their own promotions
+        if instance.created_by and instance.created_by.user != user:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('You can only edit promotions you created.')
+        
+        # Parse display_locations JSON string if it comes from FormData (same as in perform_create)
+        display_locations = self.request.data.get('display_locations')
+        if display_locations is not None and isinstance(display_locations, str):
+            import json
+            try:
+                display_locations = json.loads(display_locations)
+                # Update request.data with parsed value so serializer can use it
+                if hasattr(self.request.data, '_mutable'):
+                    self.request.data._mutable = True
+                self.request.data['display_locations'] = display_locations
+                if hasattr(self.request.data, '_mutable'):
+                    self.request.data._mutable = False
+            except (json.JSONDecodeError, ValueError):
+                from rest_framework.exceptions import ValidationError
+                raise ValidationError({
+                    'display_locations': ['Display locations must be valid JSON.']
+                })
+        
+        # Parse is_active from FormData (handle both string and boolean)
+        if 'is_active' in self.request.data:
+            is_active_value = self.request.data['is_active']
+            if isinstance(is_active_value, str):
+                # Convert string 'true'/'false' to boolean
+                is_active_bool = is_active_value.lower() == 'true'
+                if hasattr(self.request.data, '_mutable'):
+                    self.request.data._mutable = True
+                self.request.data['is_active'] = is_active_bool
+                if hasattr(self.request.data, '_mutable'):
+                    self.request.data._mutable = False
+        
+        # Validate same requirements as create
+        # Handle products from both JSON and FormData
+        if 'products' in self.request.data:
+            products = self.request.data.get('products', [])
+            # Handle QueryDict (FormData) format
+            if hasattr(self.request.data, 'getlist'):
+                products_list = self.request.data.getlist('products')
+                has_products = len(products_list) > 0 and any(p for p in products_list if p)
+            elif isinstance(products, list):
+                has_products = len(products) > 0
+            else:
+                has_products = bool(products)
+        else:
+            # No products in request, check existing instance
+            has_products = instance.products.exists() if instance else False
+        
+        product_types = self.request.data.get('product_types', instance.product_types if instance else '')
+        
+        if not has_products and not product_types:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({
+                'non_field_errors': ['At least one product or product type must be specified.']
+            })
+        
+        promotion_instance = serializer.save()
+        
+        # Handle products ManyToMany field (needs to be set after instance is updated)
+        # Always process products if they're in the request
+        if 'products' in self.request.data:
+            products = self.request.data.get('products', [])
+            product_ids = []
+            
+            # Handle both list and QueryDict (FormData) formats
+            if hasattr(self.request.data, 'getlist'):
+                # QueryDict format (from FormData) - getlist returns all values
+                product_ids = [int(p) for p in self.request.data.getlist('products') if p]
+            elif isinstance(products, list):
+                product_ids = [int(p) if isinstance(p, (int, str)) else (p.id if hasattr(p, 'id') else p) for p in products if p]
+            elif products:
+                product_ids = [int(products)] if str(products).isdigit() else []
+            
+            # Set products (empty list clears all products)
+            promotion_instance.products.set(product_ids)
+    
+    def perform_destroy(self, instance):
+        """Allow delete only if user owns the promotion (for Marketing Managers)."""
+        user = self.request.user
+        
+        # Superusers and global admins can delete any promotion
+        if user.is_superuser:
+            instance.delete()
+            return
+        
+        try:
+            admin = Admin.objects.get(user=user)
+            if admin.is_global_admin:
+                instance.delete()
+                return
+        except Admin.DoesNotExist:
+            pass
+        
+        # Marketing Managers can only delete their own promotions
+        if instance.created_by and instance.created_by.user != user:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('You can only delete promotions you created.')
+        
+        instance.delete()
+
+
+class PesapalIPNView(APIView):
+    """Handle Pesapal IPN (Instant Payment Notification) callbacks."""
+    permission_classes = [permissions.AllowAny]  # Pesapal will call this
+    
+    def get(self, request):
+        print(f"\n[PESAPAL] ========== VIEW: IPN CALLBACK START ==========")
+        print(f"[PESAPAL] Request Method: {request.method}")
+        import json
+        print(f"[PESAPAL] Request GET Params: {dict(request.GET)}")
+        print(f"[PESAPAL] Request IP: {request.META.get('REMOTE_ADDR', 'Unknown')}")
+        
+        try:
+            from inventory.services.pesapal_payment_service import PesapalPaymentService
+            
+            service = PesapalPaymentService()
+            
+            order_tracking_id = request.GET.get('OrderTrackingId')
+            order_notification_type = request.GET.get('OrderNotificationType')
+            order_merchant_reference = request.GET.get('OrderMerchantReference')
+            payment_status_description = request.GET.get('PaymentStatusDescription')
+            payment_method = request.GET.get('PaymentMethod')
+            payment_account = request.GET.get('PaymentAccount')
+            
+            print(f"[PESAPAL] Order Tracking ID: {order_tracking_id}")
+            print(f"[PESAPAL] Notification Type: {order_notification_type}")
+            print(f"[PESAPAL] Payment Status: {payment_status_description}")
+            print(f"[PESAPAL] Payment Method: {payment_method}")
+            
+            if not order_tracking_id:
+                print(f"[PESAPAL] ========== VIEW: IPN CALLBACK FAILED ==========")
+                print(f"[PESAPAL] ERROR: OrderTrackingId required")
+                print(f"[PESAPAL] =============================================\n")
+                logger.warning("Pesapal IPN received without OrderTrackingId")
+                return Response(
+                    {'status': 'error', 'message': 'OrderTrackingId required'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            ipn_data = {
+                'order_tracking_id': order_tracking_id,
+                'order_notification_type': order_notification_type,
+                'order_merchant_reference': order_merchant_reference,
+                'payment_status_description': payment_status_description,
+                'payment_method': payment_method,
+                'payment_account': payment_account,
+                'all_params': dict(request.GET)
+            }
+            
+            print(f"[PESAPAL] Calling service.handle_ipn...")
+            result = service.handle_ipn(
+                order_tracking_id=order_tracking_id,
+                order_notification_type=order_notification_type,
+                order_merchant_reference=order_merchant_reference,
+                payment_status_description=payment_status_description,
+                payment_method=payment_method,
+                payment_account=payment_account,
+                ipn_data=ipn_data
+            )
+            
+            print(f"[PESAPAL] Service result: {json.dumps(result, indent=2, default=str)}")
+            logger.info(f"Pesapal IPN processed: {json.dumps(ipn_data)}")
+            
+            print(f"[PESAPAL] ========== VIEW: IPN CALLBACK SUCCESS ==========\n")
+            return Response(
+                {'status': 'success', 'message': 'IPN processed'},
+                status=status.HTTP_200_OK
+            )
+            
+        except Exception as e:
+            print(f"[PESAPAL] ========== VIEW: IPN CALLBACK EXCEPTION ==========")
+            print(f"[PESAPAL] ERROR: {str(e)}")
+            import traceback
+            print(f"[PESAPAL] Traceback:\n{traceback.format_exc()}")
+            print(f"[PESAPAL] =================================================\n")
+            logger.error(f"Error processing Pesapal IPN: {str(e)}", exc_info=True)
+            return Response(
+                {'status': 'error', 'message': str(e)}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    def post(self, request):
+        """Handle POST IPN (if Pesapal sends POST instead of GET)."""
+        print(f"[PESAPAL] IPN POST request received, forwarding to GET handler")
+        return self.get(request)
+

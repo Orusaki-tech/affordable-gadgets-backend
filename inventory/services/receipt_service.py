@@ -1,0 +1,333 @@
+"""
+Receipt generation and email service.
+Handles PDF generation, receipt storage, and email delivery.
+"""
+import os
+import logging
+from decimal import Decimal
+from typing import Optional, Tuple
+from django.template.loader import render_to_string
+from django.core.mail import EmailMessage
+from django.core.files.base import ContentFile
+from django.conf import settings
+from django.utils import timezone
+from weasyprint import HTML
+from weasyprint.text.fonts import FontConfiguration
+from num2words import num2words
+from inventory.models import Order, Receipt
+
+logger = logging.getLogger(__name__)
+
+
+class ReceiptService:
+    """Service for generating and managing receipts."""
+    
+    @staticmethod
+    def number_to_words(amount: Decimal) -> str:
+        """Convert number to words (Kenyan Shillings)."""
+        try:
+            # Convert to integer (shillings)
+            shillings = int(amount)
+            cents = int((amount - shillings) * 100)
+            
+            words = num2words(shillings, lang='en').title()
+            result = f"{words} Kenya Shillings"
+            
+            if cents > 0:
+                cents_words = num2words(cents, lang='en').title()
+                result += f" And {cents_words} Cents"
+            
+            return result
+        except Exception as e:
+            logger.error(f"Error converting number to words: {e}")
+            return "Amount in words unavailable"
+    
+    @staticmethod
+    def generate_receipt_number(order: Order) -> str:
+        """Generate unique receipt number from order ID."""
+        # Use first 8 characters of UUID + last 4 digits of order ID
+        order_id_str = str(order.order_id).replace('-', '')[:8].upper()
+        return f"SL_{order_id_str}"
+    
+    @staticmethod
+    def get_receipt_context(order: Order) -> dict:
+        """Prepare context data for receipt template."""
+        # Get order items with all related data
+        order_items = order.order_items.select_related(
+            'inventory_unit__product_template',
+            'inventory_unit__product_color'
+        ).all()
+        
+        # Get customer details
+        customer = order.customer
+        customer_name = customer.name or (customer.user.username if customer.user else 'Unknown')
+        customer_phone = customer.phone or customer.phone_number or ''
+        customer_email = customer.email or (customer.user.email if customer.user and hasattr(customer.user, 'email') else '')
+        
+        # Get served by (staff member)
+        served_by = 'System'
+        if order.user:
+            served_by = order.user.get_full_name() or order.user.username
+        
+        # Get payment method from Pesapal payment if available
+        payment_method = 'MPESA'  # Default
+        if hasattr(order, 'pesapal_payments'):
+            pesapal_payment = order.pesapal_payments.filter(
+                status='COMPLETED'
+            ).first()
+            if pesapal_payment and pesapal_payment.payment_method:
+                payment_method = pesapal_payment.get_payment_method_display()
+        
+        # Prepare items data
+        items_data = []
+        for item in order_items:
+            if item.inventory_unit:
+                unit = item.inventory_unit
+                items_data.append({
+                    'description': unit.product_template.product_name,
+                    'storage': f"{unit.storage_gb}GB" if unit.storage_gb else '',
+                    'serial_no': unit.serial_number or '',
+                    'imei': unit.imei or '',
+                    'price': item.unit_price_at_purchase,
+                    'quantity': item.quantity,
+                })
+        
+        # Get first item for single-item receipts (legacy format)
+        first_item = items_data[0] if items_data else {}
+        
+        # Format date for stamp
+        date_obj = order.created_at
+        months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
+        stamp_date = f"{date_obj.day:02d} {months[date_obj.month - 1]}<br>{date_obj.year}"
+        
+        context = {
+            'order': order,
+            'order_items': items_data,
+            'receipt_number': ReceiptService.generate_receipt_number(order),
+            'date': order.created_at.strftime('%Y-%m-%d'),
+            'date_display': order.created_at.strftime('%d/%m/%Y'),
+            'stamp_date': stamp_date,
+            'customer_name': customer_name,
+            'customer_phone': customer_phone,
+            'customer_email': customer_email,
+            'amount_ksh': order.total_amount,
+            'amount_words': ReceiptService.number_to_words(order.total_amount),
+            'item_description': first_item.get('description', ''),
+            'storage': first_item.get('storage', ''),
+            'serial_no': first_item.get('serial_no', ''),
+            'imei': first_item.get('imei', ''),
+            'served_by': served_by,
+            'payment_method': payment_method,
+            'phone_number': '+254717881573',  # Company phone
+        }
+        
+        return context
+    
+    @staticmethod
+    def generate_receipt_html(order: Order) -> str:
+        """Generate HTML receipt from order."""
+        try:
+            context = ReceiptService.get_receipt_context(order)
+            html_content = render_to_string('receipts/receipt.html', context)
+            return html_content
+        except Exception as e:
+            logger.error(f"Error generating receipt HTML for order {order.order_id}: {e}")
+            raise
+    
+    @staticmethod
+    def generate_receipt_pdf(order: Order, html_content: Optional[str] = None) -> bytes:
+        """Generate PDF receipt from HTML."""
+        try:
+            if html_content is None:
+                html_content = ReceiptService.generate_receipt_html(order)
+            
+            # Generate PDF using WeasyPrint
+            font_config = FontConfiguration()
+            html_doc = HTML(string=html_content)
+            
+            # Generate PDF
+            pdf_bytes = html_doc.write_pdf(font_config=font_config)
+            
+            return pdf_bytes
+        except Exception as e:
+            logger.error(f"Error generating receipt PDF for order {order.order_id}: {e}")
+            raise
+    
+    @staticmethod
+    def create_and_save_receipt(order: Order) -> Receipt:
+        """Create receipt record and save PDF file."""
+        try:
+            # Generate HTML
+            html_content = ReceiptService.generate_receipt_html(order)
+            
+            # Generate PDF
+            pdf_bytes = ReceiptService.generate_receipt_pdf(order, html_content)
+            
+            # Generate receipt number
+            receipt_number = ReceiptService.generate_receipt_number(order)
+            
+            # Save PDF file
+            pdf_filename = f"receipt_{order.order_id}_{receipt_number}.pdf"
+            pdf_path = os.path.join('receipts', timezone.now().strftime('%Y/%m'), pdf_filename)
+            
+            # Create receipt record
+            receipt, created = Receipt.objects.get_or_create(
+                order=order,
+                defaults={
+                    'receipt_number': receipt_number,
+                    'html_content': html_content,
+                }
+            )
+            
+            # Save PDF file
+            if not receipt.pdf_file or not os.path.exists(receipt.pdf_file.path) if receipt.pdf_file else True:
+                receipt.pdf_file.save(pdf_path, 
+                    ContentFile(pdf_bytes), 
+                    save=True
+                )
+            
+            logger.info(f"Receipt created for order {order.order_id}: {receipt_number}")
+            return receipt
+            
+        except Exception as e:
+            logger.error(f"Error creating receipt for order {order.order_id}: {e}")
+            raise
+    
+    @staticmethod
+    def send_receipt_email(order: Order, receipt: Optional[Receipt] = None) -> bool:
+        """Send receipt via email to customer."""
+        try:
+            if receipt is None:
+                receipt, _ = Receipt.objects.get_or_create(order=order)
+            
+            # Get customer email
+            customer = order.customer
+            customer_email = customer.email or (customer.user.email if customer.user and hasattr(customer.user, 'email') else None)
+            
+            if not customer_email:
+                logger.warning(f"No email found for order {order.order_id}, cannot send receipt")
+                return False
+            
+            # Generate PDF if not exists
+            if not receipt.pdf_file or (receipt.pdf_file and not os.path.exists(receipt.pdf_file.path)):
+                pdf_bytes = ReceiptService.generate_receipt_pdf(order)
+                pdf_filename = f"receipt_{order.order_id}_{receipt.receipt_number}.pdf"
+                pdf_path = os.path.join('receipts', timezone.now().strftime('%Y/%m'), pdf_filename)
+                receipt.pdf_file.save(pdf_path, ContentFile(pdf_bytes), save=True)
+            
+            # Prepare email
+            customer_name = customer.name or 'Customer'
+            subject = f"Receipt for Order {receipt.receipt_number} - Affordable Gadgets"
+            message = f"""Dear {customer_name},
+
+Thank you for your purchase! Please find your receipt attached.
+
+Receipt Number: {receipt.receipt_number}
+Order ID: {order.order_id}
+Total Amount: Ksh {order.total_amount:,.2f}
+
+If you have any questions, please contact us at +254717881573.
+
+Best regards,
+Affordable Gadgets Team
+"""
+            
+            # Create email message
+            email = EmailMessage(
+                subject=subject,
+                body=message,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                to=[customer_email],
+            )
+            
+            # Attach PDF
+            if receipt.pdf_file and os.path.exists(receipt.pdf_file.path):
+                email.attach_file(receipt.pdf_file.path)
+            
+            # Send email
+            email.send()
+            
+            # Update receipt record
+            receipt.email_sent = True
+            receipt.email_sent_at = timezone.now()
+            receipt.save()
+            
+            logger.info(f"Receipt email sent for order {order.order_id} to {customer_email}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error sending receipt email for order {order.order_id}: {e}")
+            return False
+    
+    @staticmethod
+    def send_receipt_whatsapp(order: Order, receipt: Optional[Receipt] = None) -> bool:
+        """Send receipt via WhatsApp to customer."""
+        try:
+            if receipt is None:
+                receipt, _ = Receipt.objects.get_or_create(order=order)
+            
+            # Get customer phone number
+            customer = order.customer
+            customer_phone = customer.phone or customer.phone_number or ''
+            
+            # Try to get phone from source_lead for online orders
+            if not customer_phone and hasattr(order, 'source_lead') and order.source_lead:
+                customer_phone = order.source_lead.customer_phone or ''
+            
+            if not customer_phone:
+                logger.warning(f"No phone number found for order {order.order_id}, cannot send WhatsApp receipt")
+                return False
+            
+            from inventory.services.whatsapp_service import WhatsAppService
+            
+            customer_name = customer.name or 'Customer'
+            
+            # Send WhatsApp message (without PDF attachment for now, as PDF needs to be hosted)
+            whatsapp_sent = WhatsAppService.send_receipt_whatsapp(
+                phone_number=customer_phone,
+                receipt_number=receipt.receipt_number,
+                order_id=str(order.order_id),
+                total_amount=float(order.total_amount),
+                customer_name=customer_name
+            )
+            
+            if whatsapp_sent:
+                # Update receipt record
+                receipt.whatsapp_sent = True
+                receipt.whatsapp_sent_at = timezone.now()
+                receipt.save()
+                logger.info(f"Receipt WhatsApp sent for order {order.order_id} to {customer_phone}")
+            
+            return whatsapp_sent
+            
+        except Exception as e:
+            logger.error(f"Error sending receipt WhatsApp for order {order.order_id}: {e}")
+            return False
+    
+    @staticmethod
+    def generate_and_send_receipt(order: Order) -> Tuple[Receipt, bool, bool]:
+        """
+        Generate receipt and send via email and WhatsApp.
+        Returns (receipt, email_sent, whatsapp_sent).
+        """
+        try:
+            # Create receipt
+            receipt = ReceiptService.create_and_save_receipt(order)
+            
+            # Send email
+            email_sent = ReceiptService.send_receipt_email(order, receipt)
+            
+            # Send WhatsApp
+            whatsapp_sent = ReceiptService.send_receipt_whatsapp(order, receipt)
+            
+            return receipt, email_sent, whatsapp_sent
+            
+        except Exception as e:
+            logger.error(f"Error in generate_and_send_receipt for order {order.order_id}: {e}")
+            raise
+
+
+
+
+
+

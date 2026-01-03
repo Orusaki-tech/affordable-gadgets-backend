@@ -1,0 +1,24 @@
+asgiref==3.10.0
+Django==5.2.7
+django-cors-headers==4.6.0
+django-extensions==4.1
+django-filter==25.2
+djangorestframework==3.16.1
+drf-spectacular==0.27.2
+PyYAML==6.0.2
+Markdown==3.9
+pillow==12.0.0
+pydot==4.0.1
+pyparsing==3.2.5
+sqlparse==0.5.3
+requests==2.31.0
+cloudinary==1.40.0
+django-cloudinary-storage==0.3.0
+python-dotenv==1.0.0
+weasyprint==62.3
+num2words==0.5.13
+twilio==9.0.0
+# Production WSGI server
+gunicorn==21.2.0
+# PostgreSQL database adapter
+psycopg2-binary==2.9.9

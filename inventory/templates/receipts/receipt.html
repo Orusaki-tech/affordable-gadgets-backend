@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Affordable Gadgets Receipt</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 210mm;
+            margin: 0 auto;
+            background: white;
+        }
+
+        .receipt {
+            width: 210mm;
+            min-height: 297mm;
+            padding: 15mm;
+            background: white;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .watermark {
+            position: absolute;
+            top: 35%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 350px;
+            height: 350px;
+            opacity: 0.06;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .watermark img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .stamp-container {
+            position: absolute;
+            bottom: 180px;
+            right: 60px;
+            width: 200px;
+            height: 140px;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .stamp-oval {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+
+        .stamp-oval svg {
+            width: 100%;
+            height: 100%;
+            transform: rotate(-15deg);
+        }
+
+        .stamp-date {
+            position: absolute;
+            top: 42%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-15deg);
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            font-size: 16px;
+            color: #dc2626;
+            text-align: center;
+            letter-spacing: 1px;
+            line-height: 1.3;
+        }
+
+        .stamp-phone {
+            position: absolute;
+            top: 58%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-15deg);
+            font-family: Arial, sans-serif;
+            font-weight: bold;
+            font-size: 12px;
+            color: #1e40af;
+            text-align: center;
+        }
+
+        .content-wrapper {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #333;
+            padding-bottom: 8px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .logo-container {
+            width: 60px;
+            height: 60px;
+            background: #000;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            overflow: hidden;
+        }
+
+        .logo-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .header-text {
+            flex: 1;
+        }
+
+        .receipt-label {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .header h1 {
+            color: #000;
+            font-size: 26px;
+            margin: 5px 0;
+            letter-spacing: 1px;
+        }
+
+        .header h2 {
+            color: #666;
+            font-size: 15px;
+            font-weight: normal;
+            margin-top: 3px;
+        }
+
+        .receipt-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            font-size: 13px;
+        }
+
+        .receipt-number {
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        .form-group {
+            margin-bottom: 10px;
+            display: flex;
+            align-items: baseline;
+        }
+
+        .form-group label {
+            width: 130px;
+            color: #666;
+            font-size: 12px;
+        }
+
+        .form-group .value {
+            flex: 1;
+            font-size: 12px;
+            font-family: 'Courier New', monospace;
+            border-bottom: 1px dotted #999;
+            padding: 3px;
+            min-height: 20px;
+        }
+
+        .payment-section {
+            margin: 20px 0 15px 0;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .amount-box {
+            background: #e0e0e0;
+            padding: 8px 25px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 5px;
+            display: inline-block;
+        }
+
+        .served-by {
+            flex: 1;
+            text-align: right;
+        }
+
+        .served-by-label {
+            color: #666;
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+
+        .served-by .value {
+            font-size: 12px;
+            border-bottom: 1px dotted #999;
+            padding: 5px;
+            width: 200px;
+            display: inline-block;
+        }
+
+        .payment-methods {
+            margin-top: 12px;
+            display: flex;
+            gap: 20px;
+            font-size: 14px;
+        }
+
+        .payment-methods .method {
+            padding: 5px 10px;
+            background: #f0f0f0;
+            border-radius: 5px;
+        }
+
+        .divider {
+            height: 2px;
+            background: #333;
+            margin: 12px 0;
+        }
+
+        .footer {
+            margin-top: auto;
+        }
+
+        .footer-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            color: #333;
+            font-size: 12px;
+        }
+
+        .footer-content div {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .notice {
+            text-align: center;
+            font-style: italic;
+            color: #666;
+            margin: 8px 0;
+            font-size: 13px;
+        }
+
+        .refer-box {
+            text-align: center;
+            background: #333;
+            color: #fff;
+            padding: 8px;
+            border-radius: 5px;
+            font-weight: bold;
+            font-size: 12px;
+            margin-bottom: 8px;
+        }
+
+        .warranty {
+            background: #f5f5f5;
+            border: 2px solid #333;
+            border-radius: 6px;
+            padding: 10px;
+        }
+
+        .warranty h3 {
+            color: #666;
+            text-align: center;
+            background: #e0e0e0;
+            padding: 5px;
+            border-radius: 15px;
+            display: inline-block;
+            width: 100%;
+            margin-bottom: 8px;
+            font-size: 11px;
+        }
+
+        .warranty ol {
+            margin-left: 20px;
+            font-size: 10px;
+            line-height: 1.4;
+            color: #333;
+        }
+
+        .warranty li {
+            margin-bottom: 3px;
+        }
+
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+
+            .receipt {
+                box-shadow: none;
+                margin: 0;
+            }
+        }
+
+        @page {
+            size: A4;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="receipt" id="receipt">
+            <div class="watermark">
+                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Ccircle cx='100' cy='70' r='55' fill='none' stroke='%23000' stroke-width='3'/%3E%3Crect x='65' y='40' width='70' height='50' rx='8' fill='%23fff' stroke='%23000' stroke-width='3'/%3E%3Crect x='85' y='44' width='30' height='3' rx='1.5' fill='%23000'/%3E%3Ccircle cx='100' cy='80' r='4' fill='%23000'/%3E%3Ctext x='100' y='150' font-family='Arial' font-size='20' font-weight='bold' fill='%23000' text-anchor='middle'%3EAffordable Gadgets%3C/text%3E%3Ctext x='100' y='170' font-family='Arial' font-size='12' fill='%23000' text-anchor='middle'%3EExperience More . Pay Less%3C/text%3E%3C/svg%3E" alt="Watermark">
+            </div>
+
+            <div class="stamp-container">
+                <div class="stamp-oval">
+                    <svg viewBox="0 0 220 150" xmlns="http://www.w3.org/2000/svg">
+                        <ellipse cx="110" cy="75" rx="105" ry="70" fill="none" stroke="#1e40af" stroke-width="3"/>
+                        <ellipse cx="110" cy="75" rx="100" ry="65" fill="none" stroke="#1e40af" stroke-width="2"/>
+                        <path id="topArc" d="M 25,75 A 85,55 0 0,1 195,75" fill="none"/>
+                        <text font-family="Arial" font-size="14" font-weight="bold" fill="#1e40af" letter-spacing="2">
+                            <textPath href="#topArc" startOffset="50%" text-anchor="middle">
+                                AFFORDABLE GADGETS
+                            </textPath>
+                        </text>
+                        <path id="bottomArc" d="M 25,75 A 85,55 0 0,0 195,75" fill="none"/>
+                        <text font-family="Arial" font-size="11" font-weight="bold" fill="#1e40af" letter-spacing="0.5">
+                            <textPath href="#bottomArc" startOffset="50%" text-anchor="middle">
+                                Experience More . Pay Less
+                            </textPath>
+                        </text>
+                        <text x="15" y="80" font-size="16" fill="#1e40af">★</text>
+                        <text x="195" y="80" font-size="16" fill="#1e40af">★</text>
+                    </svg>
+                    <div class="stamp-date">{{ stamp_date|safe }}</div>
+                    <div class="stamp-phone">{{ phone_number }}</div>
+                </div>
+            </div>
+
+            <div class="content-wrapper">
+                <div class="header">
+                    <div class="logo-container">
+                        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 640 640'%3E%3Crect width='640' height='640' fill='%23000'/%3E%3Ccircle cx='320' cy='250' r='130' fill='none' stroke='%23fff' stroke-width='8'/%3E%3Crect x='230' y='180' width='180' height='140' rx='20' fill='%23fff'/%3E%3Crect x='285' y='190' width='70' height='8' rx='4' fill='%23000'/%3E%3Ccircle cx='320' cy='280' r='12' fill='%23000'/%3E%3Ctext x='320' y='460' font-family='Arial, sans-serif' font-size='52' font-weight='bold' fill='%23fff' text-anchor='middle'%3EAffordable Gadgets%3C/text%3E%3Ctext x='320' y='510' font-family='Arial, sans-serif' font-size='32' fill='%23fff' text-anchor='middle'%3EExperience More . Pay Less%3C/text%3E%3C/svg%3E" alt="Affordable Gadgets Logo">
+                    </div>
+                    <div class="header-text">
+                        <div class="receipt-label">RECEIPT</div>
+                        <h1>AFFORDABLE GADGETS</h1>
+                        <h2>Experience More . Pay Less</h2>
+                    </div>
+                </div>
+
+                <div class="receipt-info">
+                    <div>
+                        <span class="receipt-number">{{ receipt_number }}</span>
+                    </div>
+                    <div>
+                        Date: {{ date_display }}
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Received from</label>
+                    <div class="value">{{ customer_name }}</div>
+                </div>
+
+                <div class="form-group">
+                    <label>Amount</label>
+                    <div class="value">{{ amount_words }}</div>
+                </div>
+
+                <div class="form-group">
+                    <label>Being Payment of</label>
+                    <div class="value">{{ item_description }}</div>
+                </div>
+
+                {% if storage %}
+                <div class="form-group">
+                    <label>Storage</label>
+                    <div class="value">{{ storage }}</div>
+                </div>
+                {% endif %}
+
+                {% if serial_no %}
+                <div class="form-group">
+                    <label>Serial N.O</label>
+                    <div class="value">{{ serial_no }}</div>
+                </div>
+                {% endif %}
+
+                {% if imei %}
+                <div class="form-group">
+                    <label>IMEI N.O</label>
+                    <div class="value">{{ imei }}</div>
+                </div>
+                {% endif %}
+
+                {% if customer_phone %}
+                <div class="form-group">
+                    <label>Phone N.O</label>
+                    <div class="value">{{ customer_phone }}</div>
+                </div>
+                {% endif %}
+
+                {% if customer_email %}
+                <div class="form-group">
+                    <label>Email</label>
+                    <div class="value">{{ customer_email }}</div>
+                </div>
+                {% endif %}
+
+                <div class="payment-section">
+                    <div>
+                        <label style="color: #666; margin-right: 10px;">Ksh</label>
+                        <span class="amount-box">
+                            {{ amount_ksh|floatformat:2 }}
+                        </span>
+                    </div>
+                    <div class="served-by">
+                        <div class="served-by-label">Served By</div>
+                        <div class="value">{{ served_by }}</div>
+                    </div>
+                </div>
+
+                <div class="payment-methods">
+                    <span class="method">{{ payment_method }}</span>
+                </div>
+
+                <div class="divider"></div>
+
+                <div class="footer">
+                    <div class="footer-content">
+                        <div>
+                            📍 Kimathi House, Fourth Floor, Room 409
+                        </div>
+                        <div>
+                            📞 {{ phone_number }}
+                        </div>
+                    </div>
+
+                    <div class="notice">
+                        Goods once sold are not re-accepted
+                    </div>
+
+                    <div class="refer-box">
+                        Refer To Our Warranty Policy Below:
+                    </div>
+
+                    <div class="warranty">
+                        <h3>6 MONTHS WARRANTY</h3>
+                        <ol>
+                            <li>6 months warranty on network, charging issues, earpiece, microphone, and speaker.</li>
+                            <li>6 months warranty on software malfunction that is not related to 3rd party software i.e apps not on play store or app store.</li>
+                            <li>No warranty on screen upon testing at the shop or after delivery.</li>
+                            <li>3-months warranty on battery.</li>
+                            <li>1 month warranty on chargers and accessories.</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+
+
+
+
+
+
