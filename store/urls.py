@@ -6,8 +6,32 @@ from django.views.static import serve as static_serve
 from django.conf import settings
 from django.conf.urls.static import static
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
+from django.http import JsonResponse
+
+def api_root(request):
+    """Root endpoint providing API information."""
+    return JsonResponse({
+        'name': 'Affordable Gadgets API',
+        'version': '1.0.0',
+        'description': 'Django REST API for Affordable Gadgets e-commerce platform',
+        'endpoints': {
+            'admin': '/admin/',
+            'api_documentation': '/api/schema/swagger-ui/',
+            'api_schema': '/api/schema/',
+            'public_api': '/api/v1/public/',
+            'inventory_api': '/api/inventory/',
+        },
+        'documentation': {
+            'swagger_ui': '/api/schema/swagger-ui/',
+            'redoc': '/api/schema/redoc/',
+            'openapi_schema': '/api/schema/',
+        }
+    })
 
 urlpatterns = [
+    # 0. Root endpoint
+    path('', api_root, name='api-root'),
+    
     # 1. Django Admin Interface
     path('admin/', admin.site.urls),
     path('api/auth/token/login/', authtoken_views.obtain_auth_token),

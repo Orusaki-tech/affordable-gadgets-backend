@@ -30,19 +30,69 @@ if not ALLOWED_HOSTS:
     )
 
 # Database (use PostgreSQL in production)
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DB_NAME'),
-        'USER': os.environ.get('DB_USER'),
-        'PASSWORD': os.environ.get('DB_PASSWORD'),
-        'HOST': os.environ.get('DB_HOST', 'localhost'),
-        'PORT': os.environ.get('DB_PORT', '5432'),
-        'OPTIONS': {
-            'connect_timeout': 10,
-        },
+# Support both DATABASE_URL (Render/Heroku style) and individual DB_* variables
+from urllib.parse import urlparse
+
+database_url = os.environ.get('DATABASE_URL', '').strip()
+if database_url:
+    # Parse DATABASE_URL: postgresql://user:password@host:port/dbname
+    # or postgres://user:password@host:port/dbname
+    try:
+        parsed = urlparse(database_url)
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.postgresql',
+                'NAME': parsed.path[1:],  # Remove leading '/'
+                'USER': parsed.username,
+                'PASSWORD': parsed.password,
+                'HOST': parsed.hostname,
+                'PORT': parsed.port or '5432',
+                'OPTIONS': {
+                    'connect_timeout': 10,
+                },
+            }
+        }
+    except Exception as e:
+        # Fall back to individual variables if DATABASE_URL parsing fails
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f'Failed to parse DATABASE_URL: {e}. Falling back to individual DB_* variables.')
+        database_url = None
+
+if not database_url:
+    # Use individual environment variables
+    db_host = os.environ.get('DB_HOST', 'localhost')
+    
+    # Extract hostname if DB_HOST contains a full URL or connection string
+    # Handle cases like: "postgresql://user:pass@host:port/db" or just "hostname"
+    if '://' in db_host or '@' in db_host:
+        # It's a URL, try to parse it
+        try:
+            parsed = urlparse(db_host if '://' in db_host else f'postgresql://{db_host}')
+            db_host = parsed.hostname or db_host.split('@')[-1].split(':')[0] if '@' in db_host else db_host
+        except:
+            # If parsing fails, try to extract hostname manually
+            if '@' in db_host:
+                db_host = db_host.split('@')[-1].split(':')[0]
+            elif ':' in db_host and not db_host.startswith('postgres'):
+                db_host = db_host.split(':')[0]
+    
+    # Clean up hostname - remove any trailing slashes or paths
+    db_host = db_host.strip().rstrip('/').split('/')[0].split('?')[0]
+    
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.environ.get('DB_NAME'),
+            'USER': os.environ.get('DB_USER'),
+            'PASSWORD': os.environ.get('DB_PASSWORD'),
+            'HOST': db_host,
+            'PORT': os.environ.get('DB_PORT', '5432'),
+            'OPTIONS': {
+                'connect_timeout': 10,
+            },
+        }
     }
-}
 
 # Static files
 STATIC_URL = '/static/'
