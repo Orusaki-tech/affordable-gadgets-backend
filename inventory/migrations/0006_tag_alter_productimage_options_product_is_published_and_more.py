@@ -97,6 +97,47 @@ def reverse_safely_add_columns(apps, schema_editor):
             cursor.execute(f'ALTER TABLE inventory_productimage DROP COLUMN IF EXISTS {column_name};')
 
 
+def safely_create_manytomany_table(apps, schema_editor):
+    """Safely create the ManyToMany through table if it doesn't exist."""
+    with connection.cursor() as cursor:
+        # Check if the through table already exists
+        cursor.execute("""
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name = 'inventory_product_tags'
+        """)
+        if cursor.fetchone():
+            print("ManyToMany through table inventory_product_tags already exists, skipping creation")
+            return
+        
+        # Create the through table
+        cursor.execute("""
+            CREATE TABLE inventory_product_tags (
+                id BIGSERIAL NOT NULL PRIMARY KEY,
+                product_id BIGINT NOT NULL,
+                tag_id BIGINT NOT NULL,
+                CONSTRAINT inventory_product_tags_product_id_fkey 
+                    FOREIGN KEY (product_id) REFERENCES inventory_product(id) 
+                    ON DELETE CASCADE,
+                CONSTRAINT inventory_product_tags_tag_id_fkey 
+                    FOREIGN KEY (tag_id) REFERENCES inventory_tag(id) 
+                    ON DELETE CASCADE,
+                CONSTRAINT inventory_product_tags_product_id_tag_id_uniq 
+                    UNIQUE (product_id, tag_id)
+            );
+            CREATE INDEX inventory_product_tags_product_id_idx ON inventory_product_tags(product_id);
+            CREATE INDEX inventory_product_tags_tag_id_idx ON inventory_product_tags(tag_id);
+        """)
+        print("Created ManyToMany through table inventory_product_tags")
+
+
+def reverse_safely_create_manytomany(apps, schema_editor):
+    """Reverse operation - drop the ManyToMany through table."""
+    with connection.cursor() as cursor:
+        cursor.execute('DROP TABLE IF EXISTS inventory_product_tags;')
+
+
 
 
 class Migration(migrations.Migration):
@@ -319,9 +360,18 @@ class Migration(migrations.Migration):
                 ),
             ],
         ),
-        migrations.AddField(
-            model_name='product',
-            name='tags',
-            field=models.ManyToManyField(blank=True, help_text='Tags for organizing and categorizing products', related_name='products', to='inventory.tag'),
+        # Safely create ManyToMany through table if it doesn't exist
+        migrations.RunPython(safely_create_manytomany_table, reverse_safely_create_manytomany),
+        # Update Django's migration state to reflect tags field exists
+        # Database operations are empty because through table is already created by RunPython above
+        SeparateDatabaseAndState(
+            database_operations=[],  # Through table already created conditionally above
+            state_operations=[
+                migrations.AddField(
+                    model_name='product',
+                    name='tags',
+                    field=models.ManyToManyField(blank=True, help_text='Tags for organizing and categorizing products', related_name='products', to='inventory.tag'),
+                ),
+            ],
         ),
     ]
