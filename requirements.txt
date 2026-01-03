@@ -20,5 +20,6 @@ num2words==0.5.13
 twilio==9.0.0
 # Production WSGI server
 gunicorn==21.2.0
-# PostgreSQL database adapter
-psycopg2-binary==2.9.9
+# PostgreSQL database adapter (psycopg3 - modern, supports Python 3.13+)
+# Django 5.2+ automatically detects and uses psycopg if installed
+psycopg[binary]==3.2.0

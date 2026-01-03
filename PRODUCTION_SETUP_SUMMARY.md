@@ -28,7 +28,7 @@ This document summarizes what has been configured for production deployment.
 ### 4. Production Dependencies
 - Updated `requirements.txt` with:
   - `gunicorn==21.2.0` (WSGI server)
-  - `psycopg2-binary==2.9.9` (PostgreSQL adapter)
+  - `psycopg[binary]==3.2.0` (PostgreSQL adapter - psycopg3, supports Python 3.13+)
 
 ### 5. Deployment Configuration
 - Created `Procfile` for Railway/Heroku deployment
