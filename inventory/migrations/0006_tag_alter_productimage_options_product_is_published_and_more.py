@@ -25,51 +25,9 @@ def reverse_generate_slugs(apps, schema_editor):
     Product.objects.all().update(slug='')
 
 
-def drop_duplicate_index_if_exists(apps, schema_editor):
-    """Drop the duplicate LIKE index if it exists before making slug unique."""
-    with connection.cursor() as cursor:
-        # Drop all possible variations of the index
-        index_names = [
-            'inventory_product_slug_40cd5b78_like',
-            'inventory_product_slug_like',
-        ]
-        for index_name in index_names:
-            cursor.execute("""
-                SELECT indexname FROM pg_indexes 
-                WHERE schemaname = 'public' AND indexname = %s
-            """, [index_name])
-            if cursor.fetchone():
-                try:
-                    cursor.execute(f'DROP INDEX IF EXISTS {index_name};')
-                    print(f"Dropped duplicate index: {index_name}")
-                except Exception as e:
-                    print(f"Could not drop index {index_name}: {e}")
-        
-        # Also drop any LIKE indexes on the slug column
-        cursor.execute("""
-            SELECT indexname FROM pg_indexes 
-            WHERE schemaname = 'public' 
-            AND tablename = 'inventory_product' 
-            AND indexname LIKE '%slug%like%'
-        """)
-        for row in cursor.fetchall():
-            index_name = row[0]
-            try:
-                cursor.execute(f'DROP INDEX IF EXISTS {index_name};')
-                print(f"Dropped LIKE index: {index_name}")
-            except Exception as e:
-                print(f"Could not drop index {index_name}: {e}")
-
-
-def reverse_drop_index(apps, schema_editor):
-    """Reverse operation - no-op since we can't recreate the exact index."""
-    pass
 
 
 class Migration(migrations.Migration):
-    # Make migration non-atomic to allow index operations in separate transactions
-    atomic = False
-
     dependencies = [
         ('inventory', '0005_auditlog'),
     ]
@@ -145,15 +103,47 @@ class Migration(migrations.Migration):
         ),
         # Generate slugs for existing products
         migrations.RunPython(generate_slugs_for_products, reverse_generate_slugs),
-        # Drop duplicate index if it exists (handles partial migration scenarios)
-        # This must run before AlterField to prevent duplicate index error
-        migrations.RunPython(drop_duplicate_index_if_exists, reverse_drop_index),
-        # Drop the LIKE index using raw SQL (must be in separate operation for non-atomic migration)
+        # Safely make slug unique using SQL (handles existing constraints/indexes gracefully)
         migrations.RunSQL(
-            sql='DROP INDEX IF EXISTS inventory_product_slug_40cd5b78_like;',
-            reverse_sql=migrations.RunSQL.noop,
+            sql="""
+                -- Drop any conflicting LIKE indexes
+                DO $$
+                DECLARE
+                    idx_name text;
+                BEGIN
+                    FOR idx_name IN 
+                        SELECT indexname FROM pg_indexes 
+                        WHERE schemaname = 'public' 
+                        AND tablename = 'inventory_product' 
+                        AND indexname LIKE '%slug%like%'
+                    LOOP
+                        EXECUTE format('DROP INDEX IF EXISTS %I', idx_name);
+                    END LOOP;
+                END $$;
+                
+                -- Add unique constraint if it doesn't exist
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_constraint 
+                        WHERE conrelid = 'inventory_product'::regclass 
+                        AND conname = 'inventory_product_slug_key'
+                    ) THEN
+                        ALTER TABLE inventory_product 
+                        ADD CONSTRAINT inventory_product_slug_key UNIQUE (slug);
+                    END IF;
+                END $$;
+                
+                -- Ensure there's an index on slug (for performance)
+                CREATE INDEX IF NOT EXISTS inventory_product_slug_idx ON inventory_product(slug);
+            """,
+            reverse_sql="""
+                ALTER TABLE inventory_product DROP CONSTRAINT IF EXISTS inventory_product_slug_key;
+                DROP INDEX IF EXISTS inventory_product_slug_idx;
+            """,
         ),
-        # Now make slug unique - Django will create the proper unique constraint and index
+        # Update Django's migration state to reflect slug is unique
+        # This is safe because the constraint is already added by RunSQL above
         migrations.AlterField(
             model_name='product',
             name='slug',
