@@ -926,8 +926,14 @@ class InventoryUnitSerializer(serializers.ModelSerializer):
         allow_null=True, required=False, write_only=True
     )
     
-    # sale_status is read-only - auto-set based on source on creation, system-managed otherwise
-    sale_status = serializers.CharField(read_only=True)
+    # sale_status - editable by admins (was read-only, now editable for admin control)
+    sale_status = serializers.ChoiceField(
+        choices=InventoryUnit.SaleStatusChoices.choices,
+        required=False,
+        allow_null=False
+    )
+    # available_online - whether unit can be purchased online
+    available_online = serializers.BooleanField(default=True, required=False)
     
     # Reservation fields
     reserved_by_username = serializers.CharField(source='reserved_by.user.username', read_only=True)
@@ -944,7 +950,7 @@ class InventoryUnitSerializer(serializers.ModelSerializer):
             'id', 'product_template', 'product_template_id', 'product_template_name', 'product_brand', 'product_type',
             'product_color_id', 'product_color', 'color_name', 'acquisition_source_details_id', 'acquisition_source_details',
             # Core attributes
-            'condition', 'source', 'sale_status', 'grade', 'date_sourced',
+            'condition', 'source', 'sale_status', 'available_online', 'grade', 'date_sourced',
             'cost_of_unit', 'selling_price', 'quantity', 'serial_number', 'imei', 
             # Specs
             'storage_gb', 'ram_gb', 'battery_mah', 'is_sim_enabled', 'processor_details',
@@ -953,7 +959,7 @@ class InventoryUnitSerializer(serializers.ModelSerializer):
             # Reservation fields
             'reserved_by_id', 'reserved_by_username', 'reserved_until', 'can_reserve', 'can_transfer', 'is_reservation_expired'
         )
-        read_only_fields = ('id', 'sale_status', 'images', 'reserved_by_id', 'reserved_by_username', 'reserved_until', 'can_reserve', 'can_transfer', 'is_reservation_expired')
+        read_only_fields = ('id', 'images', 'reserved_by_id', 'reserved_by_username', 'reserved_until', 'can_reserve', 'can_transfer', 'is_reservation_expired')
     
     def get_can_reserve(self, obj):
         """Check if current user can reserve this unit."""
@@ -1107,40 +1113,32 @@ class InventoryUnitSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         """
-        Auto-set sale_status based on source:
+        Auto-set sale_status based on source if not provided:
         - Buyback (BB) → RETURNED (needs admin approval)
         - Supplier/Import (SU/IM) → AVAILABLE
         """
-        source = validated_data.get('source', InventoryUnit.SourceChoices.EXTERNAL_SUPPLIER)
+        # Only auto-set if sale_status not provided
+        if 'sale_status' not in validated_data:
+            source = validated_data.get('source', InventoryUnit.SourceChoices.EXTERNAL_SUPPLIER)
+            
+            if source == InventoryUnit.SourceChoices.BUYBACK_CUSTOMER:
+                validated_data['sale_status'] = InventoryUnit.SaleStatusChoices.RETURNED
+            else:
+                validated_data['sale_status'] = InventoryUnit.SaleStatusChoices.AVAILABLE
         
-        if source == InventoryUnit.SourceChoices.BUYBACK_CUSTOMER:
-            validated_data['sale_status'] = InventoryUnit.SaleStatusChoices.RETURNED
-        else:
-            validated_data['sale_status'] = InventoryUnit.SaleStatusChoices.AVAILABLE
+        # Default available_online to True if not provided
+        if 'available_online' not in validated_data:
+            validated_data['available_online'] = True
         
         return super().create(validated_data)
     
     def update(self, instance, validated_data):
         """
-        Prevent manual sale_status changes except RETURNED → AVAILABLE (buyback approval).
-        Sale status is system-managed by order lifecycle.
+        Allow admins to update sale_status and available_online.
+        Sale status changes are now allowed for admin control.
         """
-        # sale_status is read-only, so it shouldn't be in validated_data
-        # But if somehow it is, validate the transition
-        if 'sale_status' in validated_data:
-            new_status = validated_data['sale_status']
-            if instance.sale_status != InventoryUnit.SaleStatusChoices.RETURNED:
-                raise serializers.ValidationError({
-                    'sale_status': "sale_status can only be manually changed from RETURNED to AVAILABLE (for buyback approval)."
-                })
-            if new_status != InventoryUnit.SaleStatusChoices.AVAILABLE:
-                raise serializers.ValidationError({
-                    'sale_status': "sale_status can only be changed to AVAILABLE from RETURNED status."
-                })
-            if instance.source != InventoryUnit.SourceChoices.BUYBACK_CUSTOMER:
-                raise serializers.ValidationError({
-                    'sale_status': "Only buyback items can be manually approved."
-                })
+        # Allow sale_status to be updated by admins
+        # No restrictions - admins have full control
         
         return super().update(instance, validated_data)
 
