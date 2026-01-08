@@ -926,13 +926,9 @@ class InventoryUnitSerializer(serializers.ModelSerializer):
         allow_null=True, required=False, write_only=True
     )
     
-    # sale_status - editable by admins (was read-only, now editable for admin control)
-    sale_status = serializers.ChoiceField(
-        choices=InventoryUnit.SaleStatusChoices.choices,
-        required=False,
-        allow_null=False
-    )
-    # available_online - whether unit can be purchased online
+    # sale_status is read-only - system-managed only (order lifecycle, buyback approval, etc.)
+    sale_status = serializers.CharField(read_only=True)
+    # available_online - whether unit can be purchased online (editable by admins)
     available_online = serializers.BooleanField(default=True, required=False)
     
     # Reservation fields
@@ -959,7 +955,7 @@ class InventoryUnitSerializer(serializers.ModelSerializer):
             # Reservation fields
             'reserved_by_id', 'reserved_by_username', 'reserved_until', 'can_reserve', 'can_transfer', 'is_reservation_expired'
         )
-        read_only_fields = ('id', 'images', 'reserved_by_id', 'reserved_by_username', 'reserved_until', 'can_reserve', 'can_transfer', 'is_reservation_expired')
+        read_only_fields = ('id', 'sale_status', 'images', 'reserved_by_id', 'reserved_by_username', 'reserved_until', 'can_reserve', 'can_transfer', 'is_reservation_expired')
     
     def get_can_reserve(self, obj):
         """Check if current user can reserve this unit."""
@@ -1113,32 +1109,44 @@ class InventoryUnitSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         """
-        Auto-set sale_status based on source if not provided:
-        - Buyback (BB) → RETURNED (needs admin approval)
+        Auto-set sale_status based on source:
+        - Buyback (BB) → RETURNED (needs admin approval via ReturnRequest)
         - Supplier/Import (SU/IM) → AVAILABLE
         """
-        # Only auto-set if sale_status not provided
-        if 'sale_status' not in validated_data:
-            source = validated_data.get('source', InventoryUnit.SourceChoices.EXTERNAL_SUPPLIER)
-            
-            if source == InventoryUnit.SourceChoices.BUYBACK_CUSTOMER:
-                validated_data['sale_status'] = InventoryUnit.SaleStatusChoices.RETURNED
-            else:
-                validated_data['sale_status'] = InventoryUnit.SaleStatusChoices.AVAILABLE
+        source = validated_data.get('source', InventoryUnit.SourceChoices.EXTERNAL_SUPPLIER)
+        
+        if source == InventoryUnit.SourceChoices.BUYBACK_CUSTOMER:
+            validated_data['sale_status'] = InventoryUnit.SaleStatusChoices.RETURNED
+        else:
+            validated_data['sale_status'] = InventoryUnit.SaleStatusChoices.AVAILABLE
         
         # Default available_online to True if not provided
         if 'available_online' not in validated_data:
             validated_data['available_online'] = True
         
-        return super().create(validated_data)
+        # Create the unit
+        unit = super().create(validated_data)
+        
+        # Auto-create ReturnRequest for buyback units
+        if source == InventoryUnit.SourceChoices.BUYBACK_CUSTOMER:
+            from inventory.models import ReturnRequest
+            return_request = ReturnRequest.objects.create(
+                requesting_salesperson=None,  # Buyback units don't have a salesperson
+                status=ReturnRequest.StatusChoices.PENDING,
+                notes="Auto-created for buyback unit"
+            )
+            return_request.inventory_units.add(unit)
+        
+        return unit
     
     def update(self, instance, validated_data):
         """
-        Allow admins to update sale_status and available_online.
-        Sale status changes are now allowed for admin control.
+        Prevent manual sale_status changes - it's system-managed.
+        Sale status is controlled by order lifecycle, buyback approval, etc.
         """
-        # Allow sale_status to be updated by admins
-        # No restrictions - admins have full control
+        # sale_status is read-only, so it shouldn't be in validated_data
+        # Remove it if somehow it got through
+        validated_data.pop('sale_status', None)
         
         return super().update(instance, validated_data)
 

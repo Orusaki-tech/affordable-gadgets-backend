@@ -2206,12 +2206,18 @@ class ReturnRequestViewSet(viewsets.ModelViewSet):
                 status=new_status
             )
             
-            # Update all inventory units: RESERVED → AVAILABLE
+            # Update all inventory units based on current status
+            # Handle both salesperson returns (RESERVED → AVAILABLE) and buyback approvals (RETURNED → AVAILABLE)
             units = request_obj.inventory_units.all()
             for unit in units:
-                unit.sale_status = InventoryUnit.SaleStatusChoices.AVAILABLE
-                unit.reserved_by = None
-                unit.reserved_until = None
+                if unit.sale_status == InventoryUnit.SaleStatusChoices.RESERVED:
+                    # Salesperson return: clear reservation and make available
+                    unit.sale_status = InventoryUnit.SaleStatusChoices.AVAILABLE
+                    unit.reserved_by = None
+                    unit.reserved_until = None
+                elif unit.sale_status == InventoryUnit.SaleStatusChoices.RETURNED:
+                    # Buyback approval: just change status to available
+                    unit.sale_status = InventoryUnit.SaleStatusChoices.AVAILABLE
                 unit.save()
 
             # Mark any related approved reservation requests as returned

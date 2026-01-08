@@ -872,7 +872,10 @@ class ReturnRequest(models.Model):
         on_delete=models.CASCADE,
         related_name='return_requests',
         verbose_name="Requesting Salesperson",
-        limit_choices_to={'roles__name': AdminRole.RoleChoices.SALESPERSON}
+        null=True,
+        blank=True,
+        limit_choices_to={'roles__name': AdminRole.RoleChoices.SALESPERSON},
+        help_text="Salesperson requesting return. Null for buyback units (auto-created)."
     )
     inventory_units = models.ManyToManyField(
         InventoryUnit,
