@@ -188,6 +188,38 @@ class ProductViewSet(viewsets.ModelViewSet):
                 if default_brand:
                     product_instance.brands.set([default_brand])
     
+    def perform_destroy(self, instance):
+        """
+        Override destroy to check for related objects before deletion.
+        Prevents deletion if product has inventory units (PROTECT constraint).
+        """
+        # Check for inventory units - these have PROTECT constraint
+        inventory_units_count = instance.inventory_units.count()
+        if inventory_units_count > 0:
+            from rest_framework.exceptions import ValidationError
+            error_message = (
+                f'Cannot delete product "{instance.product_name}" because it has {inventory_units_count} '
+                f'inventory unit(s) associated with it. Please delete or reassign all inventory units first.'
+            )
+            # DRF ValidationError with a dict returns it as {"detail": "message"} which is easier to parse
+            raise ValidationError({'detail': error_message})
+        
+        # Check for other related objects that might prevent deletion
+        # ProductAccessory (CASCADE - will be deleted automatically)
+        # ProductImage (CASCADE - will be deleted automatically)
+        # Review (CASCADE - will be deleted automatically)
+        # created_by/updated_by (PROTECT - but these are users, not products)
+        
+        # Attempt deletion
+        try:
+            instance.delete()
+        except Exception as e:
+            # Log the error for debugging
+            logger.error(f"Error deleting product {instance.id}: {str(e)}", exc_info=True)
+            # Re-raise with a user-friendly message
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError(f'Failed to delete product: {str(e)}')
+    
     @action(detail=True, methods=['patch'], permission_classes=[IsContentCreator])
     def update_content(self, request, pk=None):
         """
