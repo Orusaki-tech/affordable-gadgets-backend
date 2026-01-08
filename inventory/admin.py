@@ -73,10 +73,10 @@ class InventoryUnitAdmin(admin.ModelAdmin):
     """Admin view for tracking individual physical stock units."""
     list_display = (
         'serial_number', 'product_template', 'condition', 'grade', 
-        'sale_status', 'selling_price', 'date_sourced'
+        'sale_status', 'available_online', 'selling_price', 'date_sourced'
     )
     list_select_related = ('product_template', 'product_color') 
-    list_filter = ('sale_status', 'condition', 'grade', 'source')
+    list_filter = ('sale_status', 'available_online', 'condition', 'grade', 'source')
     # CONSISTENT: Using product_template__product_name for searching.
     search_fields = (
         'serial_number', 'imei', 'product_template__product_name', 
@@ -88,7 +88,7 @@ class InventoryUnitAdmin(admin.ModelAdmin):
             'fields': ('product_template', 'product_color', 'serial_number', 'imei', 'quantity')
         }),
         ('Unit Status', {
-            'fields': ('condition', 'grade', 'sale_status', 'selling_price', 'cost_of_unit')
+            'fields': ('condition', 'grade', 'sale_status', 'available_online', 'selling_price', 'cost_of_unit')
         }),
         ('Source & Date', {
             'fields': ('source', 'acquisition_source_details', 'date_sourced')

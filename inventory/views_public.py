@@ -92,6 +92,11 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
         queryset = super().get_queryset()
         brand = getattr(self.request, 'brand', None)
         
+        # Log for debugging (remove in production)
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"PublicProductViewSet: brand={brand}, initial queryset count={queryset.count()}")
+        
         # Base filter for available units
         available_units_filter = Q(
             sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
