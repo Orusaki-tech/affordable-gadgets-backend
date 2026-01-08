@@ -150,7 +150,9 @@ class IsSalesperson(permissions.BasePermission):
         import json
         import os
         
-        log_path = '/Users/shwariphones/Desktop/shwari-django/Shwari/.cursor/debug.log'
+        # Use PESAPAL_LOG_PATH from environment variable, fallback to /tmp/pesapal_debug.log
+        from django.conf import settings
+        log_path = getattr(settings, 'PESAPAL_LOG_PATH', '/tmp/pesapal_debug.log')
         
         #region agent log
         try:

@@ -236,6 +236,7 @@ PESAPAL_NOTIFICATION_ID = os.environ.get('PESAPAL_NOTIFICATION_ID', '')
 PESAPAL_API_TIMEOUT = int(os.environ.get('PESAPAL_API_TIMEOUT', '30'))
 PESAPAL_MAX_RETRIES = int(os.environ.get('PESAPAL_MAX_RETRIES', '3'))
 PESAPAL_RETRY_DELAY = int(os.environ.get('PESAPAL_RETRY_DELAY', '2'))
+PESAPAL_LOG_PATH = os.environ.get('PESAPAL_LOG_PATH', '/tmp/pesapal_debug.log')
 
 # --- Email Configuration ---
 EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')

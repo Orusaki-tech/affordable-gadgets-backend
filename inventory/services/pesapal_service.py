@@ -21,9 +21,10 @@ class PesapalService:
         # #region agent log
         import json
         import os
-        log_path = '/Users/shwariphones/Desktop/shwari-django/Shwari/.cursor/debug.log'
-        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        # Use PESAPAL_LOG_PATH from environment variable, fallback to /tmp/pesapal_debug.log
+        log_path = getattr(settings, 'PESAPAL_LOG_PATH', '/tmp/pesapal_debug.log')
         try:
+            os.makedirs(os.path.dirname(log_path), exist_ok=True)
             with open(log_path, 'a') as f:
                 f.write(json.dumps({
                     'sessionId': 'debug-session',
@@ -126,7 +127,8 @@ class PesapalService:
             
             try:
                 # #region agent log
-                log_path = '/Users/shwariphones/Desktop/shwari-django/Shwari/.cursor/debug.log'
+                # Use PESAPAL_LOG_PATH from environment variable, fallback to /tmp/pesapal_debug.log
+                log_path = getattr(settings, 'PESAPAL_LOG_PATH', '/tmp/pesapal_debug.log')
                 if method.upper() == 'POST':
                     try:
                         with open(log_path, 'a') as f:
@@ -341,9 +343,10 @@ class PesapalService:
         # #region agent log
         import json
         import os
-        log_path = '/Users/shwariphones/Desktop/shwari-django/Shwari/.cursor/debug.log'
-        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        # Use PESAPAL_LOG_PATH from environment variable, fallback to /tmp/pesapal_debug.log
+        log_path = getattr(settings, 'PESAPAL_LOG_PATH', '/tmp/pesapal_debug.log')
         try:
+            os.makedirs(os.path.dirname(log_path), exist_ok=True)
             with open(log_path, 'a') as f:
                 f.write(json.dumps({
                     'sessionId': 'debug-session',
