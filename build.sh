@@ -34,5 +34,11 @@ python manage.py create_superuser_from_env || {
     echo "⚠️  Superuser creation encountered an error. Continuing with build..."
 }
 
+# Create default brand from environment variables (if provided)
+echo "🏷️  Creating default brand (if not exists)..."
+python manage.py create_default_brand || {
+    echo "⚠️  Brand creation encountered an error. Continuing with build..."
+}
+
 echo "✅ Build complete!"
 
