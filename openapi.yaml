@@ -1190,12 +1190,6 @@ paths:
         description: A page number within the paginated result set.
         schema:
           type: integer
-      - name: status
-        required: false
-        in: query
-        description: Filter leads by status.
-        schema:
-          $ref: '#/components/schemas/LeadStatusEnum'
       tags:
       - leads
       security:
@@ -1363,7 +1357,7 @@ paths:
           multipart/form-data:
             schema:
               $ref: '#/components/schemas/LeadRequest'
-        required: false
+        required: true
       security:
       - tokenAuth: []
       - cookieAuth: []
@@ -1398,7 +1392,7 @@ paths:
           multipart/form-data:
             schema:
               $ref: '#/components/schemas/LeadRequest'
-        required: false
+        required: true
       security:
       - tokenAuth: []
       - cookieAuth: []
@@ -1425,23 +1419,14 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                notes:
-                  type: string
+              $ref: '#/components/schemas/LeadRequest'
           application/x-www-form-urlencoded:
             schema:
-              type: object
-              properties:
-                notes:
-                  type: string
+              $ref: '#/components/schemas/LeadRequest'
           multipart/form-data:
             schema:
-              type: object
-              properties:
-                notes:
-                  type: string
-        required: false
+              $ref: '#/components/schemas/LeadRequest'
+        required: true
       security:
       - tokenAuth: []
       - cookieAuth: []
@@ -1475,7 +1460,7 @@ paths:
           multipart/form-data:
             schema:
               $ref: '#/components/schemas/LeadRequest'
-        required: false
+        required: true
       security:
       - tokenAuth: []
       - cookieAuth: []
@@ -2758,12 +2743,6 @@ paths:
         description: A page number within the paginated result set.
         schema:
           type: integer
-      - name: is_active
-        required: false
-        in: query
-        description: Filter promotions by active status.
-        schema:
-          type: boolean
       tags:
       - promotions
       security:
@@ -3034,12 +3013,6 @@ paths:
         description: A page number within the paginated result set.
         schema:
           type: integer
-      - name: status
-        required: false
-        in: query
-        description: Filter reservation requests by status.
-        schema:
-          $ref: '#/components/schemas/StatusC79Enum'
       tags:
       - reservation-requests
       security:
@@ -3218,12 +3191,6 @@ paths:
         description: A page number within the paginated result set.
         schema:
           type: integer
-      - name: status
-        required: false
-        in: query
-        description: Filter return requests by status.
-        schema:
-          $ref: '#/components/schemas/Status214Enum'
       tags:
       - return-requests
       security:
@@ -6563,6 +6530,9 @@ components:
         sale_status:
           type: string
           readOnly: true
+        available_online:
+          type: boolean
+          default: true
         grade:
           nullable: true
           oneOf:
@@ -6726,6 +6696,9 @@ components:
           $ref: '#/components/schemas/ConditionEnum'
         source:
           $ref: '#/components/schemas/SourceEnum'
+        available_online:
+          type: boolean
+          default: true
         grade:
           nullable: true
           oneOf:
@@ -7977,6 +7950,9 @@ components:
           $ref: '#/components/schemas/ConditionEnum'
         source:
           $ref: '#/components/schemas/SourceEnum'
+        available_online:
+          type: boolean
+          default: true
         grade:
           nullable: true
           oneOf:
@@ -8296,6 +8272,13 @@ components:
         display_locations:
           description: 'List of display locations: ''stories_carousel'', ''special_offers'',
             ''flash_sales'''
+        carousel_position:
+          type: integer
+          maximum: 5
+          minimum: 1
+          nullable: true
+          description: Position in stories carousel (1-5). 1 = Large banner, 2-5 =
+            Grid positions
         discount_percentage:
           type: string
           format: decimal
@@ -8902,6 +8885,13 @@ components:
         display_locations:
           description: 'List of display locations: ''stories_carousel'', ''special_offers'',
             ''flash_sales'''
+        carousel_position:
+          type: integer
+          maximum: 5
+          minimum: 1
+          nullable: true
+          description: Position in stories carousel (1-5). 1 = Large banner, 2-5 =
+            Grid positions
         discount_percentage:
           type: string
           format: decimal
@@ -8992,6 +8982,13 @@ components:
         display_locations:
           description: 'List of display locations: ''stories_carousel'', ''special_offers'',
             ''flash_sales'''
+        carousel_position:
+          type: integer
+          maximum: 5
+          minimum: 1
+          nullable: true
+          description: Position in stories carousel (1-5). 1 = Large banner, 2-5 =
+            Grid positions
         discount_percentage:
           type: string
           format: decimal
@@ -9324,6 +9321,13 @@ components:
         display_locations:
           description: 'List of display locations: ''stories_carousel'', ''special_offers'',
             ''flash_sales'''
+        carousel_position:
+          type: integer
+          maximum: 5
+          minimum: 1
+          nullable: true
+          description: Position in stories carousel (1-5). 1 = Large banner, 2-5 =
+            Grid positions
         products:
           type: string
           readOnly: true
@@ -9440,6 +9444,8 @@ components:
         requesting_salesperson:
           type: integer
           readOnly: true
+          nullable: true
+          description: Salesperson requesting return. Null for buyback units (auto-created).
         requesting_salesperson_username:
           type: string
           readOnly: true

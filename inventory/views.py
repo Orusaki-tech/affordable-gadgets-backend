@@ -20,7 +20,9 @@ from django.contrib.contenttypes.models import ContentType
 from django.conf import settings 
 from django.http import HttpResponse, FileResponse
 from django.core.files.base import ContentFile
-from .serializers import CustomerRegistrationSerializer, CustomerLoginSerializer 
+from .serializers import CustomerRegistrationSerializer, CustomerLoginSerializer
+from rest_framework.authtoken.views import ObtainAuthToken
+from rest_framework.authtoken.models import Token 
 
 # Assume these models are imported from your app's models.py
 from .models import (
@@ -1677,6 +1679,25 @@ class CustomerRegistrationView(generics.CreateAPIView):
     pass
     
 # NOTE: Include your other views here (e.g., ProductListView, OrderCreateView, etc.)
+
+class AdminTokenLoginView(ObtainAuthToken):
+    """
+    Custom token login view that updates last_login field.
+    Use this instead of the default obtain_auth_token for admin users.
+    """
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.validated_data['user']
+        
+        # Update last_login
+        user.last_login = timezone.now()
+        user.save(update_fields=['last_login'])
+        
+        # Get or create token
+        token, created = Token.objects.get_or_create(user=user)
+        
+        return Response({'token': token.key})
 
 class CustomerLoginView(generics.GenericAPIView):
     """

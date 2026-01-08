@@ -386,6 +386,11 @@ class CustomerLoginSerializer(serializers.Serializer):
 
 
         if user and user.is_active:
+            # Update last_login timestamp
+            from django.utils import timezone
+            user.last_login = timezone.now()
+            user.save(update_fields=['last_login'])
+            
             # Check if a token already exists, otherwise create a new one
             token, created = Token.objects.get_or_create(user=user)
             self.user = user

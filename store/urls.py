@@ -7,6 +7,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
 from django.http import JsonResponse
+from inventory import views as inventory_views
 
 def api_root(request):
     """Root endpoint providing API information."""
@@ -34,7 +35,7 @@ urlpatterns = [
     
     # 1. Django Admin Interface
     path('admin/', admin.site.urls),
-    path('api/auth/token/login/', authtoken_views.obtain_auth_token),
+    path('api/auth/token/login/', inventory_views.AdminTokenLoginView.as_view()),
 
     # 2. Authentication Endpoints (Placeholder for user login, registration, etc.)
     # In a real-world scenario, you would use a library like Djoser or built-in DRF Auth views.
