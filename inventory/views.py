@@ -1148,9 +1148,10 @@ class OrderViewSet(viewsets.ModelViewSet):
         - initiate_payment (payment initiation for guest checkout)
         - payment_status (checking payment status for guest checkout)
         - receipt (receipt download for paid orders, including guest checkout)
+        - retrieve (order detail view for paid orders, including guest checkout)
         Require authentication for all other actions.
         """
-        if self.action in ['create', 'initiate_payment', 'payment_status', 'receipt']:
+        if self.action in ['create', 'initiate_payment', 'payment_status', 'receipt', 'retrieve']:
             return [permissions.AllowAny()]
         return [permissions.IsAuthenticated()]
 
@@ -1236,6 +1237,7 @@ class OrderViewSet(viewsets.ModelViewSet):
             if self.action == 'list':
                 return Order.objects.none()
             # For detail/retrieve, allow access (will be filtered by order_id lookup)
+            # Permission check for paid orders is done in retrieve() method
             return queryset
         
         try:
@@ -1244,6 +1246,46 @@ class OrderViewSet(viewsets.ModelViewSet):
         except Customer.DoesNotExist:
             # If an authenticated user somehow lacks a Customer profile, show nothing
             return Order.objects.none()
+
+    def retrieve(self, request, *args, **kwargs):
+        """
+        Override retrieve to allow unauthenticated users to view paid orders.
+        This enables guest checkout users to view their order details after payment.
+        """
+        order = self.get_object()
+        
+        # Check permissions:
+        # - Staff can always view orders
+        # - Authenticated users can view their own orders
+        # - Unauthenticated users can only view paid orders (guest checkout after payment)
+        if request.user.is_staff:
+            # Staff can view any order
+            pass
+        elif request.user.is_authenticated:
+            # Authenticated users can only view their own orders
+            try:
+                customer = Customer.objects.get(user=request.user)
+                if order.customer != customer:
+                    return Response(
+                        {'error': 'You do not have permission to view this order.'},
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+            except Customer.DoesNotExist:
+                # If user has no customer profile, deny access
+                return Response(
+                    {'error': 'You do not have permission to view this order.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        else:
+            # Unauthenticated users can only view paid orders (guest checkout)
+            if order.status != Order.StatusChoices.PAID:
+                return Response(
+                    {'error': 'Order details are only available for paid orders.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        
+        # Use parent retrieve method to return the order
+        return super().retrieve(request, *args, **kwargs)
 
     @transaction.atomic
     def create(self, request, *args, **kwargs):
