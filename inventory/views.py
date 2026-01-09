@@ -1251,49 +1251,21 @@ class OrderViewSet(viewsets.ModelViewSet):
         If an order with the same idempotency key exists, return it instead of creating a new one.
         """
         # #region agent log
-        import json
-        import os
-        log_path = '/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log'
-        try:
-            os.makedirs(os.path.dirname(log_path), exist_ok=True)
-            with open(log_path, 'a') as f:
-                f.write(json.dumps({
-                    'sessionId': 'debug-session',
-                    'runId': 'run1',
-                    'hypothesisId': 'A',
-                    'location': 'inventory/views.py:OrderViewSet.create',
-                    'message': 'Order creation request received',
-                    'data': {
-                        'has_idempotency_key_header': bool(request.headers.get('Idempotency-Key') or request.headers.get('X-Idempotency-Key')),
-                        'method': request.method,
-                        'user_authenticated': request.user.is_authenticated if hasattr(request, 'user') else False,
-                    },
-                    'timestamp': int(timezone.now().timestamp() * 1000)
-                }) + '\n')
-        except Exception as e:
-            print(f"[DEBUG] Failed to write log: {e}")
+        logger.info("Order creation request received", extra={
+            'has_idempotency_key_header': bool(request.headers.get('Idempotency-Key') or request.headers.get('X-Idempotency-Key')),
+            'method': request.method,
+            'user_authenticated': request.user.is_authenticated if hasattr(request, 'user') else False,
+        })
         # #endregion
         
         # Check for idempotency key in header
         idempotency_key = request.headers.get('Idempotency-Key') or request.headers.get('X-Idempotency-Key')
         
         # #region agent log
-        try:
-            with open(log_path, 'a') as f:
-                f.write(json.dumps({
-                    'sessionId': 'debug-session',
-                    'runId': 'run1',
-                    'hypothesisId': 'B',
-                    'location': 'inventory/views.py:OrderViewSet.create',
-                    'message': 'Idempotency key extracted from header',
-                    'data': {
-                        'idempotency_key_present': bool(idempotency_key),
-                        'idempotency_key_value': idempotency_key[:20] + '...' if idempotency_key else None,
-                    },
-                    'timestamp': int(timezone.now().timestamp() * 1000)
-                }) + '\n')
-        except Exception as e:
-            print(f"[DEBUG] Failed to write log: {e}")
+        logger.info("Idempotency key extracted from header", extra={
+            'idempotency_key_present': bool(idempotency_key),
+            'idempotency_key_preview': idempotency_key[:20] + '...' if idempotency_key else None,
+        })
         # #endregion
         
         if idempotency_key:
@@ -1318,16 +1290,44 @@ class OrderViewSet(viewsets.ModelViewSet):
                 # #endregion
                 
                 # Check if idempotency_key column exists in database
-                from django.db import connection
-                with connection.cursor() as cursor:
-                    cursor.execute("""
-                        SELECT column_name 
-                        FROM information_schema.columns 
-                        WHERE table_schema = 'public' 
-                        AND table_name = 'inventory_order' 
-                        AND column_name = 'idempotency_key'
-                    """)
-                    column_exists = cursor.fetchone() is not None
+                column_exists = False
+                try:
+                    from django.db import connection
+                    with connection.cursor() as cursor:
+                        # Try to get table name from model's db_table or use default
+                        table_name = Order._meta.db_table
+                        cursor.execute("""
+                            SELECT column_name 
+                            FROM information_schema.columns 
+                            WHERE table_schema = 'public' 
+                            AND table_name = %s
+                            AND column_name = 'idempotency_key'
+                        """, [table_name])
+                        column_exists = cursor.fetchone() is not None
+                except Exception as db_check_error:
+                    # #region agent log
+                    try:
+                        import traceback
+                        with open(log_path, 'a') as f:
+                            f.write(json.dumps({
+                                'sessionId': 'debug-session',
+                                'runId': 'run1',
+                                'hypothesisId': 'A',
+                                'location': 'inventory/views.py:OrderViewSet.create',
+                                'message': 'ERROR checking if idempotency_key column exists',
+                                'data': {
+                                    'error_type': type(db_check_error).__name__,
+                                    'error_message': str(db_check_error),
+                                    'traceback': traceback.format_exc(),
+                                },
+                                'timestamp': int(timezone.now().timestamp() * 1000)
+                            }) + '\n')
+                    except Exception as e:
+                        print(f"[DEBUG] Failed to write log: {e}")
+                    # #endregion
+                    # If we can't check, assume column doesn't exist to be safe
+                    column_exists = False
+                    logger.warning(f"Could not check if idempotency_key column exists: {str(db_check_error)}")
                 
                 # #region agent log
                 try:
@@ -1462,7 +1462,26 @@ class OrderViewSet(viewsets.ModelViewSet):
         
         # Continue with normal order creation flow
         try:
+            # #region agent log
+            try:
+                with open(log_path, 'a') as f:
+                    f.write(json.dumps({
+                        'sessionId': 'debug-session',
+                        'runId': 'run1',
+                        'hypothesisId': 'A',
+                        'location': 'inventory/views.py:OrderViewSet.create',
+                        'message': 'About to call super().create()',
+                        'data': {
+                            'request_data_keys': list(request.data.keys()) if hasattr(request, 'data') else [],
+                        },
+                        'timestamp': int(timezone.now().timestamp() * 1000)
+                    }) + '\n')
+            except Exception as e:
+                print(f"[DEBUG] Failed to write log: {e}")
+            # #endregion
+            
             result = super().create(request, *args, **kwargs)
+            
             # #region agent log
             try:
                 with open(log_path, 'a') as f:
@@ -1482,26 +1501,17 @@ class OrderViewSet(viewsets.ModelViewSet):
             # #endregion
             return result
         except Exception as e:
-            # #region agent log
-            try:
-                import traceback
-                with open(log_path, 'a') as f:
-                    f.write(json.dumps({
-                        'sessionId': 'debug-session',
-                        'runId': 'run1',
-                        'hypothesisId': 'A',
-                        'location': 'inventory/views.py:OrderViewSet.create',
-                        'message': 'ERROR in super().create()',
-                        'data': {
-                            'error_type': type(e).__name__,
-                            'error_message': str(e),
-                            'traceback': traceback.format_exc(),
-                        },
-                        'timestamp': int(timezone.now().timestamp() * 1000)
-                    }) + '\n')
-            except Exception as log_err:
-                print(f"[DEBUG] Failed to write log: {log_err}")
-            # #endregion
+            # Log the full error with traceback - this will show up in Render logs
+            logger.error(
+                f"ERROR in order creation: {type(e).__name__}: {str(e)}",
+                exc_info=True,
+                extra={
+                    'error_type': type(e).__name__,
+                    'error_message': str(e),
+                    'location': 'OrderViewSet.create',
+                }
+            )
+            # Re-raise the exception so it's returned as 500 error
             raise
 
     @transaction.atomic
@@ -1574,47 +1584,22 @@ class OrderViewSet(viewsets.ModelViewSet):
             print(f"[DEBUG] Failed to write log: {e}")
         # #endregion
         
-        # Check if idempotency_key column exists before trying to save it
-        from django.db import connection
-        with connection.cursor() as cursor:
-            cursor.execute("""
-                SELECT column_name 
-                FROM information_schema.columns 
-                WHERE table_schema = 'public' 
-                AND table_name = 'inventory_order' 
-                AND column_name = 'idempotency_key'
-            """)
-            column_exists = cursor.fetchone() is not None
-        
-        # #region agent log
-        try:
-            with open(log_path, 'a') as f:
-                f.write(json.dumps({
-                    'sessionId': 'debug-session',
-                    'runId': 'run1',
-                    'hypothesisId': 'C',
-                    'location': 'inventory/views.py:OrderViewSet.perform_create',
-                    'message': 'Checked idempotency_key column before save',
-                    'data': {
-                        'column_exists': column_exists,
-                        'has_idempotency_key': bool(idempotency_key),
-                    },
-                    'timestamp': int(timezone.now().timestamp() * 1000)
-                }) + '\n')
-        except Exception as e:
-            print(f"[DEBUG] Failed to write log: {e}")
-        # #endregion
-        
         # Save the order, passing the customer, user, order_source, and idempotency_key to the serializer's create() method
         # The serializer handles the rest (OrderItem creation, inventory deduction, total calculation).
+        # Migration 0027 is applied, so idempotency_key column exists
         try:
-            if idempotency_key and column_exists:
-                serializer.save(customer=customer, user=user, order_source=order_source, idempotency_key=idempotency_key)
+            save_kwargs = {
+                'customer': customer,
+                'user': user,
+                'order_source': order_source,
+            }
+            if idempotency_key:
+                save_kwargs['idempotency_key'] = idempotency_key
+                logger.info(f"Saving order with idempotency_key: {idempotency_key[:20]}...")
             else:
-                # Don't pass idempotency_key if column doesn't exist
-                if idempotency_key and not column_exists:
-                    logger.warning("idempotency_key provided but column doesn't exist - saving without it")
-                serializer.save(customer=customer, user=user, order_source=order_source)
+                logger.info("Saving order without idempotency_key")
+            
+            serializer.save(**save_kwargs)
             
             # #region agent log
             try:
