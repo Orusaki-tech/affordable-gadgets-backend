@@ -1285,7 +1285,29 @@ class OrderViewSet(viewsets.ModelViewSet):
         
         # Check if this is a receipt or retrieve request by examining the path
         # This is critical because self.action might not be set when get_object() is called
-        is_receipt_or_retrieve = 'receipt' in self.request.path or getattr(self, 'action', None) in ['receipt', 'retrieve']
+        # CRITICAL: Check resolver_match to see what route actually matched
+        is_receipt_request = False
+        if hasattr(self.request, 'resolver_match') and self.request.resolver_match:
+            route = self.request.resolver_match.route
+            url_name = getattr(self.request.resolver_match, 'url_name', '')
+            print(f"[GET_OBJECT] Resolver route: {route}")
+            print(f"[GET_OBJECT] Resolver URL name: {url_name}")
+            # Check if the route or URL name indicates receipt
+            if 'receipt' in route or 'receipt' in url_name:
+                is_receipt_request = True
+                # Force action to be 'receipt' so DRF routes correctly
+                self.action = 'receipt'
+                print(f"[GET_OBJECT] DETECTED receipt route, forcing action to 'receipt'")
+        
+        # Also check the path directly as fallback
+        if not is_receipt_request and 'receipt' in self.request.path:
+            is_receipt_request = True
+            self.action = 'receipt'
+            print(f"[GET_OBJECT] DETECTED 'receipt' in path, forcing action to 'receipt'")
+            print(f"[GET_OBJECT] WARNING: Resolver route doesn't match receipt, but path contains 'receipt'")
+            print(f"[GET_OBJECT] This suggests a routing issue - receipt route may not be registered correctly")
+        
+        is_receipt_or_retrieve = is_receipt_request or getattr(self, 'action', None) in ['receipt', 'retrieve']
         
         # For receipt/retrieve requests, always do direct lookup to bypass queryset filtering
         # First, ensure we have the lookup_value (extract from path if needed)
@@ -1339,7 +1361,20 @@ class OrderViewSet(viewsets.ModelViewSet):
         """
         Override retrieve to allow unauthenticated users to view paid orders.
         This enables guest checkout users to view their order details after payment.
+        
+        CRITICAL FIX: Also check if this is actually a receipt request that was
+        incorrectly routed to retrieve. If the path contains '/receipt/', redirect to receipt method.
         """
+        # Check if this is actually a receipt request that was misrouted
+        if 'receipt' in request.path:
+            print(f"[RETRIEVE] Detected receipt in path, redirecting to get_receipt()")
+            print(f"[RETRIEVE] Path: {request.path}")
+            logger.info("Receipt request misrouted to retrieve, redirecting to get_receipt", extra={
+                'path': request.path,
+            })
+            # Call the receipt method directly
+            return self.get_receipt(request, *args, **kwargs)
+        
         order = self.get_object()
         
         # Check permissions:
@@ -1860,7 +1895,7 @@ class OrderViewSet(viewsets.ModelViewSet):
             })
     
     @action(detail=True, methods=['get'], url_path='receipt', permission_classes=[permissions.AllowAny], authentication_classes=[])
-    def get_receipt(self, request, *args, **kwargs):
+    def get_receipt(self, request, pk=None):
         """Generate and return receipt HTML/PDF."""
         import os
         from django.core.files.base import ContentFile
