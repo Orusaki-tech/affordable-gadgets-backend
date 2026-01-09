@@ -37,42 +37,44 @@ def check_and_apply_migration_0027():
                 logger.info("✅ Migration 0027 already applied - idempotency_key column exists")
                 return True
             
-            logger.info("Migration 0027 not applied - attempting to apply...")
+            logger.info("Migration 0027 not applied - attempting to apply via direct SQL...")
             
-            # Try to apply the migration using the management command
+            # Apply directly via SQL (more reliable than management command)
             try:
-                call_command('apply_idempotency_migration')
-                logger.info("✅ Migration 0027 applied successfully via management command")
-                return True
-            except Exception as cmd_error:
-                logger.warning(f"Management command failed: {cmd_error}. Trying direct SQL...")
-                
-                # Fallback: Apply directly via SQL
-                try:
-                    with connection.cursor() as cursor:
-                        cursor.execute("""
-                            ALTER TABLE inventory_order 
-                            ADD COLUMN idempotency_key VARCHAR(255) NULL
-                        """)
-                        
-                        cursor.execute("""
-                            CREATE UNIQUE INDEX IF NOT EXISTS inventory_order_idempotency_key_idx 
-                            ON inventory_order(idempotency_key) 
-                            WHERE idempotency_key IS NOT NULL
-                        """)
-                        
-                        # Mark migration as applied
-                        cursor.execute("""
-                            INSERT INTO django_migrations (app, name, applied)
-                            VALUES ('inventory', '0027_add_idempotency_key_to_order', NOW())
-                            ON CONFLICT DO NOTHING
-                        """)
-                        
-                        logger.info("✅ Migration 0027 applied successfully via direct SQL")
-                        return True
-                except Exception as sql_error:
-                    logger.error(f"Failed to apply migration via SQL: {sql_error}")
-                    return False
+                with connection.cursor() as cursor:
+                    # Add the column
+                    cursor.execute("""
+                        ALTER TABLE inventory_order 
+                        ADD COLUMN idempotency_key VARCHAR(255) NULL
+                    """)
+                    logger.info("  ✓ Column added")
+                    
+                    # Create unique index (partial index for NULL values)
+                    cursor.execute("""
+                        CREATE UNIQUE INDEX IF NOT EXISTS inventory_order_idempotency_key_idx 
+                        ON inventory_order(idempotency_key) 
+                        WHERE idempotency_key IS NOT NULL
+                    """)
+                    logger.info("  ✓ Unique index created")
+                    
+                    # Mark migration as applied in Django's migration table
+                    cursor.execute("""
+                        INSERT INTO django_migrations (app, name, applied)
+                        VALUES ('inventory', '0027_add_idempotency_key_to_order', NOW())
+                        ON CONFLICT DO NOTHING
+                    """)
+                    logger.info("  ✓ Migration record added")
+                    
+                    logger.info("✅ Migration 0027 applied successfully via direct SQL")
+                    return True
+            except Exception as sql_error:
+                # Check if error is because column already exists (race condition)
+                error_msg = str(sql_error).lower()
+                if 'already exists' in error_msg or 'duplicate' in error_msg:
+                    logger.info("✅ Column already exists (likely applied by another process)")
+                    return True
+                logger.error(f"Failed to apply migration via SQL: {sql_error}")
+                return False
                     
     except Exception as e:
         logger.error(f"Error checking/applying migration 0027: {e}")

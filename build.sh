@@ -26,8 +26,55 @@ python manage.py migrate --noinput || {
 
 # Specifically ensure migration 0027 is applied (idempotency_key column)
 echo "🔍 Checking migration 0027 (idempotency_key)..."
-python manage.py apply_idempotency_migration || {
-    echo "⚠️  Could not apply migration 0027 via management command. Will try on startup."
+python -c "
+import os
+import django
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'store.settings')
+django.setup()
+
+from django.db import connection
+
+try:
+    with connection.cursor() as cursor:
+        # Check if column exists
+        cursor.execute(\"\"\"
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_schema = 'public' 
+            AND table_name = 'inventory_order' 
+            AND column_name = 'idempotency_key'
+        \"\"\")
+        column_exists = cursor.fetchone() is not None
+        
+        if column_exists:
+            print('✅ Migration 0027 already applied - idempotency_key column exists')
+        else:
+            print('Applying migration 0027...')
+            # Add the column
+            cursor.execute(\"\"\"
+                ALTER TABLE inventory_order 
+                ADD COLUMN idempotency_key VARCHAR(255) NULL
+            \"\"\")
+            
+            # Create unique index
+            cursor.execute(\"\"\"
+                CREATE UNIQUE INDEX IF NOT EXISTS inventory_order_idempotency_key_idx 
+                ON inventory_order(idempotency_key) 
+                WHERE idempotency_key IS NOT NULL
+            \"\"\")
+            
+            # Mark migration as applied
+            cursor.execute(\"\"\"
+                INSERT INTO django_migrations (app, name, applied)
+                VALUES ('inventory', '0027_add_idempotency_key_to_order', NOW())
+                ON CONFLICT DO NOTHING
+            \"\"\")
+            
+            print('✅ Migration 0027 applied successfully')
+except Exception as e:
+    print(f'⚠️  Could not apply migration 0027: {e}. Will try on startup.')
+" || {
+    echo "⚠️  Could not apply migration 0027 via Python script. Will try on startup."
 }
 
 # Collect static files and upload to Cloudinary
