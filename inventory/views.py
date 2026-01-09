@@ -1245,13 +1245,49 @@ class OrderViewSet(viewsets.ModelViewSet):
             return Order.objects.none()
 
     @transaction.atomic
+    def create(self, request, *args, **kwargs):
+        """
+        Override create to handle idempotency via Idempotency-Key header.
+        If an order with the same idempotency key exists, return it instead of creating a new one.
+        """
+        # Check for idempotency key in header
+        idempotency_key = request.headers.get('Idempotency-Key') or request.headers.get('X-Idempotency-Key')
+        
+        if idempotency_key:
+            # Check if order with this key already exists
+            try:
+                existing_order = Order.objects.select_related('customer', 'user').prefetch_related('order_items').get(
+                    idempotency_key=idempotency_key
+                )
+                
+                # Order with this idempotency key already exists - return it (idempotent)
+                logger.info(f"Idempotent order request - returning existing order {existing_order.order_id} for key {idempotency_key}")
+                response_serializer = self.get_serializer(existing_order)
+                headers = self.get_success_headers(response_serializer.data)
+                # Return 200 OK with existing order data
+                return Response(response_serializer.data, status=status.HTTP_200_OK, headers=headers)
+            except Order.DoesNotExist:
+                # No existing order with this key - proceed with creation
+                pass
+            except Exception as e:
+                # Log error but continue with order creation
+                logger.warning(f"Error checking idempotency key: {str(e)}")
+        
+        # Continue with normal order creation flow
+        return super().create(request, *args, **kwargs)
+
+    @transaction.atomic
     def perform_create(self, serializer):
         """
         Creates order for authenticated or guest customers.
         For guest customers, creates/gets customer from form data.
         The OrderSerializer's .create() method handles the full, atomic inventory update logic.
+        Supports idempotency via Idempotency-Key header.
         """
         from inventory.services.customer_service import CustomerService
+        
+        # Get idempotency key from header (already checked in create method, but need it here too)
+        idempotency_key = self.request.headers.get('Idempotency-Key') or self.request.headers.get('X-Idempotency-Key')
         
         # Get customer data from request
         customer_name = self.request.data.get('customer_name')
@@ -1288,9 +1324,12 @@ class OrderViewSet(viewsets.ModelViewSet):
         if 'order_source' not in serializer.validated_data:
             serializer.validated_data['order_source'] = order_source
         
-        # Save the order, passing the customer, user, and order_source to the serializer's create() method
+        # Save the order, passing the customer, user, order_source, and idempotency_key to the serializer's create() method
         # The serializer handles the rest (OrderItem creation, inventory deduction, total calculation).
-        serializer.save(customer=customer, user=user, order_source=order_source)
+        if idempotency_key:
+            serializer.save(customer=customer, user=user, order_source=order_source, idempotency_key=idempotency_key)
+        else:
+            serializer.save(customer=customer, user=user, order_source=order_source)
     
     def update(self, request, *args, **kwargs):
         """
@@ -1554,6 +1593,8 @@ class OrderViewSet(viewsets.ModelViewSet):
             
             print(f"[PESAPAL] ========== VIEW: INITIATE PAYMENT SUCCESS ==========")
             print(f"[PESAPAL] Returning success response to client")
+            print(f"[PESAPAL] Response includes redirect_url: {result.get('redirect_url', 'NOT PROVIDED')}")
+            print(f"[PESAPAL] ⚠️  FRONTEND MUST REDIRECT USER TO redirect_url IMMEDIATELY")
             print(f"[PESAPAL] ===================================================\n")
             return Response(result, status=status.HTTP_200_OK)
             

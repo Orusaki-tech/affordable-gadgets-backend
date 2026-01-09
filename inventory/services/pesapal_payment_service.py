@@ -431,7 +431,7 @@ class PesapalPaymentService:
             return {'success': False, 'message': f'Error processing IPN: {str(e)}'}
     
     def get_payment_status(self, order: Order) -> Dict:
-        """Get current payment status for an order."""
+        """Get current payment status for an order. Queries Pesapal API if status is PENDING."""
         print(f"\n[PESAPAL] ========== GET PAYMENT STATUS START ==========")
         print(f"[PESAPAL] Order ID: {order.order_id}")
         
@@ -447,6 +447,82 @@ class PesapalPaymentService:
         print(f"[PESAPAL] Order Tracking ID: {payment.pesapal_order_tracking_id}")
         print(f"[PESAPAL] Amount: {payment.amount}")
         print(f"[PESAPAL] IPN Received: {payment.ipn_received}")
+        
+        # If status is PENDING and we have a tracking ID, query Pesapal API for real-time status
+        if payment.status == PesapalPayment.StatusChoices.PENDING and payment.pesapal_order_tracking_id:
+            print(f"[PESAPAL] Status is PENDING - querying Pesapal API for real-time status...")
+            try:
+                result, error = self.pesapal_service.get_transaction_status(payment.pesapal_order_tracking_id)
+                
+                if error:
+                    print(f"[PESAPAL] Error querying Pesapal API: {error}")
+                    print(f"[PESAPAL] Returning local status: {payment.status}")
+                elif result:
+                    print(f"[PESAPAL] Pesapal API Response: {json.dumps(result, indent=2, default=str)}")
+                    
+                    # Map Pesapal status to our status (same mapping as IPN handler)
+                    pesapal_status = result.get('payment_status_description', '').upper()
+                    pesapal_payment_method = result.get('payment_method', '')
+                    pesapal_payment_id = result.get('payment_id')
+                    pesapal_reference = result.get('payment_reference')
+                    
+                    status_mapping = {
+                        'COMPLETED': PesapalPayment.StatusChoices.COMPLETED,
+                        'FAILED': PesapalPayment.StatusChoices.FAILED,
+                        'INVALID': PesapalPayment.StatusChoices.FAILED,
+                        'CANCELLED': PesapalPayment.StatusChoices.CANCELLED,
+                    }
+                    
+                    # Update payment record if status has changed
+                    status_changed = False
+                    if pesapal_status in status_mapping:
+                        new_status = status_mapping[pesapal_status]
+                        if payment.status != new_status:
+                            payment.status = new_status
+                            if new_status == PesapalPayment.StatusChoices.COMPLETED:
+                                payment.completed_at = timezone.now()
+                            status_changed = True
+                            print(f"[PESAPAL] Status updated to {new_status} based on Pesapal API")
+                    
+                    # Update payment method and IDs if available
+                    if pesapal_payment_method and not payment.payment_method:
+                        # Map Pesapal payment method to our choices
+                        method_upper = pesapal_payment_method.upper()
+                        method_map = {
+                            'MPESA': PesapalPayment.PaymentMethodChoices.MPESA,
+                            'M-PESA': PesapalPayment.PaymentMethodChoices.MPESA,
+                            'VISA': PesapalPayment.PaymentMethodChoices.VISA,
+                            'MASTERCARD': PesapalPayment.PaymentMethodChoices.MASTERCARD,
+                            'AMEX': PesapalPayment.PaymentMethodChoices.AMEX,
+                            'AMERICAN EXPRESS': PesapalPayment.PaymentMethodChoices.AMEX,
+                            'MOBILE MONEY': PesapalPayment.PaymentMethodChoices.MOBILE_MONEY,
+                            'BANK': PesapalPayment.PaymentMethodChoices.BANK,
+                        }
+                        payment.payment_method = method_map.get(method_upper, PesapalPayment.PaymentMethodChoices.UNKNOWN)
+                        print(f"[PESAPAL] Payment method updated to: {payment.payment_method}")
+                    
+                    if pesapal_payment_id and not payment.pesapal_payment_id:
+                        payment.pesapal_payment_id = pesapal_payment_id
+                    
+                    if pesapal_reference and not payment.pesapal_reference:
+                        payment.pesapal_reference = pesapal_reference
+                    
+                    # Update API response data
+                    payment.api_response_data = result
+                    
+                    if status_changed:
+                        payment.save()
+                        print(f"[PESAPAL] Payment record updated in database")
+            except Exception as e:
+                print(f"[PESAPAL] Exception querying Pesapal API: {str(e)}")
+                import traceback
+                print(f"[PESAPAL] Traceback: {traceback.format_exc()}")
+                # Continue with local status if API query fails
+        
+        # Refresh payment from database in case it was updated
+        payment.refresh_from_db()
+        
+        print(f"[PESAPAL] Final Payment Status: {payment.status}")
         print(f"[PESAPAL] ===========================================\n")
         
         return {

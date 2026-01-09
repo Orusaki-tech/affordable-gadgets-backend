@@ -542,6 +542,16 @@ class Order(models.Model):
         default=OrderSourceChoices.WALK_IN
     )
     
+    # Idempotency key to prevent duplicate orders
+    idempotency_key = models.CharField(
+        max_length=255,
+        unique=True,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Idempotency key to prevent duplicate orders from retries or double-clicks"
+    )
+    
     created_at = models.DateTimeField(auto_now_add=True)
     status = models.CharField(max_length=50, choices=StatusChoices.choices, default=StatusChoices.PENDING)
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)

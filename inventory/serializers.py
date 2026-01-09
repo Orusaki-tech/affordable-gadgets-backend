@@ -1260,6 +1260,14 @@ class OrderSerializer(serializers.ModelSerializer):
     order_source_display = serializers.CharField(source='get_order_source_display', read_only=True)
     brand = serializers.PrimaryKeyRelatedField(read_only=True, allow_null=True)
     brand_name = serializers.SerializerMethodField(read_only=True)
+    idempotency_key = serializers.CharField(
+        required=False,
+        allow_null=True,
+        allow_blank=True,
+        max_length=255,
+        write_only=True,  # Don't expose in read operations
+        help_text="Idempotency key to prevent duplicate orders"
+    )
     
     def get_customer_username(self, obj):
         """Get customer username, handling None user."""
@@ -1317,12 +1325,19 @@ class OrderSerializer(serializers.ModelSerializer):
         # We pop the field mapped to the source: 'order_items'
         order_items_data = validated_data.pop('order_items')
         customer = validated_data.pop('customer') 
-        user = validated_data.pop('user')         
+        user = validated_data.pop('user')
+        idempotency_key = validated_data.pop('idempotency_key', None)  # Get idempotency key if provided
 
         # 2. Use transaction to ensure atomic operations (inventory + order creation)
         with transaction.atomic():
-            # Create the main Order object
-            order = Order.objects.create(customer=customer, user=user, status=Order.StatusChoices.PENDING, **validated_data)
+            # Create the main Order object with idempotency key
+            order = Order.objects.create(
+                customer=customer, 
+                user=user, 
+                status=Order.StatusChoices.PENDING,
+                idempotency_key=idempotency_key,
+                **validated_data
+            )
             
             final_total = Decimal('0.00')
 
