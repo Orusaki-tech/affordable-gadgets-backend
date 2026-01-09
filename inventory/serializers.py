@@ -1339,25 +1339,11 @@ class OrderSerializer(serializers.ModelSerializer):
         # Get idempotency key from kwargs (passed via serializer.save(idempotency_key=...))
         # Also check validated_data as fallback (in case it was passed there)
         idempotency_key = kwargs.pop('idempotency_key', None) or validated_data.pop('idempotency_key', None)
-
-        # #region agent log
-        try:
-            with open(log_path, 'a') as f:
-                f.write(json.dumps({
-                    'sessionId': 'debug-session',
-                    'runId': 'run1',
-                    'hypothesisId': 'D',
-                    'location': 'inventory/serializers.py:OrderSerializer.create',
-                    'message': 'About to create Order object with idempotency_key',
-                    'data': {
-                        'has_idempotency_key': bool(idempotency_key),
-                        'idempotency_key_value': idempotency_key[:20] + '...' if idempotency_key else None,
-                    },
-                    'timestamp': int(timezone.now().timestamp() * 1000)
-                }) + '\n')
-        except Exception as e:
-            print(f"[DEBUG] Failed to write log: {e}")
-        # #endregion
+        
+        logger.info("About to create Order object", extra={
+            'has_idempotency_key': bool(idempotency_key),
+            'idempotency_key_preview': idempotency_key[:20] + '...' if idempotency_key else None,
+        })
 
         # 2. Use transaction to ensure atomic operations (inventory + order creation)
         with transaction.atomic():

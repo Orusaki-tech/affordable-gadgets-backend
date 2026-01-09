@@ -1462,44 +1462,23 @@ class OrderViewSet(viewsets.ModelViewSet):
         
         # Continue with normal order creation flow
         try:
-            # #region agent log
-            try:
-                with open(log_path, 'a') as f:
-                    f.write(json.dumps({
-                        'sessionId': 'debug-session',
-                        'runId': 'run1',
-                        'hypothesisId': 'A',
-                        'location': 'inventory/views.py:OrderViewSet.create',
-                        'message': 'About to call super().create()',
-                        'data': {
-                            'request_data_keys': list(request.data.keys()) if hasattr(request, 'data') else [],
-                        },
-                        'timestamp': int(timezone.now().timestamp() * 1000)
-                    }) + '\n')
-            except Exception as e:
-                print(f"[DEBUG] Failed to write log: {e}")
-            # #endregion
+            logger.info("About to call super().create()", extra={
+                'request_data_keys': list(request.data.keys()) if hasattr(request, 'data') else [],
+            })
             
             result = super().create(request, *args, **kwargs)
             
-            # #region agent log
-            try:
-                with open(log_path, 'a') as f:
-                    f.write(json.dumps({
-                        'sessionId': 'debug-session',
-                        'runId': 'run1',
-                        'hypothesisId': 'A',
-                        'location': 'inventory/views.py:OrderViewSet.create',
-                        'message': 'super().create() completed successfully',
-                        'data': {
-                            'status_code': result.status_code if hasattr(result, 'status_code') else None,
-                        },
-                        'timestamp': int(timezone.now().timestamp() * 1000)
-                    }) + '\n')
-            except Exception as e:
-                print(f"[DEBUG] Failed to write log: {e}")
-            # #endregion
+            logger.info("super().create() completed successfully", extra={
+                'status_code': result.status_code if hasattr(result, 'status_code') else None,
+            })
             return result
+        except exceptions.ValidationError as e:
+            # Handle validation errors separately - return 400 instead of 500
+            logger.error(f"Order creation validation error: {e.detail}", exc_info=True)
+            return Response(
+                {"error": "Validation failed", "details": e.detail},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except Exception as e:
             # Log the full error with traceback - this will show up in Render logs
             logger.error(
@@ -1509,6 +1488,7 @@ class OrderViewSet(viewsets.ModelViewSet):
                     'error_type': type(e).__name__,
                     'error_message': str(e),
                     'location': 'OrderViewSet.create',
+                    'request_data': str(request.data) if hasattr(request, 'data') else 'N/A',
                 }
             )
             # Re-raise the exception so it's returned as 500 error
@@ -1601,44 +1581,20 @@ class OrderViewSet(viewsets.ModelViewSet):
             
             serializer.save(**save_kwargs)
             
-            # #region agent log
-            try:
-                with open(log_path, 'a') as f:
-                    f.write(json.dumps({
-                        'sessionId': 'debug-session',
-                        'runId': 'run1',
-                        'hypothesisId': 'C',
-                        'location': 'inventory/views.py:OrderViewSet.perform_create',
-                        'message': 'Order saved successfully',
-                        'data': {
-                            'order_id': str(serializer.instance.order_id) if serializer.instance else None,
-                        },
-                        'timestamp': int(timezone.now().timestamp() * 1000)
-                    }) + '\n')
-            except Exception as e:
-                print(f"[DEBUG] Failed to write log: {e}")
-            # #endregion
+            logger.info(f"Order saved successfully: {serializer.instance.order_id if serializer.instance else 'N/A'}")
         except Exception as e:
-            # #region agent log
-            try:
-                import traceback
-                with open(log_path, 'a') as f:
-                    f.write(json.dumps({
-                        'sessionId': 'debug-session',
-                        'runId': 'run1',
-                        'hypothesisId': 'C',
-                        'location': 'inventory/views.py:OrderViewSet.perform_create',
-                        'message': 'ERROR saving order - likely database field missing',
-                        'data': {
-                            'error_type': type(e).__name__,
-                            'error_message': str(e),
-                            'traceback': traceback.format_exc(),
-                        },
-                        'timestamp': int(timezone.now().timestamp() * 1000)
-                    }) + '\n')
-            except Exception as log_err:
-                print(f"[DEBUG] Failed to write log: {log_err}")
-            # #endregion
+            # Log the full error with traceback - this will show up in Render logs
+            logger.error(
+                f"ERROR in perform_create: {type(e).__name__}: {str(e)}",
+                exc_info=True,
+                extra={
+                    'error_type': type(e).__name__,
+                    'error_message': str(e),
+                    'location': 'OrderViewSet.perform_create',
+                    'has_idempotency_key': bool(idempotency_key),
+                    'customer_id': customer.id if customer else None,
+                }
+            )
             raise
     
     def update(self, request, *args, **kwargs):
