@@ -595,17 +595,38 @@ class PesapalService:
             
             print(f"[PESAPAL] Response received: {json.dumps(result, indent=2)}")
             
-            # Check for error in response
-            error_info = result.get('error')
-            if error_info is not None:
-                if isinstance(error_info, dict):
-                    error_message = error_info.get('message') or error_info.get('error_type') or error_info.get('error_description') or 'Unknown error'
-                else:
-                    error_message = str(error_info)
+            # Check HTTP status code first - if it's 200, the request was successful
+            response_status = result.get('status')
+            if response_status and str(response_status) != '200':
+                error_message = result.get('message') or f"API returned status {response_status}"
                 print(f"[PESAPAL] ========== GET TRANSACTION STATUS FAILED ==========")
                 print(f"[PESAPAL] API Error: {error_message}")
                 print(f"[PESAPAL] ===================================================\n")
                 return None, f"Pesapal API error: {error_message}"
+            
+            # Check for error in response - but only if it contains actual error information
+            error_info = result.get('error')
+            if error_info is not None:
+                # Check if error object has any non-null error fields
+                has_actual_error = False
+                error_message = None
+                
+                if isinstance(error_info, dict):
+                    # Check if any error field has a non-null value
+                    error_message = error_info.get('message') or error_info.get('error_type') or error_info.get('error_description')
+                    if error_message:
+                        has_actual_error = True
+                else:
+                    # If error_info is not a dict, treat it as an error
+                    error_message = str(error_info)
+                    has_actual_error = True
+                
+                if has_actual_error:
+                    print(f"[PESAPAL] ========== GET TRANSACTION STATUS FAILED ==========")
+                    print(f"[PESAPAL] API Error: {error_message}")
+                    print(f"[PESAPAL] ===================================================\n")
+                    return None, f"Pesapal API error: {error_message}"
+                # If error object exists but all fields are null, ignore it (likely a successful response)
             
             # Check for error message at top level
             if 'message' in result and result.get('message') and 'error' in result.get('message', '').lower():
@@ -616,6 +637,11 @@ class PesapalService:
             
             print(f"[PESAPAL] ========== GET TRANSACTION STATUS SUCCESS ==========")
             print(f"[PESAPAL] Status retrieved successfully")
+            logger.info("Pesapal transaction status retrieved", extra={
+                'order_tracking_id': order_tracking_id,
+                'response_keys': list(result.keys()) if isinstance(result, dict) else [],
+                'response_status': result.get('status'),
+            })
             print(f"[PESAPAL] ===================================================\n")
             return result, None
             
