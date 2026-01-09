@@ -288,6 +288,8 @@ CORS_ALLOW_HEADERS = [
     'x-csrftoken',
     'x-requested-with',
     'x-brand-code',  # Required for brand-based filtering
+    'idempotency-key',  # Required for idempotent order creation
+    'x-idempotency-key',  # Alternative header name for idempotency
 ]
 
 # Allow these HTTP methods

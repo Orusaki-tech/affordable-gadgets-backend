@@ -134,6 +134,21 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
 
 CORS_ALLOW_CREDENTIALS = True
 
+# Allow idempotency headers for order creation
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',  # Required for Token Authentication (Authorization: Token <key>)
+    'content-type',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+    'x-brand-code',  # Required for brand-based filtering
+    'idempotency-key',  # Required for idempotent order creation
+    'x-idempotency-key',  # Alternative header name for idempotency
+]
+
 # Remove any wildcard CORS settings
 CORS_ALLOW_ALL_ORIGINS = False
 
