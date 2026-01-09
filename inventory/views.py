@@ -1147,9 +1147,10 @@ class OrderViewSet(viewsets.ModelViewSet):
         - create (order creation)
         - initiate_payment (payment initiation for guest checkout)
         - payment_status (checking payment status for guest checkout)
+        - receipt (receipt download for paid orders, including guest checkout)
         Require authentication for all other actions.
         """
-        if self.action in ['create', 'initiate_payment', 'payment_status']:
+        if self.action in ['create', 'initiate_payment', 'payment_status', 'receipt']:
             return [permissions.AllowAny()]
         return [permissions.IsAuthenticated()]
 
@@ -1728,17 +1729,32 @@ class OrderViewSet(viewsets.ModelViewSet):
                 'cart_cleared': cart_cleared
             })
     
-    @action(detail=True, methods=['get'], url_path='receipt')
+    @action(detail=True, methods=['get'], url_path='receipt', permission_classes=[permissions.AllowAny], authentication_classes=[])
     def get_receipt(self, request, pk=None):
         """Generate and return receipt HTML/PDF."""
         import os
         order = self.get_object()
         
-        # Check permissions - customer can only view their own receipts
-        if not request.user.is_staff:
+        # Check permissions:
+        # - Staff can always view receipts
+        # - Authenticated users can view their own receipts
+        # - Unauthenticated users can view receipts for paid orders (guest checkout after payment)
+        if request.user.is_staff:
+            # Staff can view any receipt
+            pass
+        elif request.user.is_authenticated:
+            # Authenticated users can only view their own receipts
             if order.customer.user != request.user:
                 return Response(
                     {'error': 'You do not have permission to view this receipt.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        else:
+            # Unauthenticated users can only view receipts for paid orders (guest checkout)
+            # This allows users to download receipts after completing payment without logging in
+            if order.status != Order.StatusChoices.PAID:
+                return Response(
+                    {'error': 'Receipt is only available for paid orders.'},
                     status=status.HTTP_403_FORBIDDEN
                 )
         

@@ -523,6 +523,12 @@ class PesapalPaymentService:
                             payment.status = new_status
                             if new_status == PesapalPayment.StatusChoices.COMPLETED:
                                 payment.completed_at = timezone.now()
+                                # Also update order status to PAID when payment is completed
+                                if order.status != Order.StatusChoices.PAID:
+                                    order.status = Order.StatusChoices.PAID
+                                    order.save()
+                                    logger.info(f"Order status updated to PAID for order {order.order_id}")
+                                    print(f"[PESAPAL] Order status updated to PAID")
                             status_changed = True
                             logger.info(f"Payment status updated: {old_status} -> {new_status}", extra={
                                 'order_id': str(order.order_id),
