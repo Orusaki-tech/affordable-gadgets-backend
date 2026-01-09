@@ -1140,6 +1140,7 @@ class OrderViewSet(viewsets.ModelViewSet):
     - Guest users can create orders (no login required).
     """
     serializer_class = OrderSerializer
+    lookup_field = 'order_id'  # Use order_id (UUID) as the lookup field instead of default 'pk'
     
     def get_permissions(self):
         """
@@ -1246,6 +1247,42 @@ class OrderViewSet(viewsets.ModelViewSet):
         except Customer.DoesNotExist:
             # If an authenticated user somehow lacks a Customer profile, show nothing
             return Order.objects.none()
+
+    def get_object(self):
+        """
+        Override get_object to handle unauthenticated access for receipt and retrieve actions.
+        For these actions, we allow direct lookup by order_id without queryset filtering.
+        """
+        # For receipt and retrieve actions, allow unauthenticated access
+        # Bypass queryset filtering and do direct lookup
+        if self.action in ['receipt', 'retrieve']:
+            lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
+            lookup_value = self.kwargs[lookup_url_kwarg]
+            
+            # Log the lookup attempt
+            logger.info("get_object() called for receipt/retrieve", extra={
+                'action': self.action,
+                'lookup_field': self.lookup_field,
+                'lookup_value': str(lookup_value),
+            })
+            
+            try:
+                # Direct lookup by order_id, bypassing queryset
+                order = Order.objects.get(order_id=lookup_value)
+                logger.info("Order found via get_object()", extra={
+                    'order_id': str(order.order_id),
+                    'order_status': order.status,
+                })
+                return order
+            except Order.DoesNotExist:
+                logger.error(f"Order not found in get_object(): {lookup_value}")
+                raise exceptions.NotFound("Order not found.")
+            except Exception as e:
+                logger.error(f"Error in get_object(): {str(e)}", exc_info=True)
+                raise
+        
+        # For other actions, use default behavior
+        return super().get_object()
 
     def retrieve(self, request, *args, **kwargs):
         """
@@ -1777,6 +1814,13 @@ class OrderViewSet(viewsets.ModelViewSet):
         import os
         import json
         import time
+        
+        # IMPORTANT: This print will show in Render logs to confirm the method is called
+        print(f"\n[RECEIPT] ========== RECEIPT ENDPOINT CALLED ==========")
+        print(f"[RECEIPT] PK: {pk}")
+        print(f"[RECEIPT] Path: {request.path}")
+        print(f"[RECEIPT] Method: {request.method}")
+        print(f"[RECEIPT] User authenticated: {request.user.is_authenticated if hasattr(request, 'user') else False}")
         
         # Log receipt request details
         logger.info("Receipt endpoint called", extra={
