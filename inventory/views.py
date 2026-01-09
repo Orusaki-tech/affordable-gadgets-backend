@@ -1257,13 +1257,15 @@ class OrderViewSet(viewsets.ModelViewSet):
         If this raises a 404, the action method (e.g., get_receipt) never gets called.
         """
         # Get the lookup value from kwargs
+        # DRF might use 'pk' or the actual lookup_field name
         lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
-        lookup_value = self.kwargs.get(lookup_url_kwarg)
+        lookup_value = self.kwargs.get(lookup_url_kwarg) or self.kwargs.get('pk')
         
         # Log the lookup attempt
         print(f"\n[GET_OBJECT] ========== get_object() CALLED ==========")
         print(f"[GET_OBJECT] Action: {getattr(self, 'action', 'NOT_SET')}")
         print(f"[GET_OBJECT] Lookup field: {self.lookup_field}")
+        print(f"[GET_OBJECT] Lookup URL kwarg: {lookup_url_kwarg}")
         print(f"[GET_OBJECT] Lookup value: {lookup_value}")
         print(f"[GET_OBJECT] Request path: {self.request.path}")
         print(f"[GET_OBJECT] All kwargs: {self.kwargs}")
@@ -1271,6 +1273,7 @@ class OrderViewSet(viewsets.ModelViewSet):
         logger.info("get_object() called", extra={
             'action': getattr(self, 'action', 'NOT_SET'),
             'lookup_field': self.lookup_field,
+            'lookup_url_kwarg': lookup_url_kwarg,
             'lookup_value': str(lookup_value) if lookup_value else None,
             'request_path': self.request.path,
             'all_kwargs': dict(self.kwargs),
@@ -1301,21 +1304,34 @@ class OrderViewSet(viewsets.ModelViewSet):
                 logger.error(f"Error in get_object(): {str(e)}", exc_info=True)
                 raise
         
-        # If lookup_value is missing, try to extract from path
-        if not lookup_value and 'receipt' in self.request.path:
-            path_parts = self.request.path.split('/')
+        # If lookup_value is missing, try to extract from path (especially for receipt requests)
+        if not lookup_value:
+            path_parts = [p for p in self.request.path.split('/') if p]  # Remove empty strings
             if 'orders' in path_parts:
                 orders_index = path_parts.index('orders')
                 if orders_index + 1 < len(path_parts):
-                    lookup_value = path_parts[orders_index + 1]
-                    print(f"[GET_OBJECT] Extracted lookup_value from path: {lookup_value}")
-                    try:
-                        order = Order.objects.get(order_id=lookup_value)
-                        print(f"[GET_OBJECT] Order found via path extraction: {order.order_id}")
-                        return order
-                    except Order.DoesNotExist:
-                        logger.error(f"Order not found after path extraction: {lookup_value}")
-                        raise exceptions.NotFound("Order not found.")
+                    potential_order_id = path_parts[orders_index + 1]
+                    # Validate it looks like a UUID
+                    if len(potential_order_id) >= 32:  # UUIDs are at least 32 chars (without dashes)
+                        lookup_value = potential_order_id
+                        print(f"[GET_OBJECT] Extracted lookup_value from path: {lookup_value}")
+        
+        # If we have a lookup_value and this looks like a receipt/retrieve request, do direct lookup
+        if lookup_value and ('receipt' in self.request.path or getattr(self, 'action', None) in ['receipt', 'retrieve']):
+            try:
+                order = Order.objects.get(order_id=lookup_value)
+                print(f"[GET_OBJECT] Order found via path extraction: {order.order_id}")
+                logger.info("Order found via path extraction in get_object()", extra={
+                    'order_id': str(order.order_id),
+                    'order_status': order.status,
+                })
+                return order
+            except Order.DoesNotExist:
+                logger.error(f"Order not found after path extraction: {lookup_value}")
+                raise exceptions.NotFound("Order not found.")
+            except Exception as e:
+                logger.error(f"Error in path extraction lookup: {str(e)}", exc_info=True)
+                raise
         
         # For other actions, use default behavior
         print(f"[GET_OBJECT] Using default get_object() behavior")
