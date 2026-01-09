@@ -1365,24 +1365,6 @@ class OrderSerializer(serializers.ModelSerializer):
                 
                 order = Order.objects.create(**create_kwargs)
                 logger.info(f"Order created successfully: {order.order_id}")
-                
-                # #region agent log
-                try:
-                    with open(log_path, 'a') as f:
-                        f.write(json.dumps({
-                            'sessionId': 'debug-session',
-                            'runId': 'run1',
-                            'hypothesisId': 'D',
-                            'location': 'inventory/serializers.py:OrderSerializer.create',
-                            'message': 'Order object created successfully',
-                            'data': {
-                                'order_id': str(order.order_id),
-                            },
-                            'timestamp': int(timezone.now().timestamp() * 1000)
-                        }) + '\n')
-                except Exception as e:
-                    print(f"[DEBUG] Failed to write log: {e}")
-                # #endregion
             except Exception as e:
                 # Log the full error with traceback - this will show up in Render logs
                 logger.error(

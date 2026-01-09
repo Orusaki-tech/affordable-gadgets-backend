@@ -1542,27 +1542,13 @@ class OrderViewSet(viewsets.ModelViewSet):
         if 'order_source' not in serializer.validated_data:
             serializer.validated_data['order_source'] = order_source
         
-        # #region agent log
-        try:
-            log_path = '/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log'
-            with open(log_path, 'a') as f:
-                f.write(json.dumps({
-                    'sessionId': 'debug-session',
-                    'runId': 'run1',
-                    'hypothesisId': 'C',
-                    'location': 'inventory/views.py:OrderViewSet.perform_create',
-                    'message': 'About to save order with idempotency_key',
-                    'data': {
-                        'has_idempotency_key': bool(idempotency_key),
-                        'idempotency_key_value': idempotency_key[:20] + '...' if idempotency_key else None,
-                        'customer_id': customer.id if customer else None,
-                        'user_id': user.id if user else None,
-                    },
-                    'timestamp': int(timezone.now().timestamp() * 1000)
-                }) + '\n')
-        except Exception as e:
-            print(f"[DEBUG] Failed to write log: {e}")
-        # #endregion
+        logger.info("About to save order", extra={
+            'has_idempotency_key': bool(idempotency_key),
+            'idempotency_key_preview': idempotency_key[:20] + '...' if idempotency_key else None,
+            'customer_id': customer.id if customer else None,
+            'user_id': user.id if user else None,
+            'order_source': order_source,
+        })
         
         # Save the order, passing the customer, user, order_source, and idempotency_key to the serializer's create() method
         # The serializer handles the rest (OrderItem creation, inventory deduction, total calculation).
@@ -1593,6 +1579,7 @@ class OrderViewSet(viewsets.ModelViewSet):
                     'location': 'OrderViewSet.perform_create',
                     'has_idempotency_key': bool(idempotency_key),
                     'customer_id': customer.id if customer else None,
+                    'order_source': order_source,
                 }
             )
             raise
