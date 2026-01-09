@@ -1279,8 +1279,25 @@ class OrderViewSet(viewsets.ModelViewSet):
             'all_kwargs': dict(self.kwargs),
         })
         
-        # If lookup_field is 'order_id', always try direct lookup first
-        # This ensures receipt and retrieve actions work even if self.action isn't set yet
+        # Check if this is a receipt or retrieve request by examining the path
+        # This is critical because self.action might not be set when get_object() is called
+        is_receipt_or_retrieve = 'receipt' in self.request.path or getattr(self, 'action', None) in ['receipt', 'retrieve']
+        
+        # For receipt/retrieve requests, always do direct lookup to bypass queryset filtering
+        # First, ensure we have the lookup_value (extract from path if needed)
+        if is_receipt_or_retrieve and not lookup_value:
+            path_parts = [p for p in self.request.path.split('/') if p]  # Remove empty strings
+            if 'orders' in path_parts:
+                orders_index = path_parts.index('orders')
+                if orders_index + 1 < len(path_parts):
+                    potential_order_id = path_parts[orders_index + 1]
+                    # Validate it looks like a UUID (with or without dashes)
+                    if len(potential_order_id) >= 32:  # Accept both formats
+                        lookup_value = potential_order_id
+                        print(f"[GET_OBJECT] Extracted lookup_value from path for receipt/retrieve: {lookup_value}")
+        
+        # If lookup_field is 'order_id' and we have a lookup_value, try direct lookup
+        # This works for both receipt/retrieve and other actions
         if self.lookup_field == 'order_id' and lookup_value:
             try:
                 # Direct lookup by order_id, bypassing queryset filtering
@@ -1290,6 +1307,7 @@ class OrderViewSet(viewsets.ModelViewSet):
                 logger.info("Order found via get_object() direct lookup", extra={
                     'order_id': str(order.order_id),
                     'order_status': order.status,
+                    'is_receipt_or_retrieve': is_receipt_or_retrieve,
                 })
                 return order
             except Order.DoesNotExist:
@@ -1302,35 +1320,6 @@ class OrderViewSet(viewsets.ModelViewSet):
             except Exception as e:
                 print(f"[GET_OBJECT] Error in lookup: {str(e)}")
                 logger.error(f"Error in get_object(): {str(e)}", exc_info=True)
-                raise
-        
-        # If lookup_value is missing, try to extract from path (especially for receipt requests)
-        if not lookup_value:
-            path_parts = [p for p in self.request.path.split('/') if p]  # Remove empty strings
-            if 'orders' in path_parts:
-                orders_index = path_parts.index('orders')
-                if orders_index + 1 < len(path_parts):
-                    potential_order_id = path_parts[orders_index + 1]
-                    # Validate it looks like a UUID
-                    if len(potential_order_id) >= 32:  # UUIDs are at least 32 chars (without dashes)
-                        lookup_value = potential_order_id
-                        print(f"[GET_OBJECT] Extracted lookup_value from path: {lookup_value}")
-        
-        # If we have a lookup_value and this looks like a receipt/retrieve request, do direct lookup
-        if lookup_value and ('receipt' in self.request.path or getattr(self, 'action', None) in ['receipt', 'retrieve']):
-            try:
-                order = Order.objects.get(order_id=lookup_value)
-                print(f"[GET_OBJECT] Order found via path extraction: {order.order_id}")
-                logger.info("Order found via path extraction in get_object()", extra={
-                    'order_id': str(order.order_id),
-                    'order_status': order.status,
-                })
-                return order
-            except Order.DoesNotExist:
-                logger.error(f"Order not found after path extraction: {lookup_value}")
-                raise exceptions.NotFound("Order not found.")
-            except Exception as e:
-                logger.error(f"Error in path extraction lookup: {str(e)}", exc_info=True)
                 raise
         
         # For other actions, use default behavior
@@ -1870,119 +1859,48 @@ class OrderViewSet(viewsets.ModelViewSet):
     def get_receipt(self, request, pk=None):
         """Generate and return receipt HTML/PDF."""
         import os
-        import json
-        import time
+        from django.core.files.base import ContentFile
+        from django.http import HttpResponse, FileResponse
+        from django.utils import timezone
         
         # IMPORTANT: This print will show in Render logs to confirm the method is called
         print(f"\n[RECEIPT] ========== RECEIPT ENDPOINT CALLED ==========")
-        print(f"[RECEIPT] PK: {pk}")
         print(f"[RECEIPT] Path: {request.path}")
         print(f"[RECEIPT] Method: {request.method}")
         print(f"[RECEIPT] User authenticated: {request.user.is_authenticated if hasattr(request, 'user') else False}")
         
         # Log receipt request details
         logger.info("Receipt endpoint called", extra={
-            'pk': str(pk) if pk else None,
-            'url_kwargs': dict(request.resolver_match.kwargs) if hasattr(request, 'resolver_match') and request.resolver_match else {},
             'path': request.path,
             'user_authenticated': request.user.is_authenticated if hasattr(request, 'user') else False,
             'user_is_staff': request.user.is_staff if hasattr(request, 'user') and request.user.is_authenticated else False,
         })
         
-        # Get order_id from URL parameter (pk is the order_id UUID)
-        # Try multiple ways to get the order_id from the URL
-        order_id = pk
-        if not order_id and hasattr(request, 'resolver_match') and request.resolver_match:
-            order_id = request.resolver_match.kwargs.get('pk')
-        if not order_id:
-            # Try getting from URL path directly
-            path_parts = request.path.split('/')
-            if 'orders' in path_parts:
-                orders_index = path_parts.index('orders')
-                if orders_index + 1 < len(path_parts):
-                    order_id = path_parts[orders_index + 1]
-        
-        # Log extracted order_id
-        logger.info("Extracted order_id from URL", extra={
-            'order_id': str(order_id) if order_id else None,
-            'pk': str(pk) if pk else None,
-            'path': request.path,
-        })
-        
-        if not order_id:
-            logger.error("No order_id provided in receipt request")
-            return Response(
-                {'error': 'Order ID is required.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Validate UUID format
+        # For detail=True actions, DRF calls get_object() first before this method runs
+        # If get_object() fails (404), this method never gets called
+        # So if we're here, get_object() succeeded and we should have the order
+        # However, DRF might not have set self.action yet, so we'll get it ourselves
         try:
-            import uuid as uuid_lib
-            # Try to parse as UUID to validate format
-            uuid_lib.UUID(str(order_id))
-        except (ValueError, AttributeError) as uuid_err:
-            logger.error(f"Invalid UUID format for order_id: {order_id}", extra={
-                'order_id': str(order_id),
-                'error': str(uuid_err),
-            })
-            return Response(
-                {'error': 'Invalid order ID format.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        try:
-            # Try to get order directly by order_id to avoid queryset filtering issues
-            logger.info("Attempting direct order lookup", extra={
-                'order_id': str(order_id),
-            })
+            # get_object() should have already been called by DRF and succeeded
+            # But if for some reason it wasn't, we'll call it again
+            # Our improved get_object() will detect receipt requests by path
+            order = self.get_object()
             
-            try:
-                order = Order.objects.get(order_id=order_id)
-                
-                logger.info("Order found via direct lookup", extra={
-                    'order_id': str(order.order_id),
-                    'order_status': order.status,
-                    'order_customer_id': order.customer.id if order.customer else None,
-                })
-                
-            except Order.DoesNotExist:
-                # Check if order exists with different status or in different format
-                logger.error(f"Order not found for receipt: order_id={order_id}", extra={
-                    'order_id': str(order_id),
-                    'total_orders_in_db': Order.objects.count(),
-                })
-                
-                # Try to find similar orders (for debugging)
-                try:
-                    similar_orders = Order.objects.filter(order_id__icontains=str(order_id)[:8])[:5]
-                    logger.warning(f"Found {similar_orders.count()} orders with similar IDs", extra={
-                        'similar_order_ids': [str(o.order_id) for o in similar_orders],
-                    })
-                except Exception:
-                    pass
-                
-                return Response(
-                    {'error': 'Order not found.'},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-            except Exception as e:
-                logger.error(f"Error retrieving order by ID: {str(e)}", exc_info=True, extra={
-                    'order_id': str(order_id),
-                    'error_type': type(e).__name__,
-                })
-                # Fallback to get_object() if direct lookup fails
-                try:
-                    order = self.get_object()
-                except Exception as get_obj_err:
-                    logger.error(f"get_object() also failed: {str(get_obj_err)}", exc_info=True)
-                    return Response(
-                        {'error': 'Failed to retrieve order.'},
-                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                    )
+            logger.info("Order retrieved for receipt", extra={
+                'order_id': str(order.order_id),
+                'order_status': order.status,
+            })
+        except exceptions.NotFound:
+            logger.error("Order not found for receipt", extra={
+                'path': request.path,
+            })
+            return Response(
+                {'error': 'Order not found.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
         except Exception as e:
             logger.error(f"Error retrieving order for receipt: {str(e)}", exc_info=True, extra={
-                'order_id': str(order_id) if order_id else None,
+                'path': request.path,
                 'error_type': type(e).__name__,
             })
             return Response(
