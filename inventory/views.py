@@ -1778,26 +1778,14 @@ class OrderViewSet(viewsets.ModelViewSet):
         import json
         import time
         
-        # #region agent log
-        try:
-            with open('/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log', 'a') as f:
-                f.write(json.dumps({
-                    'sessionId': 'debug-session',
-                    'runId': 'receipt-debug',
-                    'hypothesisId': 'A',
-                    'location': 'inventory/views.py:OrderViewSet.get_receipt',
-                    'message': 'Receipt endpoint called',
-                    'data': {
-                        'pk': pk,
-                        'url_kwargs': dict(request.resolver_match.kwargs) if hasattr(request, 'resolver_match') else {},
-                        'user_authenticated': request.user.is_authenticated if hasattr(request, 'user') else False,
-                        'user_is_staff': request.user.is_staff if hasattr(request, 'user') and request.user.is_authenticated else False,
-                    },
-                    'timestamp': int(timezone.now().timestamp() * 1000)
-                }) + '\n')
-        except Exception as e:
-            print(f"[DEBUG] Failed to write log: {e}")
-        # #endregion
+        # Log receipt request details
+        logger.info("Receipt endpoint called", extra={
+            'pk': str(pk) if pk else None,
+            'url_kwargs': dict(request.resolver_match.kwargs) if hasattr(request, 'resolver_match') and request.resolver_match else {},
+            'path': request.path,
+            'user_authenticated': request.user.is_authenticated if hasattr(request, 'user') else False,
+            'user_is_staff': request.user.is_staff if hasattr(request, 'user') and request.user.is_authenticated else False,
+        })
         
         # Get order_id from URL parameter (pk is the order_id UUID)
         # Try multiple ways to get the order_id from the URL
@@ -1812,24 +1800,12 @@ class OrderViewSet(viewsets.ModelViewSet):
                 if orders_index + 1 < len(path_parts):
                     order_id = path_parts[orders_index + 1]
         
-        # #region agent log
-        try:
-            with open('/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log', 'a') as f:
-                f.write(json.dumps({
-                    'sessionId': 'debug-session',
-                    'runId': 'receipt-debug',
-                    'hypothesisId': 'B',
-                    'location': 'inventory/views.py:OrderViewSet.get_receipt',
-                    'message': 'Extracted order_id from URL',
-                    'data': {
-                        'order_id': str(order_id) if order_id else None,
-                        'pk': str(pk) if pk else None,
-                    },
-                    'timestamp': int(timezone.now().timestamp() * 1000)
-                }) + '\n')
-        except Exception as e:
-            print(f"[DEBUG] Failed to write log: {e}")
-        # #endregion
+        # Log extracted order_id
+        logger.info("Extracted order_id from URL", extra={
+            'order_id': str(order_id) if order_id else None,
+            'pk': str(pk) if pk else None,
+            'path': request.path,
+        })
         
         if not order_id:
             logger.error("No order_id provided in receipt request")
@@ -1844,26 +1820,10 @@ class OrderViewSet(viewsets.ModelViewSet):
             # Try to parse as UUID to validate format
             uuid_lib.UUID(str(order_id))
         except (ValueError, AttributeError) as uuid_err:
-            # #region agent log
-            try:
-                with open('/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log', 'a') as f:
-                    f.write(json.dumps({
-                        'sessionId': 'debug-session',
-                        'runId': 'receipt-debug',
-                        'hypothesisId': 'E',
-                        'location': 'inventory/views.py:OrderViewSet.get_receipt',
-                        'message': 'CONFIRMED: Invalid UUID format',
-                        'data': {
-                            'order_id': str(order_id),
-                            'error': str(uuid_err),
-                        },
-                        'timestamp': int(timezone.now().timestamp() * 1000)
-                    }) + '\n')
-            except Exception as e:
-                print(f"[DEBUG] Failed to write log: {e}")
-            # #endregion
-            
-            logger.error(f"Invalid UUID format for order_id: {order_id}")
+            logger.error(f"Invalid UUID format for order_id: {order_id}", extra={
+                'order_id': str(order_id),
+                'error': str(uuid_err),
+            })
             return Response(
                 {'error': 'Invalid order ID format.'},
                 status=status.HTTP_400_BAD_REQUEST
@@ -1871,96 +1831,44 @@ class OrderViewSet(viewsets.ModelViewSet):
         
         try:
             # Try to get order directly by order_id to avoid queryset filtering issues
-            # #region agent log
-            try:
-                with open('/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log', 'a') as f:
-                    f.write(json.dumps({
-                        'sessionId': 'debug-session',
-                        'runId': 'receipt-debug',
-                        'hypothesisId': 'C',
-                        'location': 'inventory/views.py:OrderViewSet.get_receipt',
-                        'message': 'Attempting direct order lookup',
-                        'data': {
-                            'order_id': str(order_id),
-                        },
-                        'timestamp': int(timezone.now().timestamp() * 1000)
-                    }) + '\n')
-            except Exception as e:
-                print(f"[DEBUG] Failed to write log: {e}")
-            # #endregion
+            logger.info("Attempting direct order lookup", extra={
+                'order_id': str(order_id),
+            })
             
             try:
                 order = Order.objects.get(order_id=order_id)
                 
-                # #region agent log
-                try:
-                    with open('/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log', 'a') as f:
-                        f.write(json.dumps({
-                            'sessionId': 'debug-session',
-                            'runId': 'receipt-debug',
-                            'hypothesisId': 'C',
-                            'location': 'inventory/views.py:OrderViewSet.get_receipt',
-                            'message': 'Order found via direct lookup',
-                            'data': {
-                                'order_id': str(order.order_id),
-                                'order_status': order.status,
-                                'order_customer_id': order.customer.id if order.customer else None,
-                            },
-                            'timestamp': int(timezone.now().timestamp() * 1000)
-                        }) + '\n')
-                except Exception as e:
-                    print(f"[DEBUG] Failed to write log: {e}")
-                # #endregion
+                logger.info("Order found via direct lookup", extra={
+                    'order_id': str(order.order_id),
+                    'order_status': order.status,
+                    'order_customer_id': order.customer.id if order.customer else None,
+                })
                 
             except Order.DoesNotExist:
-                # #region agent log
-                try:
-                    with open('/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log', 'a') as f:
-                        f.write(json.dumps({
-                            'sessionId': 'debug-session',
-                            'runId': 'receipt-debug',
-                            'hypothesisId': 'C',
-                            'location': 'inventory/views.py:OrderViewSet.get_receipt',
-                            'message': 'CONFIRMED: Order not found in database',
-                            'data': {
-                                'order_id': str(order_id),
-                                'error': 'Order.DoesNotExist',
-                            },
-                            'timestamp': int(timezone.now().timestamp() * 1000)
-                        }) + '\n')
-                except Exception as e:
-                    print(f"[DEBUG] Failed to write log: {e}")
-                # #endregion
+                # Check if order exists with different status or in different format
+                logger.error(f"Order not found for receipt: order_id={order_id}", extra={
+                    'order_id': str(order_id),
+                    'total_orders_in_db': Order.objects.count(),
+                })
                 
-                logger.error(f"Order not found for receipt: order_id={order_id}")
+                # Try to find similar orders (for debugging)
+                try:
+                    similar_orders = Order.objects.filter(order_id__icontains=str(order_id)[:8])[:5]
+                    logger.warning(f"Found {similar_orders.count()} orders with similar IDs", extra={
+                        'similar_order_ids': [str(o.order_id) for o in similar_orders],
+                    })
+                except Exception:
+                    pass
+                
                 return Response(
                     {'error': 'Order not found.'},
                     status=status.HTTP_404_NOT_FOUND
                 )
             except Exception as e:
-                # #region agent log
-                try:
-                    import traceback
-                    with open('/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log', 'a') as f:
-                        f.write(json.dumps({
-                            'sessionId': 'debug-session',
-                            'runId': 'receipt-debug',
-                            'hypothesisId': 'C',
-                            'location': 'inventory/views.py:OrderViewSet.get_receipt',
-                            'message': 'ERROR in direct order lookup',
-                            'data': {
-                                'order_id': str(order_id),
-                                'error_type': type(e).__name__,
-                                'error_message': str(e),
-                                'traceback': traceback.format_exc(),
-                            },
-                            'timestamp': int(timezone.now().timestamp() * 1000)
-                        }) + '\n')
-                except Exception as log_err:
-                    print(f"[DEBUG] Failed to write log: {log_err}")
-                # #endregion
-                
-                logger.error(f"Error retrieving order by ID: {str(e)}", exc_info=True)
+                logger.error(f"Error retrieving order by ID: {str(e)}", exc_info=True, extra={
+                    'order_id': str(order_id),
+                    'error_type': type(e).__name__,
+                })
                 # Fallback to get_object() if direct lookup fails
                 try:
                     order = self.get_object()
@@ -1971,29 +1879,10 @@ class OrderViewSet(viewsets.ModelViewSet):
                         status=status.HTTP_500_INTERNAL_SERVER_ERROR
                     )
         except Exception as e:
-            # #region agent log
-            try:
-                import traceback
-                with open('/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log', 'a') as f:
-                    f.write(json.dumps({
-                        'sessionId': 'debug-session',
-                        'runId': 'receipt-debug',
-                        'hypothesisId': 'D',
-                        'location': 'inventory/views.py:OrderViewSet.get_receipt',
-                        'message': 'ERROR in receipt endpoint',
-                        'data': {
-                            'order_id': str(order_id) if order_id else None,
-                            'error_type': type(e).__name__,
-                            'error_message': str(e),
-                            'traceback': traceback.format_exc(),
-                        },
-                        'timestamp': int(timezone.now().timestamp() * 1000)
-                    }) + '\n')
-            except Exception as log_err:
-                print(f"[DEBUG] Failed to write log: {log_err}")
-            # #endregion
-            
-            logger.error(f"Error retrieving order for receipt: {str(e)}", exc_info=True)
+            logger.error(f"Error retrieving order for receipt: {str(e)}", exc_info=True, extra={
+                'order_id': str(order_id) if order_id else None,
+                'error_type': type(e).__name__,
+            })
             return Response(
                 {'error': 'Failed to retrieve order.'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
