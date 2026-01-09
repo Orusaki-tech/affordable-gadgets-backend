@@ -451,20 +451,61 @@ class PesapalPaymentService:
         # If status is PENDING and we have a tracking ID, query Pesapal API for real-time status
         if payment.status == PesapalPayment.StatusChoices.PENDING and payment.pesapal_order_tracking_id:
             print(f"[PESAPAL] Status is PENDING - querying Pesapal API for real-time status...")
+            logger.info("Querying Pesapal API for payment status", extra={
+                'order_id': str(order.order_id),
+                'order_tracking_id': payment.pesapal_order_tracking_id,
+                'current_status': payment.status,
+            })
             try:
                 result, error = self.pesapal_service.get_transaction_status(payment.pesapal_order_tracking_id)
                 
                 if error:
+                    logger.error(f"Error querying Pesapal API: {error}", extra={
+                        'order_id': str(order.order_id),
+                        'order_tracking_id': payment.pesapal_order_tracking_id,
+                        'error': error,
+                    })
                     print(f"[PESAPAL] Error querying Pesapal API: {error}")
                     print(f"[PESAPAL] Returning local status: {payment.status}")
                 elif result:
                     print(f"[PESAPAL] Pesapal API Response: {json.dumps(result, indent=2, default=str)}")
+                    logger.info("Pesapal API response received", extra={
+                        'order_id': str(order.order_id),
+                        'pesapal_response': result,
+                    })
                     
                     # Map Pesapal status to our status (same mapping as IPN handler)
-                    pesapal_status = result.get('payment_status_description', '').upper()
-                    pesapal_payment_method = result.get('payment_method', '')
-                    pesapal_payment_id = result.get('payment_id')
-                    pesapal_reference = result.get('payment_reference')
+                    # Try multiple possible field names for status
+                    pesapal_status = (
+                        result.get('payment_status_description') or 
+                        result.get('paymentStatusDescription') or
+                        result.get('status') or
+                        result.get('payment_status') or
+                        result.get('paymentStatus') or
+                        ''
+                    ).upper()
+                    
+                    logger.info("Extracted Pesapal status", extra={
+                        'order_id': str(order.order_id),
+                        'pesapal_status': pesapal_status,
+                        'all_status_fields': {
+                            'payment_status_description': result.get('payment_status_description'),
+                            'paymentStatusDescription': result.get('paymentStatusDescription'),
+                            'status': result.get('status'),
+                            'payment_status': result.get('payment_status'),
+                            'paymentStatus': result.get('paymentStatus'),
+                        },
+                    })
+                    
+                    pesapal_payment_method = result.get('payment_method') or result.get('paymentMethod') or ''
+                    pesapal_payment_id = result.get('payment_id') or result.get('paymentId')
+                    pesapal_reference = result.get('payment_reference') or result.get('paymentReference')
+                    
+                    logger.info("Processing Pesapal status", extra={
+                        'order_id': str(order.order_id),
+                        'pesapal_status': pesapal_status,
+                        'current_local_status': payment.status,
+                    })
                     
                     status_mapping = {
                         'COMPLETED': PesapalPayment.StatusChoices.COMPLETED,
@@ -478,11 +519,24 @@ class PesapalPaymentService:
                     if pesapal_status in status_mapping:
                         new_status = status_mapping[pesapal_status]
                         if payment.status != new_status:
+                            old_status = payment.status
                             payment.status = new_status
                             if new_status == PesapalPayment.StatusChoices.COMPLETED:
                                 payment.completed_at = timezone.now()
                             status_changed = True
+                            logger.info(f"Payment status updated: {old_status} -> {new_status}", extra={
+                                'order_id': str(order.order_id),
+                                'old_status': old_status,
+                                'new_status': new_status,
+                                'pesapal_status': pesapal_status,
+                            })
                             print(f"[PESAPAL] Status updated to {new_status} based on Pesapal API")
+                    else:
+                        logger.warning(f"Unknown Pesapal status: {pesapal_status}", extra={
+                            'order_id': str(order.order_id),
+                            'pesapal_status': pesapal_status,
+                            'available_mappings': list(status_mapping.keys()),
+                        })
                     
                     # Update payment method and IDs if available
                     if pesapal_payment_method and not payment.payment_method:
@@ -512,8 +566,22 @@ class PesapalPaymentService:
                     
                     if status_changed:
                         payment.save()
+                        logger.info("Payment record saved with updated status", extra={
+                            'order_id': str(order.order_id),
+                            'new_status': payment.status,
+                        })
                         print(f"[PESAPAL] Payment record updated in database")
+                    else:
+                        logger.info("Payment status unchanged after Pesapal query", extra={
+                            'order_id': str(order.order_id),
+                            'current_status': payment.status,
+                            'pesapal_status': pesapal_status,
+                        })
             except Exception as e:
+                logger.error(f"Exception querying Pesapal API: {str(e)}", exc_info=True, extra={
+                    'order_id': str(order.order_id),
+                    'order_tracking_id': payment.pesapal_order_tracking_id,
+                })
                 print(f"[PESAPAL] Exception querying Pesapal API: {str(e)}")
                 import traceback
                 print(f"[PESAPAL] Traceback: {traceback.format_exc()}")
