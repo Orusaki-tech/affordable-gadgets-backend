@@ -1304,7 +1304,7 @@ class OrderSerializer(serializers.ModelSerializer):
         fields = (
             'order_id', 'user', 'customer', 'customer_username', 'customer_phone', 'delivery_address',
             'created_at', 'status', 'status_display', 'order_source', 'order_source_display',
-            'total_amount', 'order_items', 'brand', 'brand_name'
+            'total_amount', 'order_items', 'brand', 'brand_name', 'idempotency_key'
         )
         read_only_fields = ('order_id', 'created_at', 'total_amount', 'customer', 'user')
     
