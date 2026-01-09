@@ -1268,6 +1268,10 @@ class OrderViewSet(viewsets.ModelViewSet):
         print(f"[GET_OBJECT] Lookup URL kwarg: {lookup_url_kwarg}")
         print(f"[GET_OBJECT] Lookup value: {lookup_value}")
         print(f"[GET_OBJECT] Request path: {self.request.path}")
+        print(f"[GET_OBJECT] Full URL: {self.request.build_absolute_uri() if hasattr(self.request, 'build_absolute_uri') else 'N/A'}")
+        if hasattr(self.request, 'resolver_match') and self.request.resolver_match:
+            print(f"[GET_OBJECT] Resolver route: {self.request.resolver_match.route}")
+            print(f"[GET_OBJECT] Resolver URL name: {self.request.resolver_match.url_name}")
         print(f"[GET_OBJECT] All kwargs: {self.kwargs}")
         
         logger.info("get_object() called", extra={
@@ -1865,8 +1869,15 @@ class OrderViewSet(viewsets.ModelViewSet):
         
         # IMPORTANT: This print will show in Render logs to confirm the method is called
         print(f"\n[RECEIPT] ========== RECEIPT ENDPOINT CALLED ==========")
-        print(f"[RECEIPT] Path: {request.path}")
+        print(f"[RECEIPT] Full path: {request.path}")
+        print(f"[RECEIPT] Full URL: {request.build_absolute_uri()}")
         print(f"[RECEIPT] Method: {request.method}")
+        print(f"[RECEIPT] Action: {getattr(self, 'action', 'NOT_SET')}")
+        print(f"[RECEIPT] Resolver match: {request.resolver_match}")
+        if hasattr(request, 'resolver_match') and request.resolver_match:
+            print(f"[RECEIPT] URL name: {request.resolver_match.url_name}")
+            print(f"[RECEIPT] Route: {request.resolver_match.route}")
+            print(f"[RECEIPT] Kwargs: {request.resolver_match.kwargs}")
         print(f"[RECEIPT] User authenticated: {request.user.is_authenticated if hasattr(request, 'user') else False}")
         
         # Log receipt request details
