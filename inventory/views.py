@@ -1775,7 +1775,29 @@ class OrderViewSet(viewsets.ModelViewSet):
     def get_receipt(self, request, pk=None):
         """Generate and return receipt HTML/PDF."""
         import os
-        order = self.get_object()
+        # Get order_id from URL parameter (pk is the order_id UUID)
+        order_id = pk or request.resolver_match.kwargs.get('pk')
+        
+        try:
+            # Try to get order directly by order_id to avoid queryset filtering issues
+            try:
+                order = Order.objects.get(order_id=order_id)
+            except Order.DoesNotExist:
+                logger.error(f"Order not found for receipt: order_id={order_id}")
+                return Response(
+                    {'error': 'Order not found.'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            except Exception as e:
+                logger.error(f"Error retrieving order by ID: {str(e)}", exc_info=True)
+                # Fallback to get_object() if direct lookup fails
+                order = self.get_object()
+        except Exception as e:
+            logger.error(f"Error retrieving order for receipt: {str(e)}", exc_info=True)
+            return Response(
+                {'error': 'Failed to retrieve order.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
         
         # Check permissions:
         # - Staff can always view receipts
