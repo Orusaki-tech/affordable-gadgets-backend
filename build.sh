@@ -24,6 +24,12 @@ python manage.py migrate --noinput || {
     }
 }
 
+# Specifically ensure migration 0027 is applied (idempotency_key column)
+echo "🔍 Checking migration 0027 (idempotency_key)..."
+python manage.py apply_idempotency_migration || {
+    echo "⚠️  Could not apply migration 0027 via management command. Will try on startup."
+}
+
 # Collect static files and upload to Cloudinary
 echo "📤 Collecting static files and uploading to Cloudinary..."
 python manage.py collectstatic --noinput
