@@ -1856,7 +1856,7 @@ class OrderViewSet(viewsets.ModelViewSet):
             })
     
     @action(detail=True, methods=['get'], url_path='receipt', permission_classes=[permissions.AllowAny], authentication_classes=[])
-    def get_receipt(self, request, pk=None):
+    def get_receipt(self, request, *args, **kwargs):
         """Generate and return receipt HTML/PDF."""
         import os
         from django.core.files.base import ContentFile
