@@ -1252,37 +1252,79 @@ class OrderViewSet(viewsets.ModelViewSet):
         """
         Override get_object to handle unauthenticated access for receipt and retrieve actions.
         For these actions, we allow direct lookup by order_id without queryset filtering.
+        
+        IMPORTANT: This method is called by DRF BEFORE the action method runs.
+        If this raises a 404, the action method (e.g., get_receipt) never gets called.
         """
-        # For receipt and retrieve actions, allow unauthenticated access
-        # Bypass queryset filtering and do direct lookup
-        if self.action in ['receipt', 'retrieve']:
-            lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
-            lookup_value = self.kwargs[lookup_url_kwarg]
-            
-            # Log the lookup attempt
-            logger.info("get_object() called for receipt/retrieve", extra={
-                'action': self.action,
-                'lookup_field': self.lookup_field,
-                'lookup_value': str(lookup_value),
-            })
-            
+        # Get the lookup value from kwargs
+        lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
+        lookup_value = self.kwargs.get(lookup_url_kwarg)
+        
+        # Log the lookup attempt
+        print(f"\n[GET_OBJECT] ========== get_object() CALLED ==========")
+        print(f"[GET_OBJECT] Action: {getattr(self, 'action', 'NOT_SET')}")
+        print(f"[GET_OBJECT] Lookup field: {self.lookup_field}")
+        print(f"[GET_OBJECT] Lookup value: {lookup_value}")
+        print(f"[GET_OBJECT] Request path: {self.request.path}")
+        print(f"[GET_OBJECT] All kwargs: {self.kwargs}")
+        
+        logger.info("get_object() called", extra={
+            'action': getattr(self, 'action', 'NOT_SET'),
+            'lookup_field': self.lookup_field,
+            'lookup_value': str(lookup_value) if lookup_value else None,
+            'request_path': self.request.path,
+            'all_kwargs': dict(self.kwargs),
+        })
+        
+        # If lookup_field is 'order_id', always try direct lookup first
+        # This ensures receipt and retrieve actions work even if self.action isn't set yet
+        if self.lookup_field == 'order_id' and lookup_value:
             try:
-                # Direct lookup by order_id, bypassing queryset
+                # Direct lookup by order_id, bypassing queryset filtering
+                print(f"[GET_OBJECT] Attempting direct lookup for order_id: {lookup_value}")
                 order = Order.objects.get(order_id=lookup_value)
-                logger.info("Order found via get_object()", extra={
+                print(f"[GET_OBJECT] Order found: {order.order_id}, status: {order.status}")
+                logger.info("Order found via get_object() direct lookup", extra={
                     'order_id': str(order.order_id),
                     'order_status': order.status,
                 })
                 return order
             except Order.DoesNotExist:
+                print(f"[GET_OBJECT] Order not found: {lookup_value}")
                 logger.error(f"Order not found in get_object(): {lookup_value}")
+                # Check if order exists at all
+                total_orders = Order.objects.count()
+                logger.warning(f"Total orders in database: {total_orders}")
                 raise exceptions.NotFound("Order not found.")
             except Exception as e:
+                print(f"[GET_OBJECT] Error in lookup: {str(e)}")
                 logger.error(f"Error in get_object(): {str(e)}", exc_info=True)
                 raise
         
+        # If lookup_value is missing, try to extract from path
+        if not lookup_value and 'receipt' in self.request.path:
+            path_parts = self.request.path.split('/')
+            if 'orders' in path_parts:
+                orders_index = path_parts.index('orders')
+                if orders_index + 1 < len(path_parts):
+                    lookup_value = path_parts[orders_index + 1]
+                    print(f"[GET_OBJECT] Extracted lookup_value from path: {lookup_value}")
+                    try:
+                        order = Order.objects.get(order_id=lookup_value)
+                        print(f"[GET_OBJECT] Order found via path extraction: {order.order_id}")
+                        return order
+                    except Order.DoesNotExist:
+                        logger.error(f"Order not found after path extraction: {lookup_value}")
+                        raise exceptions.NotFound("Order not found.")
+        
         # For other actions, use default behavior
-        return super().get_object()
+        print(f"[GET_OBJECT] Using default get_object() behavior")
+        try:
+            return super().get_object()
+        except Exception as e:
+            print(f"[GET_OBJECT] Default get_object() failed: {str(e)}")
+            logger.error(f"Default get_object() failed: {str(e)}", exc_info=True)
+            raise
 
     def retrieve(self, request, *args, **kwargs):
         """
