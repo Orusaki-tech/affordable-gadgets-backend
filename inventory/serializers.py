@@ -1321,6 +1321,30 @@ class OrderSerializer(serializers.ModelSerializer):
                 self.fields['order_items'].required = False
 
     def create(self, validated_data):
+        # #region agent log
+        import json
+        import os
+        from django.conf import settings
+        from django.utils import timezone
+        log_path = '/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log'
+        try:
+            os.makedirs(os.path.dirname(log_path), exist_ok=True)
+            with open(log_path, 'a') as f:
+                f.write(json.dumps({
+                    'sessionId': 'debug-session',
+                    'runId': 'run1',
+                    'hypothesisId': 'D',
+                    'location': 'inventory/serializers.py:OrderSerializer.create',
+                    'message': 'Serializer create method called',
+                    'data': {
+                        'has_idempotency_key_in_validated_data': 'idempotency_key' in validated_data,
+                    },
+                    'timestamp': int(timezone.now().timestamp() * 1000)
+                }) + '\n')
+        except Exception as e:
+            print(f"[DEBUG] Failed to write log: {e}")
+        # #endregion
+        
         # 1. Pop nested items and FKs set by the view
         # We pop the field mapped to the source: 'order_items'
         order_items_data = validated_data.pop('order_items')
@@ -1328,16 +1352,130 @@ class OrderSerializer(serializers.ModelSerializer):
         user = validated_data.pop('user')
         idempotency_key = validated_data.pop('idempotency_key', None)  # Get idempotency key if provided
 
+        # #region agent log
+        try:
+            with open(log_path, 'a') as f:
+                f.write(json.dumps({
+                    'sessionId': 'debug-session',
+                    'runId': 'run1',
+                    'hypothesisId': 'D',
+                    'location': 'inventory/serializers.py:OrderSerializer.create',
+                    'message': 'About to create Order object with idempotency_key',
+                    'data': {
+                        'has_idempotency_key': bool(idempotency_key),
+                        'idempotency_key_value': idempotency_key[:20] + '...' if idempotency_key else None,
+                    },
+                    'timestamp': int(timezone.now().timestamp() * 1000)
+                }) + '\n')
+        except Exception as e:
+            print(f"[DEBUG] Failed to write log: {e}")
+        # #endregion
+
         # 2. Use transaction to ensure atomic operations (inventory + order creation)
         with transaction.atomic():
-            # Create the main Order object with idempotency key
-            order = Order.objects.create(
-                customer=customer, 
-                user=user, 
-                status=Order.StatusChoices.PENDING,
-                idempotency_key=idempotency_key,
-                **validated_data
-            )
+            try:
+                # Check if idempotency_key column exists before trying to use it
+                from django.db import connection
+                with connection.cursor() as cursor:
+                    cursor.execute("""
+                        SELECT column_name 
+                        FROM information_schema.columns 
+                        WHERE table_schema = 'public' 
+                        AND table_name = 'inventory_order' 
+                        AND column_name = 'idempotency_key'
+                    """)
+                    column_exists = cursor.fetchone() is not None
+                
+                # #region agent log
+                try:
+                    with open(log_path, 'a') as f:
+                        f.write(json.dumps({
+                            'sessionId': 'debug-session',
+                            'runId': 'run1',
+                            'hypothesisId': 'D',
+                            'location': 'inventory/serializers.py:OrderSerializer.create',
+                            'message': 'Checked idempotency_key column before Order.objects.create',
+                            'data': {
+                                'column_exists': column_exists,
+                                'has_idempotency_key': bool(idempotency_key),
+                            },
+                            'timestamp': int(timezone.now().timestamp() * 1000)
+                        }) + '\n')
+                except Exception as e:
+                    print(f"[DEBUG] Failed to write log: {e}")
+                # #endregion
+                
+                # Create the main Order object with idempotency key (only if column exists)
+                create_kwargs = {
+                    'customer': customer,
+                    'user': user,
+                    'status': Order.StatusChoices.PENDING,
+                    **validated_data
+                }
+                
+                if idempotency_key and column_exists:
+                    create_kwargs['idempotency_key'] = idempotency_key
+                elif idempotency_key and not column_exists:
+                    # #region agent log
+                    try:
+                        with open(log_path, 'a') as f:
+                            f.write(json.dumps({
+                                'sessionId': 'debug-session',
+                                'runId': 'run1',
+                                'hypothesisId': 'D',
+                                'location': 'inventory/serializers.py:OrderSerializer.create',
+                                'message': 'CONFIRMED: idempotency_key column missing - creating order without it',
+                                'data': {
+                                    'error': 'Migration 0027_add_idempotency_key_to_order has not been applied',
+                                },
+                                'timestamp': int(timezone.now().timestamp() * 1000)
+                            }) + '\n')
+                    except Exception as e:
+                        print(f"[DEBUG] Failed to write log: {e}")
+                    # #endregion
+                    logger.warning("idempotency_key provided but column doesn't exist - creating order without it")
+                
+                order = Order.objects.create(**create_kwargs)
+                
+                # #region agent log
+                try:
+                    with open(log_path, 'a') as f:
+                        f.write(json.dumps({
+                            'sessionId': 'debug-session',
+                            'runId': 'run1',
+                            'hypothesisId': 'D',
+                            'location': 'inventory/serializers.py:OrderSerializer.create',
+                            'message': 'Order object created successfully',
+                            'data': {
+                                'order_id': str(order.order_id),
+                            },
+                            'timestamp': int(timezone.now().timestamp() * 1000)
+                        }) + '\n')
+                except Exception as e:
+                    print(f"[DEBUG] Failed to write log: {e}")
+                # #endregion
+            except Exception as e:
+                # #region agent log
+                try:
+                    import traceback
+                    with open(log_path, 'a') as f:
+                        f.write(json.dumps({
+                            'sessionId': 'debug-session',
+                            'runId': 'run1',
+                            'hypothesisId': 'D',
+                            'location': 'inventory/serializers.py:OrderSerializer.create',
+                            'message': 'ERROR creating Order object - likely idempotency_key field missing in DB',
+                            'data': {
+                                'error_type': type(e).__name__,
+                                'error_message': str(e),
+                                'traceback': traceback.format_exc(),
+                            },
+                            'timestamp': int(timezone.now().timestamp() * 1000)
+                        }) + '\n')
+                except Exception as log_err:
+                    print(f"[DEBUG] Failed to write log: {log_err}")
+                # #endregion
+                raise
             
             final_total = Decimal('0.00')
 
