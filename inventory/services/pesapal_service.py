@@ -6,6 +6,7 @@ import requests
 import time
 import logging
 import json
+import os
 from datetime import timedelta
 from django.conf import settings
 from django.utils import timezone
@@ -14,6 +15,16 @@ from requests.exceptions import Timeout, ConnectionError, RequestException
 
 logger = logging.getLogger(__name__)
 
+def _ensure_log_directory(log_path: str) -> None:
+    """Safely create log directory if it doesn't exist. Only creates directories for safe paths like /tmp/."""
+    try:
+        log_dir = os.path.dirname(log_path)
+        if log_dir and (log_path.startswith('/tmp/') or log_path.startswith('/tmp')):
+            os.makedirs(log_dir, exist_ok=True)
+    except (OSError, PermissionError):
+        # If directory creation fails, log will fail gracefully in the try/except blocks
+        pass
+
 class PesapalService:
     """Pesapal API 3.0 service with failover and retry logic."""
     
@@ -21,8 +32,9 @@ class PesapalService:
         # #region agent log
         import json
         import os
-        log_path = '/Users/shwariphones/Desktop/shwari-django/Shwari/.cursor/debug.log'
-        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        # Use PESAPAL_LOG_PATH from environment variable, fallback to /tmp/pesapal_debug.log
+        log_path = getattr(settings, 'PESAPAL_LOG_PATH', '/tmp/pesapal_debug.log')
+        _ensure_log_directory(log_path)
         try:
             with open(log_path, 'a') as f:
                 f.write(json.dumps({
@@ -126,7 +138,9 @@ class PesapalService:
             
             try:
                 # #region agent log
-                log_path = '/Users/shwariphones/Desktop/shwari-django/Shwari/.cursor/debug.log'
+                # Use PESAPAL_LOG_PATH from environment variable, fallback to /tmp/pesapal_debug.log
+                log_path = getattr(settings, 'PESAPAL_LOG_PATH', '/tmp/pesapal_debug.log')
+                _ensure_log_directory(log_path)
                 if method.upper() == 'POST':
                     try:
                         with open(log_path, 'a') as f:
@@ -340,9 +354,9 @@ class PesapalService:
         
         # #region agent log
         import json
-        import os
-        log_path = '/Users/shwariphones/Desktop/shwari-django/Shwari/.cursor/debug.log'
-        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        # Use PESAPAL_LOG_PATH from environment variable, fallback to /tmp/pesapal_debug.log
+        log_path = getattr(settings, 'PESAPAL_LOG_PATH', '/tmp/pesapal_debug.log')
+        _ensure_log_directory(log_path)
         try:
             with open(log_path, 'a') as f:
                 f.write(json.dumps({
