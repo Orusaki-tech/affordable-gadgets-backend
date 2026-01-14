@@ -467,6 +467,10 @@ class PesapalPaymentService:
         print(f"[PESAPAL] IPN Received: {payment.ipn_received}")
         print(f"[PESAPAL] ===========================================\n")
         
+        # Convert datetime objects to ISO format strings for JSON serialization
+        initiated_at_str = payment.initiated_at.isoformat() if payment.initiated_at else None
+        completed_at_str = payment.completed_at.isoformat() if payment.completed_at else None
+        
         return {
             'status': payment.status,
             'order_tracking_id': payment.pesapal_order_tracking_id,
@@ -476,8 +480,8 @@ class PesapalPaymentService:
             'currency': payment.currency,
             'payment_method': payment.payment_method,
             'redirect_url': payment.redirect_url,
-            'initiated_at': payment.initiated_at,
-            'completed_at': payment.completed_at,
+            'initiated_at': initiated_at_str,
+            'completed_at': completed_at_str,
             'is_verified': payment.is_verified,
             'ipn_received': payment.ipn_received,
         }
