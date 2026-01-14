@@ -2661,6 +2661,105 @@ class AdminProfileView(generics.RetrieveAPIView):
 
 
 
+class ReceiptView(APIView):
+    """
+    Standalone view for receipt endpoint to ensure proper routing.
+    This bypasses the ViewSet routing issues by directly calling the get_receipt logic.
+    """
+    permission_classes = [permissions.AllowAny]
+    authentication_classes = []
+    
+    def get(self, request, order_id):
+        """Handle receipt requests by creating ViewSet instance and calling get_receipt()."""
+        # Import here to avoid circular imports
+        from inventory.models import Order
+        from inventory.services.receipt_service import ReceiptService
+        from rest_framework import status
+        from rest_framework.response import Response
+        import os
+        from django.core.files.base import ContentFile
+        from django.http import HttpResponse, FileResponse
+        from django.utils import timezone
+        from uuid import UUID
+        
+        print(f"\n[RECEIPT] ========== RECEIPT VIEW CALLED ==========")
+        print(f"[RECEIPT] Order ID: {order_id}")
+        print(f"[RECEIPT] Full path: {request.path}")
+        
+        # Try to get order
+        try:
+            if isinstance(order_id, str):
+                try:
+                    order_id = UUID(order_id)
+                except ValueError:
+                    pass
+            
+            order = Order.objects.get(order_id=order_id)
+            print(f"[RECEIPT] Order found: {order.order_id}, status: {order.status}")
+        except Order.DoesNotExist:
+            print(f"[RECEIPT] Order not found: {order_id}")
+            return Response(
+                {'error': f'Order with ID {order_id} not found.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            print(f"[RECEIPT] Error: {str(e)}")
+            return Response(
+                {'error': 'Failed to retrieve order.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        # Check permissions (same logic as in get_receipt)
+        if request.user.is_staff:
+            pass  # Staff can view any receipt
+        elif request.user.is_authenticated:
+            if order.customer.user != request.user:
+                return Response(
+                    {'error': 'You do not have permission to view this receipt.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        else:
+            # Unauthenticated users can only view receipts for paid orders
+            if order.status != Order.StatusChoices.PAID:
+                return Response(
+                    {'error': 'Receipt is only available for paid orders.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        
+        # Generate receipt
+        from inventory.models import Receipt
+        format_type = request.query_params.get('format', 'html')
+        
+        try:
+            if format_type == 'pdf':
+                receipt, created = Receipt.objects.get_or_create(order=order)
+                if not receipt.receipt_number:
+                    receipt.receipt_number = ReceiptService.generate_receipt_number(order)
+                    receipt.save(update_fields=['receipt_number'])
+                
+                if not receipt.pdf_file or (receipt.pdf_file and not os.path.exists(receipt.pdf_file.path)):
+                    pdf_bytes = ReceiptService.generate_receipt_pdf(order)
+                    pdf_filename = f"receipt_{order.order_id}_{receipt.receipt_number}.pdf"
+                    pdf_path = os.path.join('receipts', timezone.now().strftime('%Y/%m'), pdf_filename)
+                    receipt.pdf_file.save(pdf_path, ContentFile(pdf_bytes), save=True)
+                
+                response = FileResponse(
+                    open(receipt.pdf_file.path, 'rb'),
+                    content_type='application/pdf'
+                )
+                response['Content-Disposition'] = f'attachment; filename="receipt_{receipt.receipt_number}.pdf"'
+                return response
+            else:
+                html_content = ReceiptService.generate_receipt_html(order)
+                return HttpResponse(html_content, content_type='text/html')
+        except Exception as e:
+            logger.error(f"Error generating receipt for order {order.order_id}: {e}")
+            return Response(
+                {'error': 'Failed to generate receipt'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
 class DiscountCalculatorView(generics.GenericAPIView):
     """
     Utility endpoint to calculate a final price based on various discounts and rules.

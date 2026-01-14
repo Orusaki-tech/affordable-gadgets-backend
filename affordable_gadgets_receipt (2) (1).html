@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Affordable Gadgets Receipt</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 210mm;
+            margin: 0 auto;
+            background: white;
+        }
+
+        .receipt {
+            width: 210mm;
+            height: 297mm;
+            padding: 15mm;
+            background: white;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .watermark {
+            position: absolute;
+            top: 35%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 350px;
+            height: 350px;
+            opacity: 0.06;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .watermark img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .stamp-container {
+            position: absolute;
+            bottom: 180px;
+            right: 60px;
+            width: 200px;
+            height: 140px;
+            z-index: 10;
+            pointer-events: none;
+            transition: bottom .25s ease;
+        }
+
+        .receipt .stamp-container { bottom: 180px; }
+
+/* when a payment detail is open, drop the stamp lower */
+.receipt.details-open .stamp-container { bottom: 60px; }
+
+
+
+        .stamp-oval {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+
+        .stamp-oval svg {
+            width: 100%;
+            height: 100%;
+            transform: rotate(-15deg);
+        }
+
+        .stamp-date {
+            position: absolute;
+            top: 42%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-15deg);
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            font-size: 16px;
+            color: #dc2626;
+            text-align: center;
+            letter-spacing: 1px;
+            line-height: 1.3;
+        }
+
+        .stamp-phone {
+            position: absolute;
+            top: 58%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-15deg);
+            font-family: Arial, sans-serif;
+            font-weight: bold;
+            font-size: 12px;
+            color: #1e40af;
+            text-align: center;
+        }
+
+        .stamp-text-bottom {
+            position: absolute;
+            bottom: 28%;
+            left: 8%;
+            transform: rotate(-15deg);
+            font-family: Arial, sans-serif;
+            font-weight: bold;
+            font-size: 10px;
+            color: #1e40af;
+            line-height: 1.2;
+        }
+
+        .content-wrapper {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #333;
+            padding-bottom: 8px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .logo-container {
+            width: 60px;
+            height: 60px;
+            background: #000;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            overflow: hidden;
+        }
+
+        .logo-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .header-text {
+            flex: 1;
+        }
+
+        .receipt-label {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .header h1 {
+            color: #000;
+            font-size: 26px;
+            margin: 5px 0;
+            letter-spacing: 1px;
+        }
+
+        .header h2 {
+            color: #666;
+            font-size: 15px;
+            font-weight: normal;
+            margin-top: 3px;
+        }
+
+        .receipt-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            font-size: 13px;
+        }
+
+        .receipt-number {
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        .form-group {
+            margin-bottom: 10px;
+            display: flex;
+            align-items: baseline;
+        }
+
+        .form-group label {
+            width: 130px;
+            color: #666;
+            font-size: 12px;
+        }
+
+        .form-group input {
+            flex: 1;
+            border: none;
+            border-bottom: 1px dotted #999;
+            padding: 3px;
+            font-size: 12px;
+            font-family: 'Courier New', monospace;
+            background: transparent;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-bottom: 1px solid #333;
+        }
+
+        .payment-section {
+            margin: 20px 0 15px 0;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .amount-box {
+            background: #e0e0e0;
+            padding: 8px 25px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 5px;
+            display: inline-block;
+        }
+
+        .amount-box input {
+            background: transparent;
+            border: none;
+            width: 120px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .served-by {
+            flex: 1;
+            text-align: right;
+        }
+
+        .served-by-label {
+            color: #666;
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+
+        .served-by input {
+            border-bottom: 1px dotted #999;
+            padding: 5px;
+            width: 200px;
+            border-top: none;
+            border-left: none;
+            border-right: none;
+            font-size: 12px;
+        }
+
+        .payment-methods {
+            margin-top: 12px;
+            display: flex;
+            gap: 20px;
+            font-size: 14px;
+        }
+
+        .payment-methods label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+        }
+
+        .payment-methods input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .payment-details {
+            margin-top: 12px;
+            padding: 10px;
+            background: #f9f9f9;
+            border-radius: 5px;
+            display: none;
+        }
+
+        .payment-details.active {
+            display: block;
+        }
+
+        .payment-details label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 8px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        .payment-details input[type="radio"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        .notes-section {
+            margin-top: 15px;
+            margin-bottom: 15px;
+        }
+
+        .notes-section label {
+            color: #666;
+            font-size: 13px;
+            font-weight: bold;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .notes-section textarea {
+            width: 100%;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 8px;
+            font-size: 12px;
+            font-family: Arial, sans-serif;
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .notes-section textarea:focus {
+            outline: none;
+            border-color: #333;
+        }
+
+        .divider {
+            height: 2px;
+            background: #333;
+            margin: 12px 0;
+        }
+
+        .footer {
+            margin-top: 10px;
+        }
+
+        .footer-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            color: #333;
+            font-size: 12px;
+        }
+
+        .footer-content div {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .notice {
+            text-align: center;
+            font-style: italic;
+            color: #666;
+            margin: 8px 0;
+            font-size: 13px;
+        }
+
+        .refer-box {
+            text-align: center;
+            background: #333;
+            color: #fff;
+            padding: 8px;
+            border-radius: 5px;
+            font-weight: bold;
+            font-size: 12px;
+            margin-bottom: 8px;
+        }
+
+        .warranty {
+            background: #f5f5f5;
+            border: 2px solid #333;
+            border-radius: 6px;
+            padding: 10px;
+        }
+
+        .warranty h3 {
+            color: #666;
+            text-align: center;
+            background: #e0e0e0;
+            padding: 5px;
+            border-radius: 15px;
+            display: inline-block;
+            width: 100%;
+            margin-bottom: 8px;
+            font-size: 11px;
+        }
+
+        .warranty ol {
+            margin-left: 20px;
+            font-size: 10px;
+            line-height: 1.4;
+            color: #333;
+        }
+
+        .warranty li {
+            margin-bottom: 3px;
+        }
+
+        .buttons {
+            text-align: center;
+            margin: 30px 0;
+        }
+
+        .btn {
+            padding: 12px 30px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 0 10px;
+        }
+
+        .btn-print {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn-print:hover {
+            background: #45a049;
+        }
+
+        .btn-pdf {
+            background: #2196F3;
+            color: white;
+        }
+
+        .btn-pdf:hover {
+            background: #0b7dda;
+        }
+
+        .btn-clear {
+            background: #f44336;
+            color: white;
+        }
+
+        .btn-clear:hover {
+            background: #da190b;
+        }
+
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+
+            .receipt {
+                box-shadow: none;
+                margin: 0;
+            }
+
+            .buttons {
+                display: none;
+            }
+
+            .form-group input {
+                border-bottom: 1px dotted #999;
+            }
+        }
+
+        @page {
+            size: A4;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="buttons">
+            <button class="btn btn-print" onclick="window.print()">🖨️ Print Receipt</button>
+            <!-- button class="btn btn-pdf" onclick="downloadPDF()">📄 Download PDF</button-->
+            <button class="btn btn-clear" onclick="clearForm()">🗑️ Clear Form</button>
+        </div>
+
+        <div class="receipt" id="receipt">
+            <div class="watermark">
+                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Ccircle cx='100' cy='70' r='55' fill='none' stroke='%23000' stroke-width='3'/%3E%3Crect x='65' y='40' width='70' height='50' rx='8' fill='%23fff' stroke='%23000' stroke-width='3'/%3E%3Crect x='85' y='44' width='30' height='3' rx='1.5' fill='%23000'/%3E%3Ccircle cx='100' cy='80' r='4' fill='%23000'/%3E%3Ctext x='100' y='150' font-family='Arial' font-size='20' font-weight='bold' fill='%23000' text-anchor='middle'%3EAffordable Gadgets%3C/text%3E%3Ctext x='100' y='170' font-family='Arial' font-size='12' fill='%23000' text-anchor='middle'%3EExperience More . Pay Less%3C/text%3E%3C/svg%3E" alt="Watermark">
+            </div>
+
+            <div class="stamp-container">
+                <div class="stamp-oval">
+                    <svg viewBox="0 0 220 150" xmlns="http://www.w3.org/2000/svg">
+                        <ellipse cx="110" cy="75" rx="105" ry="70" fill="none" stroke="#1e40af" stroke-width="3"/>
+                        <ellipse cx="110" cy="75" rx="100" ry="65" fill="none" stroke="#1e40af" stroke-width="2"/>
+                        <path id="topArc" d="M 25,75 A 85,55 0 0,1 195,75" fill="none"/>
+                        <text font-family="Arial" font-size="14" font-weight="bold" fill="#1e40af" letter-spacing="2">
+                            <textPath href="#topArc" startOffset="50%" text-anchor="middle">
+                                AFFORDABLE GADGETS
+                            </textPath>
+                        </text>
+                        <path id="bottomArc" d="M 25,75 A 85,55 0 0,0 195,75" fill="none"/>
+                        <text font-family="Arial" font-size="11" font-weight="bold" fill="#1e40af" letter-spacing="0.5">
+                            <textPath href="#bottomArc" startOffset="50%" text-anchor="middle">
+                                Experience More . Pay Less
+                            </textPath>
+                        </text>
+                        <text x="15" y="80" font-size="16" fill="#1e40af">★</text>
+                        <text x="195" y="80" font-size="16" fill="#1e40af">★</text>
+                    </svg>
+                    <div class="stamp-date" id="stampDate">01 NOV<br>2025</div>
+                    <div class="stamp-phone" id="stampPhone">+254717881573</div>
+                </div>
+            </div>
+
+            <div class="content-wrapper">
+                <div class="header">
+                    <div class="logo-container">
+                        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 640 640'%3E%3Crect width='640' height='640' fill='%23000'/%3E%3Ccircle cx='320' cy='250' r='130' fill='none' stroke='%23fff' stroke-width='8'/%3E%3Crect x='230' y='180' width='180' height='140' rx='20' fill='%23fff'/%3E%3Crect x='285' y='190' width='70' height='8' rx='4' fill='%23000'/%3E%3Ccircle cx='320' cy='280' r='12' fill='%23000'/%3E%3Ctext x='320' y='460' font-family='Arial, sans-serif' font-size='52' font-weight='bold' fill='%23fff' text-anchor='middle'%3EAffordable Gadgets%3C/text%3E%3Ctext x='320' y='510' font-family='Arial, sans-serif' font-size='32' fill='%23fff' text-anchor='middle'%3EExperience More . Pay Less%3C/text%3E%3C/svg%3E" alt="Affordable Gadgets Logo">
+                    </div>
+                    <div class="header-text">
+                        <div class="receipt-label">RECEIPT</div>
+                        <h1>AFFORDABLE GADGETS</h1>
+                        <h2>Experience More . Pay Less</h2>
+                    </div>
+                </div>
+
+                <div class="receipt-info">
+                    <div>
+                        <span class="receipt-number"><input type="text" id="receiptNo" placeholder="SL_1121" style="width: 20ch; font-size: 20px; font-weight: bold;"></span>
+                    </div>
+                    <div>
+                            Date: <input type="date" id="date" style="width: 150px;"> 
+
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Received from</label>
+                    <input type="text" id="customerName" placeholder="Customer Name">
+                </div>
+
+                <div class="form-group">
+                    <label>Amount</label>
+                    <input type="text" id="amount" placeholder="Amount in words">
+                </div>
+
+                <div class="form-group">
+                    <label>Being Payment of</label>
+                    <input type="text" id="itemDescription" placeholder="e.g., iPhone 13 Pro">
+                </div>
+
+                <div class="form-group">
+                    <label>Storage</label>
+                    <input type="text" id="storage" placeholder="e.g., 256GB">
+                </div>
+
+                <div class="form-group">
+                    <label>Serial N.O</label>
+                    <input type="text" id="serialNo" placeholder="Serial Number">
+                </div>
+
+                <div class="form-group">
+                    <label>IMEI N.O</label>
+                    <input type="text" id="imeiNo" placeholder="IMEI Number">
+                </div>
+
+                <div class="form-group">
+                    <label>Phone N.O</label>
+                    <input type="text" id="phoneNo" placeholder="Phone Number">
+                </div>
+
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="text" id="email" placeholder="Email Address">
+                </div>
+
+                <div class="payment-section">
+                    <div>
+                        <label style="color: #666; margin-right: 10px;">Ksh</label>
+                        <span class="amount-box">
+                            <input type="text" id="amountKsh" placeholder="0">
+                        </span>
+                    </div>
+                    <div class="served-by">
+                        <div class="served-by-label">Served By</div>
+                        <input type="text" id="servedBy" placeholder="Staff Name">
+                    </div>
+                </div>
+
+                <div class="payment-methods">
+                    <label>
+                        <input type="checkbox" id="cash"> CASH
+                    </label>
+                    <label>
+                        <input type="checkbox" id="mpesa"> MPESA
+                    </label>
+                    <label>
+                        <input type="checkbox" id="bank"> BANK
+                    </label>
+                    <label>
+                        <input type="checkbox" id="cashBank"> CASH + BANK / MPESA
+                    </label>
+                </div>
+
+                <div class="payment-details" id="mpesaDetails">
+                    <label>
+                        <input type="radio" name="mpesaOption" value="till"> LOOP BIZ (PAYBILL - 714888) - A/C NO: 380605
+                    </label>
+                    <label>
+                        <input type="radio" name="mpesaOption" value="office"> Office Number
+                    </label>
+                </div>
+
+                <div class="payment-details" id="bankDetails">
+                    <label>
+                        <input type="radio" name="bankOption" value="loop"> PDQ
+                    </label>
+                </div>
+
+                <div class="notes-section">
+                    <label>Notes:</label>
+                    <textarea id="notes" placeholder="Additional notes or comments e.g. MPESA transaction code, Addons on discount e.g accessories (phone cover, earphones)..."></textarea>
+                </div>
+
+                <div class="divider"></div>
+
+                <div class="footer">
+                    <div class="footer-content">
+                        <div>
+                            📍 Kimathi House, Fourth Floor, Room 409
+                        </div>
+                        <div>
+                            📞 +254717881573
+                        </div>
+                    </div>
+
+                    <div class="notice">
+                        Goods once sold are not re-accepted
+                    </div>
+
+                    <div class="refer-box">
+                        Refer To Our Warranty Policy Below:
+                    </div>
+
+                    <div class="warranty">
+                        <h3>6 MONTHS WARRANTY</h3>
+                        <ol>
+                            <li>6 months warranty on network, charging issues, earpiece, microphone, and speaker.</li>
+                            <li>6 months warranty on software malfunction that is not related to 3rd party software i.e apps not on play store or app store.</li>
+                            <li>No warranty on screen upon testing at the shop or after delivery.</li>
+                            <li>3-months warranty on battery.</li>
+                            <li>1 month warranty on chargers and accessories.</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+        <script>
+document.addEventListener('DOMContentLoaded', () => {
+  // === Elements ===
+  const receiptEl = document.getElementById('receipt');
+  const dateInput = document.getElementById('date');
+  const dateDisplay = document.getElementById('dateDisplay'); // may be null
+  const stampDateEl = document.getElementById('stampDate');
+  const mpesaDetails = document.getElementById('mpesaDetails');
+  const bankDetails  = document.getElementById('bankDetails');
+  const amountKsh = document.getElementById('amountKsh');
+
+  const ids = ['cash','mpesa','bank','cashBank'];
+  const el  = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
+
+  // === Helpers ===
+  function formatStampDate(d) {
+    const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+    const day = String(d.getDate()).padStart(2,'0');
+    return `${day} ${months[d.getMonth()]}<br>${d.getFullYear()}`;
+  }
+  function updateStampDate() {
+    const d = dateInput.value ? new Date(dateInput.value + 'T00:00:00') : new Date();
+    stampDateEl.innerHTML = formatStampDate(d);
+  }
+  function formatDDMMYYYY(d) {
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yy = d.getFullYear();
+    return `${dd}/${mm}/${yy}`;
+  }
+  function updateHumanDate() {
+    if (!dateDisplay) return;
+    const d = dateInput.value ? new Date(dateInput.value + 'T00:00:00') : new Date();
+    dateDisplay.textContent = formatDDMMYYYY(d);
+  }
+  function updateStampOffset() {
+    const open = mpesaDetails.classList.contains('active') || bankDetails.classList.contains('active');
+    receiptEl.classList.toggle('details-open', open);
+  }
+  function showNone() {
+    mpesaDetails.classList.remove('active');
+    bankDetails.classList.remove('active');
+    updateStampOffset();
+  }
+  function setPanels(choiceId) {
+    if (choiceId === 'mpesa') {
+      mpesaDetails.classList.add('active');
+      bankDetails.classList.remove('active');
+    } else if (choiceId === 'bank') {
+      bankDetails.classList.add('active');
+      mpesaDetails.classList.remove('active');
+    } else {
+      showNone();
+      return;
+    }
+    updateStampOffset();
+  }
+  function enforceSingle(changedId) {
+    // Uncheck all others except changedId (cashBank is treated separately)
+    ids.forEach(id => { if (id !== changedId) el[id].checked = false; });
+    setPanels(changedId);
+  }
+
+  // === Init (normalize) ===
+  ids.forEach(id => (el[id].checked = false));
+  showNone();
+  dateInput.valueAsDate = new Date();
+  updateStampDate();
+  updateHumanDate();
+
+  // === Events ===
+  dateInput.addEventListener('change', () => { updateStampDate(); updateHumanDate(); });
+
+  // Only one of CASH / MPESA / BANK at a time; CASH+BANK/MPESA hides panels and unchecks others.
+  ids.forEach(id => {
+    el[id].addEventListener('change', () => {
+      if (id === 'cashBank') {
+        if (el.cashBank.checked) {
+          el.cash.checked = false;
+          el.mpesa.checked = false;
+          el.bank.checked  = false;
+          showNone();
+        }
+        return;
+      }
+
+      if (el[id].checked) {
+        enforceSingle(id);
+      } else {
+        // If user unchecks the active one, show none.
+        showNone();
+      }
+    });
+  });
+
+  // Amount formatting
+  amountKsh.addEventListener('input', (e) => {
+    const raw = e.target.value.replace(/,/g,'');
+    if (raw !== '' && !isNaN(raw)) e.target.value = Number(raw).toLocaleString();
+  });
+
+  // Expose clearForm for the button
+  window.clearForm = function () {
+    if (!confirm('Are you sure you want to clear all fields?')) return;
+    document.querySelectorAll('input[type="text"]').forEach(i => i.value = '');
+    document.querySelectorAll('input[type="checkbox"]').forEach(c => c.checked = false);
+    document.querySelectorAll('input[type="radio"]').forEach(r => r.checked = false);
+    document.getElementById('notes').value = '';
+    dateInput.valueAsDate = new Date();
+    updateStampDate();
+    showNone();
+  };
+});
+</script>
+
+
+    <!--script>
+        // Function to format date for stamp
+        function formatStampDate(date) {
+            const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 
+                          'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = months[date.getMonth()];
+            const year = date.getFullYear();
+            return `${day} ${month}<br>${year}`;
+        }
+
+        // Update stamp date based on receipt date
+        function updateStampDate() {
+            const dateInput = document.getElementById('date');
+            const stampDate = document.getElementById('stampDate');
+            
+            if (dateInput.value) {
+                const selectedDate = new Date(dateInput.value + 'T00:00:00');
+                stampDate.innerHTML = formatStampDate(selectedDate);
+            } else {
+                const today = new Date();
+                stampDate.innerHTML = formatStampDate(today);
+            }
+        }
+
+        // Set today's date by default
+        const today = new Date();
+        const dateInput = document.getElementById('date');
+        dateInput.valueAsDate = today;
+        
+        // Initialize stamp with today's date
+        updateStampDate();
+
+        // Listen for date changes
+        
+        const dateDisplay = document.getElementById('dateDisplay');
+
+        function formatDDMMYYYY(d) {
+            const dd = String(d.getDate()).padStart(2, '0');
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const yyyy = d.getFullYear();
+            return `${dd}/${mm}/${yyyy}`;
+        }
+
+        function syncDateDisplay() {
+            if (!dateDisplay) return;
+            const d = dateInput.value ? new Date(dateInput.value + 'T00:00:00') : new Date();
+            dateDisplay.textContent = formatDDMMYYYY(d);
+        }
+
+        // init + keep in sync
+        syncDateDisplay();
+        dateInput.addEventListener('change', syncDateDisplay);
+
+        dateInput.addEventListener('change', updateStampDate);
+
+        // --- DROPDOWN TOGGLING (MPESA/BANK) ---
+        //const paymentCheckboxes = document.querySelectorAll('.payment-methods input[type="checkbox"]');
+       // const mpesaDetails = document.getElementById('mpesaDetails');
+      //  const bankDetails = document.getElementById('bankDetails');
+
+        // Auto-format amount in KSh with commas
+        document.getElementById('amountKsh').addEventListener('input', function(e) {
+            let value = e.target.value.replace(/,/g, '');
+            if (!isNaN(value) && value !== '') {
+                e.target.value = Number(value).toLocaleString();
+            }
+        });
+
+        // Download PDF function
+        function downloadPDF() {
+            const receiptNo = document.getElementById('receiptNo').value || 'receipt';
+            const date = document.getElementById('date').value || new Date().toISOString().split('T')[0];
+            const filename = `${receiptNo}_${date}.pdf`;
+
+            const element = document.getElementById('receipt');
+            const opt = {
+                margin: 0,
+                filename: filename,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().set(opt).from(element).save();
+        }
+
+        function clearForm() {
+            if (confirm('Are you sure you want to clear all fields?')) {
+                document.querySelectorAll('input[type="text"]').forEach(input => input.value = '');
+                document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => checkbox.checked = false);
+                document.querySelectorAll('input[type="radio"]').forEach(radio => radio.checked = false);
+                document.getElementById('date').valueAsDate = new Date();
+                document.getElementById('notes').value = '';
+                document.getElementById('mpesaDetails').classList.remove('active');
+                document.getElementById('bankDetails').classList.remove('active');
+                updateStampOffset();
+                updateStampDate();
+            }
+        }
+
+        // Payment method checkboxes
+        const paymentCheckboxes = document.querySelectorAll('.payment-methods input[type="checkbox"]');
+        const mpesaDetails = document.getElementById('mpesaDetails');
+        const bankDetails = document.getElementById('bankDetails');
+        const receiptEl    = document.getElementById('receipt');
+
+  function updateStampOffset() {
+    const open = mpesaDetails.classList.contains('active') || bankDetails.classList.contains('active');
+    receiptEl.classList.toggle('details-open', open);
+  }
+        
+        paymentCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                if (this.id == 'cashBank') {
+                    if (this.checked) {
+                        document.getElementById('cash').checked = false;
+                        document.getElementById('mpesa').checked = false;
+                        document.getElementById('bank').checked  = false;
+                        mpesaDetails.classList.remove('active');
+                        bankDetails.classList.remove('active');
+                    }
+                    updateStampOffset();
+                    return;
+                }
+                paymentCheckboxes.forEach(cb => {
+                        if (cb !== this && cb.id != 'cashBank') cb.checked = false;
+                    });
+                    
+                    if (this.id === 'mpesa' && this.checked) {
+                        mpesaDetails.classList.add('active');
+                        bankDetails.classList.remove('active');
+                    } else if (this.id === 'bank' && this.checked) {
+                        bankDetails.classList.add('active');
+                        mpesaDetails.classList.remove('active');
+                    } else {
+                        mpesaDetails.classList.remove('active');
+                        bankDetails.classList.remove('active');
+                    }
+
+                    updateStampOffset();                }
+            });
+        });
+
+        updateStampOffset();
+    </script-->
+
+<script>
+/**
+ * Receipt Number Sequencer
+ * - Reads prefix & digit-width from the placeholder (e.g., "SL_1121")
+ * - Stores prefix + sequence in localStorage
+ * - Shows current number on load
+ * - Increments after a “sale action” (Print or Download PDF)
+ */
+(function initReceiptSeq() {
+  const input = document.getElementById('receiptNo');
+  if (!input) return;
+
+  // Pull prefix + numeric tail from placeholder, e.g. "SL_1121" => prefix "SL_", start "1121"
+  const ph = input.getAttribute('placeholder') || 'SL_1';
+  const m = ph.match(/^(.*?)(\d+)$/); // prefix + trailing digits
+  const prefix = m ? m[1] : 'SL_';
+  const start  = m ? parseInt(m[2], 10) : 1;
+  const width  = m ? m[2].length : 0; // preserve digit width if present (e.g., 4 in 1121)
+
+  // Initialize storage once
+  if (!localStorage.getItem('receipt_prefix')) {
+    localStorage.setItem('receipt_prefix', prefix);
+  }
+  if (!localStorage.getItem('receipt_seq')) {
+    localStorage.setItem('receipt_seq', String(start));
+  }
+  if (!localStorage.getItem('receipt_width')) {
+    localStorage.setItem('receipt_width', String(width));
+  }
+
+  // Show current value on load (also prefill input)
+  setReceiptFieldFromStore();
+
+  // Wire Print / PDF buttons so they finalize the sale then bump number.
+  // We intercept clicks in the capture phase to prevent inline onclicks from firing first.
+  const btnPrint = document.querySelector('.btn-print');
+  const btnPdf   = document.querySelector('.btn-pdf');
+
+  if (btnPrint) {
+    btnPrint.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      window.print();
+      bumpReceiptNumber(); // increment after the action
+    }, true);
+  }
+
+  if (btnPdf) {
+    btnPdf.addEventListener('click', async function (e) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      // If you already have a downloadPDF() global, call it:
+      if (typeof downloadPDF === 'function') {
+        await downloadPDF();
+      }
+      bumpReceiptNumber(); // increment after PDF is saved
+    }, true);
+  }
+})();
+
+function setReceiptFieldFromStore() {
+  const input = document.getElementById('receiptNo');
+  const pfx   = localStorage.getItem('receipt_prefix') || 'SL_';
+  const seq   = parseInt(localStorage.getItem('receipt_seq') || '1', 10);
+  const width = parseInt(localStorage.getItem('receipt_width') || '0', 10);
+  const number = width > 0 ? String(seq).padStart(width, '0') : String(seq);
+  const value  = `${pfx}${number}`;
+  input.placeholder = value;
+  //if (!input.value) 
+  input.value = value; // prefill if empty
+}
+
+function bumpReceiptNumber() {
+  const seq = parseInt(localStorage.getItem('receipt_seq') || '1', 10) + 1;
+  localStorage.setItem('receipt_seq', String(seq));
+  setReceiptFieldFromStore();
+}
+
+// Optional helper: reset sequence manually from console if needed
+// localStorage.removeItem('receipt_seq'); location.reload();
+</script>
+
+</body>
+</html>

@@ -54,7 +54,8 @@ urlpatterns = [
     # IMPORTANT: Explicit routes for custom actions must come BEFORE router.urls
     # to ensure they match before the router's generic routes
     # --- Order Receipt Endpoint (Explicit route to ensure it works) ---
-    path('orders/<uuid:order_id>/receipt/', views.OrderViewSet.as_view({'get': 'get_receipt'}), name='order-receipt'),
+    # Using standalone ReceiptView to bypass ViewSet routing issues
+    path('orders/<uuid:order_id>/receipt/', views.ReceiptView.as_view(), name='order-receipt'),
     
     # Include all generated routes from the DefaultRouter
     path('', include(router.urls)),
