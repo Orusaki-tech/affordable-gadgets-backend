@@ -51,7 +51,12 @@ router.register(r'promotions', views.PromotionViewSet, basename='promotion')
 
 # These endpoints handle unique actions or single-object retrieval/update.
 urlpatterns = [
-    # Include all generated routes from the DefaultRouter first
+    # IMPORTANT: Explicit routes for custom actions must come BEFORE router.urls
+    # to ensure they match before the router's generic routes
+    # --- Order Receipt Endpoint (Explicit route to ensure it works) ---
+    path('orders/<uuid:order_id>/receipt/', views.OrderViewSet.as_view({'get': 'get_receipt'}), name='order-receipt'),
+    
+    # Include all generated routes from the DefaultRouter
     path('', include(router.urls)),
     
     # --- Account & Auth Endpoints ---

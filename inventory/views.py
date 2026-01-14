@@ -1271,15 +1271,13 @@ class OrderViewSet(viewsets.ModelViewSet):
         
         # #region agent log
         import json, time
-        from django.conf import settings
-        # Use PESAPAL_LOG_PATH from environment variable, fallback to /tmp/pesapal_debug.log
-        log_path = getattr(settings, 'PESAPAL_LOG_PATH', '/tmp/pesapal_debug.log')
+        log_path = '/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log'
         try:
             with open(log_path, 'a') as f:
                 f.write(json.dumps({
                     'sessionId': 'debug-session',
                     'runId': 'run1',
-                    'hypothesisId': 'D',
+                    'hypothesisId': 'B',
                     'location': 'inventory/views.py:get_object',
                     'message': 'get_object() called',
                     'data': {
@@ -1290,6 +1288,7 @@ class OrderViewSet(viewsets.ModelViewSet):
                         'lookup_value': str(lookup_value) if lookup_value else None,
                         'resolver_match_route': self.request.resolver_match.route if hasattr(self.request, 'resolver_match') and self.request.resolver_match else None,
                         'resolver_match_url_name': self.request.resolver_match.url_name if hasattr(self.request, 'resolver_match') and self.request.resolver_match else None,
+                        'resolver_match_kwargs': dict(self.request.resolver_match.kwargs) if hasattr(self.request, 'resolver_match') and self.request.resolver_match else None,
                     },
                     'timestamp': int(time.time() * 1000)
                 }) + '\n')
@@ -1374,8 +1373,45 @@ class OrderViewSet(viewsets.ModelViewSet):
                         pass
                 
                 print(f"[GET_OBJECT] Attempting direct lookup for order_id: {lookup_value} (type: {type(lookup_value).__name__})")
+                # #region agent log
+                try:
+                    order_exists = Order.objects.filter(order_id=lookup_value).exists()
+                    with open(log_path, 'a') as f:
+                        f.write(json.dumps({
+                            'sessionId': 'debug-session',
+                            'runId': 'run1',
+                            'hypothesisId': 'B',
+                            'location': 'inventory/views.py:get_object',
+                            'message': 'Before Order.objects.get()',
+                            'data': {
+                                'order_id': str(lookup_value),
+                                'order_exists': order_exists,
+                            },
+                            'timestamp': int(time.time() * 1000)
+                        }) + '\n')
+                except Exception as e:
+                    print(f"[DEBUG] Failed to write log: {e}")
+                # #endregion
                 order = Order.objects.get(order_id=lookup_value)
                 print(f"[GET_OBJECT] Order found: {order.order_id}, status: {order.status}")
+                # #region agent log
+                try:
+                    with open(log_path, 'a') as f:
+                        f.write(json.dumps({
+                            'sessionId': 'debug-session',
+                            'runId': 'run1',
+                            'hypothesisId': 'B',
+                            'location': 'inventory/views.py:get_object',
+                            'message': 'Order found in get_object()',
+                            'data': {
+                                'order_id': str(order.order_id),
+                                'order_status': order.status,
+                            },
+                            'timestamp': int(time.time() * 1000)
+                        }) + '\n')
+                except Exception as e:
+                    print(f"[DEBUG] Failed to write log: {e}")
+                # #endregion
                 logger.info("Order found via get_object() direct lookup", extra={
                     'order_id': str(order.order_id),
                     'order_status': order.status,
@@ -1384,6 +1420,26 @@ class OrderViewSet(viewsets.ModelViewSet):
                 return order
             except Order.DoesNotExist:
                 print(f"[GET_OBJECT] Order not found: {lookup_value}")
+                # #region agent log
+                try:
+                    total_orders = Order.objects.count()
+                    with open(log_path, 'a') as f:
+                        f.write(json.dumps({
+                            'sessionId': 'debug-session',
+                            'runId': 'run1',
+                            'hypothesisId': 'B',
+                            'location': 'inventory/views.py:get_object',
+                            'message': 'Order.DoesNotExist in get_object()',
+                            'data': {
+                                'order_id': str(lookup_value),
+                                'total_orders_in_db': total_orders,
+                                'error': 'Order.DoesNotExist',
+                            },
+                            'timestamp': int(time.time() * 1000)
+                        }) + '\n')
+                except Exception as e:
+                    print(f"[DEBUG] Failed to write log: {e}")
+                # #endregion
                 logger.error(f"Order not found in get_object(): {lookup_value}", extra={
                     'lookup_value': str(lookup_value),
                     'lookup_value_type': type(lookup_value).__name__,
@@ -1983,6 +2039,33 @@ class OrderViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'], url_path='receipt', permission_classes=[permissions.AllowAny], authentication_classes=[])
     def get_receipt(self, request, pk=None):
         """Generate and return receipt HTML/PDF."""
+        # #region agent log
+        import json, time
+        log_path = '/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log'
+        try:
+            with open(log_path, 'a') as f:
+                f.write(json.dumps({
+                    'sessionId': 'debug-session',
+                    'runId': 'run1',
+                    'hypothesisId': 'A',
+                    'location': 'inventory/views.py:get_receipt',
+                    'message': 'get_receipt() method called',
+                    'data': {
+                        'path': request.path,
+                        'full_url': request.build_absolute_uri() if hasattr(request, 'build_absolute_uri') else 'N/A',
+                        'method': request.method,
+                        'pk': str(pk) if pk else None,
+                        'kwargs': dict(self.kwargs),
+                        'action': getattr(self, 'action', 'NOT_SET'),
+                        'resolver_match_route': request.resolver_match.route if hasattr(request, 'resolver_match') and request.resolver_match else None,
+                        'resolver_match_url_name': request.resolver_match.url_name if hasattr(request, 'resolver_match') and request.resolver_match else None,
+                    },
+                    'timestamp': int(time.time() * 1000)
+                }) + '\n')
+        except Exception as e:
+            print(f"[DEBUG] Failed to write log: {e}")
+        # #endregion
+        
         import os
         from django.core.files.base import ContentFile
         from django.http import HttpResponse, FileResponse
@@ -2040,6 +2123,25 @@ class OrderViewSet(viewsets.ModelViewSet):
         
         print(f"[RECEIPT] Extracted order_id_value: {order_id_value}")
         
+        # #region agent log
+        try:
+            with open(log_path, 'a') as f:
+                f.write(json.dumps({
+                    'sessionId': 'debug-session',
+                    'runId': 'run1',
+                    'hypothesisId': 'C',
+                    'location': 'inventory/views.py:get_receipt',
+                    'message': 'Before order lookup',
+                    'data': {
+                        'order_id_value': str(order_id_value) if order_id_value else None,
+                        'order_id_type': type(order_id_value).__name__ if order_id_value else None,
+                    },
+                    'timestamp': int(time.time() * 1000)
+                }) + '\n')
+        except Exception as e:
+            print(f"[DEBUG] Failed to write log: {e}")
+        # #endregion
+        
         if order_id_value:
             try:
                 # Convert to UUID if it's a string
@@ -2051,10 +2153,67 @@ class OrderViewSet(viewsets.ModelViewSet):
                 
                 # Try direct lookup
                 print(f"[RECEIPT] Attempting direct lookup for order_id: {order_id_value}")
+                # #region agent log
+                try:
+                    order_exists = Order.objects.filter(order_id=order_id_value).exists()
+                    total_orders = Order.objects.count()
+                    with open(log_path, 'a') as f:
+                        f.write(json.dumps({
+                            'sessionId': 'debug-session',
+                            'runId': 'run1',
+                            'hypothesisId': 'C',
+                            'location': 'inventory/views.py:get_receipt',
+                            'message': 'Order existence check',
+                            'data': {
+                                'order_id': str(order_id_value),
+                                'order_exists': order_exists,
+                                'total_orders_in_db': total_orders,
+                            },
+                            'timestamp': int(time.time() * 1000)
+                        }) + '\n')
+                except Exception as e:
+                    print(f"[DEBUG] Failed to write log: {e}")
+                # #endregion
                 order = Order.objects.get(order_id=order_id_value)
                 print(f"[RECEIPT] Order found via direct lookup: {order.order_id}, status: {order.status}")
+                # #region agent log
+                try:
+                    with open(log_path, 'a') as f:
+                        f.write(json.dumps({
+                            'sessionId': 'debug-session',
+                            'runId': 'run1',
+                            'hypothesisId': 'C',
+                            'location': 'inventory/views.py:get_receipt',
+                            'message': 'Order found successfully',
+                            'data': {
+                                'order_id': str(order.order_id),
+                                'order_status': order.status,
+                            },
+                            'timestamp': int(time.time() * 1000)
+                        }) + '\n')
+                except Exception as e:
+                    print(f"[DEBUG] Failed to write log: {e}")
+                # #endregion
             except Order.DoesNotExist:
                 print(f"[RECEIPT] Order not found in database: {order_id_value}")
+                # #region agent log
+                try:
+                    with open(log_path, 'a') as f:
+                        f.write(json.dumps({
+                            'sessionId': 'debug-session',
+                            'runId': 'run1',
+                            'hypothesisId': 'C',
+                            'location': 'inventory/views.py:get_receipt',
+                            'message': 'Order DoesNotExist exception',
+                            'data': {
+                                'order_id': str(order_id_value),
+                                'error': 'Order.DoesNotExist',
+                            },
+                            'timestamp': int(time.time() * 1000)
+                        }) + '\n')
+                except Exception as e:
+                    print(f"[DEBUG] Failed to write log: {e}")
+                # #endregion
                 logger.error("Order not found for receipt", extra={
                     'order_id': str(order_id_value),
                     'path': request.path,
