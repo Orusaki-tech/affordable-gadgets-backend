@@ -2357,20 +2357,17 @@ class OrderReceiptView(APIView):
     permission_classes = [permissions.AllowAny]
     authentication_classes = []
     
-    def initial(self, request, *args, **kwargs):
+    def perform_content_negotiation(self, request, force=False):
+        """
+        Override to skip DRF's content negotiation.
+        This view handles format (html/pdf) directly in get(), so we don't need DRF's negotiation.
+        """
         # #region agent log
-        logger.info(f"DEBUG[C] OrderReceiptView.initial ENTRY method={request.method}")
+        logger.info(f"DEBUG[C] OrderReceiptView.perform_content_negotiation skipping DRF negotiation")
         # #endregion
-        try:
-            super().initial(request, *args, **kwargs)
-            # #region agent log
-            logger.info(f"DEBUG[C] OrderReceiptView.initial completed successfully")
-            # #endregion
-        except Exception as e:
-            # #region agent log
-            logger.error(f"DEBUG[C] OrderReceiptView.initial EXCEPTION {type(e).__name__}: {e}", exc_info=True)
-            # #endregion
-            raise
+        # Return None to skip content negotiation
+        # DRF will use default renderers, but we handle format ourselves in get()
+        return (None, None)
     
     def dispatch(self, request, *args, **kwargs):
         # #region agent log
