@@ -42,13 +42,12 @@ class URLResolutionDebugMiddleware:
     def __call__(self, request):
         # #region agent log
         if 'receipt' in request.path:
-            logger.info("DEBUG: Receipt request detected in middleware", extra={
-                'hypothesisId': 'A',
-                'location': 'inventory/middleware.py:__call__',
-                'path': request.path,
-                'method': request.method,
-                'full_path': request.get_full_path(),
-            })
+            # NOTE: Render logs often don't show structured "extra", so embed key fields in the message.
+            logger.info(
+                f"DEBUG[A] middleware: receipt request detected "
+                f"path={request.path} method={request.method} full_path={request.get_full_path()}",
+                extra={'hypothesisId': 'A', 'location': 'inventory/middleware.py:__call__'},
+            )
         # #endregion
         
         response = self.get_response(request)
@@ -56,17 +55,16 @@ class URLResolutionDebugMiddleware:
         # #region agent log
         if 'receipt' in request.path:
             resolver_match = getattr(request, 'resolver_match', None)
-            logger.info("DEBUG: After URL resolution", extra={
-                'hypothesisId': 'A',
-                'location': 'inventory/middleware.py:__call__',
-                'path': request.path,
-                'resolver_match_exists': resolver_match is not None,
-                'resolver_route': resolver_match.route if resolver_match else None,
-                'resolver_url_name': resolver_match.url_name if resolver_match else None,
-                'resolver_kwargs': dict(resolver_match.kwargs) if resolver_match else None,
-                'resolver_view': str(resolver_match.func) if resolver_match and hasattr(resolver_match, 'func') else None,
-                'response_status': response.status_code,
-            })
+            route = resolver_match.route if resolver_match else None
+            url_name = resolver_match.url_name if resolver_match else None
+            kwargs = dict(resolver_match.kwargs) if resolver_match else None
+            view = str(resolver_match.func) if resolver_match and hasattr(resolver_match, 'func') else None
+            logger.info(
+                f"DEBUG[A] middleware: after URL resolution "
+                f"path={request.path} status={response.status_code} "
+                f"matched={bool(resolver_match)} route={route} url_name={url_name} kwargs={kwargs} view={view}",
+                extra={'hypothesisId': 'A', 'location': 'inventory/middleware.py:__call__'},
+            )
         # #endregion
         
         return response
