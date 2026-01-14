@@ -2258,10 +2258,35 @@ class OrderViewSet(viewsets.ModelViewSet):
             )
     
     @action(detail=True, methods=['get'], permission_classes=[permissions.AllowAny], authentication_classes=[])
-    def payment_status(self, request, pk=None):
+    def payment_status(self, request, pk=None, **kwargs):
         """Get payment status for an order."""
+        # #region agent log
+        import json
+        import os
+        import time
+        log_path = '/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log'
+        try:
+            with open(log_path, 'a') as f:
+                f.write(json.dumps({
+                    'sessionId': 'debug-session',
+                    'runId': 'run1',
+                    'hypothesisId': 'A',
+                    'location': 'inventory/views.py:payment_status',
+                    'message': 'payment_status called',
+                    'data': {
+                        'pk': str(pk) if pk else None,
+                        'kwargs': dict(kwargs),
+                        'request_method': request.method,
+                        'lookup_field': getattr(self, 'lookup_field', None),
+                    },
+                    'timestamp': int(time.time() * 1000)
+                }) + '\n')
+        except Exception as e:
+            pass
+        # #endregion
         print(f"\n[PESAPAL] ========== VIEW: PAYMENT STATUS START ==========")
         print(f"[PESAPAL] Order PK: {pk}")
+        print(f"[PESAPAL] Additional kwargs: {kwargs}")
         print(f"[PESAPAL] Request Method: {request.method}")
         
         try:
