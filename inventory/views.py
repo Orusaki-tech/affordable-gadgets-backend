@@ -2357,6 +2357,18 @@ class OrderReceiptView(APIView):
     permission_classes = [permissions.AllowAny]
     authentication_classes = []
     
+    def dispatch(self, request, *args, **kwargs):
+        # #region agent log
+        logger.info(f"DEBUG[C] OrderReceiptView.dispatch ENTRY path={request.path} kwargs={kwargs}")
+        # #endregion
+        try:
+            return super().dispatch(request, *args, **kwargs)
+        except Exception as e:
+            # #region agent log
+            logger.error(f"DEBUG[C] OrderReceiptView.dispatch EXCEPTION {type(e).__name__}: {e}", exc_info=True)
+            # #endregion
+            raise
+    
     def get(self, request, order_id):
         """
         Generate and return receipt HTML/PDF.
@@ -2369,12 +2381,7 @@ class OrderReceiptView(APIView):
         # #region agent log
         # NOTE: Render logs often don't show structured "extra", so embed key fields in the message.
         rm = getattr(request, 'resolver_match', None)
-        logger.info(
-            "DEBUG[C] OrderReceiptView.get called "
-            f"path={request.path} full_path={request.get_full_path()} method={request.method} "
-            f"order_id={order_id} route={(rm.route if rm else None)} url_name={(rm.url_name if rm else None)}",
-            extra={'hypothesisId': 'C', 'location': 'inventory/views.py:OrderReceiptView.get'},
-        )
+        logger.info(f"DEBUG[C] OrderReceiptView.get ENTRY order_id={order_id} type={type(order_id)} path={request.path}")
         # #endregion
         
         from inventory.models import Order, Receipt
@@ -2387,25 +2394,28 @@ class OrderReceiptView(APIView):
         from uuid import UUID
         import os
         
-        # Log receipt request for debugging
-        logger.info(f"Receipt request received", extra={
-            'order_id': str(order_id),
-            'path': request.path,
-            'full_path': request.get_full_path(),
-            'method': request.method,
-            'user_authenticated': request.user.is_authenticated if hasattr(request, 'user') else False,
-        })
+        # #region agent log
+        logger.info(f"DEBUG[C] after imports order_id={order_id}")
+        # #endregion
         
         # 1. Validate and get order
         try:
+            # #region agent log
+            logger.info(f"DEBUG[C] before UUID conversion order_id={order_id} type={type(order_id)}")
+            # #endregion
             if isinstance(order_id, str):
                 order_id = UUID(order_id)
+            # #region agent log
+            logger.info(f"DEBUG[C] after UUID conversion order_id={order_id} type={type(order_id)}")
+            # #endregion
             order = Order.objects.get(order_id=order_id)
-            logger.info(f"Order found for receipt", extra={
-                'order_id': str(order.order_id),
-                'order_status': order.status,
-            })
+            # #region agent log
+            logger.info(f"DEBUG[C] Order FOUND order_id={order.order_id} status={order.status}")
+            # #endregion
         except Order.DoesNotExist:
+            # #region agent log
+            logger.warning(f"DEBUG[C] Order NOT FOUND order_id={order_id}")
+            # #endregion
             return Response(
                 {'error': 'Order not found.'},
                 status=status.HTTP_404_NOT_FOUND

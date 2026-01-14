@@ -1,4 +1,4 @@
-from django.urls import path, include
+from django.urls import path, include, re_path
 from rest_framework.routers import DefaultRouter
 from . import views
 import logging
@@ -67,8 +67,13 @@ router.register(r'promotions', views.PromotionViewSet, basename='promotion')
 
 # These endpoints handle unique actions or single-object retrieval/update.
 # Create receipt pattern before urlpatterns
-# Use path with UUID converter instead of regex for better compatibility
-receipt_pattern = path('orders/<uuid:order_id>/receipt/', views.OrderReceiptView.as_view(), name='order-receipt')
+# Use re_path with strict regex to ensure it matches before router patterns
+# Pattern: orders/{uuid}/receipt/ (must match exactly, no trailing variations)
+receipt_pattern = re_path(
+    r'^orders/(?P<order_id>[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/receipt/$',
+    views.OrderReceiptView.as_view(),
+    name='order-receipt'
+)
 
 # #region agent log
 # Log that receipt pattern is being registered

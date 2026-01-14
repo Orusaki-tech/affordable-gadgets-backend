@@ -55,16 +55,11 @@ class URLResolutionDebugMiddleware:
         # #region agent log
         if 'receipt' in request.path:
             resolver_match = getattr(request, 'resolver_match', None)
-            route = resolver_match.route if resolver_match else None
-            url_name = resolver_match.url_name if resolver_match else None
-            kwargs = dict(resolver_match.kwargs) if resolver_match else None
-            view = str(resolver_match.func) if resolver_match and hasattr(resolver_match, 'func') else None
-            logger.info(
-                f"DEBUG[A] middleware: after URL resolution "
-                f"path={request.path} status={response.status_code} "
-                f"matched={bool(resolver_match)} route={route} url_name={url_name} kwargs={kwargs} view={view}",
-                extra={'hypothesisId': 'A', 'location': 'inventory/middleware.py:__call__'},
-            )
+            matched = 'YES' if resolver_match else 'NO'
+            route = (resolver_match.route[:50] + '...') if resolver_match and resolver_match.route else 'NONE'
+            url_name = resolver_match.url_name if resolver_match else 'NONE'
+            # Short log message so key info shows in Render
+            logger.info(f"DEBUG[A] after_resolution matched={matched} route={route} url_name={url_name} status={response.status_code}")
         # #endregion
         
         return response
