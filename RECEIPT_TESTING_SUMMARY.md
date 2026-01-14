@@ -88,3 +88,4 @@ https://affordable-gadgets-backend.onrender.com/api/inventory/orders/f970caff-54
 2. Test receipt download with the order ID from screenshot
 3. Verify no console errors appear
 4. Check backend logs for any receipt generation issues
+

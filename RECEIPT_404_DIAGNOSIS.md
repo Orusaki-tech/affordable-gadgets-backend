@@ -117,3 +117,4 @@ curl -I "https://affordable-gadgets-backend.onrender.com/api/inventory/orders/f9
 # Get full response
 curl "https://affordable-gadgets-backend.onrender.com/api/inventory/orders/f970caff-54d6-4957-88f0-b450d2d01fb3/receipt/?format=html"
 ```
+

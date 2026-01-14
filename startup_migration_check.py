@@ -47,3 +47,4 @@ def check_and_apply_migration_0027():
         logger.warning(f"⚠️  Could not check migration 0027: {e}")
         # Don't fail startup - just log the warning
         return False
+

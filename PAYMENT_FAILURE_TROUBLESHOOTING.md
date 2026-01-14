@@ -168,3 +168,4 @@ curl https://affordable-gadgets-backend.onrender.com/api/inventory/orders/8c72b1
 5. Look for the error message and traceback
 
 The logs will show exactly where the failure is occurring and why.
+

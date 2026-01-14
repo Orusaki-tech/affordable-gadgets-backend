@@ -117,3 +117,4 @@ When payment initiation is called:
 2. **Check Render logs** for the specific error when payment initiation fails
 3. **Verify configuration** - ensure all Pesapal environment variables are set
 4. **Test again** with a new order after deployment
+
