@@ -1,4 +1,4 @@
-from django.urls import path, include
+from django.urls import path, include, re_path
 from rest_framework.routers import DefaultRouter
 from . import views
 
@@ -54,9 +54,8 @@ urlpatterns = [
     # IMPORTANT: Explicit routes for custom actions must come BEFORE router.urls
     # to ensure they match before the router's generic routes
     # --- Order Receipt Endpoint (Clean implementation) ---
-    # Support both with and without trailing slash
-    path('orders/<uuid:order_id>/receipt/', views.OrderReceiptView.as_view(), name='order-receipt'),
-    path('orders/<uuid:order_id>/receipt', views.OrderReceiptView.as_view(), name='order-receipt-no-slash'),
+    # Using re_path to be more explicit about matching
+    re_path(r'^orders/(?P<order_id>[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/receipt/?$', views.OrderReceiptView.as_view(), name='order-receipt'),
     
     # Include all generated routes from the DefaultRouter
     path('', include(router.urls)),
