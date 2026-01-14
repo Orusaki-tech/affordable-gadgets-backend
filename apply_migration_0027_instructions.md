@@ -109,3 +109,4 @@ If you get a "column already exists" error:
 If you get permission errors:
 - Make sure you're using the database user with ALTER TABLE permissions
 - Check your database connection credentials
+

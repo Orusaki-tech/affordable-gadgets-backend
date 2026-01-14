@@ -124,3 +124,4 @@ class Command(BaseCommand):
                     self.style.ERROR(f'\n❌ Unexpected error: {e}')
                 )
                 raise
+

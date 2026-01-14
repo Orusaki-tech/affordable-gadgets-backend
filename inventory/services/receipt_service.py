@@ -44,10 +44,24 @@ class ReceiptService:
     
     @staticmethod
     def generate_receipt_number(order: Order) -> str:
-        """Generate unique receipt number from order ID."""
-        # Use first 8 characters of UUID + last 4 digits of order ID
+        """Generate unique receipt number from order ID with timestamp fallback."""
+        # Use first 8 characters of UUID + timestamp to ensure uniqueness
         order_id_str = str(order.order_id).replace('-', '')[:8].upper()
-        return f"SL_{order_id_str}"
+        base_number = f"SL_{order_id_str}"
+        
+        # Check if receipt number already exists, if so add timestamp suffix
+        if Receipt.objects.filter(receipt_number=base_number).exists():
+            timestamp_suffix = timezone.now().strftime('%Y%m%d%H%M%S')[-6:]  # Last 6 digits of timestamp
+            base_number = f"SL_{order_id_str[:6]}{timestamp_suffix}"
+        
+        # Final check - if still exists, use counter
+        counter = 1
+        receipt_number = base_number
+        while Receipt.objects.filter(receipt_number=receipt_number).exists():
+            receipt_number = f"{base_number}_{counter}"
+            counter += 1
+        
+        return receipt_number
     
     @staticmethod
     def get_receipt_context(order: Order) -> dict:
@@ -179,8 +193,18 @@ class ReceiptService:
                 }
             )
             
+            # Ensure receipt_number is set even if receipt already existed
+            if not receipt.receipt_number:
+                receipt.receipt_number = receipt_number
+                receipt.save(update_fields=['receipt_number'])
+            
+            # Update html_content if it's missing
+            if not receipt.html_content:
+                receipt.html_content = html_content
+                receipt.save(update_fields=['html_content'])
+            
             # Save PDF file
-            if not receipt.pdf_file or not os.path.exists(receipt.pdf_file.path) if receipt.pdf_file else True:
+            if not receipt.pdf_file or (receipt.pdf_file and not os.path.exists(receipt.pdf_file.path)):
                 receipt.pdf_file.save(pdf_path, 
                     ContentFile(pdf_bytes), 
                     save=True
@@ -199,6 +223,11 @@ class ReceiptService:
         try:
             if receipt is None:
                 receipt, _ = Receipt.objects.get_or_create(order=order)
+            
+            # Ensure receipt has receipt_number
+            if not receipt.receipt_number:
+                receipt.receipt_number = ReceiptService.generate_receipt_number(order)
+                receipt.save(update_fields=['receipt_number'])
             
             # Get customer email
             customer = order.customer
@@ -265,6 +294,11 @@ Affordable Gadgets Team
         try:
             if receipt is None:
                 receipt, _ = Receipt.objects.get_or_create(order=order)
+            
+            # Ensure receipt has receipt_number
+            if not receipt.receipt_number:
+                receipt.receipt_number = ReceiptService.generate_receipt_number(order)
+                receipt.save(update_fields=['receipt_number'])
             
             # Get customer phone number
             customer = order.customer

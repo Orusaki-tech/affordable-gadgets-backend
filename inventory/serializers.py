@@ -1260,14 +1260,6 @@ class OrderSerializer(serializers.ModelSerializer):
     order_source_display = serializers.CharField(source='get_order_source_display', read_only=True)
     brand = serializers.PrimaryKeyRelatedField(read_only=True, allow_null=True)
     brand_name = serializers.SerializerMethodField(read_only=True)
-    idempotency_key = serializers.CharField(
-        required=False,
-        allow_null=True,
-        allow_blank=True,
-        max_length=255,
-        write_only=True,  # Don't expose in read operations
-        help_text="Idempotency key to prevent duplicate orders"
-    )
     
     def get_customer_username(self, obj):
         """Get customer username, handling None user."""
@@ -1304,7 +1296,7 @@ class OrderSerializer(serializers.ModelSerializer):
         fields = (
             'order_id', 'user', 'customer', 'customer_username', 'customer_phone', 'delivery_address',
             'created_at', 'status', 'status_display', 'order_source', 'order_source_display',
-            'total_amount', 'order_items', 'brand', 'brand_name', 'idempotency_key'
+            'total_amount', 'order_items', 'brand', 'brand_name'
         )
         read_only_fields = ('order_id', 'created_at', 'total_amount', 'customer', 'user')
     
@@ -1320,63 +1312,17 @@ class OrderSerializer(serializers.ModelSerializer):
                 self.fields['order_items'].read_only = True
                 self.fields['order_items'].required = False
 
-    def create(self, validated_data, **kwargs):
-        """
-        Create order with idempotency support.
-        The idempotency_key is passed via kwargs from serializer.save(idempotency_key=...)
-        """
-        logger.info("OrderSerializer.create called", extra={
-            'has_idempotency_key_in_kwargs': 'idempotency_key' in kwargs,
-            'validated_data_keys': list(validated_data.keys()),
-        })
-        
+    def create(self, validated_data):
         # 1. Pop nested items and FKs set by the view
         # We pop the field mapped to the source: 'order_items'
         order_items_data = validated_data.pop('order_items')
         customer = validated_data.pop('customer') 
-        user = validated_data.pop('user')
-        
-        # Get idempotency key from kwargs (passed via serializer.save(idempotency_key=...))
-        # Also check validated_data as fallback (in case it was passed there)
-        idempotency_key = kwargs.pop('idempotency_key', None) or validated_data.pop('idempotency_key', None)
-        
-        logger.info("About to create Order object", extra={
-            'has_idempotency_key': bool(idempotency_key),
-            'idempotency_key_preview': idempotency_key[:20] + '...' if idempotency_key else None,
-        })
+        user = validated_data.pop('user')         
 
         # 2. Use transaction to ensure atomic operations (inventory + order creation)
         with transaction.atomic():
-            try:
-                # Create the main Order object with idempotency key if provided
-                # Migration 0027 is applied, so column exists
-                create_kwargs = {
-                    'customer': customer,
-                    'user': user,
-                    'status': Order.StatusChoices.PENDING,
-                    **validated_data
-                }
-                
-                if idempotency_key:
-                    create_kwargs['idempotency_key'] = idempotency_key
-                    logger.info(f"Creating order with idempotency_key: {idempotency_key[:20]}...")
-                else:
-                    logger.info("Creating order without idempotency_key")
-                
-                order = Order.objects.create(**create_kwargs)
-                logger.info(f"Order created successfully: {order.order_id}")
-            except Exception as e:
-                # Log the full error with traceback - this will show up in Render logs
-                logger.error(
-                    f"ERROR creating Order object: {type(e).__name__}: {str(e)}",
-                    exc_info=True,
-                    extra={
-                        'error_type': type(e).__name__,
-                        'error_message': str(e),
-                        'location': 'OrderSerializer.create',
-                    }
-                )
-                raise
+            # Create the main Order object
+            order = Order.objects.create(customer=customer, user=user, status=Order.StatusChoices.PENDING, **validated_data)
             
             final_total = Decimal('0.00')
 

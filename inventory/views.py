@@ -1141,6 +1141,7 @@ class OrderViewSet(viewsets.ModelViewSet):
     """
     serializer_class = OrderSerializer
     lookup_field = 'order_id'  # Use order_id (UUID) as the lookup field instead of default 'pk'
+    lookup_url_kwarg = 'order_id'  # Explicitly set URL kwarg name to match lookup_field
     
     def get_permissions(self):
         """
@@ -1258,8 +1259,41 @@ class OrderViewSet(viewsets.ModelViewSet):
         """
         # Get the lookup value from kwargs
         # DRF might use 'pk' or the actual lookup_field name
+        # When lookup_field='order_id', DRF uses 'order_id' as the URL kwarg name
         lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
-        lookup_value = self.kwargs.get(lookup_url_kwarg) or self.kwargs.get('pk')
+        # Try multiple possible kwarg names: order_id, pk, or the lookup_field value
+        lookup_value = (
+            self.kwargs.get(lookup_url_kwarg) or 
+            self.kwargs.get('pk') or 
+            self.kwargs.get('order_id') or
+            self.kwargs.get(self.lookup_field)
+        )
+        
+        # #region agent log
+        import json, time
+        log_path = '/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log'
+        try:
+            with open(log_path, 'a') as f:
+                f.write(json.dumps({
+                    'sessionId': 'debug-session',
+                    'runId': 'run1',
+                    'hypothesisId': 'D',
+                    'location': 'inventory/views.py:get_object',
+                    'message': 'get_object() called',
+                    'data': {
+                        'action': getattr(self, 'action', 'NOT_SET'),
+                        'path': self.request.path,
+                        'full_url': self.request.build_absolute_uri() if hasattr(self.request, 'build_absolute_uri') else 'N/A',
+                        'has_receipt_in_path': 'receipt' in self.request.path,
+                        'lookup_value': str(lookup_value) if lookup_value else None,
+                        'resolver_match_route': self.request.resolver_match.route if hasattr(self.request, 'resolver_match') and self.request.resolver_match else None,
+                        'resolver_match_url_name': self.request.resolver_match.url_name if hasattr(self.request, 'resolver_match') and self.request.resolver_match else None,
+                    },
+                    'timestamp': int(time.time() * 1000)
+                }) + '\n')
+        except Exception as e:
+            print(f"[DEBUG] Failed to write log: {e}")
+        # #endregion
         
         # Log the lookup attempt
         print(f"\n[GET_OBJECT] ========== get_object() CALLED ==========")
@@ -1327,7 +1361,17 @@ class OrderViewSet(viewsets.ModelViewSet):
         if self.lookup_field == 'order_id' and lookup_value:
             try:
                 # Direct lookup by order_id, bypassing queryset filtering
-                print(f"[GET_OBJECT] Attempting direct lookup for order_id: {lookup_value}")
+                # Handle both UUID string and UUID object
+                from uuid import UUID
+                if isinstance(lookup_value, str):
+                    # Try to convert string to UUID if needed
+                    try:
+                        lookup_value = UUID(lookup_value)
+                    except ValueError:
+                        # If it's not a valid UUID string, use as-is (might be a different format)
+                        pass
+                
+                print(f"[GET_OBJECT] Attempting direct lookup for order_id: {lookup_value} (type: {type(lookup_value).__name__})")
                 order = Order.objects.get(order_id=lookup_value)
                 print(f"[GET_OBJECT] Order found: {order.order_id}, status: {order.status}")
                 logger.info("Order found via get_object() direct lookup", extra={
@@ -1338,14 +1382,22 @@ class OrderViewSet(viewsets.ModelViewSet):
                 return order
             except Order.DoesNotExist:
                 print(f"[GET_OBJECT] Order not found: {lookup_value}")
-                logger.error(f"Order not found in get_object(): {lookup_value}")
+                logger.error(f"Order not found in get_object(): {lookup_value}", extra={
+                    'lookup_value': str(lookup_value),
+                    'lookup_value_type': type(lookup_value).__name__,
+                    'request_path': self.request.path,
+                    'all_kwargs': dict(self.kwargs),
+                })
                 # Check if order exists at all
                 total_orders = Order.objects.count()
                 logger.warning(f"Total orders in database: {total_orders}")
-                raise exceptions.NotFound("Order not found.")
+                raise exceptions.NotFound(f"Order with ID {lookup_value} not found.")
             except Exception as e:
                 print(f"[GET_OBJECT] Error in lookup: {str(e)}")
-                logger.error(f"Error in get_object(): {str(e)}", exc_info=True)
+                logger.error(f"Error in get_object(): {str(e)}", exc_info=True, extra={
+                    'lookup_value': str(lookup_value),
+                    'error_type': type(e).__name__,
+                })
                 raise
         
         # For other actions, use default behavior
@@ -1365,6 +1417,31 @@ class OrderViewSet(viewsets.ModelViewSet):
         CRITICAL FIX: Also check if this is actually a receipt request that was
         incorrectly routed to retrieve. If the path contains '/receipt/', redirect to receipt method.
         """
+        # #region agent log
+        import json, time
+        log_path = '/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log'
+        try:
+            with open(log_path, 'a') as f:
+                f.write(json.dumps({
+                    'sessionId': 'debug-session',
+                    'runId': 'run1',
+                    'hypothesisId': 'B',
+                    'location': 'inventory/views.py:retrieve',
+                    'message': 'retrieve() method called',
+                    'data': {
+                        'path': request.path,
+                        'full_url': request.build_absolute_uri() if hasattr(request, 'build_absolute_uri') else 'N/A',
+                        'has_receipt_in_path': 'receipt' in request.path,
+                        'method': request.method,
+                        'resolver_match_route': request.resolver_match.route if hasattr(request, 'resolver_match') and request.resolver_match else None,
+                        'resolver_match_url_name': request.resolver_match.url_name if hasattr(request, 'resolver_match') and request.resolver_match else None,
+                    },
+                    'timestamp': int(time.time() * 1000)
+                }) + '\n')
+        except Exception as e:
+            print(f"[DEBUG] Failed to write log: {e}")
+        # #endregion
+        
         # Check if this is actually a receipt request that was misrouted
         if 'receipt' in request.path:
             print(f"[RETRIEVE] Detected receipt in path, redirecting to get_receipt()")
@@ -1902,6 +1979,33 @@ class OrderViewSet(viewsets.ModelViewSet):
         from django.http import HttpResponse, FileResponse
         from django.utils import timezone
         
+        # #region agent log
+        import json, time
+        log_path = '/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log'
+        try:
+            with open(log_path, 'a') as f:
+                f.write(json.dumps({
+                    'sessionId': 'debug-session',
+                    'runId': 'run1',
+                    'hypothesisId': 'C',
+                    'location': 'inventory/views.py:get_receipt',
+                    'message': 'get_receipt() method called',
+                    'data': {
+                        'path': request.path,
+                        'full_url': request.build_absolute_uri() if hasattr(request, 'build_absolute_uri') else 'N/A',
+                        'has_receipt_in_path': 'receipt' in request.path,
+                        'method': request.method,
+                        'action': getattr(self, 'action', 'NOT_SET'),
+                        'resolver_match_route': request.resolver_match.route if hasattr(request, 'resolver_match') and request.resolver_match else None,
+                        'resolver_match_url_name': request.resolver_match.url_name if hasattr(request, 'resolver_match') and request.resolver_match else None,
+                        'pk': str(pk) if pk else None,
+                    },
+                    'timestamp': int(time.time() * 1000)
+                }) + '\n')
+        except Exception as e:
+            print(f"[DEBUG] Failed to write log: {e}")
+        # #endregion
+        
         # IMPORTANT: This print will show in Render logs to confirm the method is called
         print(f"\n[RECEIPT] ========== RECEIPT ENDPOINT CALLED ==========")
         print(f"[RECEIPT] Full path: {request.path}")
@@ -1985,7 +2089,13 @@ class OrderViewSet(viewsets.ModelViewSet):
         try:
             if format_type == 'pdf':
                 # Generate or get existing receipt
-                receipt, _ = Receipt.objects.get_or_create(order=order)
+                receipt, created = Receipt.objects.get_or_create(order=order)
+                
+                # Ensure receipt has receipt_number
+                if not receipt.receipt_number:
+                    receipt.receipt_number = ReceiptService.generate_receipt_number(order)
+                    receipt.save(update_fields=['receipt_number'])
+                
                 if not receipt.pdf_file or (receipt.pdf_file and not os.path.exists(receipt.pdf_file.path)):
                     pdf_bytes = ReceiptService.generate_receipt_pdf(order)
                     pdf_filename = f"receipt_{order.order_id}_{receipt.receipt_number}.pdf"

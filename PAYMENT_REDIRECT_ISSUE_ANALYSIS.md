@@ -158,3 +158,4 @@ After fixing the frontend:
 - `FRONTEND_PAYMENT_INTEGRATION.md` - Complete integration guide
 - `inventory/services/pesapal_payment_service.py` - Backend payment service (updated)
 - `inventory/views.py` - API views (updated with logging)
+

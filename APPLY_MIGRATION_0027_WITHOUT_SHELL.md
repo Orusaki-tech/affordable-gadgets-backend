@@ -140,3 +140,4 @@ After deployment, you can verify the migration was applied by checking your Rend
 ## ❓ Why Can't You Apply Migrations Locally?
 
 When you run `python manage.py migrate` locally, it only affects your **local database**. Render has a **separate production database** that needs its own migrations applied. That's why we need these automatic solutions to apply the migration on Render's infrastructure.
+

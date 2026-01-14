@@ -29,3 +29,4 @@ BEGIN
         RAISE NOTICE 'Column idempotency_key already exists';
     END IF;
 END $$;
+

@@ -134,7 +134,7 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
 
 CORS_ALLOW_CREDENTIALS = True
 
-# Allow idempotency headers for order creation
+# Allow common headers your API uses (including idempotency headers)
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',
@@ -145,8 +145,8 @@ CORS_ALLOW_HEADERS = [
     'x-csrftoken',
     'x-requested-with',
     'x-brand-code',  # Required for brand-based filtering
-    'idempotency-key',  # Required for idempotent order creation
-    'x-idempotency-key',  # Alternative header name for idempotency
+    'idempotency-key',  # Required for order idempotency
+    'x-idempotency-key',  # Alternative idempotency key header
 ]
 
 # Remove any wildcard CORS settings
