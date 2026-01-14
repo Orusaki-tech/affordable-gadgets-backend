@@ -399,6 +399,24 @@ class PesapalPaymentService:
                         print(f"[PESAPAL] ✓ Payment verified as completed - Order marked as PAID")
                         logger.info(f"Payment completed and verified for order {payment.order.order_id}")
                         
+                        # Update inventory units from PENDING_PAYMENT to SOLD
+                        from inventory.models import InventoryUnit
+                        units_updated = []
+                        for order_item in payment.order.order_items.all():
+                            unit = order_item.inventory_unit
+                            if unit and unit.sale_status == InventoryUnit.SaleStatusChoices.PENDING_PAYMENT:
+                                unit.sale_status = InventoryUnit.SaleStatusChoices.SOLD
+                                unit.save(update_fields=['sale_status'])
+                                units_updated.append(unit.id)
+                                print(f"[PESAPAL] ✓ Unit {unit.id} updated from PENDING_PAYMENT to SOLD")
+                        
+                        if units_updated:
+                            logger.info(f"Updated {len(units_updated)} inventory units to SOLD for order {payment.order.order_id}")
+                            print(f"[PESAPAL] ✓ Updated {len(units_updated)} inventory units to SOLD")
+                        else:
+                            logger.warning(f"No units with PENDING_PAYMENT status found for order {payment.order.order_id}")
+                            print(f"[PESAPAL] ⚠ No units with PENDING_PAYMENT status found - units may already be SOLD")
+                        
                         # Generate and send receipt automatically (email + WhatsApp)
                         try:
                             from inventory.services.receipt_service import ReceiptService
