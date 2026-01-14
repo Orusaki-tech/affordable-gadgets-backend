@@ -54,7 +54,9 @@ urlpatterns = [
     # IMPORTANT: Explicit routes for custom actions must come BEFORE router.urls
     # to ensure they match before the router's generic routes
     # --- Order Receipt Endpoint (Clean implementation) ---
+    # Support both with and without trailing slash
     path('orders/<uuid:order_id>/receipt/', views.OrderReceiptView.as_view(), name='order-receipt'),
+    path('orders/<uuid:order_id>/receipt', views.OrderReceiptView.as_view(), name='order-receipt-no-slash'),
     
     # Include all generated routes from the DefaultRouter
     path('', include(router.urls)),

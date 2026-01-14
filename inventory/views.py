@@ -2390,11 +2390,24 @@ class OrderReceiptView(APIView):
         from uuid import UUID
         import os
         
+        # Log receipt request for debugging
+        logger.info(f"Receipt request received", extra={
+            'order_id': str(order_id),
+            'path': request.path,
+            'full_path': request.get_full_path(),
+            'method': request.method,
+            'user_authenticated': request.user.is_authenticated if hasattr(request, 'user') else False,
+        })
+        
         # 1. Validate and get order
         try:
             if isinstance(order_id, str):
                 order_id = UUID(order_id)
             order = Order.objects.get(order_id=order_id)
+            logger.info(f"Order found for receipt", extra={
+                'order_id': str(order.order_id),
+                'order_status': order.status,
+            })
         except Order.DoesNotExist:
             return Response(
                 {'error': 'Order not found.'},
