@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Affordable Gadgets Receipt</title>
+    <title>Affordable Gadgets Receipt - {{ receipt_number }}</title>
     <style>
         * {
             margin: 0;
@@ -25,7 +25,7 @@
 
         .receipt {
             width: 210mm;
-            min-height: 297mm;
+            height: 297mm;
             padding: 15mm;
             background: white;
             box-shadow: 0 0 10px rgba(0,0,0,0.1);
@@ -187,11 +187,13 @@
 
         .form-group .value {
             flex: 1;
-            font-size: 12px;
-            font-family: 'Courier New', monospace;
+            border: none;
             border-bottom: 1px dotted #999;
             padding: 3px;
-            min-height: 20px;
+            font-size: 12px;
+            font-family: 'Courier New', monospace;
+            background: transparent;
+            min-height: 18px;
         }
 
         .payment-section {
@@ -222,10 +224,13 @@
         }
 
         .served-by .value {
-            font-size: 12px;
             border-bottom: 1px dotted #999;
             padding: 5px;
             width: 200px;
+            border-top: none;
+            border-left: none;
+            border-right: none;
+            font-size: 12px;
             display: inline-block;
         }
 
@@ -236,10 +241,66 @@
             font-size: 14px;
         }
 
-        .payment-methods .method {
-            padding: 5px 10px;
-            background: #f0f0f0;
+        .payment-methods label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .payment-methods input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            pointer-events: none;
+        }
+
+        .payment-details {
+            margin-top: 12px;
+            padding: 10px;
+            background: #f9f9f9;
             border-radius: 5px;
+            display: none;
+        }
+
+        .payment-details.active {
+            display: block;
+        }
+
+        .payment-details label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+
+        .payment-details input[type="radio"] {
+            width: 16px;
+            height: 16px;
+            pointer-events: none;
+        }
+
+        .notes-section {
+            margin-top: 15px;
+            margin-bottom: 15px;
+        }
+
+        .notes-section label {
+            color: #666;
+            font-size: 13px;
+            font-weight: bold;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .notes-section .value {
+            width: 100%;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 8px;
+            font-size: 12px;
+            font-family: Arial, sans-serif;
+            min-height: 80px;
+            background: transparent;
         }
 
         .divider {
@@ -249,7 +310,7 @@
         }
 
         .footer {
-            margin-top: auto;
+            margin-top: 10px;
         }
 
         .footer-content {
@@ -402,46 +463,36 @@
                     <div class="value">{{ item_description }}</div>
                 </div>
 
-                {% if storage %}
                 <div class="form-group">
                     <label>Storage</label>
-                    <div class="value">{{ storage }}</div>
+                    <div class="value">{{ storage|default:"" }}</div>
                 </div>
-                {% endif %}
 
-                {% if serial_no %}
                 <div class="form-group">
                     <label>Serial N.O</label>
-                    <div class="value">{{ serial_no }}</div>
+                    <div class="value">{{ serial_no|default:"" }}</div>
                 </div>
-                {% endif %}
 
-                {% if imei %}
                 <div class="form-group">
                     <label>IMEI N.O</label>
-                    <div class="value">{{ imei }}</div>
+                    <div class="value">{{ imei|default:"" }}</div>
                 </div>
-                {% endif %}
 
-                {% if customer_phone %}
                 <div class="form-group">
                     <label>Phone N.O</label>
-                    <div class="value">{{ customer_phone }}</div>
+                    <div class="value">{{ customer_phone|default:"" }}</div>
                 </div>
-                {% endif %}
 
-                {% if customer_email %}
                 <div class="form-group">
                     <label>Email</label>
-                    <div class="value">{{ customer_email }}</div>
+                    <div class="value">{{ customer_email|default:"" }}</div>
                 </div>
-                {% endif %}
 
                 <div class="payment-section">
                     <div>
                         <label style="color: #666; margin-right: 10px;">Ksh</label>
                         <span class="amount-box">
-                            {{ amount_ksh|floatformat:2 }}
+                            {{ amount_ksh }}
                         </span>
                     </div>
                     <div class="served-by">
@@ -451,7 +502,42 @@
                 </div>
 
                 <div class="payment-methods">
-                    <span class="method">{{ payment_method }}</span>
+                    <label>
+                        <input type="checkbox" {% if 'cash' in payment_methods_checked %}checked{% endif %}> CASH
+                    </label>
+                    <label>
+                        <input type="checkbox" {% if 'mpesa' in payment_methods_checked %}checked{% endif %}> MPESA
+                    </label>
+                    <label>
+                        <input type="checkbox" {% if 'bank' in payment_methods_checked %}checked{% endif %}> BANK
+                    </label>
+                    <label>
+                        <input type="checkbox" {% if 'cashBank' in payment_methods_checked or payment_methods_checked|length > 1 %}checked{% endif %}> CASH + BANK / MPESA
+                    </label>
+                </div>
+
+                {% if 'mpesa' in payment_methods_checked %}
+                <div class="payment-details active" id="mpesaDetails">
+                    <label>
+                        <input type="radio" name="mpesaOption" value="till" checked> LOOP BIZ (PAYBILL - 714888) - A/C NO: 380605
+                    </label>
+                    <label>
+                        <input type="radio" name="mpesaOption" value="office"> Office Number
+                    </label>
+                </div>
+                {% endif %}
+
+                {% if 'bank' in payment_methods_checked %}
+                <div class="payment-details active" id="bankDetails">
+                    <label>
+                        <input type="radio" name="bankOption" value="loop" checked> PDQ
+                    </label>
+                </div>
+                {% endif %}
+
+                <div class="notes-section">
+                    <label>Notes:</label>
+                    <div class="value">Payment completed successfully via {{ payment_method }}. Order ID: {{ order.order_id }}</div>
                 </div>
 
                 <div class="divider"></div>
@@ -490,9 +576,3 @@
     </div>
 </body>
 </html>
-
-
-
-
-
-

@@ -1255,7 +1255,7 @@ class OrderViewSet(viewsets.ModelViewSet):
         For these actions, we allow direct lookup by order_id without queryset filtering.
         
         IMPORTANT: This method is called by DRF BEFORE the action method runs.
-        If this raises a 404, the action method (e.g., get_receipt) never gets called.
+        If this raises a 404, the action method never gets called.
         """
         # Get the lookup value from kwargs
         # DRF might use 'pk' or the actual lookup_field name
@@ -1501,16 +1501,6 @@ class OrderViewSet(viewsets.ModelViewSet):
         except Exception as e:
             print(f"[DEBUG] Failed to write log: {e}")
         # #endregion
-        
-        # Check if this is actually a receipt request that was misrouted
-        if 'receipt' in request.path:
-            print(f"[RETRIEVE] Detected receipt in path, redirecting to get_receipt()")
-            print(f"[RETRIEVE] Path: {request.path}")
-            logger.info("Receipt request misrouted to retrieve, redirecting to get_receipt", extra={
-                'path': request.path,
-            })
-            # Call the receipt method directly
-            return self.get_receipt(request, *args, **kwargs)
         
         order = self.get_object()
         
@@ -2036,292 +2026,6 @@ class OrderViewSet(viewsets.ModelViewSet):
                 'cart_cleared': cart_cleared
             })
     
-    @action(detail=True, methods=['get'], url_path='receipt', permission_classes=[permissions.AllowAny], authentication_classes=[])
-    def get_receipt(self, request, pk=None):
-        """Generate and return receipt HTML/PDF."""
-        # #region agent log
-        import json, time
-        log_path = '/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log'
-        try:
-            with open(log_path, 'a') as f:
-                f.write(json.dumps({
-                    'sessionId': 'debug-session',
-                    'runId': 'run1',
-                    'hypothesisId': 'A',
-                    'location': 'inventory/views.py:get_receipt',
-                    'message': 'get_receipt() method called',
-                    'data': {
-                        'path': request.path,
-                        'full_url': request.build_absolute_uri() if hasattr(request, 'build_absolute_uri') else 'N/A',
-                        'method': request.method,
-                        'pk': str(pk) if pk else None,
-                        'kwargs': dict(self.kwargs),
-                        'action': getattr(self, 'action', 'NOT_SET'),
-                        'resolver_match_route': request.resolver_match.route if hasattr(request, 'resolver_match') and request.resolver_match else None,
-                        'resolver_match_url_name': request.resolver_match.url_name if hasattr(request, 'resolver_match') and request.resolver_match else None,
-                    },
-                    'timestamp': int(time.time() * 1000)
-                }) + '\n')
-        except Exception as e:
-            print(f"[DEBUG] Failed to write log: {e}")
-        # #endregion
-        
-        import os
-        from django.core.files.base import ContentFile
-        from django.http import HttpResponse, FileResponse
-        from django.utils import timezone
-        from uuid import UUID
-        
-        # IMPORTANT: This print will show in Render logs to confirm the method is called
-        print(f"\n[RECEIPT] ========== RECEIPT ENDPOINT CALLED ==========")
-        print(f"[RECEIPT] Full path: {request.path}")
-        print(f"[RECEIPT] Full URL: {request.build_absolute_uri()}")
-        print(f"[RECEIPT] Method: {request.method}")
-        print(f"[RECEIPT] Action: {getattr(self, 'action', 'NOT_SET')}")
-        print(f"[RECEIPT] PK from URL: {pk}")
-        print(f"[RECEIPT] All kwargs: {self.kwargs}")
-        print(f"[RECEIPT] Resolver match: {request.resolver_match}")
-        if hasattr(request, 'resolver_match') and request.resolver_match:
-            print(f"[RECEIPT] URL name: {request.resolver_match.url_name}")
-            print(f"[RECEIPT] Route: {request.resolver_match.route}")
-            print(f"[RECEIPT] Resolver kwargs: {request.resolver_match.kwargs}")
-        print(f"[RECEIPT] User authenticated: {request.user.is_authenticated if hasattr(request, 'user') else False}")
-        
-        # Log receipt request details
-        logger.info("Receipt endpoint called", extra={
-            'path': request.path,
-            'pk': str(pk) if pk else None,
-            'kwargs': dict(self.kwargs),
-            'user_authenticated': request.user.is_authenticated if hasattr(request, 'user') else False,
-            'user_is_staff': request.user.is_staff if hasattr(request, 'user') and request.user.is_authenticated else False,
-        })
-        
-        # Try to get order - handle both pk and order_id from URL
-        order = None
-        order_id_value = None
-        
-        # Extract order ID from various possible sources
-        if pk:
-            order_id_value = pk
-        elif 'order_id' in self.kwargs:
-            order_id_value = self.kwargs['order_id']
-        elif 'pk' in self.kwargs:
-            order_id_value = self.kwargs['pk']
-        elif hasattr(request, 'resolver_match') and request.resolver_match and 'order_id' in request.resolver_match.kwargs:
-            order_id_value = request.resolver_match.kwargs['order_id']
-        elif hasattr(request, 'resolver_match') and request.resolver_match and 'pk' in request.resolver_match.kwargs:
-            order_id_value = request.resolver_match.kwargs['pk']
-        else:
-            # Try to extract from path
-            path_parts = [p for p in request.path.split('/') if p]
-            if 'orders' in path_parts:
-                orders_index = path_parts.index('orders')
-                if orders_index + 1 < len(path_parts):
-                    potential_order_id = path_parts[orders_index + 1]
-                    if len(potential_order_id) >= 32:  # UUID length
-                        order_id_value = potential_order_id
-        
-        print(f"[RECEIPT] Extracted order_id_value: {order_id_value}")
-        
-        # #region agent log
-        try:
-            with open(log_path, 'a') as f:
-                f.write(json.dumps({
-                    'sessionId': 'debug-session',
-                    'runId': 'run1',
-                    'hypothesisId': 'C',
-                    'location': 'inventory/views.py:get_receipt',
-                    'message': 'Before order lookup',
-                    'data': {
-                        'order_id_value': str(order_id_value) if order_id_value else None,
-                        'order_id_type': type(order_id_value).__name__ if order_id_value else None,
-                    },
-                    'timestamp': int(time.time() * 1000)
-                }) + '\n')
-        except Exception as e:
-            print(f"[DEBUG] Failed to write log: {e}")
-        # #endregion
-        
-        if order_id_value:
-            try:
-                # Convert to UUID if it's a string
-                if isinstance(order_id_value, str):
-                    try:
-                        order_id_value = UUID(order_id_value)
-                    except ValueError:
-                        pass
-                
-                # Try direct lookup
-                print(f"[RECEIPT] Attempting direct lookup for order_id: {order_id_value}")
-                # #region agent log
-                try:
-                    order_exists = Order.objects.filter(order_id=order_id_value).exists()
-                    total_orders = Order.objects.count()
-                    with open(log_path, 'a') as f:
-                        f.write(json.dumps({
-                            'sessionId': 'debug-session',
-                            'runId': 'run1',
-                            'hypothesisId': 'C',
-                            'location': 'inventory/views.py:get_receipt',
-                            'message': 'Order existence check',
-                            'data': {
-                                'order_id': str(order_id_value),
-                                'order_exists': order_exists,
-                                'total_orders_in_db': total_orders,
-                            },
-                            'timestamp': int(time.time() * 1000)
-                        }) + '\n')
-                except Exception as e:
-                    print(f"[DEBUG] Failed to write log: {e}")
-                # #endregion
-                order = Order.objects.get(order_id=order_id_value)
-                print(f"[RECEIPT] Order found via direct lookup: {order.order_id}, status: {order.status}")
-                # #region agent log
-                try:
-                    with open(log_path, 'a') as f:
-                        f.write(json.dumps({
-                            'sessionId': 'debug-session',
-                            'runId': 'run1',
-                            'hypothesisId': 'C',
-                            'location': 'inventory/views.py:get_receipt',
-                            'message': 'Order found successfully',
-                            'data': {
-                                'order_id': str(order.order_id),
-                                'order_status': order.status,
-                            },
-                            'timestamp': int(time.time() * 1000)
-                        }) + '\n')
-                except Exception as e:
-                    print(f"[DEBUG] Failed to write log: {e}")
-                # #endregion
-            except Order.DoesNotExist:
-                print(f"[RECEIPT] Order not found in database: {order_id_value}")
-                # #region agent log
-                try:
-                    with open(log_path, 'a') as f:
-                        f.write(json.dumps({
-                            'sessionId': 'debug-session',
-                            'runId': 'run1',
-                            'hypothesisId': 'C',
-                            'location': 'inventory/views.py:get_receipt',
-                            'message': 'Order DoesNotExist exception',
-                            'data': {
-                                'order_id': str(order_id_value),
-                                'error': 'Order.DoesNotExist',
-                            },
-                            'timestamp': int(time.time() * 1000)
-                        }) + '\n')
-                except Exception as e:
-                    print(f"[DEBUG] Failed to write log: {e}")
-                # #endregion
-                logger.error("Order not found for receipt", extra={
-                    'order_id': str(order_id_value),
-                    'path': request.path,
-                })
-                return Response(
-                    {'error': f'Order with ID {order_id_value} not found.'},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-            except Exception as e:
-                print(f"[RECEIPT] Error in direct lookup: {str(e)}")
-                logger.error(f"Error in direct order lookup: {str(e)}", exc_info=True)
-        else:
-            # Fallback to get_object() if we couldn't extract order_id
-            try:
-                print(f"[RECEIPT] No order_id extracted, trying get_object()")
-                order = self.get_object()
-                print(f"[RECEIPT] Order found via get_object(): {order.order_id}")
-            except exceptions.NotFound:
-                logger.error("Order not found for receipt (get_object failed)", extra={
-                    'path': request.path,
-                    'kwargs': dict(self.kwargs),
-                })
-                return Response(
-                    {'error': 'Order not found. Please check the order ID.'},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-            except Exception as e:
-                logger.error(f"Error retrieving order for receipt: {str(e)}", exc_info=True, extra={
-                    'path': request.path,
-                    'error_type': type(e).__name__,
-                })
-                return Response(
-                    {'error': 'Failed to retrieve order.'},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
-        
-        if not order:
-            return Response(
-                {'error': 'Could not determine order ID from request.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        logger.info("Order retrieved for receipt", extra={
-            'order_id': str(order.order_id),
-            'order_status': order.status,
-        })
-        
-        # Check permissions:
-        # - Staff can always view receipts
-        # - Authenticated users can view their own receipts
-        # - Unauthenticated users can view receipts for paid orders (guest checkout after payment)
-        if request.user.is_staff:
-            # Staff can view any receipt
-            pass
-        elif request.user.is_authenticated:
-            # Authenticated users can only view their own receipts
-            if order.customer.user != request.user:
-                return Response(
-                    {'error': 'You do not have permission to view this receipt.'},
-                    status=status.HTTP_403_FORBIDDEN
-                )
-        else:
-            # Unauthenticated users can only view receipts for paid orders (guest checkout)
-            # This allows users to download receipts after completing payment without logging in
-            if order.status != Order.StatusChoices.PAID:
-                return Response(
-                    {'error': 'Receipt is only available for paid orders.'},
-                    status=status.HTTP_403_FORBIDDEN
-                )
-        
-        from inventory.services.receipt_service import ReceiptService
-        from inventory.models import Receipt
-        
-        format_type = request.query_params.get('format', 'html')  # html or pdf
-        
-        try:
-            if format_type == 'pdf':
-                # Generate or get existing receipt
-                receipt, created = Receipt.objects.get_or_create(order=order)
-                
-                # Ensure receipt has receipt_number
-                if not receipt.receipt_number:
-                    receipt.receipt_number = ReceiptService.generate_receipt_number(order)
-                    receipt.save(update_fields=['receipt_number'])
-                
-                if not receipt.pdf_file or (receipt.pdf_file and not os.path.exists(receipt.pdf_file.path)):
-                    pdf_bytes = ReceiptService.generate_receipt_pdf(order)
-                    pdf_filename = f"receipt_{order.order_id}_{receipt.receipt_number}.pdf"
-                    pdf_path = os.path.join('receipts', timezone.now().strftime('%Y/%m'), pdf_filename)
-                    receipt.pdf_file.save(pdf_path, ContentFile(pdf_bytes), save=True)
-                
-                response = FileResponse(
-                    open(receipt.pdf_file.path, 'rb'),
-                    content_type='application/pdf'
-                )
-                response['Content-Disposition'] = f'attachment; filename="receipt_{receipt.receipt_number}.pdf"'
-                return response
-            else:
-                html_content = ReceiptService.generate_receipt_html(order)
-                return HttpResponse(html_content, content_type='text/html')
-                
-        except Exception as e:
-            logger.error(f"Error generating receipt for order {order.order_id}: {e}")
-            return Response(
-                {'error': 'Failed to generate receipt'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-    
     @action(detail=True, methods=['post'], permission_classes=[permissions.AllowAny], authentication_classes=[])
     def initiate_payment(self, request, pk=None, **kwargs):
         """Initiate Pesapal payment for an order."""
@@ -2659,90 +2363,94 @@ class AdminProfileView(generics.RetrieveAPIView):
                 raise exceptions.NotFound("Admin profile not found for the authenticated admin user.")
 
 
-
-
-class ReceiptView(APIView):
+class OrderReceiptView(APIView):
     """
-    Standalone view for receipt endpoint to ensure proper routing.
-    This bypasses the ViewSet routing issues by directly calling the get_receipt logic.
+    Simple, secure receipt endpoint using custom template.
+    This is a clean implementation that bypasses ViewSet routing complexity.
     """
     permission_classes = [permissions.AllowAny]
     authentication_classes = []
     
     def get(self, request, order_id):
-        """Handle receipt requests by creating ViewSet instance and calling get_receipt()."""
-        # Import here to avoid circular imports
-        from inventory.models import Order
+        """
+        Generate and return receipt HTML/PDF.
+        
+        Security validations:
+        1. Order must exist
+        2. For unauthenticated users: Order must be PAID
+        3. For authenticated users: Must be their own order (unless staff)
+        """
+        from inventory.models import Order, Receipt
         from inventory.services.receipt_service import ReceiptService
         from rest_framework import status
         from rest_framework.response import Response
-        import os
-        from django.core.files.base import ContentFile
         from django.http import HttpResponse, FileResponse
+        from django.core.files.base import ContentFile
         from django.utils import timezone
         from uuid import UUID
+        import os
         
-        print(f"\n[RECEIPT] ========== RECEIPT VIEW CALLED ==========")
-        print(f"[RECEIPT] Order ID: {order_id}")
-        print(f"[RECEIPT] Full path: {request.path}")
-        
-        # Try to get order
+        # 1. Validate and get order
         try:
             if isinstance(order_id, str):
-                try:
-                    order_id = UUID(order_id)
-                except ValueError:
-                    pass
-            
+                order_id = UUID(order_id)
             order = Order.objects.get(order_id=order_id)
-            print(f"[RECEIPT] Order found: {order.order_id}, status: {order.status}")
         except Order.DoesNotExist:
-            print(f"[RECEIPT] Order not found: {order_id}")
             return Response(
-                {'error': f'Order with ID {order_id} not found.'},
+                {'error': 'Order not found.'},
                 status=status.HTTP_404_NOT_FOUND
             )
+        except (ValueError, TypeError) as e:
+            logger.error(f"Invalid order ID format: {order_id}")
+            return Response(
+                {'error': 'Invalid order ID format.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         except Exception as e:
-            print(f"[RECEIPT] Error: {str(e)}")
+            logger.error(f"Error retrieving order: {e}", exc_info=True)
             return Response(
                 {'error': 'Failed to retrieve order.'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
         
-        # Check permissions (same logic as in get_receipt)
+        # 2. Security: Check permissions
         if request.user.is_staff:
-            pass  # Staff can view any receipt
+            # Staff can view any receipt
+            pass
         elif request.user.is_authenticated:
+            # Authenticated users can only view their own receipts
             if order.customer.user != request.user:
                 return Response(
                     {'error': 'You do not have permission to view this receipt.'},
                     status=status.HTTP_403_FORBIDDEN
                 )
         else:
-            # Unauthenticated users can only view receipts for paid orders
+            # Unauthenticated users: only for PAID orders (guest checkout)
             if order.status != Order.StatusChoices.PAID:
                 return Response(
                     {'error': 'Receipt is only available for paid orders.'},
                     status=status.HTTP_403_FORBIDDEN
                 )
         
-        # Generate receipt
-        from inventory.models import Receipt
+        # 3. Generate receipt
         format_type = request.query_params.get('format', 'html')
         
         try:
             if format_type == 'pdf':
+                # Get or create receipt record
                 receipt, created = Receipt.objects.get_or_create(order=order)
                 if not receipt.receipt_number:
                     receipt.receipt_number = ReceiptService.generate_receipt_number(order)
                     receipt.save(update_fields=['receipt_number'])
                 
+                # Generate PDF if not exists or file is missing
                 if not receipt.pdf_file or (receipt.pdf_file and not os.path.exists(receipt.pdf_file.path)):
                     pdf_bytes = ReceiptService.generate_receipt_pdf(order)
                     pdf_filename = f"receipt_{order.order_id}_{receipt.receipt_number}.pdf"
                     pdf_path = os.path.join('receipts', timezone.now().strftime('%Y/%m'), pdf_filename)
                     receipt.pdf_file.save(pdf_path, ContentFile(pdf_bytes), save=True)
                 
+                # Return PDF
                 response = FileResponse(
                     open(receipt.pdf_file.path, 'rb'),
                     content_type='application/pdf'
@@ -2750,12 +2458,14 @@ class ReceiptView(APIView):
                 response['Content-Disposition'] = f'attachment; filename="receipt_{receipt.receipt_number}.pdf"'
                 return response
             else:
+                # Return HTML
                 html_content = ReceiptService.generate_receipt_html(order)
                 return HttpResponse(html_content, content_type='text/html')
+                
         except Exception as e:
-            logger.error(f"Error generating receipt for order {order.order_id}: {e}")
+            logger.error(f"Error generating receipt for order {order.order_id}: {e}", exc_info=True)
             return Response(
-                {'error': 'Failed to generate receipt'},
+                {'error': 'Failed to generate receipt. Please try again later.'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 

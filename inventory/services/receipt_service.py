@@ -1,5 +1,5 @@
 """
-Receipt generation and email service.
+Clean receipt generation service using custom template.
 Handles PDF generation, receipt storage, and email delivery.
 """
 import os
@@ -20,23 +20,19 @@ logger = logging.getLogger(__name__)
 
 
 class ReceiptService:
-    """Service for generating and managing receipts."""
+    """Service for generating and managing receipts using custom template."""
     
     @staticmethod
     def number_to_words(amount: Decimal) -> str:
         """Convert number to words (Kenyan Shillings)."""
         try:
-            # Convert to integer (shillings)
             shillings = int(amount)
             cents = int((amount - shillings) * 100)
-            
             words = num2words(shillings, lang='en').title()
             result = f"{words} Kenya Shillings"
-            
             if cents > 0:
                 cents_words = num2words(cents, lang='en').title()
                 result += f" And {cents_words} Cents"
-            
             return result
         except Exception as e:
             logger.error(f"Error converting number to words: {e}")
@@ -44,24 +40,18 @@ class ReceiptService:
     
     @staticmethod
     def generate_receipt_number(order: Order) -> str:
-        """Generate unique receipt number from order ID with timestamp fallback."""
-        # Use first 8 characters of UUID + timestamp to ensure uniqueness
+        """Generate unique receipt number from order ID."""
         order_id_str = str(order.order_id).replace('-', '')[:8].upper()
         base_number = f"SL_{order_id_str}"
         
-        # Check if receipt number already exists, if so add timestamp suffix
+        # Check if receipt number already exists, if so add counter
         if Receipt.objects.filter(receipt_number=base_number).exists():
-            timestamp_suffix = timezone.now().strftime('%Y%m%d%H%M%S')[-6:]  # Last 6 digits of timestamp
-            base_number = f"SL_{order_id_str[:6]}{timestamp_suffix}"
+            counter = 1
+            while Receipt.objects.filter(receipt_number=f"{base_number}_{counter}").exists():
+                counter += 1
+            return f"{base_number}_{counter}"
         
-        # Final check - if still exists, use counter
-        counter = 1
-        receipt_number = base_number
-        while Receipt.objects.filter(receipt_number=receipt_number).exists():
-            receipt_number = f"{base_number}_{counter}"
-            counter += 1
-        
-        return receipt_number
+        return base_number
     
     @staticmethod
     def get_receipt_context(order: Order) -> dict:
@@ -75,63 +65,67 @@ class ReceiptService:
         # Get customer details
         customer = order.customer
         customer_name = customer.name or (customer.user.username if customer.user else 'Unknown')
-        customer_phone = customer.phone or customer.phone_number or ''
+        customer_phone = customer.phone or getattr(customer, 'phone_number', '') or ''
         customer_email = customer.email or (customer.user.email if customer.user and hasattr(customer.user, 'email') else '')
         
-        # Get served by (staff member)
+        # Get served by (staff member who created order)
         served_by = 'System'
         if order.user:
             served_by = order.user.get_full_name() or order.user.username
         
         # Get payment method from Pesapal payment if available
         payment_method = 'MPESA'  # Default
-        if hasattr(order, 'pesapal_payments'):
-            pesapal_payment = order.pesapal_payments.filter(
-                status='COMPLETED'
-            ).first()
+        payment_methods_checked = []
+        try:
+            pesapal_payment = order.pesapal_payments.filter(status='COMPLETED').first()
             if pesapal_payment and pesapal_payment.payment_method:
-                payment_method = pesapal_payment.get_payment_method_display()
+                payment_method = pesapal_payment.payment_method.upper()
+                # Map payment method to checkboxes
+                if 'MPESA' in payment_method or 'M-PESA' in payment_method:
+                    payment_methods_checked.append('mpesa')
+                elif 'BANK' in payment_method:
+                    payment_methods_checked.append('bank')
+                else:
+                    payment_methods_checked.append('cash')
+        except Exception as e:
+            logger.warning(f"Could not determine payment method: {e}")
+            payment_methods_checked.append('mpesa')  # Default to MPESA
         
-        # Prepare items data
-        items_data = []
-        for item in order_items:
-            if item.inventory_unit:
-                unit = item.inventory_unit
-                items_data.append({
-                    'description': unit.product_template.product_name,
-                    'storage': f"{unit.storage_gb}GB" if unit.storage_gb else '',
-                    'serial_no': unit.serial_number or '',
-                    'imei': unit.imei or '',
-                    'price': item.unit_price_at_purchase,
-                    'quantity': item.quantity,
-                })
+        # Get first order item (for single-item receipts)
+        order_item = order_items.first()
+        inventory_unit = order_item.inventory_unit if order_item else None
         
-        # Get first item for single-item receipts (legacy format)
-        first_item = items_data[0] if items_data else {}
-        
-        # Format date for stamp
+        # Format date for stamp (DD MON YYYY format)
         date_obj = order.created_at
         months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
         stamp_date = f"{date_obj.day:02d} {months[date_obj.month - 1]}<br>{date_obj.year}"
         
+        # Format date for input (YYYY-MM-DD)
+        date_input = date_obj.strftime('%Y-%m-%d')
+        
+        # Format date for display (DD/MM/YYYY)
+        date_display = date_obj.strftime('%d/%m/%Y')
+        
         context = {
             'order': order,
-            'order_items': items_data,
+            'order_item': order_item,
+            'inventory_unit': inventory_unit,
             'receipt_number': ReceiptService.generate_receipt_number(order),
-            'date': order.created_at.strftime('%Y-%m-%d'),
-            'date_display': order.created_at.strftime('%d/%m/%Y'),
+            'date': date_input,
+            'date_display': date_display,
             'stamp_date': stamp_date,
             'customer_name': customer_name,
             'customer_phone': customer_phone,
             'customer_email': customer_email,
-            'amount_ksh': order.total_amount,
+            'amount_ksh': f"{order.total_amount:,.2f}".replace(',', ''),
             'amount_words': ReceiptService.number_to_words(order.total_amount),
-            'item_description': first_item.get('description', ''),
-            'storage': first_item.get('storage', ''),
-            'serial_no': first_item.get('serial_no', ''),
-            'imei': first_item.get('imei', ''),
+            'item_description': inventory_unit.product_template.product_name if inventory_unit else '',
+            'storage': f"{inventory_unit.storage_gb}GB" if inventory_unit and inventory_unit.storage_gb else '',
+            'serial_no': inventory_unit.serial_number if inventory_unit else '',
+            'imei': inventory_unit.imei if inventory_unit else '',
             'served_by': served_by,
             'payment_method': payment_method,
+            'payment_methods_checked': payment_methods_checked,
             'phone_number': '+254717881573',  # Company phone
         }
         
@@ -139,13 +133,13 @@ class ReceiptService:
     
     @staticmethod
     def generate_receipt_html(order: Order) -> str:
-        """Generate HTML receipt from order."""
+        """Generate HTML receipt from custom template."""
         try:
             context = ReceiptService.get_receipt_context(order)
-            html_content = render_to_string('receipts/receipt.html', context)
+            html_content = render_to_string('receipts/affordable_gadgets_receipt.html', context)
             return html_content
         except Exception as e:
-            logger.error(f"Error generating receipt HTML for order {order.order_id}: {e}")
+            logger.error(f"Error generating receipt HTML for order {order.order_id}: {e}", exc_info=True)
             raise
     
     @staticmethod
@@ -164,7 +158,7 @@ class ReceiptService:
             
             return pdf_bytes
         except Exception as e:
-            logger.error(f"Error generating receipt PDF for order {order.order_id}: {e}")
+            logger.error(f"Error generating receipt PDF for order {order.order_id}: {e}", exc_info=True)
             raise
     
     @staticmethod
@@ -214,7 +208,7 @@ class ReceiptService:
             return receipt
             
         except Exception as e:
-            logger.error(f"Error creating receipt for order {order.order_id}: {e}")
+            logger.error(f"Error creating receipt for order {order.order_id}: {e}", exc_info=True)
             raise
     
     @staticmethod
@@ -285,7 +279,7 @@ Affordable Gadgets Team
             return True
             
         except Exception as e:
-            logger.error(f"Error sending receipt email for order {order.order_id}: {e}")
+            logger.error(f"Error sending receipt email for order {order.order_id}: {e}", exc_info=True)
             return False
     
     @staticmethod
@@ -302,11 +296,11 @@ Affordable Gadgets Team
             
             # Get customer phone number
             customer = order.customer
-            customer_phone = customer.phone or customer.phone_number or ''
+            customer_phone = customer.phone or getattr(customer, 'phone_number', '') or ''
             
             # Try to get phone from source_lead for online orders
             if not customer_phone and hasattr(order, 'source_lead') and order.source_lead:
-                customer_phone = order.source_lead.customer_phone or ''
+                customer_phone = getattr(order.source_lead, 'customer_phone', '') or ''
             
             if not customer_phone:
                 logger.warning(f"No phone number found for order {order.order_id}, cannot send WhatsApp receipt")
@@ -316,7 +310,7 @@ Affordable Gadgets Team
             
             customer_name = customer.name or 'Customer'
             
-            # Send WhatsApp message (without PDF attachment for now, as PDF needs to be hosted)
+            # Send WhatsApp message
             whatsapp_sent = WhatsAppService.send_receipt_whatsapp(
                 phone_number=customer_phone,
                 receipt_number=receipt.receipt_number,
@@ -335,7 +329,7 @@ Affordable Gadgets Team
             return whatsapp_sent
             
         except Exception as e:
-            logger.error(f"Error sending receipt WhatsApp for order {order.order_id}: {e}")
+            logger.error(f"Error sending receipt WhatsApp for order {order.order_id}: {e}", exc_info=True)
             return False
     
     @staticmethod
@@ -357,11 +351,5 @@ Affordable Gadgets Team
             return receipt, email_sent, whatsapp_sent
             
         except Exception as e:
-            logger.error(f"Error in generate_and_send_receipt for order {order.order_id}: {e}")
+            logger.error(f"Error in generate_and_send_receipt for order {order.order_id}: {e}", exc_info=True)
             raise
-
-
-
-
-
-
