@@ -1476,30 +1476,16 @@ class OrderViewSet(viewsets.ModelViewSet):
         incorrectly routed to retrieve. If the path contains '/receipt/', redirect to receipt method.
         """
         # #region agent log
-        import json, time
-        from django.conf import settings
-        # Use PESAPAL_LOG_PATH from environment variable, fallback to /tmp/pesapal_debug.log
-        log_path = getattr(settings, 'PESAPAL_LOG_PATH', '/tmp/pesapal_debug.log')
-        try:
-            with open(log_path, 'a') as f:
-                f.write(json.dumps({
-                    'sessionId': 'debug-session',
-                    'runId': 'run1',
-                    'hypothesisId': 'B',
-                    'location': 'inventory/views.py:retrieve',
-                    'message': 'retrieve() method called',
-                    'data': {
-                        'path': request.path,
-                        'full_url': request.build_absolute_uri() if hasattr(request, 'build_absolute_uri') else 'N/A',
-                        'has_receipt_in_path': 'receipt' in request.path,
-                        'method': request.method,
-                        'resolver_match_route': request.resolver_match.route if hasattr(request, 'resolver_match') and request.resolver_match else None,
-                        'resolver_match_url_name': request.resolver_match.url_name if hasattr(request, 'resolver_match') and request.resolver_match else None,
-                    },
-                    'timestamp': int(time.time() * 1000)
-                }) + '\n')
-        except Exception as e:
-            print(f"[DEBUG] Failed to write log: {e}")
+        logger.info("DEBUG: OrderViewSet.retrieve() called", extra={
+            'hypothesisId': 'B',
+            'location': 'inventory/views.py:retrieve',
+            'path': request.path,
+            'full_url': request.build_absolute_uri() if hasattr(request, 'build_absolute_uri') else 'N/A',
+            'has_receipt_in_path': 'receipt' in request.path,
+            'method': request.method,
+            'resolver_match_route': request.resolver_match.route if hasattr(request, 'resolver_match') and request.resolver_match else None,
+            'resolver_match_url_name': request.resolver_match.url_name if hasattr(request, 'resolver_match') and request.resolver_match else None,
+        })
         # #endregion
         
         order = self.get_object()
@@ -2381,28 +2367,16 @@ class OrderReceiptView(APIView):
         3. For authenticated users: Must be their own order (unless staff)
         """
         # #region agent log
-        import json, time
-        log_path = '/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log'
-        try:
-            with open(log_path, 'a') as f:
-                f.write(json.dumps({
-                    'sessionId': 'debug-session',
-                    'runId': 'run1',
-                    'hypothesisId': 'C',
-                    'location': 'inventory/views.py:OrderReceiptView.get',
-                    'message': 'OrderReceiptView.get() called - SUCCESS!',
-                    'data': {
-                        'order_id': str(order_id),
-                        'path': request.path,
-                        'full_path': request.get_full_path(),
-                        'method': request.method,
-                        'resolver_match_route': request.resolver_match.route if hasattr(request, 'resolver_match') and request.resolver_match else None,
-                        'resolver_match_url_name': request.resolver_match.url_name if hasattr(request, 'resolver_match') and request.resolver_match else None,
-                    },
-                    'timestamp': int(time.time() * 1000)
-                }) + '\n')
-        except Exception as e:
-            print(f"[DEBUG] Failed to write log: {e}")
+        logger.info("DEBUG: OrderReceiptView.get() called - SUCCESS!", extra={
+            'hypothesisId': 'C',
+            'location': 'inventory/views.py:OrderReceiptView.get',
+            'order_id': str(order_id),
+            'path': request.path,
+            'full_path': request.get_full_path(),
+            'method': request.method,
+            'resolver_match_route': request.resolver_match.route if hasattr(request, 'resolver_match') and request.resolver_match else None,
+            'resolver_match_url_name': request.resolver_match.url_name if hasattr(request, 'resolver_match') and request.resolver_match else None,
+        })
         # #endregion
         
         from inventory.models import Order, Receipt

@@ -1,26 +1,19 @@
-from django.urls import path, include, re_path
+from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views
-import json
-import time
+import logging
+
+_logger = logging.getLogger(__name__)
 
 # #region agent log
 # Log URL pattern registration
-log_path = '/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log'
 try:
-    with open(log_path, 'a') as f:
-        f.write(json.dumps({
-            'sessionId': 'debug-session',
-            'runId': 'run1',
-            'hypothesisId': 'D',
-            'location': 'inventory/urls.py:module_level',
-            'message': 'URL patterns module loaded',
-            'data': {
-                'OrderReceiptView_exists': hasattr(views, 'OrderReceiptView'),
-                'OrderReceiptView_type': str(type(getattr(views, 'OrderReceiptView', None))),
-            },
-            'timestamp': int(time.time() * 1000)
-        }) + '\n')
+    _logger.info("DEBUG: URL patterns module loaded", extra={
+        'hypothesisId': 'D',
+        'location': 'inventory/urls.py:module_level',
+        'OrderReceiptView_exists': hasattr(views, 'OrderReceiptView'),
+        'OrderReceiptView_type': str(type(getattr(views, 'OrderReceiptView', None))),
+    })
 except Exception:
     pass
 # #endregion
@@ -74,24 +67,18 @@ router.register(r'promotions', views.PromotionViewSet, basename='promotion')
 
 # These endpoints handle unique actions or single-object retrieval/update.
 # Create receipt pattern before urlpatterns
-receipt_pattern = re_path(r'^orders/(?P<order_id>[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/receipt/?$', views.OrderReceiptView.as_view(), name='order-receipt')
+# Use path with UUID converter instead of regex for better compatibility
+receipt_pattern = path('orders/<uuid:order_id>/receipt/', views.OrderReceiptView.as_view(), name='order-receipt')
 
 # #region agent log
 # Log that receipt pattern is being registered
 try:
-    with open(log_path, 'a') as f:
-        f.write(json.dumps({
-            'sessionId': 'debug-session',
-            'runId': 'run1',
-            'hypothesisId': 'D',
-            'location': 'inventory/urls.py:urlpatterns',
-            'message': 'Receipt URL pattern registered',
-            'data': {
-                'pattern_str': str(receipt_pattern.pattern) if hasattr(receipt_pattern, 'pattern') else str(receipt_pattern),
-                'pattern_name': receipt_pattern.name if hasattr(receipt_pattern, 'name') else None,
-            },
-            'timestamp': int(time.time() * 1000)
-        }) + '\n')
+    _logger.info("DEBUG: Receipt URL pattern registered", extra={
+        'hypothesisId': 'D',
+        'location': 'inventory/urls.py:urlpatterns',
+        'pattern_str': str(receipt_pattern.pattern) if hasattr(receipt_pattern, 'pattern') else str(receipt_pattern),
+        'pattern_name': receipt_pattern.name if hasattr(receipt_pattern, 'name') else None,
+    })
 except Exception:
     pass
 # #endregion
