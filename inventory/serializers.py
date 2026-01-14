@@ -776,6 +776,17 @@ class ProductAccessorySerializer(serializers.ModelSerializer):
         """
         from inventory.models import InventoryUnit
         from inventory.cloudinary_utils import get_optimized_image_url
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        
+        # #region agent log
+        # Debug: Check all units for this accessory (before filtering)
+        all_units = InventoryUnit.objects.filter(product_template=obj.accessory)
+        logger.info(f"DEBUG[ACCESSORY] Accessory ID={obj.accessory.id} name={obj.accessory.product_name} - Total units: {all_units.count()}")
+        for unit in all_units:
+            logger.info(f"DEBUG[ACCESSORY] Unit ID={unit.id} quantity={unit.quantity} sale_status={unit.sale_status} available_online={unit.available_online}")
+        # #endregion
         
         available_units = InventoryUnit.objects.filter(
             product_template=obj.accessory,
@@ -784,6 +795,12 @@ class ProductAccessorySerializer(serializers.ModelSerializer):
         ).select_related('product_color').prefetch_related(
             'images'  # Prefetch all unit images
         )
+        
+        # #region agent log
+        logger.info(f"DEBUG[ACCESSORY] After filtering - Available units count: {available_units.count()}")
+        total_qty = sum(unit.quantity for unit in available_units)
+        logger.info(f"DEBUG[ACCESSORY] Total available quantity: {total_qty}")
+        # #endregion
         
         # Group by color
         color_variants = {}

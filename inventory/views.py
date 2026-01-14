@@ -2362,33 +2362,9 @@ class OrderReceiptView(APIView):
         Override to skip DRF's content negotiation.
         This view handles format (html/pdf) directly in get(), so we don't need DRF's negotiation.
         """
-        # #region agent log
-        logger.info(f"DEBUG[C] OrderReceiptView.perform_content_negotiation skipping DRF negotiation")
-        # #endregion
         # Return None to skip content negotiation
         # DRF will use default renderers, but we handle format ourselves in get()
         return (None, None)
-    
-    def dispatch(self, request, *args, **kwargs):
-        # #region agent log
-        logger.info(f"DEBUG[C] OrderReceiptView.dispatch ENTRY path={request.path} kwargs={kwargs} method={request.method}")
-        logger.info(f"DEBUG[C] OrderReceiptView has get method: {hasattr(self, 'get')} get={getattr(self, 'get', None)}")
-        logger.info(f"DEBUG[C] OrderReceiptView http_method_names: {self.http_method_names}")
-        # #endregion
-        try:
-            # #region agent log
-            logger.info(f"DEBUG[C] OrderReceiptView.dispatch calling super().dispatch()")
-            # #endregion
-            response = super().dispatch(request, *args, **kwargs)
-            # #region agent log
-            logger.info(f"DEBUG[C] OrderReceiptView.dispatch super().dispatch() returned status={response.status_code if hasattr(response, 'status_code') else 'N/A'}")
-            # #endregion
-            return response
-        except Exception as e:
-            # #region agent log
-            logger.error(f"DEBUG[C] OrderReceiptView.dispatch EXCEPTION {type(e).__name__}: {e} args={e.args}", exc_info=True)
-            # #endregion
-            raise
     
     def get(self, request, order_id):
         """
@@ -2399,12 +2375,6 @@ class OrderReceiptView(APIView):
         2. For unauthenticated users: Order must be PAID
         3. For authenticated users: Must be their own order (unless staff)
         """
-        # #region agent log
-        # NOTE: Render logs often don't show structured "extra", so embed key fields in the message.
-        rm = getattr(request, 'resolver_match', None)
-        logger.info(f"DEBUG[C] OrderReceiptView.get ENTRY order_id={order_id} type={type(order_id)} path={request.path}")
-        # #endregion
-        
         from inventory.models import Order, Receipt
         from inventory.services.receipt_service import ReceiptService
         from rest_framework import status
@@ -2415,28 +2385,12 @@ class OrderReceiptView(APIView):
         from uuid import UUID
         import os
         
-        # #region agent log
-        logger.info(f"DEBUG[C] after imports order_id={order_id}")
-        # #endregion
-        
         # 1. Validate and get order
         try:
-            # #region agent log
-            logger.info(f"DEBUG[C] before UUID conversion order_id={order_id} type={type(order_id)}")
-            # #endregion
             if isinstance(order_id, str):
                 order_id = UUID(order_id)
-            # #region agent log
-            logger.info(f"DEBUG[C] after UUID conversion order_id={order_id} type={type(order_id)}")
-            # #endregion
             order = Order.objects.get(order_id=order_id)
-            # #region agent log
-            logger.info(f"DEBUG[C] Order FOUND order_id={order.order_id} status={order.status}")
-            # #endregion
         except Order.DoesNotExist:
-            # #region agent log
-            logger.warning(f"DEBUG[C] Order NOT FOUND order_id={order_id}")
-            # #endregion
             return Response(
                 {'error': 'Order not found.'},
                 status=status.HTTP_404_NOT_FOUND

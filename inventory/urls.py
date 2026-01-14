@@ -1,22 +1,6 @@
 from django.urls import path, include, re_path
 from rest_framework.routers import DefaultRouter
 from . import views
-import logging
-
-_logger = logging.getLogger(__name__)
-
-# #region agent log
-# Log URL pattern registration
-try:
-    _logger.info("DEBUG: URL patterns module loaded", extra={
-        'hypothesisId': 'D',
-        'location': 'inventory/urls.py:module_level',
-        'OrderReceiptView_exists': hasattr(views, 'OrderReceiptView'),
-        'OrderReceiptView_type': str(type(getattr(views, 'OrderReceiptView', None))),
-    })
-except Exception:
-    pass
-# #endregion
 
 # Initialize the DefaultRouter
 # The router automatically generates URL patterns for your ViewSets
@@ -74,19 +58,6 @@ receipt_pattern = re_path(
     views.OrderReceiptView.as_view(),
     name='order-receipt'
 )
-
-# #region agent log
-# Log that receipt pattern is being registered
-try:
-    _logger.info("DEBUG: Receipt URL pattern registered", extra={
-        'hypothesisId': 'D',
-        'location': 'inventory/urls.py:urlpatterns',
-        'pattern_str': str(receipt_pattern.pattern) if hasattr(receipt_pattern, 'pattern') else str(receipt_pattern),
-        'pattern_name': receipt_pattern.name if hasattr(receipt_pattern, 'name') else None,
-    })
-except Exception:
-    pass
-# #endregion
 
 urlpatterns = [
     # IMPORTANT: Explicit routes for custom actions must come BEFORE router.urls

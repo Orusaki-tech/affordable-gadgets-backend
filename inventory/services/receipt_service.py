@@ -154,51 +154,26 @@ class ReceiptService:
             font_config = FontConfiguration()
             html_doc = HTML(string=html_content)
             
-            # #region agent log
-            logger.info(f"DEBUG[PDF] Starting PDF generation for order {order.order_id}")
-            # #endregion
-            
             # Try method 1: Standard write_pdf with font_config
             try:
-                # #region agent log
-                logger.info(f"DEBUG[PDF] Attempting standard write_pdf with font_config")
-                # #endregion
                 pdf_bytes = html_doc.write_pdf(font_config=font_config)
-                # #region agent log
-                logger.info(f"DEBUG[PDF] PDF generated successfully using standard method, size={len(pdf_bytes)} bytes")
-                # #endregion
                 return pdf_bytes
-            except (AttributeError, TypeError) as e:
-                # #region agent log
-                logger.warning(f"DEBUG[PDF] Standard method failed: {e}, trying without font_config")
-                # #endregion
+            except (AttributeError, TypeError):
                 # Try method 2: Without font_config (fallback)
                 try:
                     pdf_bytes = html_doc.write_pdf()
-                    # #region agent log
-                    logger.info(f"DEBUG[PDF] PDF generated successfully without font_config, size={len(pdf_bytes)} bytes")
-                    # #endregion
                     return pdf_bytes
-                except Exception as e2:
-                    # #region agent log
-                    logger.warning(f"DEBUG[PDF] Method without font_config also failed: {e2}, trying with BytesIO")
-                    # #endregion
+                except Exception:
                     # Try method 3: Using BytesIO buffer
                     from io import BytesIO
                     buffer = BytesIO()
                     html_doc.write_pdf(buffer, font_config=font_config)
                     pdf_bytes = buffer.getvalue()
                     buffer.close()
-                    # #region agent log
-                    logger.info(f"DEBUG[PDF] PDF generated successfully using BytesIO, size={len(pdf_bytes)} bytes")
-                    # #endregion
                     return pdf_bytes
             
         except Exception as e:
             logger.error(f"Error generating receipt PDF for order {order.order_id}: {e}", exc_info=True)
-            # #region agent log
-            logger.error(f"DEBUG[PDF] All PDF generation methods failed for order {order.order_id}")
-            # #endregion
             raise
     
     @staticmethod

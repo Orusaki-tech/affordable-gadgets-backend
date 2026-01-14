@@ -62,7 +62,6 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'inventory.middleware.URLResolutionDebugMiddleware',  # URL resolution debugging
     'inventory.middleware.BrandContextMiddleware',  # Brand context middleware
 ]
 
