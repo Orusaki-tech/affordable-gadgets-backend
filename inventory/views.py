@@ -1271,7 +1271,9 @@ class OrderViewSet(viewsets.ModelViewSet):
         
         # #region agent log
         import json, time
-        log_path = '/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log'
+        from django.conf import settings
+        # Use PESAPAL_LOG_PATH from environment variable, fallback to /tmp/pesapal_debug.log
+        log_path = getattr(settings, 'PESAPAL_LOG_PATH', '/tmp/pesapal_debug.log')
         try:
             with open(log_path, 'a') as f:
                 f.write(json.dumps({
@@ -1419,7 +1421,9 @@ class OrderViewSet(viewsets.ModelViewSet):
         """
         # #region agent log
         import json, time
-        log_path = '/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log'
+        from django.conf import settings
+        # Use PESAPAL_LOG_PATH from environment variable, fallback to /tmp/pesapal_debug.log
+        log_path = getattr(settings, 'PESAPAL_LOG_PATH', '/tmp/pesapal_debug.log')
         try:
             with open(log_path, 'a') as f:
                 f.write(json.dumps({
@@ -1495,8 +1499,10 @@ class OrderViewSet(viewsets.ModelViewSet):
         """
         # #region agent log
         import json, time
+        from django.conf import settings
         from django.utils import timezone
-        log_path = '/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log'
+        # Use PESAPAL_LOG_PATH from environment variable, fallback to /tmp/pesapal_debug.log
+        log_path = getattr(settings, 'PESAPAL_LOG_PATH', '/tmp/pesapal_debug.log')
         logger.info("Order creation request received", extra={
             'has_idempotency_key_header': bool(request.headers.get('Idempotency-Key') or request.headers.get('X-Idempotency-Key')),
             'method': request.method,
