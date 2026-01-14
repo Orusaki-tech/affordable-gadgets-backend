@@ -10,7 +10,7 @@ from django.conf import settings
 from datetime import timedelta
 from decimal import Decimal
 from typing import Dict, Optional
-from inventory.models import Order, PesapalPayment, PesapalRefund, PaymentNotification
+from inventory.models import Order, PesapalPayment, PesapalRefund, PaymentNotification, InventoryUnit
 from inventory.services.pesapal_service import PesapalService
 
 logger = logging.getLogger(__name__)
@@ -449,7 +449,30 @@ class PesapalPaymentService:
             return {'success': False, 'message': f'Error processing IPN: {str(e)}'}
     
     def get_payment_status(self, order: Order) -> Dict:
-        """Get current payment status for an order."""
+        """Get current payment status for an order. Queries Pesapal API directly if status is PENDING."""
+        # #region agent log
+        import json
+        import os
+        import time
+        log_path = '/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log'
+        try:
+            with open(log_path, 'a') as f:
+                f.write(json.dumps({
+                    'sessionId': 'debug-session',
+                    'runId': 'run1',
+                    'hypothesisId': 'A',
+                    'location': 'inventory/services/pesapal_payment_service.py:get_payment_status',
+                    'message': 'get_payment_status called',
+                    'data': {
+                        'order_id': str(order.order_id),
+                        'order_status': order.status,
+                    },
+                    'timestamp': int(time.time() * 1000)
+                }) + '\n')
+        except Exception as e:
+            pass
+        # #endregion
+        
         print(f"\n[PESAPAL] ========== GET PAYMENT STATUS START ==========")
         print(f"[PESAPAL] Order ID: {order.order_id}")
         
@@ -465,7 +488,177 @@ class PesapalPaymentService:
         print(f"[PESAPAL] Order Tracking ID: {payment.pesapal_order_tracking_id}")
         print(f"[PESAPAL] Amount: {payment.amount}")
         print(f"[PESAPAL] IPN Received: {payment.ipn_received}")
+        
+        # If status is PENDING and we have a tracking ID, query Pesapal API for real-time status
+        if payment.status == PesapalPayment.StatusChoices.PENDING and payment.pesapal_order_tracking_id:
+            print(f"[PESAPAL] Status is PENDING - Querying Pesapal API for real-time status...")
+            # #region agent log
+            try:
+                with open(log_path, 'a') as f:
+                    f.write(json.dumps({
+                        'sessionId': 'debug-session',
+                        'runId': 'run1',
+                        'hypothesisId': 'B',
+                        'location': 'inventory/services/pesapal_payment_service.py:get_payment_status',
+                        'message': 'Querying Pesapal API for PENDING payment',
+                        'data': {
+                            'order_tracking_id': payment.pesapal_order_tracking_id,
+                            'current_status': payment.status,
+                        },
+                        'timestamp': int(time.time() * 1000)
+                    }) + '\n')
+            except Exception as e:
+                pass
+            # #endregion
+            
+            status_result, status_error = self.pesapal_service.get_transaction_status(payment.pesapal_order_tracking_id)
+            
+            if status_result and not status_error:
+                print(f"[PESAPAL] Pesapal API response received: {json.dumps(status_result, indent=2)}")
+                # #region agent log
+                try:
+                    with open(log_path, 'a') as f:
+                        f.write(json.dumps({
+                            'sessionId': 'debug-session',
+                            'runId': 'run1',
+                            'hypothesisId': 'B',
+                            'location': 'inventory/services/pesapal_payment_service.py:get_payment_status',
+                            'message': 'Pesapal API response received',
+                            'data': {
+                                'payment_status_description': status_result.get('payment_status_description'),
+                                'status_result_keys': list(status_result.keys()),
+                            },
+                            'timestamp': int(time.time() * 1000)
+                        }) + '\n')
+                except Exception as e:
+                    pass
+                # #endregion
+                
+                # Map Pesapal status to our status
+                status_mapping = {
+                    'COMPLETED': PesapalPayment.StatusChoices.COMPLETED,
+                    'FAILED': PesapalPayment.StatusChoices.FAILED,
+                    'CANCELLED': PesapalPayment.StatusChoices.CANCELLED,
+                    'PENDING': PesapalPayment.StatusChoices.PENDING,
+                }
+                
+                payment_status = status_result.get('payment_status_description', '').upper()
+                new_status = status_mapping.get(payment_status)
+                
+                # Extract additional fields from Pesapal response
+                pesapal_payment_id = status_result.get('payment_id') or status_result.get('pesapal_payment_id')
+                pesapal_reference = status_result.get('payment_reference') or status_result.get('pesapal_reference')
+                payment_method_from_api = status_result.get('payment_method')
+                
+                # #region agent log
+                try:
+                    with open(log_path, 'a') as f:
+                        f.write(json.dumps({
+                            'sessionId': 'debug-session',
+                            'runId': 'run1',
+                            'hypothesisId': 'D',
+                            'location': 'inventory/services/pesapal_payment_service.py:get_payment_status',
+                            'message': 'Extracting fields from Pesapal response',
+                            'data': {
+                                'pesapal_payment_id': pesapal_payment_id,
+                                'pesapal_reference': pesapal_reference,
+                                'payment_method': payment_method_from_api,
+                                'status_result_keys': list(status_result.keys()),
+                            },
+                            'timestamp': int(time.time() * 1000)
+                        }) + '\n')
+                except Exception as e:
+                    pass
+                # #endregion
+                
+                if new_status and new_status != payment.status:
+                    print(f"[PESAPAL] Status changed from {payment.status} to {new_status}")
+                    # #region agent log
+                    try:
+                        with open(log_path, 'a') as f:
+                            f.write(json.dumps({
+                                'sessionId': 'debug-session',
+                                'runId': 'run1',
+                                'hypothesisId': 'C',
+                                'location': 'inventory/services/pesapal_payment_service.py:get_payment_status',
+                                'message': 'Payment status updated from Pesapal API',
+                                'data': {
+                                    'old_status': payment.status,
+                                    'new_status': new_status,
+                                    'pesapal_status': payment_status,
+                                },
+                                'timestamp': int(time.time() * 1000)
+                            }) + '\n')
+                    except Exception as e:
+                        pass
+                    # #endregion
+                    
+                    payment.status = new_status
+                    payment.api_response_data = status_result
+                    
+                    # Update payment_id and payment_reference if available
+                    if pesapal_payment_id and not payment.pesapal_payment_id:
+                        payment.pesapal_payment_id = pesapal_payment_id
+                        print(f"[PESAPAL] Payment ID set: {pesapal_payment_id}")
+                    
+                    if pesapal_reference and not payment.pesapal_reference:
+                        payment.pesapal_reference = pesapal_reference
+                        print(f"[PESAPAL] Payment reference set: {pesapal_reference}")
+                    
+                    # Update payment method if available
+                    if payment_method_from_api and not payment.payment_method:
+                        payment.payment_method = payment_method_from_api
+                        print(f"[PESAPAL] Payment method set: {payment_method_from_api}")
+                    
+                    # If completed, update order and payment timestamps
+                    if new_status == PesapalPayment.StatusChoices.COMPLETED:
+                        payment.completed_at = timezone.now()
+                        payment.is_verified = True
+                        payment.verified_at = timezone.now()
+                        payment.order.status = Order.StatusChoices.PAID
+                        payment.order.save()
+                        
+                        # Transition units from PENDING_PAYMENT to SOLD
+                        for order_item in payment.order.order_items.all():
+                            unit = order_item.inventory_unit
+                            if unit and unit.sale_status == InventoryUnit.SaleStatusChoices.PENDING_PAYMENT:
+                                unit.sale_status = InventoryUnit.SaleStatusChoices.SOLD
+                                unit.save(update_fields=['sale_status'])
+                        
+                        print(f"[PESAPAL] ✓ Payment verified as completed - Order marked as PAID")
+                    
+                    payment.save()
+                    print(f"[PESAPAL] Payment status updated in database")
+                elif new_status == payment.status:
+                    # Even if status didn't change, update other fields if they're missing
+                    updated = False
+                    if pesapal_payment_id and not payment.pesapal_payment_id:
+                        payment.pesapal_payment_id = pesapal_payment_id
+                        updated = True
+                        print(f"[PESAPAL] Payment ID updated: {pesapal_payment_id}")
+                    
+                    if pesapal_reference and not payment.pesapal_reference:
+                        payment.pesapal_reference = pesapal_reference
+                        updated = True
+                        print(f"[PESAPAL] Payment reference updated: {pesapal_reference}")
+                    
+                    if payment_method_from_api and not payment.payment_method:
+                        payment.payment_method = payment_method_from_api
+                        updated = True
+                        print(f"[PESAPAL] Payment method updated: {payment_method_from_api}")
+                    
+                    if updated:
+                        payment.api_response_data = status_result
+                        payment.save()
+                        print(f"[PESAPAL] Payment fields updated from Pesapal API")
+            elif status_error:
+                print(f"[PESAPAL] Error querying Pesapal API: {status_error}")
+                print(f"[PESAPAL] Returning cached database status")
+        
         print(f"[PESAPAL] ===========================================\n")
+        
+        # Refresh payment from database to get updated status
+        payment.refresh_from_db()
         
         # Convert datetime objects to ISO format strings for JSON serialization
         initiated_at_str = payment.initiated_at.isoformat() if payment.initiated_at else None
