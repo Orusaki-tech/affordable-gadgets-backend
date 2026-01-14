@@ -1494,6 +1494,9 @@ class OrderViewSet(viewsets.ModelViewSet):
         If an order with the same idempotency key exists, return it instead of creating a new one.
         """
         # #region agent log
+        import json, time
+        from django.utils import timezone
+        log_path = '/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log'
         logger.info("Order creation request received", extra={
             'has_idempotency_key_header': bool(request.headers.get('Idempotency-Key') or request.headers.get('X-Idempotency-Key')),
             'method': request.method,
@@ -1978,33 +1981,7 @@ class OrderViewSet(viewsets.ModelViewSet):
         from django.core.files.base import ContentFile
         from django.http import HttpResponse, FileResponse
         from django.utils import timezone
-        
-        # #region agent log
-        import json, time
-        log_path = '/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log'
-        try:
-            with open(log_path, 'a') as f:
-                f.write(json.dumps({
-                    'sessionId': 'debug-session',
-                    'runId': 'run1',
-                    'hypothesisId': 'C',
-                    'location': 'inventory/views.py:get_receipt',
-                    'message': 'get_receipt() method called',
-                    'data': {
-                        'path': request.path,
-                        'full_url': request.build_absolute_uri() if hasattr(request, 'build_absolute_uri') else 'N/A',
-                        'has_receipt_in_path': 'receipt' in request.path,
-                        'method': request.method,
-                        'action': getattr(self, 'action', 'NOT_SET'),
-                        'resolver_match_route': request.resolver_match.route if hasattr(request, 'resolver_match') and request.resolver_match else None,
-                        'resolver_match_url_name': request.resolver_match.url_name if hasattr(request, 'resolver_match') and request.resolver_match else None,
-                        'pk': str(pk) if pk else None,
-                    },
-                    'timestamp': int(time.time() * 1000)
-                }) + '\n')
-        except Exception as e:
-            print(f"[DEBUG] Failed to write log: {e}")
-        # #endregion
+        from uuid import UUID
         
         # IMPORTANT: This print will show in Render logs to confirm the method is called
         print(f"\n[RECEIPT] ========== RECEIPT ENDPOINT CALLED ==========")
@@ -2012,51 +1989,112 @@ class OrderViewSet(viewsets.ModelViewSet):
         print(f"[RECEIPT] Full URL: {request.build_absolute_uri()}")
         print(f"[RECEIPT] Method: {request.method}")
         print(f"[RECEIPT] Action: {getattr(self, 'action', 'NOT_SET')}")
+        print(f"[RECEIPT] PK from URL: {pk}")
+        print(f"[RECEIPT] All kwargs: {self.kwargs}")
         print(f"[RECEIPT] Resolver match: {request.resolver_match}")
         if hasattr(request, 'resolver_match') and request.resolver_match:
             print(f"[RECEIPT] URL name: {request.resolver_match.url_name}")
             print(f"[RECEIPT] Route: {request.resolver_match.route}")
-            print(f"[RECEIPT] Kwargs: {request.resolver_match.kwargs}")
+            print(f"[RECEIPT] Resolver kwargs: {request.resolver_match.kwargs}")
         print(f"[RECEIPT] User authenticated: {request.user.is_authenticated if hasattr(request, 'user') else False}")
         
         # Log receipt request details
         logger.info("Receipt endpoint called", extra={
             'path': request.path,
+            'pk': str(pk) if pk else None,
+            'kwargs': dict(self.kwargs),
             'user_authenticated': request.user.is_authenticated if hasattr(request, 'user') else False,
             'user_is_staff': request.user.is_staff if hasattr(request, 'user') and request.user.is_authenticated else False,
         })
         
-        # For detail=True actions, DRF calls get_object() first before this method runs
-        # If get_object() fails (404), this method never gets called
-        # So if we're here, get_object() succeeded and we should have the order
-        # However, DRF might not have set self.action yet, so we'll get it ourselves
-        try:
-            # get_object() should have already been called by DRF and succeeded
-            # But if for some reason it wasn't, we'll call it again
-            # Our improved get_object() will detect receipt requests by path
-            order = self.get_object()
-            
-            logger.info("Order retrieved for receipt", extra={
-                'order_id': str(order.order_id),
-                'order_status': order.status,
-            })
-        except exceptions.NotFound:
-            logger.error("Order not found for receipt", extra={
-                'path': request.path,
-            })
+        # Try to get order - handle both pk and order_id from URL
+        order = None
+        order_id_value = None
+        
+        # Extract order ID from various possible sources
+        if pk:
+            order_id_value = pk
+        elif 'order_id' in self.kwargs:
+            order_id_value = self.kwargs['order_id']
+        elif 'pk' in self.kwargs:
+            order_id_value = self.kwargs['pk']
+        elif hasattr(request, 'resolver_match') and request.resolver_match and 'order_id' in request.resolver_match.kwargs:
+            order_id_value = request.resolver_match.kwargs['order_id']
+        elif hasattr(request, 'resolver_match') and request.resolver_match and 'pk' in request.resolver_match.kwargs:
+            order_id_value = request.resolver_match.kwargs['pk']
+        else:
+            # Try to extract from path
+            path_parts = [p for p in request.path.split('/') if p]
+            if 'orders' in path_parts:
+                orders_index = path_parts.index('orders')
+                if orders_index + 1 < len(path_parts):
+                    potential_order_id = path_parts[orders_index + 1]
+                    if len(potential_order_id) >= 32:  # UUID length
+                        order_id_value = potential_order_id
+        
+        print(f"[RECEIPT] Extracted order_id_value: {order_id_value}")
+        
+        if order_id_value:
+            try:
+                # Convert to UUID if it's a string
+                if isinstance(order_id_value, str):
+                    try:
+                        order_id_value = UUID(order_id_value)
+                    except ValueError:
+                        pass
+                
+                # Try direct lookup
+                print(f"[RECEIPT] Attempting direct lookup for order_id: {order_id_value}")
+                order = Order.objects.get(order_id=order_id_value)
+                print(f"[RECEIPT] Order found via direct lookup: {order.order_id}, status: {order.status}")
+            except Order.DoesNotExist:
+                print(f"[RECEIPT] Order not found in database: {order_id_value}")
+                logger.error("Order not found for receipt", extra={
+                    'order_id': str(order_id_value),
+                    'path': request.path,
+                })
+                return Response(
+                    {'error': f'Order with ID {order_id_value} not found.'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            except Exception as e:
+                print(f"[RECEIPT] Error in direct lookup: {str(e)}")
+                logger.error(f"Error in direct order lookup: {str(e)}", exc_info=True)
+        else:
+            # Fallback to get_object() if we couldn't extract order_id
+            try:
+                print(f"[RECEIPT] No order_id extracted, trying get_object()")
+                order = self.get_object()
+                print(f"[RECEIPT] Order found via get_object(): {order.order_id}")
+            except exceptions.NotFound:
+                logger.error("Order not found for receipt (get_object failed)", extra={
+                    'path': request.path,
+                    'kwargs': dict(self.kwargs),
+                })
+                return Response(
+                    {'error': 'Order not found. Please check the order ID.'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            except Exception as e:
+                logger.error(f"Error retrieving order for receipt: {str(e)}", exc_info=True, extra={
+                    'path': request.path,
+                    'error_type': type(e).__name__,
+                })
+                return Response(
+                    {'error': 'Failed to retrieve order.'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+        
+        if not order:
             return Response(
-                {'error': 'Order not found.'},
-                status=status.HTTP_404_NOT_FOUND
+                {'error': 'Could not determine order ID from request.'},
+                status=status.HTTP_400_BAD_REQUEST
             )
-        except Exception as e:
-            logger.error(f"Error retrieving order for receipt: {str(e)}", exc_info=True, extra={
-                'path': request.path,
-                'error_type': type(e).__name__,
-            })
-            return Response(
-                {'error': 'Failed to retrieve order.'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+        
+        logger.info("Order retrieved for receipt", extra={
+            'order_id': str(order.order_id),
+            'order_status': order.status,
+        })
         
         # Check permissions:
         # - Staff can always view receipts
@@ -2120,11 +2158,12 @@ class OrderViewSet(viewsets.ModelViewSet):
             )
     
     @action(detail=True, methods=['post'], permission_classes=[permissions.AllowAny], authentication_classes=[])
-    def initiate_payment(self, request, pk=None):
+    def initiate_payment(self, request, pk=None, **kwargs):
         """Initiate Pesapal payment for an order."""
         print(f"\n[PESAPAL] ========== VIEW: INITIATE PAYMENT START ==========")
         print(f"[PESAPAL] Order PK: {pk}")
         print(f"[PESAPAL] Request Method: {request.method}")
+        print(f"[PESAPAL] Additional kwargs: {kwargs}")
         import json
         print(f"[PESAPAL] Request Data: {json.dumps(request.data, indent=2, default=str)}")
         print(f"[PESAPAL] User Authenticated: {request.user.is_authenticated}")
