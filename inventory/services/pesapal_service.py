@@ -430,17 +430,33 @@ class PesapalService:
             
             error_info = result.get('error')
             if error_info is not None:
+                # Check if error object actually contains error information
+                # Pesapal sometimes returns empty error objects even on success
+                has_actual_error = False
                 if isinstance(error_info, dict):
-                    error_message = error_info.get('message') or error_info.get('error_type') or error_info.get('error_description') or 'Unknown error'
+                    # Check if any error field has a non-null value
+                    has_actual_error = any([
+                        error_info.get('message'),
+                        error_info.get('error_type'),
+                        error_info.get('error_description'),
+                        error_info.get('code')
+                    ])
                 else:
-                    error_message = str(error_info)
-                print(f"[PESAPAL] ========== GET ACCESS TOKEN FAILED ==========")
-                print(f"[PESAPAL] API Error: {error_message}")
-                print(f"[PESAPAL] Full Response: {json.dumps(result, indent=2)}")
-                print(f"[PESAPAL] =============================================\n")
-                logger.error(f"Pesapal API error: {error_message}")
-                logger.error(f"Full error response: {result}")
-                return None
+                    # If it's not a dict, treat it as an error if it's truthy
+                    has_actual_error = bool(error_info)
+                
+                if has_actual_error:
+                    if isinstance(error_info, dict):
+                        error_message = error_info.get('message') or error_info.get('error_type') or error_info.get('error_description') or 'Unknown error'
+                    else:
+                        error_message = str(error_info)
+                    print(f"[PESAPAL] ========== GET ACCESS TOKEN FAILED ==========")
+                    print(f"[PESAPAL] API Error: {error_message}")
+                    print(f"[PESAPAL] Full Response: {json.dumps(result, indent=2)}")
+                    print(f"[PESAPAL] =============================================\n")
+                    logger.error(f"Pesapal API error: {error_message}")
+                    logger.error(f"Full error response: {result}")
+                    return None
             
             token = result.get('token')
             if not token:
@@ -527,14 +543,30 @@ class PesapalService:
             # Check for error in response
             error_info = result.get('error')
             if error_info is not None:
+                # Check if error object actually contains error information
+                # Pesapal sometimes returns empty error objects even on success
+                has_actual_error = False
                 if isinstance(error_info, dict):
-                    error_message = error_info.get('message') or error_info.get('error_type') or error_info.get('error_description') or 'Unknown error'
+                    # Check if any error field has a non-null value
+                    has_actual_error = any([
+                        error_info.get('message'),
+                        error_info.get('error_type'),
+                        error_info.get('error_description'),
+                        error_info.get('code')
+                    ])
                 else:
-                    error_message = str(error_info)
-                print(f"[PESAPAL] ========== SUBMIT ORDER REQUEST FAILED ==========")
-                print(f"[PESAPAL] API Error: {error_message}")
-                print(f"[PESAPAL] ================================================\n")
-                return None, f"Pesapal API error: {error_message}"
+                    # If it's not a dict, treat it as an error if it's truthy
+                    has_actual_error = bool(error_info)
+                
+                if has_actual_error:
+                    if isinstance(error_info, dict):
+                        error_message = error_info.get('message') or error_info.get('error_type') or error_info.get('error_description') or 'Unknown error'
+                    else:
+                        error_message = str(error_info)
+                    print(f"[PESAPAL] ========== SUBMIT ORDER REQUEST FAILED ==========")
+                    print(f"[PESAPAL] API Error: {error_message}")
+                    print(f"[PESAPAL] ================================================\n")
+                    return None, f"Pesapal API error: {error_message}"
             
             # Check for error message at top level
             if 'message' in result and result.get('message') and 'error' in result.get('message', '').lower():
@@ -609,14 +641,30 @@ class PesapalService:
             # Check for error in response
             error_info = result.get('error')
             if error_info is not None:
+                # Check if error object actually contains error information
+                # Pesapal sometimes returns empty error objects even on success
+                has_actual_error = False
                 if isinstance(error_info, dict):
-                    error_message = error_info.get('message') or error_info.get('error_type') or error_info.get('error_description') or 'Unknown error'
+                    # Check if any error field has a non-null value
+                    has_actual_error = any([
+                        error_info.get('message'),
+                        error_info.get('error_type'),
+                        error_info.get('error_description'),
+                        error_info.get('code')
+                    ])
                 else:
-                    error_message = str(error_info)
-                print(f"[PESAPAL] ========== GET TRANSACTION STATUS FAILED ==========")
-                print(f"[PESAPAL] API Error: {error_message}")
-                print(f"[PESAPAL] ===================================================\n")
-                return None, f"Pesapal API error: {error_message}"
+                    # If it's not a dict, treat it as an error if it's truthy
+                    has_actual_error = bool(error_info)
+                
+                if has_actual_error:
+                    if isinstance(error_info, dict):
+                        error_message = error_info.get('message') or error_info.get('error_type') or error_info.get('error_description') or 'Unknown error'
+                    else:
+                        error_message = str(error_info)
+                    print(f"[PESAPAL] ========== GET TRANSACTION STATUS FAILED ==========")
+                    print(f"[PESAPAL] API Error: {error_message}")
+                    print(f"[PESAPAL] ===================================================\n")
+                    return None, f"Pesapal API error: {error_message}"
             
             # Check for error message at top level
             if 'message' in result and result.get('message') and 'error' in result.get('message', '').lower():
