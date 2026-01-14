@@ -2359,13 +2359,20 @@ class OrderReceiptView(APIView):
     
     def dispatch(self, request, *args, **kwargs):
         # #region agent log
-        logger.info(f"DEBUG[C] OrderReceiptView.dispatch ENTRY path={request.path} kwargs={kwargs}")
+        logger.info(f"DEBUG[C] OrderReceiptView.dispatch ENTRY path={request.path} kwargs={kwargs} method={request.method}")
         # #endregion
         try:
-            return super().dispatch(request, *args, **kwargs)
+            # #region agent log
+            logger.info(f"DEBUG[C] OrderReceiptView.dispatch calling super().dispatch()")
+            # #endregion
+            response = super().dispatch(request, *args, **kwargs)
+            # #region agent log
+            logger.info(f"DEBUG[C] OrderReceiptView.dispatch super().dispatch() returned status={response.status_code if hasattr(response, 'status_code') else 'N/A'}")
+            # #endregion
+            return response
         except Exception as e:
             # #region agent log
-            logger.error(f"DEBUG[C] OrderReceiptView.dispatch EXCEPTION {type(e).__name__}: {e}", exc_info=True)
+            logger.error(f"DEBUG[C] OrderReceiptView.dispatch EXCEPTION {type(e).__name__}: {e} args={e.args}", exc_info=True)
             # #endregion
             raise
     
