@@ -2380,6 +2380,31 @@ class OrderReceiptView(APIView):
         2. For unauthenticated users: Order must be PAID
         3. For authenticated users: Must be their own order (unless staff)
         """
+        # #region agent log
+        import json, time
+        log_path = '/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log'
+        try:
+            with open(log_path, 'a') as f:
+                f.write(json.dumps({
+                    'sessionId': 'debug-session',
+                    'runId': 'run1',
+                    'hypothesisId': 'C',
+                    'location': 'inventory/views.py:OrderReceiptView.get',
+                    'message': 'OrderReceiptView.get() called - SUCCESS!',
+                    'data': {
+                        'order_id': str(order_id),
+                        'path': request.path,
+                        'full_path': request.get_full_path(),
+                        'method': request.method,
+                        'resolver_match_route': request.resolver_match.route if hasattr(request, 'resolver_match') and request.resolver_match else None,
+                        'resolver_match_url_name': request.resolver_match.url_name if hasattr(request, 'resolver_match') and request.resolver_match else None,
+                    },
+                    'timestamp': int(time.time() * 1000)
+                }) + '\n')
+        except Exception as e:
+            print(f"[DEBUG] Failed to write log: {e}")
+        # #endregion
+        
         from inventory.models import Order, Receipt
         from inventory.services.receipt_service import ReceiptService
         from rest_framework import status

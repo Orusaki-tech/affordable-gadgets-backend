@@ -1,6 +1,29 @@
 from django.urls import path, include, re_path
 from rest_framework.routers import DefaultRouter
 from . import views
+import json
+import time
+
+# #region agent log
+# Log URL pattern registration
+log_path = '/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log'
+try:
+    with open(log_path, 'a') as f:
+        f.write(json.dumps({
+            'sessionId': 'debug-session',
+            'runId': 'run1',
+            'hypothesisId': 'D',
+            'location': 'inventory/urls.py:module_level',
+            'message': 'URL patterns module loaded',
+            'data': {
+                'OrderReceiptView_exists': hasattr(views, 'OrderReceiptView'),
+                'OrderReceiptView_type': str(type(getattr(views, 'OrderReceiptView', None))),
+            },
+            'timestamp': int(time.time() * 1000)
+        }) + '\n')
+except Exception:
+    pass
+# #endregion
 
 # Initialize the DefaultRouter
 # The router automatically generates URL patterns for your ViewSets
@@ -50,12 +73,34 @@ router.register(r'promotions', views.PromotionViewSet, basename='promotion')
 # --- 2. Define Custom GenericAPIView Paths ---
 
 # These endpoints handle unique actions or single-object retrieval/update.
+# Create receipt pattern before urlpatterns
+receipt_pattern = re_path(r'^orders/(?P<order_id>[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/receipt/?$', views.OrderReceiptView.as_view(), name='order-receipt')
+
+# #region agent log
+# Log that receipt pattern is being registered
+try:
+    with open(log_path, 'a') as f:
+        f.write(json.dumps({
+            'sessionId': 'debug-session',
+            'runId': 'run1',
+            'hypothesisId': 'D',
+            'location': 'inventory/urls.py:urlpatterns',
+            'message': 'Receipt URL pattern registered',
+            'data': {
+                'pattern_str': str(receipt_pattern.pattern) if hasattr(receipt_pattern, 'pattern') else str(receipt_pattern),
+                'pattern_name': receipt_pattern.name if hasattr(receipt_pattern, 'name') else None,
+            },
+            'timestamp': int(time.time() * 1000)
+        }) + '\n')
+except Exception:
+    pass
+# #endregion
+
 urlpatterns = [
     # IMPORTANT: Explicit routes for custom actions must come BEFORE router.urls
     # to ensure they match before the router's generic routes
     # --- Order Receipt Endpoint (Clean implementation) ---
-    # Using re_path to be more explicit about matching
-    re_path(r'^orders/(?P<order_id>[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/receipt/?$', views.OrderReceiptView.as_view(), name='order-receipt'),
+    receipt_pattern,
     
     # Include all generated routes from the DefaultRouter
     path('', include(router.urls)),
