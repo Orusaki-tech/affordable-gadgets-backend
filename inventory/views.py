@@ -2357,9 +2357,26 @@ class OrderReceiptView(APIView):
     permission_classes = [permissions.AllowAny]
     authentication_classes = []
     
+    def initial(self, request, *args, **kwargs):
+        # #region agent log
+        logger.info(f"DEBUG[C] OrderReceiptView.initial ENTRY method={request.method}")
+        # #endregion
+        try:
+            super().initial(request, *args, **kwargs)
+            # #region agent log
+            logger.info(f"DEBUG[C] OrderReceiptView.initial completed successfully")
+            # #endregion
+        except Exception as e:
+            # #region agent log
+            logger.error(f"DEBUG[C] OrderReceiptView.initial EXCEPTION {type(e).__name__}: {e}", exc_info=True)
+            # #endregion
+            raise
+    
     def dispatch(self, request, *args, **kwargs):
         # #region agent log
         logger.info(f"DEBUG[C] OrderReceiptView.dispatch ENTRY path={request.path} kwargs={kwargs} method={request.method}")
+        logger.info(f"DEBUG[C] OrderReceiptView has get method: {hasattr(self, 'get')} get={getattr(self, 'get', None)}")
+        logger.info(f"DEBUG[C] OrderReceiptView http_method_names: {self.http_method_names}")
         # #endregion
         try:
             # #region agent log
