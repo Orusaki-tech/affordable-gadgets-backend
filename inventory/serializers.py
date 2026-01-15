@@ -2247,8 +2247,10 @@ class PromotionSerializer(serializers.ModelSerializer):
                 cloudinary_url = get_optimized_image_url(obj.banner_image, width=1080, height=1920, crop='fill')
                 return cloudinary_url if cloudinary_url else original_url
             
-            # If using Cloudinary storage but URL is local, try to get Cloudinary URL from storage
-            if is_cloudinary_storage and (original_url.startswith('/media/') or original_url.startswith('/static/')):
+            # If using Cloudinary storage but URL is local (relative or absolute), try to get Cloudinary URL from storage
+            is_local_path = (original_url.startswith('/media/') or original_url.startswith('/static/') or 
+                           '/media/' in original_url or '/static/' in original_url)
+            if is_cloudinary_storage and is_local_path:
                 if hasattr(obj.banner_image, 'name') and obj.banner_image.name:
                     try:
                         # Configure Cloudinary

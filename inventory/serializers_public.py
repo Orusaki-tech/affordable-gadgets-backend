@@ -313,6 +313,7 @@ class PublicPromotionSerializer(serializers.ModelSerializer):
         if obj.banner_image:
             from inventory.cloudinary_utils import get_optimized_image_url
             import os
+            import json
             import cloudinary
             from cloudinary import CloudinaryImage
             from django.core.files.storage import default_storage
@@ -323,41 +324,79 @@ class PublicPromotionSerializer(serializers.ModelSerializer):
             
             # Get the URL from the field - Cloudinary storage should return Cloudinary URL
             original_url = obj.banner_image.url
+            # #region agent log
+            try:
+                with open('/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log', 'a') as f:
+                    f.write(json.dumps({"location":"serializers_public.py:311","message":"get_banner_image called","data":{"promotion_id":obj.id,"original_url":original_url,"is_cloudinary_storage":is_cloudinary_storage,"banner_image_name":obj.banner_image.name if hasattr(obj.banner_image, 'name') else None,"is_cloudinary_url":'cloudinary.com' in str(original_url).lower()},"timestamp":int(__import__('time').time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}) + '\n')
+            except: pass
+            # #endregion
             
             # If already a Cloudinary URL, optimize it and return
             if 'cloudinary.com' in original_url or 'res.cloudinary.com' in original_url:
                 cloudinary_url = get_optimized_image_url(obj.banner_image, width=1080, height=1920, crop='fill')
                 return cloudinary_url if cloudinary_url else original_url
             
-            # If using Cloudinary storage but URL is local, try to get Cloudinary URL from storage
-            if is_cloudinary_storage and (original_url.startswith('/media/') or original_url.startswith('/static/')):
+            # If using Cloudinary storage but URL is local (relative or absolute), try to get Cloudinary URL from storage
+            is_local_path = (original_url.startswith('/media/') or original_url.startswith('/static/') or 
+                           '/media/' in original_url or '/static/' in original_url)
+            if is_cloudinary_storage and is_local_path:
                 if hasattr(obj.banner_image, 'name') and obj.banner_image.name:
                     try:
                         # Configure Cloudinary
+                        cloud_name = os.environ.get('CLOUDINARY_CLOUD_NAME')
+                        api_key = os.environ.get('CLOUDINARY_API_KEY')
+                        api_secret = os.environ.get('CLOUDINARY_API_SECRET')
+                        # #region agent log
+                        try:
+                            with open('/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log', 'a') as f:
+                                f.write(json.dumps({"location":"serializers_public.py:330","message":"Attempting to construct Cloudinary URL","data":{"promotion_id":obj.id,"has_cloud_name":bool(cloud_name),"has_api_key":bool(api_key),"has_api_secret":bool(api_secret),"banner_image_name":obj.banner_image.name},"timestamp":int(__import__('time').time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}) + '\n')
+                        except: pass
+                        # #endregion
                         cloudinary.config(
-                            cloud_name=os.environ.get('CLOUDINARY_CLOUD_NAME'),
-                            api_key=os.environ.get('CLOUDINARY_API_KEY'),
-                            api_secret=os.environ.get('CLOUDINARY_API_SECRET'),
+                            cloud_name=cloud_name,
+                            api_key=api_key,
+                            api_secret=api_secret,
                             secure=True
                         )
                         
                         # Get public_id from the image field name
                         # Cloudinary storage uses the upload_to path + filename as public_id
                         public_id = obj.banner_image.name
-                        # Remove file extension for Cloudinary public_id
+                        # #region agent log
+                        try:
+                            with open('/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log', 'a') as f:
+                                f.write(json.dumps({"location":"serializers_public.py:362","message":"Extracting public_id from image name","data":{"promotion_id":obj.id,"image_name":public_id},"timestamp":int(__import__('time').time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}) + '\n')
+                        except: pass
+                        # #endregion
+                        
+                        # Remove file extension for Cloudinary public_id (Cloudinary stores without extension)
                         if '.' in public_id:
                             public_id = public_id.rsplit('.', 1)[0]
                         
-                        # Try to build Cloudinary URL
+                        # Try to build Cloudinary URL with transformations
                         cloudinary_img = CloudinaryImage(public_id)
                         cloudinary_url = cloudinary_img.build_url(transformation=[
                             {'width': 1080, 'height': 1920, 'crop': 'fill', 'quality': 'auto', 'format': 'auto'}
                         ])
+                        # #region agent log
+                        try:
+                            with open('/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log', 'a') as f:
+                                f.write(json.dumps({"location":"serializers_public.py:375","message":"Cloudinary URL constructed","data":{"promotion_id":obj.id,"public_id":public_id,"cloudinary_url":cloudinary_url,"is_valid":'cloudinary.com' in str(cloudinary_url).lower()},"timestamp":int(__import__('time').time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}) + '\n')
+                        except: pass
+                        # #endregion
                         
-                        # Verify it's a valid Cloudinary URL
+                        # Verify it's a valid Cloudinary URL and return it
+                        # Note: Even if image doesn't exist on Cloudinary yet, return the URL
+                        # The frontend can handle 404s with placeholders
                         if cloudinary_url and 'cloudinary.com' in cloudinary_url:
                             return cloudinary_url
                     except Exception as e:
+                        # #region agent log
+                        try:
+                            with open('/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log', 'a') as f:
+                                f.write(json.dumps({"location":"serializers_public.py:360","message":"Cloudinary URL construction failed","data":{"promotion_id":obj.id,"error":str(e)},"timestamp":int(__import__('time').time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}) + '\n')
+                        except: pass
+                        # #endregion
                         # If Cloudinary construction fails, fall back to absolute URL
                         pass
             

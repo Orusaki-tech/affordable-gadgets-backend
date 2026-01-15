@@ -4197,7 +4197,27 @@ class PromotionViewSet(viewsets.ModelViewSet):
                     raise PermissionDenied('You must be assigned to at least one brand to create promotions.')
         
         # Promotion code will be auto-generated in model's save() method if not provided
+        # #region agent log
+        import json
+        import os
+        from django.core.files.storage import default_storage
+        try:
+            with open('/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log', 'a') as f:
+                storage_type = str(type(default_storage))
+                has_banner = 'banner_image' in self.request.data
+                banner_file = self.request.data.get('banner_image')
+                f.write(json.dumps({"location":"views.py:4200","message":"Before promotion save - checking storage and banner_image","data":{"storage_type":storage_type,"is_cloudinary":'cloudinary' in storage_type.lower(),"has_banner_image":has_banner,"banner_image_type":str(type(banner_file)) if banner_file else None,"cloudinary_configured":bool(os.environ.get('CLOUDINARY_CLOUD_NAME'))},"timestamp":int(__import__('time').time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}) + '\n')
+        except: pass
+        # #endregion
         promotion_instance = serializer.save(created_by=admin)
+        # #region agent log
+        try:
+            with open('/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log', 'a') as f:
+                banner_url = promotion_instance.banner_image.url if promotion_instance.banner_image else None
+                banner_name = promotion_instance.banner_image.name if promotion_instance.banner_image else None
+                f.write(json.dumps({"location":"views.py:4203","message":"After promotion save - banner_image URL","data":{"promotion_id":promotion_instance.id,"banner_image_url":banner_url,"banner_image_name":banner_name,"is_cloudinary_url":'cloudinary.com' in str(banner_url).lower() if banner_url else False},"timestamp":int(__import__('time').time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}) + '\n')
+        except: pass
+        # #endregion
         
         # Handle products ManyToMany field (needs to be set after instance is created)
         # Always process products, even if empty (to clear existing associations if needed)
@@ -4234,9 +4254,31 @@ class PromotionViewSet(viewsets.ModelViewSet):
         instance = serializer.instance
         user = self.request.user
         
+        # #region agent log
+        import json
+        import os
+        from django.core.files.storage import default_storage
+        try:
+            with open('/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log', 'a') as f:
+                storage_type = str(type(default_storage))
+                has_banner = 'banner_image' in self.request.data
+                banner_file = self.request.data.get('banner_image')
+                old_banner_url = instance.banner_image.url if instance.banner_image else None
+                f.write(json.dumps({"location":"views.py:4258","message":"Before promotion update - checking storage and banner_image","data":{"promotion_id":instance.id,"storage_type":storage_type,"is_cloudinary":'cloudinary' in storage_type.lower(),"has_banner_image":has_banner,"banner_image_type":str(type(banner_file)) if banner_file else None,"old_banner_url":old_banner_url,"cloudinary_configured":bool(os.environ.get('CLOUDINARY_CLOUD_NAME'))},"timestamp":int(__import__('time').time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}) + '\n')
+        except: pass
+        # #endregion
+        
         # Superusers and global admins can edit any promotion
         if user.is_superuser:
-            serializer.save()
+            promotion_instance = serializer.save()
+            # #region agent log
+            try:
+                with open('/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log', 'a') as f:
+                    banner_url = promotion_instance.banner_image.url if promotion_instance.banner_image else None
+                    banner_name = promotion_instance.banner_image.name if promotion_instance.banner_image else None
+                    f.write(json.dumps({"location":"views.py:4265","message":"After promotion update - banner_image URL","data":{"promotion_id":promotion_instance.id,"banner_image_url":banner_url,"banner_image_name":banner_name,"is_cloudinary_url":'cloudinary.com' in str(banner_url).lower() if banner_url else False},"timestamp":int(__import__('time').time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}) + '\n')
+            except: pass
+            # #endregion
             return
         
         try:
