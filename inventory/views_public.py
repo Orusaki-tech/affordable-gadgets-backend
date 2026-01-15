@@ -647,20 +647,25 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                 # Calculate annotation - but note: this may not count correctly due to ManyToMany complexity
                 # The serializer will use prefetched available_units_list for accurate counts
                 # Annotate with brand_count first (needed for brand filtering)
+                # NOTE: PostgreSQL handles ManyToMany Count differently than SQLite
                 queryset = queryset.annotate(
                     brand_count=Count('brands', distinct=True)
                 )
                 
-                # For available_units_count, min_price, max_price: Use Subquery to count prefetched units
-                # This is more reliable than annotation filters with ManyToMany
-                # But for now, set a placeholder value - serializer will use prefetched list
+                # For available_units_count, min_price, max_price: 
+                # PostgreSQL has issues with ManyToMany annotation filters, so we use placeholders
+                # The serializer will use prefetched available_units_list for accurate values
+                # This avoids PostgreSQL-specific annotation issues that work fine in SQLite
+                from django.db.models import F
                 queryset = queryset.annotate(
-                    available_units_count=Value(1, output_field=IntegerField()),  # Placeholder - serializer uses prefetched list
+                    # Use a simple value that won't break PostgreSQL query evaluation
+                    available_units_count=Value(1, output_field=IntegerField()),
                     min_price=Value(None, output_field=DecimalField()),
                     max_price=Value(None, output_field=DecimalField()),
                 )
                 # IMPORTANT: Serializer uses prefetched available_units_list for accurate counts
                 # The annotation values above are placeholders and don't affect the actual count returned
+                # This is necessary because PostgreSQL handles ManyToMany annotation filters differently than SQLite
                 
                 # Log annotation results using logger (visible in Render logs)
                 import logging
