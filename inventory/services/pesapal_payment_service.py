@@ -399,16 +399,33 @@ class PesapalPaymentService:
                         print(f"[PESAPAL] ✓ Payment verified as completed - Order marked as PAID")
                         logger.info(f"Payment completed and verified for order {payment.order.order_id}")
                         
-                        # Update inventory units from PENDING_PAYMENT to SOLD
-                        from inventory.models import InventoryUnit
+                        # Update inventory units: For accessories, decrement quantity and mark as SOLD if quantity reaches 0
+                        # For unique items, mark as SOLD
+                        from inventory.models import InventoryUnit, Product
                         units_updated = []
                         for order_item in payment.order.order_items.all():
                             unit = order_item.inventory_unit
-                            if unit and unit.sale_status == InventoryUnit.SaleStatusChoices.PENDING_PAYMENT:
-                                unit.sale_status = InventoryUnit.SaleStatusChoices.SOLD
-                                unit.save(update_fields=['sale_status'])
+                            if not unit:
+                                continue
+                            
+                            if unit.product_template.product_type == Product.ProductType.ACCESSORY:
+                                # Accessory: Decrement quantity and mark as SOLD if quantity reaches 0
+                                unit.quantity -= order_item.quantity
+                                if unit.quantity == 0:
+                                    unit.sale_status = InventoryUnit.SaleStatusChoices.SOLD
+                                else:
+                                    # Quantity > 0, keep as AVAILABLE
+                                    unit.sale_status = InventoryUnit.SaleStatusChoices.AVAILABLE
+                                unit.save(update_fields=['quantity', 'sale_status'])
                                 units_updated.append(unit.id)
-                                print(f"[PESAPAL] ✓ Unit {unit.id} updated from PENDING_PAYMENT to SOLD")
+                                print(f"[PESAPAL] ✓ Accessory unit {unit.id} quantity decremented by {order_item.quantity}, new quantity: {unit.quantity}, status: {unit.get_sale_status_display()}")
+                            else:
+                                # Unique item (Phone/Laptop/Tablet): Mark as SOLD
+                                if unit.sale_status == InventoryUnit.SaleStatusChoices.PENDING_PAYMENT:
+                                    unit.sale_status = InventoryUnit.SaleStatusChoices.SOLD
+                                    unit.save(update_fields=['sale_status'])
+                                    units_updated.append(unit.id)
+                                    print(f"[PESAPAL] ✓ Unit {unit.id} updated from PENDING_PAYMENT to SOLD")
                         
                         if units_updated:
                             logger.info(f"Updated {len(units_updated)} inventory units to SOLD for order {payment.order.order_id}")

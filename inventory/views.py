@@ -1966,14 +1966,31 @@ class OrderViewSet(viewsets.ModelViewSet):
             if not order_items.exists():
                 return Response({'error': 'Order has no items'}, status=status.HTTP_400_BAD_REQUEST)
             
-            # Transition all units from PENDING_PAYMENT to SOLD
+            # Update inventory units: For accessories, decrement quantity and mark as SOLD if quantity reaches 0
+            # For unique items, mark as SOLD
+            from inventory.models import Product
             units_updated = []
             for order_item in order_items:
                 unit = order_item.inventory_unit
-                if unit and unit.sale_status == InventoryUnit.SaleStatusChoices.PENDING_PAYMENT:
-                    unit.sale_status = InventoryUnit.SaleStatusChoices.SOLD
-                    unit.save(update_fields=['sale_status'])
+                if not unit:
+                    continue
+                
+                if unit.product_template.product_type == Product.ProductType.ACCESSORY:
+                    # Accessory: Decrement quantity and mark as SOLD if quantity reaches 0
+                    unit.quantity -= order_item.quantity
+                    if unit.quantity == 0:
+                        unit.sale_status = InventoryUnit.SaleStatusChoices.SOLD
+                    else:
+                        # Quantity > 0, keep as AVAILABLE
+                        unit.sale_status = InventoryUnit.SaleStatusChoices.AVAILABLE
+                    unit.save(update_fields=['quantity', 'sale_status'])
                     units_updated.append(unit.id)
+                else:
+                    # Unique item (Phone/Laptop/Tablet): Mark as SOLD
+                    if unit.sale_status == InventoryUnit.SaleStatusChoices.PENDING_PAYMENT:
+                        unit.sale_status = InventoryUnit.SaleStatusChoices.SOLD
+                        unit.save(update_fields=['sale_status'])
+                        units_updated.append(unit.id)
             
             if not units_updated:
                 return Response({

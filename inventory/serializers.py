@@ -751,13 +751,31 @@ class ProductAccessorySerializer(serializers.ModelSerializer):
         from inventory.models import InventoryUnit
         from django.db.models import Min, Max
         
-        available_units = obj.accessory.inventory_units.filter(
+        # For accessories, calculate available quantity accounting for pending orders
+        from django.db.models import Sum, Min, Max
+        from inventory.models import Order
+        
+        # Get all units for this accessory
+        all_units = obj.accessory.inventory_units.filter(
             sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
             available_online=True
         )
         
-        if available_units.exists():
-            prices = available_units.aggregate(
+        # Filter to only units with available quantity > 0 (accounting for pending orders)
+        available_units = []
+        for unit in all_units:
+            pending_orders_qty = OrderItem.objects.filter(
+                inventory_unit=unit,
+                order__status__in=[Order.StatusChoices.PENDING, Order.StatusChoices.PAID]
+            ).aggregate(total=Sum('quantity'))['total'] or 0
+            available_qty = unit.quantity - pending_orders_qty
+            if available_qty > 0:
+                available_units.append(unit)
+        
+        if available_units:
+            prices = InventoryUnit.objects.filter(
+                id__in=[u.id for u in available_units]
+            ).aggregate(
                 min_price=Min('selling_price'),
                 max_price=Max('selling_price')
             )
@@ -788,17 +806,42 @@ class ProductAccessorySerializer(serializers.ModelSerializer):
             logger.info(f"DEBUG[ACCESSORY] Unit ID={unit.id} quantity={unit.quantity} sale_status={unit.sale_status} available_online={unit.available_online}")
         # #endregion
         
-        available_units = InventoryUnit.objects.filter(
+        # For accessories, calculate available quantity accounting for pending orders
+        from django.db.models import Sum
+        from inventory.models import Order
+        
+        # Get all units for this accessory
+        all_units = InventoryUnit.objects.filter(
             product_template=obj.accessory,
-            sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
             available_online=True
         ).select_related('product_color').prefetch_related(
             'images'  # Prefetch all unit images
         )
         
+        # Filter to only units with available quantity > 0 (accounting for pending orders)
+        available_units = []
+        for unit in all_units:
+            # Calculate pending order quantities for this unit
+            pending_orders_qty = OrderItem.objects.filter(
+                inventory_unit=unit,
+                order__status__in=[Order.StatusChoices.PENDING, Order.StatusChoices.PAID]
+            ).aggregate(total=Sum('quantity'))['total'] or 0
+            
+            available_qty = unit.quantity - pending_orders_qty
+            
+            # Only include units with available quantity > 0 and status AVAILABLE
+            if available_qty > 0 and unit.sale_status == InventoryUnit.SaleStatusChoices.AVAILABLE:
+                available_units.append(unit)
+                # #region agent log
+                logger.info(f"DEBUG[ACCESSORY] Unit ID={unit.id} total_qty={unit.quantity} pending={pending_orders_qty} available={available_qty}")
+                # #endregion
+        
         # #region agent log
-        logger.info(f"DEBUG[ACCESSORY] After filtering - Available units count: {available_units.count()}")
-        total_qty = sum(unit.quantity for unit in available_units)
+        logger.info(f"DEBUG[ACCESSORY] After filtering - Available units count: {len(available_units)}")
+        total_qty = sum(unit.quantity - (OrderItem.objects.filter(
+            inventory_unit=unit,
+            order__status__in=[Order.StatusChoices.PENDING, Order.StatusChoices.PAID]
+        ).aggregate(total=Sum('quantity'))['total'] or 0) for unit in available_units)
         logger.info(f"DEBUG[ACCESSORY] Total available quantity: {total_qty}")
         # #endregion
         
@@ -872,10 +915,19 @@ class ProductAccessorySerializer(serializers.ModelSerializer):
                 else:
                     image_url = cloudinary_url
             
+            # Calculate available quantity for this unit (accounting for pending orders)
+            from django.db.models import Sum
+            from inventory.models import Order
+            pending_orders_qty = OrderItem.objects.filter(
+                inventory_unit=unit,
+                order__status__in=[Order.StatusChoices.PENDING, Order.StatusChoices.PAID]
+            ).aggregate(total=Sum('quantity'))['total'] or 0
+            available_qty = unit.quantity - pending_orders_qty
+            
             color_variants[color_id]['units'].append({
                 'unit_id': unit.id,
                 'price': float(unit.selling_price),
-                'quantity': unit.quantity,
+                'quantity': available_qty,  # Show available quantity, not total
                 'condition': unit.condition,
                 'image_url': image_url,
             })
@@ -884,7 +936,7 @@ class ProductAccessorySerializer(serializers.ModelSerializer):
             price = float(unit.selling_price)
             color_variants[color_id]['min_price'] = min(color_variants[color_id]['min_price'], price)
             color_variants[color_id]['max_price'] = max(color_variants[color_id]['max_price'], price)
-            color_variants[color_id]['total_quantity'] += unit.quantity
+            color_variants[color_id]['total_quantity'] += available_qty
         
         # Convert to list and format
         result = []
@@ -1386,21 +1438,30 @@ class OrderSerializer(serializers.ModelSerializer):
                     inventory_unit.save()
 
                 else:
-                    # Accessory - check available quantity and deduct
-                    if quantity > inventory_unit.quantity:
+                    # Accessory - check available quantity (don't deduct yet, wait for payment confirmation)
+                    # Calculate available quantity: total quantity minus pending order quantities
+                    from django.db.models import Sum
+                    pending_orders_qty = OrderItem.objects.filter(
+                        inventory_unit=inventory_unit,
+                        order__status__in=[Order.StatusChoices.PENDING, Order.StatusChoices.PAID]
+                    ).aggregate(total=Sum('quantity'))['total'] or 0
+                    
+                    available_qty = inventory_unit.quantity - pending_orders_qty
+                    
+                    if quantity > available_qty:
                         raise serializers.ValidationError(
-                            f"Accessory unit {inventory_unit.id} only has {inventory_unit.quantity} in stock, "
+                            f"Accessory unit {inventory_unit.id} only has {available_qty} available in stock "
+                            f"(total: {inventory_unit.quantity}, reserved: {pending_orders_qty}), "
                             f"but {quantity} were requested."
                         )
                     
-                    # Deduct quantity from accessory unit
-                    inventory_unit.quantity -= quantity
+                    # For accessories: Don't decrement quantity when order is created
+                    # Keep quantity as is, and keep status as AVAILABLE if quantity > 0
+                    # The ordered quantity is "reserved" via the OrderItem record
+                    # When payment is confirmed, quantity will be decremented
+                    inventory_unit.sale_status = InventoryUnit.SaleStatusChoices.AVAILABLE
                     
-                    # If quantity reaches 0, mark as PENDING_PAYMENT (will be SOLD when payment confirmed)
-                    if inventory_unit.quantity == 0:
-                        inventory_unit.sale_status = InventoryUnit.SaleStatusChoices.PENDING_PAYMENT
-                    
-                    # Clear reservation info for accessories too
+                    # Clear reservation info for accessories
                     inventory_unit.reserved_by = None
                     inventory_unit.reserved_until = None
                     inventory_unit.save()
