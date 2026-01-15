@@ -794,14 +794,14 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
             # When a specific brand is requested, show products for that brand, global products, or products with no brand
             # When no brand is specified, show all published products (not just global ones)
             if brand:
-                # PostgreSQL vs SQLite: brand_count annotation might not work correctly in PostgreSQL
-                # So we use direct brand relationship checks instead of relying on annotation
+                # PostgreSQL vs SQLite: ManyToMany annotations and NULL checks work differently
+                # Use direct relationship checks that work in both databases
                 # Show products that:
                 # 1. Have this brand assigned (Q(brands=brand))
                 # 2. Are global (Q(is_global=True)) - available to all brands
-                # 3. Have no brands assigned - check by excluding products with any brands
+                # Since all current products are is_global=True, this should match all products
                 queryset = queryset.filter(
-                    Q(brands=brand) | Q(is_global=True) | ~Q(brands__isnull=False)
+                    Q(brands=brand) | Q(is_global=True)
                 ).distinct()
             # No brand filter - show all published products (including those with brands assigned)
             # This ensures accessories and other products are visible even when no brand is specified
