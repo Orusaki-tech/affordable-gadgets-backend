@@ -1004,6 +1004,37 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
             import logging
             logger = logging.getLogger(__name__)
             try:
+                # #region agent log - Test queryset evaluation before count
+                try:
+                    import json, time, os
+                    os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
+                    # Try to evaluate queryset to see if it fails in PostgreSQL
+                    try:
+                        test_eval = list(queryset.values('id', 'product_name')[:3])
+                        eval_success = True
+                        eval_error = None
+                    except Exception as eval_err:
+                        test_eval = []
+                        eval_success = False
+                        eval_error = str(eval_err)
+                    with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                        f.write(json.dumps({
+                            "sessionId": "debug-session",
+                            "runId": "run1",
+                            "hypothesisId": "H1,H2,H3,H4,H5",
+                            "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(before_count)",
+                            "message": "Testing queryset evaluation before count()",
+                            "data": {
+                                "eval_success": eval_success,
+                                "eval_error": eval_error,
+                                "test_products": test_eval,
+                                "brand": str(brand) if brand else None
+                            },
+                            "timestamp": int(time.time() * 1000)
+                        }) + "\n")
+                except: pass
+                # #endregion
+                
                 final_count = queryset.count()
                 logger.info(f"FINAL_COUNT: {final_count} products after all filtering")
                 if final_count > 0:
