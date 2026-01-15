@@ -2,7 +2,7 @@
 from rest_framework import viewsets, permissions, status, filters, generics, exceptions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.db.models import Q, Count, Min, Max, Prefetch, Sum, Case, When, IntegerField, Value
+from django.db.models import Q, Count, Min, Max, Prefetch, Sum, Case, When, IntegerField, Value, DecimalField
 from django.db.models.functions import Coalesce
 from decimal import Decimal
 from django.conf import settings
@@ -646,19 +646,21 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                 
                 # Calculate annotation - but note: this may not count correctly due to ManyToMany complexity
                 # The serializer will use prefetched available_units_list for accurate counts
+                # Annotate with brand_count first (needed for brand filtering)
                 queryset = queryset.annotate(
-                    brand_count=Count('brands', distinct=True),
-                    available_units_count=Case(
-                        When(product_type=Product.ProductType.ACCESSORY,
-                             then=Coalesce(Sum('inventory_units__quantity', filter=units_filter), Value(0))),
-                        default=Coalesce(Count('inventory_units', filter=units_filter, distinct=True), Value(0)),
-                        output_field=IntegerField()
-                    ),
-                    min_price=Coalesce(Min('inventory_units__selling_price', filter=units_filter), Value(None)),
-                    max_price=Coalesce(Max('inventory_units__selling_price', filter=units_filter), Value(None)),
+                    brand_count=Count('brands', distinct=True)
                 )
-                # IMPORTANT: Don't filter by available_units_count here - let serializer handle it
-                # Products with annotation=0 might still have units in prefetched list
+                
+                # For available_units_count, min_price, max_price: Use Subquery to count prefetched units
+                # This is more reliable than annotation filters with ManyToMany
+                # But for now, set a placeholder value - serializer will use prefetched list
+                queryset = queryset.annotate(
+                    available_units_count=Value(1, output_field=IntegerField()),  # Placeholder - serializer uses prefetched list
+                    min_price=Value(None, output_field=DecimalField()),
+                    max_price=Value(None, output_field=DecimalField()),
+                )
+                # IMPORTANT: Serializer uses prefetched available_units_list for accurate counts
+                # The annotation values above are placeholders and don't affect the actual count returned
                 
                 # Log annotation results using logger (visible in Render logs)
                 import logging

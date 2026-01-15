@@ -151,11 +151,19 @@ class PublicProductSerializer(serializers.ModelSerializer):
         ).distinct().count()
     
     def get_min_price(self, obj):
-        """Get min price for available units - use annotation if available."""
-        # Use annotation from queryset if available (optimized)
-        if hasattr(obj, 'min_price'):
-            return float(obj.min_price) if obj.min_price is not None else None
-        # Fallback to query (shouldn't happen with optimized queryset)
+        """Get min price for available units - use prefetched list for accurate brand filtering."""
+        # Use prefetched available_units_list if available (correctly filtered by brand)
+        if hasattr(obj, 'available_units_list'):
+            units = obj.available_units_list
+            if units:
+                prices = [float(unit.selling_price) for unit in units]
+                return min(prices) if prices else None
+        
+        # Fallback to annotation (may not be brand-filtered correctly)
+        if hasattr(obj, 'min_price') and obj.min_price is not None:
+            return float(obj.min_price)
+        
+        # Final fallback: query directly
         brand = self.context.get('brand')
         units = obj.inventory_units.filter(
             sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
@@ -167,11 +175,19 @@ class PublicProductSerializer(serializers.ModelSerializer):
         return float(min(prices)) if prices else None
     
     def get_max_price(self, obj):
-        """Get max price for available units - use annotation if available."""
-        # Use annotation from queryset if available (optimized)
-        if hasattr(obj, 'max_price'):
-            return float(obj.max_price) if obj.max_price is not None else None
-        # Fallback to query (shouldn't happen with optimized queryset)
+        """Get max price for available units - use prefetched list for accurate brand filtering."""
+        # Use prefetched available_units_list if available (correctly filtered by brand)
+        if hasattr(obj, 'available_units_list'):
+            units = obj.available_units_list
+            if units:
+                prices = [float(unit.selling_price) for unit in units]
+                return max(prices) if prices else None
+        
+        # Fallback to annotation (may not be brand-filtered correctly)
+        if hasattr(obj, 'max_price') and obj.max_price is not None:
+            return float(obj.max_price)
+        
+        # Final fallback: query directly
         brand = self.context.get('brand')
         units = obj.inventory_units.filter(
             sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
