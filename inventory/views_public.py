@@ -646,11 +646,9 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                 
                 # Calculate annotation - but note: this may not count correctly due to ManyToMany complexity
                 # The serializer will use prefetched available_units_list for accurate counts
-                # Annotate with brand_count first (needed for brand filtering)
-                # NOTE: PostgreSQL handles ManyToMany Count differently than SQLite
-                queryset = queryset.annotate(
-                    brand_count=Count('brands', distinct=True)
-                )
+                # NOTE: We don't annotate brand_count anymore since we use direct relationship checks
+                # PostgreSQL handles ManyToMany Count annotations differently than SQLite
+                # This avoids PostgreSQL-specific issues with annotation evaluation
                 
                 # For available_units_count, min_price, max_price: 
                 # PostgreSQL has issues with ManyToMany annotation filters, so we use placeholders
