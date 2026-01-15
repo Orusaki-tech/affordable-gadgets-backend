@@ -23,7 +23,7 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [permissions.AllowAny]
     filter_backends = [filters.OrderingFilter, filters.SearchFilter]
     search_fields = ['product_name', 'brand', 'product_description']
-    ordering_fields = ['product_name', 'min_price', 'max_price', 'available_units_count']
+    ordering_fields = ['product_name']  # Only order by real fields, not calculated ones
     # Don't set default ordering here - it will be applied in get_queryset after annotations
     lookup_field = 'pk'  # Use primary key for detail view
     
@@ -352,13 +352,9 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                     primary_images_prefetch
                 )
                 
-                # For slug lookups, use placeholder annotations (PostgreSQL compatibility)
+                # For slug lookups, no annotations needed (PostgreSQL compatibility)
                 # Serializer will use prefetched available_units_list for accurate values
-                queryset = queryset.annotate(
-                    available_units_count=Value(1, output_field=IntegerField()),
-                    min_price=Value(None, output_field=DecimalField()),
-                    max_price=Value(None, output_field=DecimalField()),
-                )
+                # Annotations cause PostgreSQL evaluation issues, so we skip them
                 
                 # #region agent log
                 try:
@@ -649,52 +645,43 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                 # This avoids PostgreSQL-specific issues with annotation evaluation
                 
                 # For available_units_count, min_price, max_price: 
-                # PostgreSQL has issues with ManyToMany annotation filters, so we use placeholders
+                # PostgreSQL has issues with ManyToMany annotation filters
                 # The serializer will use prefetched available_units_list for accurate values
+                # We don't add annotations here - they cause PostgreSQL evaluation issues
+                # The serializer calculates everything from prefetched data, which is more reliable
                 # This avoids PostgreSQL-specific annotation issues that work fine in SQLite
-                from django.db.models import F
-                queryset = queryset.annotate(
-                    # Use a simple value that won't break PostgreSQL query evaluation
-                    available_units_count=Value(1, output_field=IntegerField()),
-                    min_price=Value(None, output_field=DecimalField()),
-                    max_price=Value(None, output_field=DecimalField()),
-                )
-                # IMPORTANT: Serializer uses prefetched available_units_list for accurate counts
-                # The annotation values above are placeholders and don't affect the actual count returned
-                # This is necessary because PostgreSQL handles ManyToMany annotation filters differently than SQLite
                 
-                # Log annotation results using logger (visible in Render logs)
+                # Log queryset count (no annotations to log)
                 import logging
                 logger = logging.getLogger(__name__)
                 try:
-                    # Use values() to avoid evaluating full objects
-                    sample_data = list(queryset.values('id', 'product_name', 'available_units_count', 'min_price', 'max_price')[:1])
-                    if sample_data:
-                        p = sample_data[0]
-                        logger.info(f"ANNOTATION_RESULT: Product {p['id']} ({p['product_name']}): available_units_count={p['available_units_count']}, min_price={p['min_price']}, max_price={p['max_price']}")
                     count = queryset.count()
-                    logger.info(f"ANNOTATION_COUNT: Queryset has {count} products after annotation")
+                    logger.info(f"QUERYSET_COUNT: Queryset has {count} products after prefetch (no annotations)")
+                    if count > 0:
+                        sample = queryset.values('id', 'product_name')[:1]
+                        if sample:
+                            p = list(sample)[0]
+                            logger.info(f"QUERYSET_SAMPLE: Product {p['id']} ({p['product_name']})")
                 except Exception as e:
-                    logger.error(f"ANNOTATION_ERROR: {str(e)}", exc_info=True)
+                    logger.error(f"QUERYSET_COUNT_ERROR: {str(e)}", exc_info=True)
                 
-                # #region agent log - After annotations - verify calculation
+                # #region agent log - After prefetch - verify queryset
                 try:
                     sample_after = queryset.first()
                     if sample_after:
+                        prefetched_count = len(sample_after.available_units_list) if hasattr(sample_after, 'available_units_list') else 0
                         os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
                         with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
                             f.write(json.dumps({
                                 "sessionId": "debug-session",
                                 "runId": "run1",
                                 "hypothesisId": "H4",
-                                "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(after_annotate)",
-                                "message": "After annotations - verification",
+                                "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(after_prefetch)",
+                                "message": "After prefetch - verification",
                                 "data": {
                                     "product_id": sample_after.id,
                                     "product_name": sample_after.product_name,
-                                    "annotated_available_units_count": sample_after.available_units_count if hasattr(sample_after, 'available_units_count') else 'NOT_SET',
-                                    "annotated_min_price": float(sample_after.min_price) if hasattr(sample_after, 'min_price') and sample_after.min_price is not None else None,
-                                    "annotated_max_price": float(sample_after.max_price) if hasattr(sample_after, 'max_price') and sample_after.max_price is not None else None,
+                                    "prefetched_units_count": prefetched_count,
                                     "queryset_exists": queryset.exists()
                                 },
                                 "timestamp": int(time.time() * 1000)
@@ -707,8 +694,8 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                                 "sessionId": "debug-session",
                                 "runId": "run1",
                                 "hypothesisId": "H4",
-                                "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(after_annotate_error)",
-                                "message": "Error verifying annotations",
+                                "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(after_prefetch_error)",
+                                "message": "Error verifying prefetch",
                                 "data": {"error": str(e)},
                                 "timestamp": int(time.time() * 1000)
                             }) + "\n")
@@ -732,55 +719,56 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                 # #endregion
                 raise
             
-            # #region agent log - Check annotation values after all filtering
+            # #region agent log - Check prefetched data after all filtering
             try:
                 import json, time, os
                 os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-                # Get first few products and check their annotation values
+                # Get first few products and check their prefetched units
                 # Use values() to avoid full object evaluation
-                sample_products_data = list(queryset.values('id', 'product_name', 'product_type', 'available_units_count', 'min_price', 'max_price')[:5])
-                annotation_data = []
+                sample_products_data = list(queryset.values('id', 'product_name', 'product_type')[:5])
+                prefetch_data = []
                 for p in sample_products_data:
                     try:
-                        annotation_data.append({
+                        product_obj = queryset.filter(id=p['id']).first()
+                        prefetched_count = len(product_obj.available_units_list) if (product_obj and hasattr(product_obj, 'available_units_list')) else 0
+                        prefetch_data.append({
                             "product_id": p['id'],
                             "product_name": p['product_name'],
                             "product_type": p['product_type'],
-                            "available_units_count": p['available_units_count'],
-                            "min_price": float(p['min_price']) if p['min_price'] is not None else None,
-                            "max_price": float(p['max_price']) if p['max_price'] is not None else None,
+                            "prefetched_units_count": prefetched_count,
                         })
                     except Exception as e:
-                        annotation_data.append({
-                            "product_id": p.get('id', 'unknown'),
+                        prefetch_data.append({
+                            "product_id": p.get('id'),
                             "error": str(e)
                         })
                 with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
                     f.write(json.dumps({
                         "sessionId": "debug-session",
                         "runId": "run1",
-                        "hypothesisId": "H5",
-                        "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(annotation_check)",
-                        "message": "Annotation values check after all filtering",
+                        "hypothesisId": "H4",
+                        "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(check_prefetch)",
+                        "message": "Check prefetched data after all filtering",
                         "data": {
-                            "sample_products": annotation_data,
-                            "queryset_exists": queryset.exists()
+                            "prefetch_data": prefetch_data,
+                            "queryset_count": queryset.count()
                         },
                         "timestamp": int(time.time() * 1000)
                     }) + "\n")
             except Exception as e:
-                import os
-                os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-                with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
-                    f.write(json.dumps({
-                        "sessionId": "debug-session",
-                        "runId": "run1",
-                        "hypothesisId": "H5",
-                        "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(annotation_check_exception)",
-                        "message": "Exception checking annotation values",
-                        "data": {"error": str(e), "traceback": traceback.format_exc()},
-                        "timestamp": int(time.time() * 1000)
-                    }) + "\n")
+                try:
+                    os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
+                    with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                        f.write(json.dumps({
+                            "sessionId": "debug-session",
+                            "runId": "run1",
+                            "hypothesisId": "H4",
+                            "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(check_prefetch_error)",
+                            "message": "Error checking prefetch",
+                            "data": {"error": str(e)},
+                            "timestamp": int(time.time() * 1000)
+                        }) + "\n")
+                except: pass
             # #endregion
             
             # #region agent log - Before brand filtering
@@ -968,32 +956,32 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                     # #endregion
                     raise
             
-            # Apply ordering manually to avoid OrderingFilter trying to order by annotation before it exists
-            # The annotation is now present, so we can safely order by it
+            # Apply ordering manually
+            # NOTE: We don't order by available_units_count because it's a placeholder Value(1)
+            # The serializer calculates the real count from prefetched data
+            # Ordering by placeholder values can cause PostgreSQL issues
             ordering_param = self.request.query_params.get('ordering')
             if ordering_param:
                 # User specified ordering - validate and apply
                 # Split the ordering parameter (can be comma-separated)
                 ordering_fields = [f.strip() for f in ordering_param.split(',')]
-                # Validate that all fields are in ordering_fields or are annotations we know about
-                valid_fields = ['product_name', 'min_price', 'max_price', 'available_units_count']
+                # Validate that all fields are in ordering_fields (excluding available_units_count placeholder)
+                valid_fields = ['product_name', 'min_price', 'max_price']
                 validated_ordering = []
                 for field in ordering_fields:
                     # Remove leading - for descending
                     field_name = field.lstrip('-')
                     if field_name in valid_fields:
                         validated_ordering.append(field)
-                    else:
-                        # Invalid field, skip it
-                        pass
+                    # Skip available_units_count - it's a placeholder, not a real value
                 if validated_ordering:
                     queryset = queryset.order_by(*validated_ordering)
                 else:
                     # Invalid ordering, use default
-                    queryset = queryset.order_by('-available_units_count', 'product_name')
+                    queryset = queryset.order_by('product_name')
             else:
-                # No explicit ordering - apply default ordering after annotations
-                queryset = queryset.order_by('-available_units_count', 'product_name')
+                # No explicit ordering - use simple default that works in PostgreSQL
+                queryset = queryset.order_by('product_name')
             
             # Apply search filter (OrderingFilter is handled above)
             for backend in self.filter_backends:
@@ -1038,10 +1026,10 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                 final_count = queryset.count()
                 logger.info(f"FINAL_COUNT: {final_count} products after all filtering")
                 if final_count > 0:
-                    sample_data = list(queryset.values('id', 'product_name', 'available_units_count')[:1])
+                    sample_data = list(queryset.values('id', 'product_name')[:1])
                     if sample_data:
                         p = sample_data[0]
-                        logger.info(f"FINAL_SAMPLE: Product {p['id']} - available_units_count={p['available_units_count']}")
+                        logger.info(f"FINAL_SAMPLE: Product {p['id']} ({p['product_name']})")
                 else:
                     logger.warning(f"FINAL_COUNT_ZERO: No products returned! Initial queryset existed but all were filtered out.")
                     # #region agent log - Why products were filtered out
