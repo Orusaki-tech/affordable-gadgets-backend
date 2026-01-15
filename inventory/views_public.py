@@ -99,37 +99,192 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
             # Check for slug lookup early - if slug is provided, bypass brand filtering
             # This ensures accessories and other products are accessible by slug
             slug = self.request.query_params.get('slug')
-        if slug:
-            # For slug-based lookups, return product directly if it exists and is published
-            # This bypasses brand filtering and available units filtering
-            queryset = super().get_queryset().filter(slug=slug)
+            if slug:
+                # For slug-based lookups, return product directly if it exists and is published
+                # This bypasses brand filtering and available units filtering
+                queryset = super().get_queryset().filter(slug=slug)
             
-            # Still apply optimizations for the single product
+                # Still apply optimizations for the single product
+                brand = getattr(self.request, 'brand', None)
+                available_units_filter = Q(
+                    sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+                    available_online=True
+                )
+                if brand:
+                    available_units_filter &= (Q(brands=brand) | Q(brands__isnull=True))
+                
+                available_units_prefetch = Prefetch(
+                    'inventory_units',
+                    queryset=InventoryUnit.objects.filter(available_units_filter).select_related('product_color'),
+                    to_attr='available_units_list'
+                )
+                primary_images_prefetch = Prefetch(
+                    'images',
+                    queryset=ProductImage.objects.filter(is_primary=True),
+                    to_attr='primary_images_list'
+                )
+                
+                queryset = queryset.prefetch_related(
+                    available_units_prefetch,
+                    primary_images_prefetch
+                )
+                
+                if brand:
+                    units_filter = Q(
+                        inventory_units__sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+                        inventory_units__available_online=True
+                    ) & (Q(inventory_units__brands=brand) | Q(inventory_units__brands__isnull=True))
+                else:
+                    units_filter = Q(
+                        inventory_units__sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+                        inventory_units__available_online=True
+                    )
+                
+                # For accessories, sum quantities; for phones/laptops/tablets, count units
+                queryset = queryset.annotate(
+                    brand_count=Count('brands'),
+                    available_units_count=Case(
+                        When(product_type=Product.ProductType.ACCESSORY,
+                             then=Coalesce(Sum('inventory_units__quantity', filter=units_filter), Value(0))),
+                        default=Count('inventory_units', filter=units_filter, distinct=True),
+                        output_field=IntegerField()
+                    ),
+                    min_price=Min('inventory_units__selling_price', filter=units_filter),
+                    max_price=Max('inventory_units__selling_price', filter=units_filter),
+                )
+                
+                # #region agent log
+                try:
+                    import json, time, os, traceback
+                    os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
+                    accessory_sample = queryset.filter(product_type=Product.ProductType.ACCESSORY).first()
+                    if accessory_sample:
+                        accessory_units = accessory_sample.inventory_units.filter(units_filter)
+                        sum_qty = accessory_units.aggregate(total_qty=Sum('quantity'))['total_qty'] or 0
+                        count_units = accessory_units.count()
+                        with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                            f.write(json.dumps({
+                                "sessionId": "debug-session",
+                                "runId": "pre-fix",
+                                "hypothesisId": "H2",
+                                "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(slug)",
+                                "message": "Public slug count vs quantity",
+                                "data": {
+                                    "product_id": accessory_sample.id,
+                                    "count_units": count_units,
+                                    "sum_quantity": sum_qty,
+                                    "available_units_count": accessory_sample.available_units_count
+                                },
+                                "timestamp": int(time.time() * 1000)
+                            }) + "\n")
+                    else:
+                        with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                            f.write(json.dumps({
+                                "sessionId": "debug-session",
+                                "runId": "pre-fix",
+                                "hypothesisId": "H2",
+                                "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(slug)",
+                                "message": "No accessory found in queryset",
+                                "data": {"queryset_count": queryset.count()},
+                                "timestamp": int(time.time() * 1000)
+                            }) + "\n")
+                except Exception as e:
+                    import os
+                    os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
+                    with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                        f.write(json.dumps({
+                            "sessionId": "debug-session",
+                            "runId": "pre-fix",
+                            "hypothesisId": "H2",
+                            "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(slug)",
+                            "message": "Exception in logging",
+                            "data": {"error": str(e)},
+                            "timestamp": int(time.time() * 1000)
+                        }) + "\n")
+                # #endregion
+                
+                return queryset
+            
+                # Normal queryset filtering for list views
+            queryset = super().get_queryset()
             brand = getattr(self.request, 'brand', None)
+        
+            # #region agent log - After initial queryset
+            try:
+                # Use exists() instead of count() to avoid evaluating queryset
+                initial_exists = queryset.exists()
+                os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
+                with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                    f.write(json.dumps({
+                        "sessionId": "debug-session",
+                        "runId": "run1",
+                        "hypothesisId": "H2",
+                        "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(after_initial)",
+                        "message": "After initial queryset",
+                        "data": {
+                            "initial_exists": initial_exists,
+                            "brand": str(brand),
+                            "brand_id": brand.id if brand else None
+                        },
+                        "timestamp": int(time.time() * 1000)
+                    }) + "\n")
+            except Exception as e:
+                try:
+                    os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
+                    with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                        f.write(json.dumps({
+                            "sessionId": "debug-session",
+                            "runId": "run1",
+                            "hypothesisId": "H1,H4",
+                            "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(after_initial)",
+                            "message": "Exception checking initial queryset",
+                            "data": {"error": str(e), "traceback": traceback.format_exc()},
+                            "timestamp": int(time.time() * 1000)
+                        }) + "\n")
+                except: pass
+            # #endregion
+            
+            # Log for debugging (remove in production)
+            import logging
+            logger = logging.getLogger(__name__)
+            try:
+                logger.info(f"PublicProductViewSet: brand={brand}, initial queryset exists={queryset.exists()}")
+            except Exception:
+                logger.warning(f"PublicProductViewSet: brand={brand}, could not check queryset")
+            
+            # Base filter for available units
             available_units_filter = Q(
                 sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
                 available_online=True
             )
+            
+            # Add brand filter to units if brand is provided
             if brand:
                 available_units_filter &= (Q(brands=brand) | Q(brands__isnull=True))
             
+            # Prefetch available units with brand filtering
             available_units_prefetch = Prefetch(
                 'inventory_units',
                 queryset=InventoryUnit.objects.filter(available_units_filter).select_related('product_color'),
                 to_attr='available_units_list'
             )
+            
+            # Prefetch primary images
             primary_images_prefetch = Prefetch(
                 'images',
                 queryset=ProductImage.objects.filter(is_primary=True),
                 to_attr='primary_images_list'
             )
             
+            # Annotate with aggregated data to avoid N+1 queries
             queryset = queryset.prefetch_related(
                 available_units_prefetch,
                 primary_images_prefetch
             )
             
+            # Annotate with unit counts and prices
             if brand:
+                # Filter units by brand for annotations
                 units_filter = Q(
                     inventory_units__sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
                     inventory_units__available_online=True
@@ -140,22 +295,74 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                     inventory_units__available_online=True
                 )
             
+            # #region agent log - Before annotations
+            try:
+                os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
+                with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                    f.write(json.dumps({
+                        "sessionId": "debug-session",
+                        "runId": "run1",
+                        "hypothesisId": "H4",
+                        "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(before_annotate)",
+                        "message": "Before annotations",
+                        "data": {
+                            "queryset_exists": queryset.exists(),
+                            "has_brand": brand is not None
+                        },
+                        "timestamp": int(time.time() * 1000)
+                    }) + "\n")
+            except: pass
+            # #endregion
+            
             # For accessories, sum quantities; for phones/laptops/tablets, count units
-            queryset = queryset.annotate(
-                brand_count=Count('brands'),
-                available_units_count=Case(
-                    When(product_type=Product.ProductType.ACCESSORY,
-                         then=Coalesce(Sum('inventory_units__quantity', filter=units_filter), Value(0))),
-                    default=Count('inventory_units', filter=units_filter, distinct=True),
-                    output_field=IntegerField()
-                ),
-                min_price=Min('inventory_units__selling_price', filter=units_filter),
-                max_price=Max('inventory_units__selling_price', filter=units_filter),
-            )
+            try:
+                queryset = queryset.annotate(
+                    brand_count=Count('brands', distinct=True),
+                    available_units_count=Case(
+                        When(product_type=Product.ProductType.ACCESSORY,
+                             then=Coalesce(Sum('inventory_units__quantity', filter=units_filter), Value(0))),
+                        default=Coalesce(Count('inventory_units', filter=units_filter, distinct=True), Value(0)),
+                        output_field=IntegerField()
+                    ),
+                    min_price=Coalesce(Min('inventory_units__selling_price', filter=units_filter), Value(None)),
+                    max_price=Coalesce(Max('inventory_units__selling_price', filter=units_filter), Value(None)),
+                )
+                # #region agent log - After annotations
+                try:
+                    os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
+                    with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                        f.write(json.dumps({
+                            "sessionId": "debug-session",
+                            "runId": "run1",
+                            "hypothesisId": "H4",
+                            "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(after_annotate)",
+                            "message": "After annotations - success",
+                            "data": {"queryset_exists": queryset.exists()},
+                            "timestamp": int(time.time() * 1000)
+                        }) + "\n")
+                except: pass
+                # #endregion
+            except Exception as e:
+                # #region agent log - Annotation exception
+                try:
+                    os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
+                    with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                        f.write(json.dumps({
+                            "sessionId": "debug-session",
+                            "runId": "run1",
+                            "hypothesisId": "H1,H4",
+                            "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(annotate_exception)",
+                            "message": "Exception during annotations",
+                            "data": {"error": str(e), "traceback": traceback.format_exc()},
+                            "timestamp": int(time.time() * 1000)
+                        }) + "\n")
+                except: pass
+                # #endregion
+                raise
             
             # #region agent log
             try:
-                import json, time, os, traceback
+                import json, time, os
                 os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
                 accessory_sample = queryset.filter(product_type=Product.ProductType.ACCESSORY).first()
                 if accessory_sample:
@@ -167,25 +374,14 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                             "sessionId": "debug-session",
                             "runId": "pre-fix",
                             "hypothesisId": "H2",
-                            "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(slug)",
-                            "message": "Public slug count vs quantity",
+                            "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(list)",
+                            "message": "Public list count vs quantity",
                             "data": {
                                 "product_id": accessory_sample.id,
                                 "count_units": count_units,
                                 "sum_quantity": sum_qty,
                                 "available_units_count": accessory_sample.available_units_count
                             },
-                            "timestamp": int(time.time() * 1000)
-                        }) + "\n")
-                else:
-                    with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
-                        f.write(json.dumps({
-                            "sessionId": "debug-session",
-                            "runId": "pre-fix",
-                            "hypothesisId": "H2",
-                            "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(slug)",
-                            "message": "No accessory found in queryset",
-                            "data": {"queryset_count": queryset.count()},
                             "timestamp": int(time.time() * 1000)
                         }) + "\n")
             except Exception as e:
@@ -196,341 +392,91 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                         "sessionId": "debug-session",
                         "runId": "pre-fix",
                         "hypothesisId": "H2",
-                        "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(slug)",
+                        "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(list)",
                         "message": "Exception in logging",
                         "data": {"error": str(e)},
                         "timestamp": int(time.time() * 1000)
                     }) + "\n")
             # #endregion
             
-            return queryset
-        
-        # Normal queryset filtering for list views
-        queryset = super().get_queryset()
-        brand = getattr(self.request, 'brand', None)
-        
-        # #region agent log - After initial queryset
-        try:
-            initial_count = queryset.count()
-            os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-            with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
-                f.write(json.dumps({
-                    "sessionId": "debug-session",
-                    "runId": "run1",
-                    "hypothesisId": "H2",
-                    "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(after_initial)",
-                    "message": "After initial queryset",
-                    "data": {
-                        "initial_count": initial_count,
-                        "brand": str(brand),
-                        "brand_id": brand.id if brand else None
-                    },
-                    "timestamp": int(time.time() * 1000)
-                }) + "\n")
-        except Exception as e:
+            # #region agent log - Before brand filtering
             try:
+                before_brand_exists = queryset.exists()
                 os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
                 with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
                     f.write(json.dumps({
                         "sessionId": "debug-session",
                         "runId": "run1",
-                        "hypothesisId": "H1,H4",
-                        "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(after_initial)",
-                        "message": "Exception counting initial queryset",
-                        "data": {"error": str(e), "traceback": traceback.format_exc()},
-                        "timestamp": int(time.time() * 1000)
-                    }) + "\n")
-            except: pass
-        # #endregion
-        
-        # Log for debugging (remove in production)
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.info(f"PublicProductViewSet: brand={brand}, initial queryset count={queryset.count()}")
-        
-        # Base filter for available units
-        available_units_filter = Q(
-            sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
-            available_online=True
-        )
-        
-        # Add brand filter to units if brand is provided
-        if brand:
-            available_units_filter &= (Q(brands=brand) | Q(brands__isnull=True))
-        
-        # Prefetch available units with brand filtering
-        available_units_prefetch = Prefetch(
-            'inventory_units',
-            queryset=InventoryUnit.objects.filter(available_units_filter).select_related('product_color'),
-            to_attr='available_units_list'
-        )
-        
-        # Prefetch primary images
-        primary_images_prefetch = Prefetch(
-            'images',
-            queryset=ProductImage.objects.filter(is_primary=True),
-            to_attr='primary_images_list'
-        )
-        
-        # Annotate with aggregated data to avoid N+1 queries
-        queryset = queryset.prefetch_related(
-            available_units_prefetch,
-            primary_images_prefetch
-        )
-        
-        # Annotate with unit counts and prices
-        if brand:
-            # Filter units by brand for annotations
-            units_filter = Q(
-                inventory_units__sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
-                inventory_units__available_online=True
-            ) & (Q(inventory_units__brands=brand) | Q(inventory_units__brands__isnull=True))
-        else:
-            units_filter = Q(
-                inventory_units__sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
-                inventory_units__available_online=True
-            )
-        
-        # #region agent log - Before annotations
-        try:
-            os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-            with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
-                f.write(json.dumps({
-                    "sessionId": "debug-session",
-                    "runId": "run1",
-                    "hypothesisId": "H4",
-                    "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(before_annotate)",
-                    "message": "Before annotations",
-                    "data": {
-                        "queryset_count": queryset.count(),
-                        "has_brand": brand is not None
-                    },
-                    "timestamp": int(time.time() * 1000)
-                }) + "\n")
-        except: pass
-        # #endregion
-        
-        # For accessories, sum quantities; for phones/laptops/tablets, count units
-        try:
-            queryset = queryset.annotate(
-                brand_count=Count('brands'),
-                available_units_count=Case(
-                    When(product_type=Product.ProductType.ACCESSORY,
-                         then=Coalesce(Sum('inventory_units__quantity', filter=units_filter), Value(0))),
-                    default=Count('inventory_units', filter=units_filter, distinct=True),
-                    output_field=IntegerField()
-                ),
-                min_price=Min('inventory_units__selling_price', filter=units_filter),
-                max_price=Max('inventory_units__selling_price', filter=units_filter),
-            )
-            # #region agent log - After annotations
-            try:
-                os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-                with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
-                    f.write(json.dumps({
-                        "sessionId": "debug-session",
-                        "runId": "run1",
-                        "hypothesisId": "H4",
-                        "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(after_annotate)",
-                        "message": "After annotations - success",
-                        "data": {"queryset_count": queryset.count()},
-                        "timestamp": int(time.time() * 1000)
-                    }) + "\n")
-            except: pass
-            # #endregion
-        except Exception as e:
-            # #region agent log - Annotation exception
-            try:
-                os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-                with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
-                    f.write(json.dumps({
-                        "sessionId": "debug-session",
-                        "runId": "run1",
-                        "hypothesisId": "H1,H4",
-                        "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(annotate_exception)",
-                        "message": "Exception during annotations",
-                        "data": {"error": str(e), "traceback": traceback.format_exc()},
-                        "timestamp": int(time.time() * 1000)
-                    }) + "\n")
-            except: pass
-            # #endregion
-            raise
-        
-        # #region agent log
-        try:
-            import json, time, os
-            os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-            accessory_sample = queryset.filter(product_type=Product.ProductType.ACCESSORY).first()
-            if accessory_sample:
-                accessory_units = accessory_sample.inventory_units.filter(units_filter)
-                sum_qty = accessory_units.aggregate(total_qty=Sum('quantity'))['total_qty'] or 0
-                count_units = accessory_units.count()
-                with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
-                    f.write(json.dumps({
-                        "sessionId": "debug-session",
-                        "runId": "pre-fix",
                         "hypothesisId": "H2",
-                        "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(list)",
-                        "message": "Public list count vs quantity",
+                        "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(before_brand_filter)",
+                        "message": "Before brand filtering",
                         "data": {
-                            "product_id": accessory_sample.id,
-                            "count_units": count_units,
-                            "sum_quantity": sum_qty,
-                            "available_units_count": accessory_sample.available_units_count
-                        },
-                        "timestamp": int(time.time() * 1000)
-                    }) + "\n")
-        except Exception as e:
-            import os
-            os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-            with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
-                f.write(json.dumps({
-                    "sessionId": "debug-session",
-                    "runId": "pre-fix",
-                    "hypothesisId": "H2",
-                    "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(list)",
-                    "message": "Exception in logging",
-                    "data": {"error": str(e)},
-                    "timestamp": int(time.time() * 1000)
-                }) + "\n")
-        # #endregion
-        
-        # #region agent log - Before brand filtering
-        try:
-            before_brand_count = queryset.count()
-            os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-            with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
-                f.write(json.dumps({
-                    "sessionId": "debug-session",
-                    "runId": "run1",
-                    "hypothesisId": "H2",
-                    "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(before_brand_filter)",
-                    "message": "Before brand filtering",
-                    "data": {
-                        "count": before_brand_count,
-                        "brand": str(brand),
-                        "will_filter": brand is not None
-                    },
-                    "timestamp": int(time.time() * 1000)
-                }) + "\n")
-        except: pass
-        # #endregion
-        
-        # Brand filtering
-        # When a specific brand is requested, show products for that brand, global products, or products with no brand
-        # When no brand is specified, show all published products (not just global ones)
-        if brand:
-            queryset = queryset.filter(
-                Q(brands=brand) | Q(is_global=True) | Q(brand_count=0)
-            ).distinct()
-        # No brand filter - show all published products (including those with brands assigned)
-        # This ensures accessories and other products are visible even when no brand is specified
-        
-        # #region agent log - After brand filtering
-        try:
-            after_brand_count = queryset.count()
-            os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-            with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
-                f.write(json.dumps({
-                    "sessionId": "debug-session",
-                    "runId": "run1",
-                    "hypothesisId": "H2",
-                    "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(after_brand_filter)",
-                    "message": "After brand filtering",
-                    "data": {
-                        "count": after_brand_count,
-                        "brand": str(brand)
-                    },
-                    "timestamp": int(time.time() * 1000)
-                }) + "\n")
-        except: pass
-        # #endregion
-        
-        # Additional filters
-        product_type = self.request.query_params.get('type')
-        if product_type:
-            queryset = queryset.filter(product_type=product_type)
-        
-        brand_filter = self.request.query_params.get('brand_filter')
-        if brand_filter:
-            queryset = queryset.filter(brand__icontains=brand_filter)
-        
-        # Price range filtering
-        min_price = self.request.query_params.get('min_price')
-        max_price = self.request.query_params.get('max_price')
-        if min_price:
-            try:
-                queryset = queryset.filter(min_price__gte=float(min_price))
-            except (ValueError, TypeError):
-                pass
-        if max_price:
-            try:
-                queryset = queryset.filter(max_price__lte=float(max_price))
-            except (ValueError, TypeError):
-                pass
-        
-        # Promotion filtering
-        promotion_id = self.request.query_params.get('promotion')
-        if promotion_id:
-            # #region agent log - Before promotion filtering
-            try:
-                os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-                with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
-                    f.write(json.dumps({
-                        "sessionId": "debug-session",
-                        "runId": "run1",
-                        "hypothesisId": "H3",
-                        "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(before_promotion)",
-                        "message": "Before promotion filtering",
-                        "data": {
-                            "promotion_id": promotion_id,
+                            "exists": before_brand_exists,
                             "brand": str(brand),
-                            "brand_is_none": brand is None,
-                            "queryset_count": queryset.count()
+                            "will_filter": brand is not None
                         },
                         "timestamp": int(time.time() * 1000)
                     }) + "\n")
             except: pass
             # #endregion
+            
+            # Brand filtering
+            # When a specific brand is requested, show products for that brand, global products, or products with no brand
+            # When no brand is specified, show all published products (not just global ones)
+            if brand:
+                queryset = queryset.filter(
+                    Q(brands=brand) | Q(is_global=True) | Q(brand_count=0)
+                ).distinct()
+            # No brand filter - show all published products (including those with brands assigned)
+            # This ensures accessories and other products are visible even when no brand is specified
+            
+            # #region agent log - After brand filtering
             try:
-                if brand is None:
-                    # #region agent log - Promotion with None brand
-                    try:
-                        os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-                        with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
-                            f.write(json.dumps({
-                                "sessionId": "debug-session",
-                                "runId": "run1",
-                                "hypothesisId": "H3",
-                                "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(promotion_none_brand)",
-                                "message": "Promotion query with None brand - will fail",
-                                "data": {"promotion_id": promotion_id},
-                                "timestamp": int(time.time() * 1000)
-                            }) + "\n")
-                    except: pass
-                    # #endregion
-                    queryset = queryset.none()
-                else:
-                    promotion = Promotion.objects.get(id=int(promotion_id), brand=brand, is_active=True)
-                    # Check if promotion is currently active (within date range)
-                    from django.utils import timezone
-                    now = timezone.now()
-                    if promotion.start_date <= now <= promotion.end_date:
-                        # Filter by promotion's products or product_types
-                        if promotion.products.exists():
-                            # Filter by specific products
-                            queryset = queryset.filter(id__in=promotion.products.values_list('id', flat=True))
-                        elif promotion.product_types:
-                            # Filter by product type
-                            queryset = queryset.filter(product_type=promotion.product_types)
-                        else:
-                            # No products or product_types specified - return empty
-                            queryset = queryset.none()
-                    else:
-                        # Promotion not currently active - return empty
-                        queryset = queryset.none()
-            except (Promotion.DoesNotExist, ValueError, TypeError) as e:
-                # #region agent log - Promotion exception
+                after_brand_exists = queryset.exists()
+                os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
+                with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                    f.write(json.dumps({
+                        "sessionId": "debug-session",
+                        "runId": "run1",
+                        "hypothesisId": "H2",
+                        "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(after_brand_filter)",
+                        "message": "After brand filtering",
+                        "data": {
+                            "exists": after_brand_exists,
+                            "brand": str(brand)
+                        },
+                        "timestamp": int(time.time() * 1000)
+                    }) + "\n")
+            except: pass
+            # #endregion
+            
+            # Additional filters
+            product_type = self.request.query_params.get('type')
+            if product_type:
+                queryset = queryset.filter(product_type=product_type)
+            
+            brand_filter = self.request.query_params.get('brand_filter')
+            if brand_filter:
+                queryset = queryset.filter(brand__icontains=brand_filter)
+            
+            # Price range filtering
+            min_price = self.request.query_params.get('min_price')
+            max_price = self.request.query_params.get('max_price')
+            if min_price:
+                try:
+                    queryset = queryset.filter(min_price__gte=float(min_price))
+                except (ValueError, TypeError):
+                    pass
+            if max_price:
+                try:
+                    queryset = queryset.filter(max_price__lte=float(max_price))
+                except (ValueError, TypeError):
+                    pass
+            
+            # Promotion filtering
+            promotion_id = self.request.query_params.get('promotion')
+            if promotion_id:
+                # #region agent log - Before promotion filtering
                 try:
                     os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
                     with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
@@ -538,80 +484,144 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                             "sessionId": "debug-session",
                             "runId": "run1",
                             "hypothesisId": "H3",
-                            "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(promotion_exception)",
-                            "message": "Promotion query exception",
+                            "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(before_promotion)",
+                            "message": "Before promotion filtering",
                             "data": {
-                                "error": str(e),
-                                "error_type": type(e).__name__,
                                 "promotion_id": promotion_id,
-                                "brand": str(brand)
+                                "brand": str(brand),
+                                "brand_is_none": brand is None,
+                                "queryset_exists": queryset.exists()
                             },
                             "timestamp": int(time.time() * 1000)
                         }) + "\n")
                 except: pass
                 # #endregion
-                # Invalid promotion ID - return empty
-                queryset = queryset.none()
+                try:
+                    if brand is None:
+                        # #region agent log - Promotion with None brand
+                        try:
+                            os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
+                            with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                                f.write(json.dumps({
+                                    "sessionId": "debug-session",
+                                    "runId": "run1",
+                                    "hypothesisId": "H3",
+                                    "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(promotion_none_brand)",
+                                    "message": "Promotion query with None brand - will fail",
+                                    "data": {"promotion_id": promotion_id},
+                                    "timestamp": int(time.time() * 1000)
+                                }) + "\n")
+                        except: pass
+                        # #endregion
+                        queryset = queryset.none()
+                    else:
+                        promotion = Promotion.objects.get(id=int(promotion_id), brand=brand, is_active=True)
+                        # Check if promotion is currently active (within date range)
+                        from django.utils import timezone
+                        now = timezone.now()
+                        if promotion.start_date <= now <= promotion.end_date:
+                            # Filter by promotion's products or product_types
+                            if promotion.products.exists():
+                                # Filter by specific products
+                                queryset = queryset.filter(id__in=promotion.products.values_list('id', flat=True))
+                            elif promotion.product_types:
+                                # Filter by product type
+                                queryset = queryset.filter(product_type=promotion.product_types)
+                            else:
+                                # No products or product_types specified - return empty
+                                queryset = queryset.none()
+                        else:
+                            # Promotion not currently active - return empty
+                            queryset = queryset.none()
+                except (Promotion.DoesNotExist, ValueError, TypeError) as e:
+                    # #region agent log - Promotion exception
+                    try:
+                        os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
+                        with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                            f.write(json.dumps({
+                                "sessionId": "debug-session",
+                                "runId": "run1",
+                                "hypothesisId": "H3",
+                                "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(promotion_exception)",
+                                "message": "Promotion query exception",
+                                "data": {
+                                    "error": str(e),
+                                    "error_type": type(e).__name__,
+                                    "promotion_id": promotion_id,
+                                    "brand": str(brand)
+                                },
+                                "timestamp": int(time.time() * 1000)
+                            }) + "\n")
+                    except: pass
+                    # #endregion
+                    # Invalid promotion ID - return empty
+                    queryset = queryset.none()
+                except Exception as e:
+                    # #region agent log - Unexpected promotion exception
+                    try:
+                        os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
+                        with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                            f.write(json.dumps({
+                                "sessionId": "debug-session",
+                                "runId": "run1",
+                                "hypothesisId": "H1,H3",
+                                "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(promotion_unexpected)",
+                                "message": "Unexpected exception in promotion filtering",
+                                "data": {
+                                    "error": str(e),
+                                    "error_type": type(e).__name__,
+                                    "traceback": traceback.format_exc()
+                                },
+                                "timestamp": int(time.time() * 1000)
+                            }) + "\n")
+                    except: pass
+                    # #endregion
+                    raise
+            
+            # Apply ordering (from OrderingFilter)
+            queryset = self.filter_queryset(queryset)
+            
+            # #region agent log - Final queryset before return
+            try:
+                final_exists = queryset.exists()
+                # Only try to get sample IDs if queryset exists, and limit to avoid evaluation issues
+                sample_ids = []
+                if final_exists:
+                    try:
+                        sample_ids = list(queryset.values_list('id', flat=True)[:5])
+                    except Exception:
+                        sample_ids = ["error_getting_ids"]
+                os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
+                with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                    f.write(json.dumps({
+                        "sessionId": "debug-session",
+                        "runId": "run1",
+                        "hypothesisId": "H5",
+                        "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(final)",
+                        "message": "Final queryset before return",
+                        "data": {
+                            "final_exists": final_exists,
+                            "sample_ids": sample_ids
+                        },
+                        "timestamp": int(time.time() * 1000)
+                    }) + "\n")
             except Exception as e:
-                # #region agent log - Unexpected promotion exception
                 try:
                     os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
                     with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
                         f.write(json.dumps({
                             "sessionId": "debug-session",
                             "runId": "run1",
-                            "hypothesisId": "H1,H3",
-                            "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(promotion_unexpected)",
-                            "message": "Unexpected exception in promotion filtering",
-                            "data": {
-                                "error": str(e),
-                                "error_type": type(e).__name__,
-                                "traceback": traceback.format_exc()
-                            },
+                            "hypothesisId": "H1",
+                            "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(final_exception)",
+                            "message": "Exception checking final queryset",
+                            "data": {"error": str(e), "traceback": traceback.format_exc()},
                             "timestamp": int(time.time() * 1000)
                         }) + "\n")
                 except: pass
-                # #endregion
-                raise
-        
-        # Apply ordering (from OrderingFilter)
-        queryset = self.filter_queryset(queryset)
-        
-        # #region agent log - Final queryset before return
-        try:
-            final_count = queryset.count()
-            sample_ids = list(queryset.values_list('id', flat=True)[:5])
-            os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-            with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
-                f.write(json.dumps({
-                    "sessionId": "debug-session",
-                    "runId": "run1",
-                    "hypothesisId": "H5",
-                    "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(final)",
-                    "message": "Final queryset before return",
-                    "data": {
-                        "final_count": final_count,
-                        "sample_ids": sample_ids
-                    },
-                    "timestamp": int(time.time() * 1000)
-                }) + "\n")
-        except Exception as e:
-            try:
-                os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-                with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
-                    f.write(json.dumps({
-                        "sessionId": "debug-session",
-                        "runId": "run1",
-                        "hypothesisId": "H1",
-                        "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(final_exception)",
-                        "message": "Exception getting final count",
-                        "data": {"error": str(e), "traceback": traceback.format_exc()},
-                        "timestamp": int(time.time() * 1000)
-                    }) + "\n")
-            except: pass
-        # #endregion
-        
-        return queryset
+            # #endregion
+            
+            return queryset
         except Exception as e:
             # #region agent log - Top level exception
             try:
