@@ -78,21 +78,27 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                     )
                 })
             
-            with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
-                f.write(json.dumps({
-                    "sessionId": "debug-session",
-                    "runId": "run1",
-                    "hypothesisId": "H1,H2,H3,H4,H5",
-                    "location": "inventory/views_public.py:PublicProductViewSet._log_all_products_debug",
-                    "message": "All products in database (first 10) - comprehensive check",
-                    "data": {
-                        "total_products_in_db": Product.objects.count(),
-                        "brand_code": brand_code,
-                        "brand": str(brand) if brand else None,
-                        "products": products_with_details
-                    },
-                    "timestamp": int(time.time() * 1000)
-                }) + "\n")
+            log_entry = {
+                "sessionId": "debug-session",
+                "runId": "run1",
+                "hypothesisId": "H1,H2,H3,H4,H5",
+                "location": "inventory/views_public.py:PublicProductViewSet._log_all_products_debug",
+                "message": "All products in database (first 10) - comprehensive check",
+                "data": {
+                    "total_products_in_db": Product.objects.count(),
+                    "brand_code": brand_code,
+                    "brand": str(brand) if brand else None,
+                    "products": products_with_details
+                },
+                "timestamp": int(time.time() * 1000)
+            }
+            # Log to file (local) and stdout (Render logs)
+            try:
+                with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                    f.write(json.dumps(log_entry) + "\n")
+            except: pass
+            # Also print to stdout for Render logs
+            print(f"[DEBUG] {json.dumps(log_entry)}")
         except Exception as e:
             try:
                 os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
