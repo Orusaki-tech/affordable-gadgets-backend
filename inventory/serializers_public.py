@@ -90,11 +90,21 @@ class PublicProductSerializer(serializers.ModelSerializer):
         return [tag.name for tag in obj.tags.all()]
     
     def get_available_units_count(self, obj):
-        """Count available units for current brand - use annotation if available."""
-        # Use annotation from queryset if available (optimized)
+        """Count available units for current brand - use prefetched list for accurate brand filtering."""
+        # Use prefetched available_units_list if available (correctly filtered by brand)
+        if hasattr(obj, 'available_units_list'):
+            units = obj.available_units_list
+            # For accessories, sum quantities; for phones/laptops/tablets, count units
+            if obj.product_type == Product.ProductType.ACCESSORY:
+                return sum(unit.quantity for unit in units)
+            else:
+                return len(units)
+        
+        # Fallback to annotation (may not be brand-filtered correctly)
         if hasattr(obj, 'available_units_count'):
             return obj.available_units_count or 0
-        # Fallback to query (shouldn't happen with optimized queryset)
+        
+        # Final fallback: query directly
         brand = self.context.get('brand')
         units = obj.inventory_units.filter(
             sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
