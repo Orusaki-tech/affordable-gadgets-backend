@@ -39,34 +39,34 @@ class Command(BaseCommand):
             ~Q(available_online=True)
         )
         
+        self.stdout.write(f"  Found {units_to_fix.count()} units that need fixing")
+        
         fixed_count = 0
+        # Use bulk_update for better performance
+        units_to_update = []
         for unit in units_to_fix:
-            changes = []
+            changed = False
             if unit.sale_status != InventoryUnit.SaleStatusChoices.AVAILABLE:
                 old_status = unit.get_sale_status_display()
-                changes.append(f"sale_status: {old_status} → AVAILABLE")
-                if not dry_run:
-                    unit.sale_status = InventoryUnit.SaleStatusChoices.AVAILABLE
+                self.stdout.write(f"  Unit {unit.id} ({unit.product_template.product_name}): sale_status {old_status} → AVAILABLE")
+                unit.sale_status = InventoryUnit.SaleStatusChoices.AVAILABLE
+                changed = True
             
             if not unit.available_online:
-                changes.append("available_online: False → True")
-                if not dry_run:
-                    unit.available_online = True
+                self.stdout.write(f"  Unit {unit.id} ({unit.product_template.product_name}): available_online False → True")
+                unit.available_online = True
+                changed = True
             
-            if changes:
-                self.stdout.write(f"  Unit {unit.id} ({unit.product_template.product_name}): {', '.join(changes)}")
-                if not dry_run:
-                    unit.save()
+            if changed:
+                units_to_update.append(unit)
                 fixed_count += 1
         
-        if fixed_count > 0:
-            if dry_run:
-                self.stdout.write(self.style.WARNING(f'  Would fix {fixed_count} units'))
-            else:
-                self.stdout.write(self.style.SUCCESS(f'  ✅ Fixed {fixed_count} units'))
-        else:
-            self.stdout.write(self.style.SUCCESS('  ✅ All units are already available and online'))
-        self.stdout.write('')
+        if units_to_update and not dry_run:
+            InventoryUnit.objects.bulk_update(units_to_update, ['sale_status', 'available_online'])
+            self.stdout.write(self.style.SUCCESS(f'  ✅ Fixed {fixed_count} units'))
+        elif fixed_count > 0:
+            self.stdout.write(self.style.WARNING(f'  Would fix {fixed_count} units (dry run)'))
+        
         
         # 2. Ensure products are published
         self.stdout.write('2. Checking products...')

@@ -411,6 +411,9 @@ class InventoryUnitViewSet(viewsets.ModelViewSet):
         """
         Admin action to approve a RETURNED buyback item and make it AVAILABLE.
         Only buyback items (source=BB) with status RETURNED can be approved.
+        
+        Note: If a pending ReturnRequest exists for this unit, it should be approved via
+        the ReturnRequestViewSet instead to maintain proper workflow.
         """
         unit = self.get_object()
         
@@ -423,6 +426,21 @@ class InventoryUnitViewSet(viewsets.ModelViewSet):
         if unit.source != InventoryUnit.SourceChoices.BUYBACK_CUSTOMER:
             return Response(
                 {"error": "Only buyback items can be approved."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if there's a pending ReturnRequest for this unit
+        pending_request = unit.return_requests.filter(
+            status=ReturnRequest.StatusChoices.PENDING
+        ).first()
+        
+        if pending_request:
+            return Response(
+                {
+                    "error": "This unit has a pending ReturnRequest. Please approve the ReturnRequest instead to maintain proper workflow.",
+                    "return_request_id": pending_request.id,
+                    "return_request_url": f"/api/inventory/return-requests/{pending_request.id}/"
+                },
                 status=status.HTTP_400_BAD_REQUEST
             )
         
@@ -645,6 +663,19 @@ class InventoryUnitViewSet(viewsets.ModelViewSet):
                             failed_count += 1
                             continue
                         
+                        # Determine source (default to EXTERNAL_SUPPLIER if not provided)
+                        source = row.get('Source', InventoryUnit.SourceChoices.EXTERNAL_SUPPLIER)
+                        if source not in [choice[0] for choice in InventoryUnit.SourceChoices.choices]:
+                            source = InventoryUnit.SourceChoices.EXTERNAL_SUPPLIER
+                        
+                        # Auto-set sale_status based on source:
+                        # - Buyback (BB) → RETURNED (needs admin approval via ReturnRequest)
+                        # - Supplier/Import (SU/IM) → AVAILABLE
+                        if source == InventoryUnit.SourceChoices.BUYBACK_CUSTOMER:
+                            sale_status = InventoryUnit.SaleStatusChoices.RETURNED
+                        else:
+                            sale_status = InventoryUnit.SaleStatusChoices.AVAILABLE
+                        
                         # Create unit
                         unit = InventoryUnit.objects.create(
                             product_template=product,
@@ -655,10 +686,27 @@ class InventoryUnitViewSet(viewsets.ModelViewSet):
                             storage_gb=int(row['Storage (GB)']) if row.get('Storage (GB)') else None,
                             ram_gb=int(row['RAM (GB)']) if row.get('RAM (GB)') else None,
                             selling_price=Decimal(row['Selling Price']),
-                            sale_status=row.get('Sale Status', 'AV'),
+                            source=source,
+                            sale_status=sale_status,
                             notes=row.get('Notes', ''),
                             created_by=request.user,
                         )
+                        
+                        # Auto-create ReturnRequest for buyback units
+                        # Note: The signal also creates ReturnRequest, so check if one already exists
+                        if source == InventoryUnit.SourceChoices.BUYBACK_CUSTOMER:
+                            existing_request = unit.return_requests.filter(
+                                status=ReturnRequest.StatusChoices.PENDING
+                            ).first()
+                            
+                            if not existing_request:
+                                return_request = ReturnRequest.objects.create(
+                                    requesting_salesperson=None,  # Buyback units don't have a salesperson
+                                    status=ReturnRequest.StatusChoices.PENDING,
+                                    notes=f"Auto-created for buyback unit from CSV import (Row {row_num})"
+                                )
+                                return_request.inventory_units.add(unit)
+                        
                         created_count += 1
                         
                         # Log the import
@@ -3055,14 +3103,16 @@ class ReturnRequestViewSet(viewsets.ModelViewSet):
                 status=new_status
             )
             
-            Notification.objects.create(
-                recipient=request_obj.requesting_salesperson.user,
-                notification_type=Notification.NotificationType.RETURN_REJECTED,
-                title="Return Rejected",
-                message=f"Your return request for {request_obj.inventory_units.count()} unit(s) has been rejected.",
-                content_type=ContentType.objects.get_for_model(ReturnRequest),
-                object_id=request_obj.id
-            )
+            # Only notify salesperson if this is not a buyback (buybacks have no salesperson)
+            if request_obj.requesting_salesperson:
+                Notification.objects.create(
+                    recipient=request_obj.requesting_salesperson.user,
+                    notification_type=Notification.NotificationType.RETURN_REJECTED,
+                    title="Return Rejected",
+                    message=f"Your return request for {request_obj.inventory_units.count()} unit(s) has been rejected.",
+                    content_type=ContentType.objects.get_for_model(ReturnRequest),
+                    object_id=request_obj.id
+                )
         else:
             serializer.save()
     

@@ -8,7 +8,7 @@ from django.utils import timezone
 from datetime import timedelta
 from .models import (
     ReservationRequest, ReturnRequest, UnitTransfer, Notification,
-    InventoryUnit, Admin, User, Order, AuditLog
+    InventoryUnit, Admin, User, Order, AuditLog, AdminRole
 )
 
 
@@ -186,4 +186,117 @@ def audit_log_unit_transfer(sender, instance, created, **kwargs):
             },
             content_type=ContentType.objects.get_for_model(UnitTransfer),
         )
+
+
+# ============================================
+# BUYBACK RETURN REQUEST SIGNALS
+# ============================================
+
+@receiver(post_save, sender=InventoryUnit)
+def create_return_request_for_buyback(sender, instance, created, **kwargs):
+    """
+    Auto-set sale_status and create ReturnRequest for buyback units.
+    This ensures proper status is set even when units are created via admin panel or bulk import.
+    The serializer handles this for API-created units, but this signal ensures consistency.
+    
+    Flow:
+    - Buyback units (BUYBACK_CUSTOMER) → sale_status = RETURNED → ReturnRequest auto-created
+    - Other units (EXTERNAL_SUPPLIER, EXTERNAL_IMPORT) → sale_status = AVAILABLE
+    """
+    if created:
+        # Set sale_status based on source
+        if instance.source == InventoryUnit.SourceChoices.BUYBACK_CUSTOMER:
+            # Buyback units should be RETURNED (requires approval)
+            if instance.sale_status != InventoryUnit.SaleStatusChoices.RETURNED:
+                # Update database and instance attribute
+                InventoryUnit.objects.filter(pk=instance.pk).update(
+                    sale_status=InventoryUnit.SaleStatusChoices.RETURNED
+                )
+                instance.sale_status = InventoryUnit.SaleStatusChoices.RETURNED
+            
+            # Check if ReturnRequest already exists (created by serializer)
+            existing_request = instance.return_requests.filter(
+                status=ReturnRequest.StatusChoices.PENDING
+            ).first()
+            
+            if not existing_request:
+                # Create ReturnRequest (backup for admin panel/bulk imports)
+                # Notifications will be sent by the ReturnRequest post_save signal
+                return_request = ReturnRequest.objects.create(
+                    requesting_salesperson=None,  # Buybacks have no salesperson
+                    status=ReturnRequest.StatusChoices.PENDING,
+                    notes=f"Auto-created for buyback unit {instance.id}"
+                )
+                return_request.inventory_units.add(instance)
+        elif instance.source in [InventoryUnit.SourceChoices.EXTERNAL_SUPPLIER, InventoryUnit.SourceChoices.EXTERNAL_IMPORT]:
+            # Non-buyback units (EXTERNAL_SUPPLIER, EXTERNAL_IMPORT) should be AVAILABLE
+            if instance.sale_status != InventoryUnit.SaleStatusChoices.AVAILABLE:
+                # Update database and instance attribute
+                InventoryUnit.objects.filter(pk=instance.pk).update(
+                    sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE
+                )
+                instance.sale_status = InventoryUnit.SaleStatusChoices.AVAILABLE
+
+
+@receiver(post_save, sender=ReturnRequest)
+def notify_buyback_return_request_created(sender, instance, created, **kwargs):
+    """
+    Notify inventory managers when a buyback ReturnRequest is created.
+    This handles cases where ReturnRequest is created manually or via serializer.
+    """
+    if created and instance.requesting_salesperson is None:
+        # This is a buyback ReturnRequest (no salesperson)
+        # Check if notifications were already sent (to avoid duplicates)
+        # We'll send notifications here as a backup
+        inventory_managers = Admin.objects.filter(
+            roles__name=AdminRole.RoleChoices.INVENTORY_MANAGER
+        ).select_related('user')
+        
+        # Get the first unit to get product name
+        first_unit = instance.inventory_units.first()
+        if first_unit:
+            product_name = first_unit.product_template.product_name
+            unit_count = instance.inventory_units.count()
+            
+            for manager in inventory_managers:
+                # Check if notification already exists to avoid duplicates
+                existing_notification = Notification.objects.filter(
+                    recipient=manager.user,
+                    notification_type=Notification.NotificationType.REQUEST_PENDING_APPROVAL,
+                    content_type=ContentType.objects.get_for_model(ReturnRequest),
+                    object_id=instance.id,
+                    created_at__gte=timezone.now() - timedelta(minutes=1)  # Within last minute
+                ).first()
+                
+                if not existing_notification:
+                    Notification.objects.create(
+                        recipient=manager.user,
+                        notification_type=Notification.NotificationType.REQUEST_PENDING_APPROVAL,
+                        title="New Buyback Return Request",
+                        message=f"Buyback return request for {unit_count} unit(s) ({product_name}) requires approval.",
+                        content_type=ContentType.objects.get_for_model(ReturnRequest),
+                        object_id=instance.id
+                    )
+            
+            # Also notify superusers
+            superusers = User.objects.filter(is_superuser=True)
+            for superuser in superusers:
+                # Check if notification already exists to avoid duplicates
+                existing_notification = Notification.objects.filter(
+                    recipient=superuser,
+                    notification_type=Notification.NotificationType.REQUEST_PENDING_APPROVAL,
+                    content_type=ContentType.objects.get_for_model(ReturnRequest),
+                    object_id=instance.id,
+                    created_at__gte=timezone.now() - timedelta(minutes=1)  # Within last minute
+                ).first()
+                
+                if not existing_notification:
+                    Notification.objects.create(
+                        recipient=superuser,
+                        notification_type=Notification.NotificationType.REQUEST_PENDING_APPROVAL,
+                        title="New Buyback Return Request",
+                        message=f"Buyback return request for {unit_count} unit(s) ({product_name}) requires approval.",
+                        content_type=ContentType.objects.get_for_model(ReturnRequest),
+                        object_id=instance.id
+                    )
 
