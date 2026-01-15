@@ -644,6 +644,8 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                     except: pass
                 # #endregion
                 
+                # Calculate annotation - but note: this may not count correctly due to ManyToMany complexity
+                # The serializer will use prefetched available_units_list for accurate counts
                 queryset = queryset.annotate(
                     brand_count=Count('brands', distinct=True),
                     available_units_count=Case(
@@ -655,6 +657,8 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                     min_price=Coalesce(Min('inventory_units__selling_price', filter=units_filter), Value(None)),
                     max_price=Coalesce(Max('inventory_units__selling_price', filter=units_filter), Value(None)),
                 )
+                # IMPORTANT: Don't filter by available_units_count here - let serializer handle it
+                # Products with annotation=0 might still have units in prefetched list
                 
                 # Log annotation results using logger (visible in Render logs)
                 import logging
