@@ -1,192 +1,118 @@
 """
-Django management command to fix product visibility.
-
-This command ensures all inventory units are set to:
-- sale_status = 'AV' (AVAILABLE)
-- available_online = True
-
-And all products are published and have proper brand visibility.
-
-Usage:
-    python manage.py fix_product_visibility
-    python manage.py fix_product_visibility --fix-brands  # Also fix brand visibility
+Management command to fix product visibility by ensuring inventory units are available.
+This command will:
+1. Show current unit statuses
+2. Optionally fix units that should be available but aren't
 """
 from django.core.management.base import BaseCommand
-from django.db.models import Q, Sum, Count
-from inventory.models import Product, InventoryUnit, Brand
+from inventory.models import Product, InventoryUnit
 
 
 class Command(BaseCommand):
-    help = 'Fix product visibility by setting all units to AVAILABLE and available_online=True'
+    help = 'Fix product visibility by checking and updating inventory unit statuses'
 
     def add_arguments(self, parser):
         parser.add_argument(
-            '--dry-run',
+            '--fix',
             action='store_true',
-            help='Show what would be changed without actually changing it',
+            help='Actually update units (default is dry-run)',
         )
         parser.add_argument(
-            '--fix-brands',
-            action='store_true',
-            help='Also fix brand visibility issues (make products global if they have no brand assignment)',
-        )
-        parser.add_argument(
-            '--silent',
-            action='store_true',
-            help='Run silently (only log errors, useful for startup scripts)',
+            '--product-id',
+            type=int,
+            help='Fix only a specific product ID',
         )
 
     def handle(self, *args, **options):
-        dry_run = options['dry_run']
-        fix_brands = options['fix_brands']
-        silent = options['silent']
+        fix = options['fix']
+        product_id = options.get('product_id')
         
-        if not silent:
-            if dry_run:
-                self.stdout.write(self.style.WARNING('DRY RUN MODE - No changes will be made'))
-                self.stdout.write('')
+        if product_id:
+            products = Product.objects.filter(id=product_id, is_published=True, is_discontinued=False)
+        else:
+            products = Product.objects.filter(is_published=True, is_discontinued=False)
         
-        # 1. Fix inventory units
-        if not silent:
-            self.stdout.write('1. Checking inventory units...')
-        units_to_fix = InventoryUnit.objects.filter(
-            ~Q(sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE) | 
-            ~Q(available_online=True)
-        )
+        self.stdout.write(f"\n{'='*60}")
+        self.stdout.write(f"Checking {products.count()} published products...")
+        self.stdout.write(f"{'='*60}\n")
         
-        if not silent:
-            self.stdout.write(f"  Found {units_to_fix.count()} units that need fixing")
+        total_units_checked = 0
+        units_to_fix = []
+        products_with_issues = []
         
-        fixed_count = 0
-        # Use bulk_update for better performance
-        units_to_update = []
-        for unit in units_to_fix:
-            changed = False
-            if unit.sale_status != InventoryUnit.SaleStatusChoices.AVAILABLE:
-                if not silent:
-                    old_status = unit.get_sale_status_display()
-                    self.stdout.write(f"  Unit {unit.id} ({unit.product_template.product_name}): sale_status {old_status} → AVAILABLE")
-                unit.sale_status = InventoryUnit.SaleStatusChoices.AVAILABLE
-                changed = True
-            
-            if not unit.available_online:
-                if not silent:
-                    self.stdout.write(f"  Unit {unit.id} ({unit.product_template.product_name}): available_online False → True")
-                unit.available_online = True
-                changed = True
-            
-            if changed:
-                units_to_update.append(unit)
-                fixed_count += 1
-        
-        if units_to_update and not dry_run:
-            InventoryUnit.objects.bulk_update(units_to_update, ['sale_status', 'available_online'])
-            if not silent:
-                self.stdout.write(self.style.SUCCESS(f'  ✅ Fixed {fixed_count} units'))
-        elif fixed_count > 0 and not silent:
-            self.stdout.write(self.style.WARNING(f'  Would fix {fixed_count} units (dry run)'))
-        
-        
-        # 2. Ensure products are published
-        if not silent:
-            self.stdout.write('2. Checking products...')
-        unpublished = Product.objects.filter(is_published=False, is_discontinued=False)
-        
-        if unpublished.exists():
-            count = unpublished.count()
-            if dry_run:
-                if not silent:
-                    self.stdout.write(self.style.WARNING(f'  Would publish {count} products'))
-            else:
-                unpublished.update(is_published=True)
-                if not silent:
-                    self.stdout.write(self.style.SUCCESS(f'  ✅ Published {count} products'))
-        elif not silent:
-            self.stdout.write(self.style.SUCCESS('  ✅ All products are already published'))
-        
-        if not silent:
-            self.stdout.write('')
-        
-        # 3. Fix brand visibility (if requested)
-        if fix_brands:
-            if not silent:
-                self.stdout.write('3. Checking brand visibility...')
-            
-            # Find products that are published, not discontinued, have available units,
-            # but are not global and have no brand assignments
-            products_with_units = Product.objects.filter(
-                is_published=True,
-                is_discontinued=False
-            ).annotate(
-                available_count=Count('inventory_units', filter=Q(
-                    inventory_units__sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
-                    inventory_units__available_online=True
-                ))
-            ).filter(available_count__gt=0)
-            
-            products_to_fix = []
-            for product in products_with_units:
-                brand_count = product.brands.count()
-                if not product.is_global and brand_count == 0:
-                    # Product has no brand assignment and is not global - make it global
-                    products_to_fix.append(product)
-                    if not silent:
-                        self.stdout.write(f"  Product {product.id} ({product.product_name}): No brand assignment → Making global")
-            
-            if products_to_fix and not dry_run:
-                Product.objects.filter(id__in=[p.id for p in products_to_fix]).update(is_global=True)
-                if not silent:
-                    self.stdout.write(self.style.SUCCESS(f'  ✅ Made {len(products_to_fix)} products global'))
-            elif products_to_fix and not silent:
-                self.stdout.write(self.style.WARNING(f'  Would make {len(products_to_fix)} products global (dry run)'))
-            elif not silent:
-                self.stdout.write(self.style.SUCCESS('  ✅ All products have proper brand visibility'))
-            
-            if not silent:
-                self.stdout.write('')
-        
-        # 4. Verify
-        if not silent:
-            self.stdout.write('4. Verification...')
-        available_units = InventoryUnit.objects.filter(
-            sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
-            available_online=True
-        )
-        if not silent:
-            self.stdout.write(f'  Available & online units: {available_units.count()}')
-        
-        products = Product.objects.filter(is_published=True, is_discontinued=False)
-        if not silent:
-            self.stdout.write(f'  Published products: {products.count()}')
-        
-        # Count products with available units
-        products_with_units = 0
         for product in products:
-            units = product.inventory_units.filter(
+            units = product.inventory_units.all()
+            total_units_checked += units.count()
+            
+            available_count = units.filter(sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE).count()
+            available_online_count = units.filter(
                 sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
                 available_online=True
-            )
-            if product.product_type == Product.ProductType.ACCESSORY:
-                count = units.aggregate(total=Sum('quantity'))['total'] or 0
+            ).count()
+            
+            if available_online_count == 0 and units.exists():
+                # Product has units but none are available online
+                products_with_issues.append(product)
+                
+                # Check what statuses the units actually have
+                status_breakdown = {}
+                for unit in units:
+                    status_key = f"{unit.sale_status}_{unit.available_online}"
+                    status_breakdown[status_key] = status_breakdown.get(status_key, 0) + 1
+                
+                self.stdout.write(f"\n⚠️  Product: {product.product_name} (ID: {product.id})")
+                self.stdout.write(f"   Total units: {units.count()}")
+                self.stdout.write(f"   Available: {available_count}")
+                self.stdout.write(f"   Available online: {available_online_count}")
+                self.stdout.write(f"   Status breakdown: {status_breakdown}")
+                
+                # Find units that should be available but aren't
+                for unit in units:
+                    if unit.sale_status != InventoryUnit.SaleStatusChoices.AVAILABLE:
+                        units_to_fix.append({
+                            'unit': unit,
+                            'issue': f"Status is {unit.get_sale_status_display()} (should be AVAILABLE)",
+                            'action': 'set_status_available'
+                        })
+                    elif not unit.available_online:
+                        units_to_fix.append({
+                            'unit': unit,
+                            'issue': f"available_online is False (should be True)",
+                            'action': 'set_available_online'
+                        })
+        
+        self.stdout.write(f"\n{'='*60}")
+        self.stdout.write(f"SUMMARY:")
+        self.stdout.write(f"  Products checked: {products.count()}")
+        self.stdout.write(f"  Total units checked: {total_units_checked}")
+        self.stdout.write(f"  Products with visibility issues: {len(products_with_issues)}")
+        self.stdout.write(f"  Units that need fixing: {len(units_to_fix)}")
+        self.stdout.write(f"{'='*60}\n")
+        
+        if units_to_fix:
+            if fix:
+                self.stdout.write(f"\n🔧 FIXING {len(units_to_fix)} units...\n")
+                fixed_count = 0
+                for item in units_to_fix:
+                    unit = item['unit']
+                    action = item['action']
+                    
+                    if action == 'set_status_available':
+                        old_status = unit.sale_status
+                        unit.sale_status = InventoryUnit.SaleStatusChoices.AVAILABLE
+                        unit.save(update_fields=['sale_status'])
+                        self.stdout.write(f"  ✓ Unit {unit.id}: Changed status from {old_status} to AVAILABLE")
+                        fixed_count += 1
+                    elif action == 'set_available_online':
+                        unit.available_online = True
+                        unit.save(update_fields=['available_online'])
+                        self.stdout.write(f"  ✓ Unit {unit.id}: Set available_online=True")
+                        fixed_count += 1
+                
+                self.stdout.write(f"\n✅ Fixed {fixed_count} units!")
+                self.stdout.write(f"   Products should now be visible on the frontend.\n")
             else:
-                count = units.count()
-            if count > 0:
-                products_with_units += 1
-        
-        if not silent:
-            self.stdout.write(f'  Products with available units: {products_with_units}')
-            self.stdout.write('')
-        
-        if not dry_run and not silent:
-            self.stdout.write(self.style.SUCCESS('=' * 80))
-            self.stdout.write(self.style.SUCCESS('FIX COMPLETE!'))
-            self.stdout.write(self.style.SUCCESS('=' * 80))
-            self.stdout.write('')
-            self.stdout.write('Your products should now appear in the frontend.')
-            self.stdout.write('Refresh your browser to see the changes.')
-        elif dry_run and not silent:
-            self.stdout.write(self.style.WARNING('=' * 80))
-            self.stdout.write(self.style.WARNING('DRY RUN COMPLETE'))
-            self.stdout.write(self.style.WARNING('=' * 80))
-            self.stdout.write('')
-            self.stdout.write('Run without --dry-run to apply changes.')
+                self.stdout.write(f"\n💡 DRY RUN: Found {len(units_to_fix)} units that need fixing.")
+                self.stdout.write(f"   Run with --fix to actually update them.\n")
+        else:
+            self.stdout.write(f"\n✅ No issues found! All products should be visible.\n")

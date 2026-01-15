@@ -987,6 +987,22 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                         logger.info(f"FINAL_SAMPLE: Product {p['id']} - available_units_count={p['available_units_count']}")
                 else:
                     logger.warning(f"FINAL_COUNT_ZERO: No products returned! Initial queryset existed but all were filtered out.")
+                    # #region agent log - Why products were filtered out
+                    try:
+                        # Check why products were filtered - get sample products that passed initial filter but failed later
+                        initial_queryset = Product.objects.filter(is_discontinued=False, is_published=True)
+                        sample_products = list(initial_queryset.values('id', 'product_name')[:5])
+                        for prod_data in sample_products:
+                            prod = Product.objects.get(id=prod_data['id'])
+                            all_units = prod.inventory_units.all()
+                            unit_statuses = {}
+                            for unit in all_units:
+                                key = f"{unit.sale_status}_online_{unit.available_online}"
+                                unit_statuses[key] = unit_statuses.get(key, 0) + 1
+                            logger.error(f"[PRODUCT_DEBUG] Product {prod.id} ({prod.product_name}): {len(all_units)} units, statuses={unit_statuses}")
+                    except Exception as e:
+                        logger.error(f"[PRODUCT_DEBUG] Error checking filtered products: {e}")
+                    # #endregion
             except Exception as e:
                 logger.error(f"FINAL_COUNT_ERROR: {str(e)}", exc_info=True)
             
