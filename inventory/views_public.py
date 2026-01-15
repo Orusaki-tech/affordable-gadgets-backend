@@ -330,8 +330,20 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
             logger = logging.getLogger(__name__)
             try:
                 logger.info(f"PublicProductViewSet: brand={brand}, initial queryset exists={queryset.exists()}")
-            except Exception:
-                logger.warning(f"PublicProductViewSet: brand={brand}, could not check queryset")
+                # Check a sample product's inventory units
+                sample = queryset.first()
+                if sample:
+                    total_units = sample.inventory_units.count()
+                    available_units = sample.inventory_units.filter(
+                        sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE
+                    ).count()
+                    available_online_units = sample.inventory_units.filter(
+                        sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+                        available_online=True
+                    ).count()
+                    logger.info(f"Sample product {sample.id} ({sample.product_name}): total_units={total_units}, available={available_units}, available_online={available_online_units}")
+            except Exception as e:
+                logger.warning(f"PublicProductViewSet: brand={brand}, could not check queryset: {e}")
             
             # Base filter for available units
             available_units_filter = Q(
@@ -507,6 +519,20 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                     min_price=Coalesce(Min('inventory_units__selling_price', filter=units_filter), Value(None)),
                     max_price=Coalesce(Max('inventory_units__selling_price', filter=units_filter), Value(None)),
                 )
+                
+                # Log annotation results using logger (visible in Render logs)
+                import logging
+                logger = logging.getLogger(__name__)
+                try:
+                    # Use values() to avoid evaluating full objects
+                    sample_data = list(queryset.values('id', 'product_name', 'available_units_count', 'min_price', 'max_price')[:1])
+                    if sample_data:
+                        p = sample_data[0]
+                        logger.info(f"ANNOTATION_RESULT: Product {p['id']} ({p['product_name']}): available_units_count={p['available_units_count']}, min_price={p['min_price']}, max_price={p['max_price']}")
+                    count = queryset.count()
+                    logger.info(f"ANNOTATION_COUNT: Queryset has {count} products after annotation")
+                except Exception as e:
+                    logger.error(f"ANNOTATION_ERROR: {str(e)}", exc_info=True)
                 
                 # #region agent log - After annotations - verify calculation
                 try:
@@ -824,6 +850,22 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
             for backend in self.filter_backends:
                 if hasattr(backend, 'filter_queryset') and backend != filters.OrderingFilter:
                     queryset = backend().filter_queryset(self.request, queryset, self)
+            
+            # Log final queryset count
+            import logging
+            logger = logging.getLogger(__name__)
+            try:
+                final_count = queryset.count()
+                logger.info(f"FINAL_COUNT: {final_count} products after all filtering")
+                if final_count > 0:
+                    sample_data = list(queryset.values('id', 'product_name', 'available_units_count')[:1])
+                    if sample_data:
+                        p = sample_data[0]
+                        logger.info(f"FINAL_SAMPLE: Product {p['id']} - available_units_count={p['available_units_count']}")
+                else:
+                    logger.warning(f"FINAL_COUNT_ZERO: No products returned! Initial queryset existed but all were filtered out.")
+            except Exception as e:
+                logger.error(f"FINAL_COUNT_ERROR: {str(e)}", exc_info=True)
             
             # #region agent log - Final queryset before return
             try:
