@@ -142,19 +142,33 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
             try:
                 queryset = self.get_queryset()
                 queryset_count = queryset.count()
+                
+                # Check if queryset can be evaluated (PostgreSQL might fail here)
+                try:
+                    sample_products = list(queryset.values('id', 'product_name', 'is_global')[:3])
+                    queryset_evaluates = True
+                except Exception as eval_err:
+                    sample_products = []
+                    queryset_evaluates = False
+                    eval_error = str(eval_err)
+                
                 os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
                 with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
                     f.write(json.dumps({
                         "sessionId": "debug-session",
                         "runId": "run1",
-                        "hypothesisId": "H5",
+                        "hypothesisId": "H1,H2,H3,H4,H5",
                         "location": "inventory/views_public.py:PublicProductViewSet.list(before_super)",
-                        "message": "Before calling super().list()",
+                        "message": "Before calling super().list() - queryset evaluation test",
                         "data": {
                             "queryset_count": queryset_count,
+                            "queryset_evaluates": queryset_evaluates,
+                            "sample_products": sample_products,
+                            "eval_error": eval_error if not queryset_evaluates else None,
                             "query_params": dict(request.query_params),
                             "page": request.query_params.get('page', '1'),
-                            "page_size": request.query_params.get('page_size', '24')
+                            "page_size": request.query_params.get('page_size', '24'),
+                            "brand_code": request.headers.get('X-Brand-Code', 'NOT_PROVIDED')
                         },
                         "timestamp": int(time.time() * 1000)
                     }) + "\n")
@@ -165,10 +179,10 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                         f.write(json.dumps({
                             "sessionId": "debug-session",
                             "runId": "run1",
-                            "hypothesisId": "H5",
+                            "hypothesisId": "H1,H2,H3,H4,H5",
                             "location": "inventory/views_public.py:PublicProductViewSet.list(before_super_error)",
                             "message": "Error checking queryset before super().list()",
-                            "data": {"error": str(log_err)},
+                            "data": {"error": str(log_err), "traceback": traceback.format_exc()},
                             "timestamp": int(time.time() * 1000)
                         }) + "\n")
                 except: pass
