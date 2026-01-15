@@ -180,6 +180,17 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
             try:
                 response_data = response.data if hasattr(response, 'data') else None
                 result_count = len(response_data.get('results', [])) if response_data else 0
+                
+                # Check what products were serialized and their available_units_count
+                serialized_products = []
+                if response_data and response_data.get('results'):
+                    for p in response_data.get('results', [])[:3]:
+                        serialized_products.append({
+                            'id': p.get('id'),
+                            'product_name': p.get('product_name'),
+                            'available_units_count': p.get('available_units_count', 0)
+                        })
+                
                 os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
                 with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
                     f.write(json.dumps({
@@ -192,7 +203,8 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                             "response_count": response_data.get('count', 0) if response_data else 0,
                             "results_count": result_count,
                             "has_next": response_data.get('next') is not None if response_data else False,
-                            "has_previous": response_data.get('previous') is not None if response_data else False
+                            "has_previous": response_data.get('previous') is not None if response_data else False,
+                            "serialized_products": serialized_products
                         },
                         "timestamp": int(time.time() * 1000)
                     }) + "\n")
@@ -206,7 +218,7 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                             "hypothesisId": "H5",
                             "location": "inventory/views_public.py:PublicProductViewSet.list(after_super_error)",
                             "message": "Error checking response after super().list()",
-                            "data": {"error": str(log_err)},
+                            "data": {"error": str(log_err), "traceback": traceback.format_exc()},
                             "timestamp": int(time.time() * 1000)
                         }) + "\n")
                 except: pass
