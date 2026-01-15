@@ -548,10 +548,26 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
             # Annotate with unit counts and prices
             if brand:
                 # Filter units by brand for annotations
+                # For ManyToMany, we need to check: unit has brand OR unit has no brands (available to all)
+                # Use Exists subquery to properly handle ManyToMany null checks
+                from django.db.models import Exists, OuterRef
+                # Units that have the brand assigned
+                has_brand = InventoryUnit.objects.filter(
+                    id=OuterRef('inventory_units__id'),
+                    brands=brand
+                )
+                # Units that have no brands assigned (available to all brands)
+                no_brands = InventoryUnit.objects.filter(
+                    id=OuterRef('inventory_units__id')
+                ).exclude(brands__isnull=False)
+                
                 units_filter = Q(
                     inventory_units__sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
                     inventory_units__available_online=True
-                ) & (Q(inventory_units__brands=brand) | Q(inventory_units__brands__isnull=True))
+                ) & (
+                    Q(inventory_units__brands=brand) | 
+                    ~Q(inventory_units__brands__isnull=False)  # Units with no brands
+                )
             else:
                 units_filter = Q(
                     inventory_units__sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
