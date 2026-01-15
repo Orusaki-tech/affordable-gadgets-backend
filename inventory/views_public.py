@@ -27,6 +27,88 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
     # Don't set default ordering here - it will be applied in get_queryset after annotations
     lookup_field = 'pk'  # Use primary key for detail view
     
+    # #region agent log - Check ALL products in database (before any filtering)
+    def _log_all_products_debug(self):
+        """Log all products in database for debugging visibility issues."""
+        import json, time, os
+        from inventory.models import Product, InventoryUnit
+        try:
+            os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
+            # Get ALL products regardless of published/discontinued status
+            all_products = Product.objects.all().values('id', 'product_name', 'is_published', 'is_discontinued', 'is_global')
+            all_products_list = list(all_products)
+            
+            # Check brand assignments
+            brand = getattr(self.request, 'brand', None)
+            brand_code = self.request.headers.get('X-Brand-Code', 'NOT_PROVIDED')
+            
+            # For each product, check inventory units
+            products_with_details = []
+            for p in all_products_list[:10]:  # Limit to first 10 for performance
+                product_obj = Product.objects.get(id=p['id'])
+                total_units = product_obj.inventory_units.count()
+                available_units = product_obj.inventory_units.filter(
+                    sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE
+                ).count()
+                available_online_units = product_obj.inventory_units.filter(
+                    sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+                    available_online=True
+                ).count()
+                
+                # Check brand assignment
+                product_brands = list(product_obj.brands.values_list('code', flat=True))
+                is_global = product_obj.is_global
+                brand_count = product_obj.brands.count()
+                
+                products_with_details.append({
+                    'id': p['id'],
+                    'product_name': p['product_name'],
+                    'is_published': p['is_published'],
+                    'is_discontinued': p['is_discontinued'],
+                    'is_global': is_global,
+                    'brand_count': brand_count,
+                    'product_brands': product_brands,
+                    'total_units': total_units,
+                    'available_units': available_units,
+                    'available_online_units': available_online_units,
+                    'would_show_in_public': (
+                        p['is_published'] and 
+                        not p['is_discontinued'] and 
+                        available_online_units > 0
+                    )
+                })
+            
+            with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                f.write(json.dumps({
+                    "sessionId": "debug-session",
+                    "runId": "run1",
+                    "hypothesisId": "H1,H2,H3,H4,H5",
+                    "location": "inventory/views_public.py:PublicProductViewSet._log_all_products_debug",
+                    "message": "All products in database (first 10) - comprehensive check",
+                    "data": {
+                        "total_products_in_db": Product.objects.count(),
+                        "brand_code": brand_code,
+                        "brand": str(brand) if brand else None,
+                        "products": products_with_details
+                    },
+                    "timestamp": int(time.time() * 1000)
+                }) + "\n")
+        except Exception as e:
+            try:
+                os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
+                with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                    f.write(json.dumps({
+                        "sessionId": "debug-session",
+                        "runId": "run1",
+                        "hypothesisId": "H1,H2,H3,H4,H5",
+                        "location": "inventory/views_public.py:PublicProductViewSet._log_all_products_debug",
+                        "message": "Error in _log_all_products_debug",
+                        "data": {"error": str(e)},
+                        "timestamp": int(time.time() * 1000)
+                    }) + "\n")
+            except: pass
+    # #endregion
+    
     def list(self, request, *args, **kwargs):
         """Override list to catch exceptions during queryset evaluation."""
         import json, time, os, traceback
@@ -167,6 +249,25 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                     "timestamp": int(time.time() * 1000)
                 }) + "\n")
         except: pass
+        # #endregion
+        
+        # #region agent log - Comprehensive product check
+        try:
+            self._log_all_products_debug()
+        except Exception as e:
+            try:
+                os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
+                with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                    f.write(json.dumps({
+                        "sessionId": "debug-session",
+                        "runId": "run1",
+                        "hypothesisId": "H1,H2,H3,H4,H5",
+                        "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(debug_check_error)",
+                        "message": "Error calling _log_all_products_debug",
+                        "data": {"error": str(e)},
+                        "timestamp": int(time.time() * 1000)
+                    }) + "\n")
+            except: pass
         # #endregion
         
         try:
