@@ -4351,6 +4351,60 @@ class PromotionViewSet(viewsets.ModelViewSet):
         instance.delete()
 
 
+class FixProductVisibilityView(APIView):
+    """Admin endpoint to fix product visibility by setting units to AVAILABLE."""
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def post(self, request):
+        """Fix all inventory units to be available."""
+        from inventory.models import InventoryUnit
+        from django.db.models import Q
+        
+        # Check if user is admin
+        if not hasattr(request.user, 'admin'):
+            return Response(
+                {"detail": "Only admins can access this endpoint."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        try:
+            # Find all units that need fixing
+            units_to_fix = InventoryUnit.objects.filter(
+                ~Q(sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE) |
+                Q(available_online=False)
+            )
+            
+            total_count = units_to_fix.count()
+            
+            if total_count == 0:
+                return Response({
+                    "success": True,
+                    "message": "All units are already available!",
+                    "units_fixed": 0
+                })
+            
+            # Fix all units
+            updated = InventoryUnit.objects.filter(
+                ~Q(sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE) |
+                Q(available_online=False)
+            ).update(
+                sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+                available_online=True
+            )
+            
+            return Response({
+                "success": True,
+                "message": f"Fixed {updated} units! Products should now be visible.",
+                "units_fixed": updated,
+                "total_units_checked": total_count
+            })
+        except Exception as e:
+            return Response(
+                {"success": False, "error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
 class PesapalIPNView(APIView):
     """Handle Pesapal IPN (Instant Payment Notification) callbacks."""
     permission_classes = [permissions.AllowAny]  # Pesapal will call this

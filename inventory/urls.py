@@ -88,4 +88,7 @@ urlpatterns = [
     
     # --- Pesapal Payment Endpoints ---
     path('pesapal/ipn/', views.PesapalIPNView.as_view(), name='pesapal-ipn'),
+    
+    # --- Admin Utility Endpoints ---
+    path('admin/fix-product-visibility/', views.FixProductVisibilityView.as_view(), name='fix-product-visibility'),
 ]
