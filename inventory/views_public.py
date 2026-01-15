@@ -1010,22 +1010,31 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
             # #region agent log - Final queryset before return
             try:
                 final_exists = queryset.exists()
+                final_count = queryset.count()
                 # Get sample products with their available_units_count to see why they might not be showing
                 sample_products = []
                 if final_exists:
                     try:
-                        # Get first 3 products with their annotations, convert Decimal to float for JSON serialization
-                        products_data = queryset.values('id', 'product_name', 'available_units_count', 'min_price', 'max_price')[:3]
+                        # Get first 5 products with their annotations and prefetched units
+                        products_data = list(queryset.values('id', 'product_name', 'available_units_count', 'min_price', 'max_price', 'product_type')[:5])
                         for p in products_data:
+                            # Get the actual product object to check prefetched units
+                            product_obj = queryset.filter(id=p['id']).first()
+                            prefetched_count = 0
+                            if product_obj and hasattr(product_obj, 'available_units_list'):
+                                prefetched_count = len(product_obj.available_units_list)
+                            
                             sample_products.append({
                                 'id': p['id'],
                                 'product_name': p['product_name'],
-                                'available_units_count': p['available_units_count'],
+                                'product_type': p['product_type'],
+                                'annotated_available_units_count': p['available_units_count'],
+                                'prefetched_units_count': prefetched_count,
                                 'min_price': float(p['min_price']) if p['min_price'] is not None else None,
                                 'max_price': float(p['max_price']) if p['max_price'] is not None else None,
                             })
                     except Exception as e:
-                        sample_products = [{"error": str(e)}]
+                        sample_products = [{"error": str(e), "traceback": traceback.format_exc()}]
                 os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
                 with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
                     f.write(json.dumps({
@@ -1036,6 +1045,7 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                         "message": "Final queryset before return",
                         "data": {
                             "final_exists": final_exists,
+                            "final_count": final_count,
                             "sample_products": sample_products,
                             "ordering_param": self.request.query_params.get('ordering', 'none')
                         },
