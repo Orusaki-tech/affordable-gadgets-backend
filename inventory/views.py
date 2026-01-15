@@ -4353,18 +4353,25 @@ class PromotionViewSet(viewsets.ModelViewSet):
 
 class FixProductVisibilityView(APIView):
     """Admin endpoint to fix product visibility by setting units to AVAILABLE."""
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]  # Allow access with secret key
     
     def post(self, request):
         """Fix all inventory units to be available."""
         from inventory.models import InventoryUnit
         from django.db.models import Q
+        from django.conf import settings
         
-        # Check if user is admin
-        if not hasattr(request.user, 'admin'):
+        # Check for secret key (set in environment: FIX_PRODUCTS_SECRET_KEY)
+        secret_key = request.data.get('secret_key') or request.headers.get('X-Fix-Secret-Key')
+        expected_secret = getattr(settings, 'FIX_PRODUCTS_SECRET_KEY', '')
+        
+        # Also allow authenticated admin users
+        is_admin = request.user.is_authenticated and hasattr(request.user, 'admin')
+        
+        if not is_admin and (not secret_key or secret_key != expected_secret):
             return Response(
-                {"detail": "Only admins can access this endpoint."},
-                status=status.HTTP_403_FORBIDDEN
+                {"detail": "Authentication required. Provide secret_key in body or X-Fix-Secret-Key header, or authenticate as admin."},
+                status=status.HTTP_401_UNAUTHORIZED
             )
         
         try:
