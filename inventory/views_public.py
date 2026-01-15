@@ -338,28 +338,12 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                     primary_images_prefetch
                 )
                 
-                if brand:
-                    units_filter = Q(
-                        inventory_units__sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
-                        inventory_units__available_online=True
-                    ) & (Q(inventory_units__brands=brand) | Q(inventory_units__brands__isnull=True))
-                else:
-                    units_filter = Q(
-                        inventory_units__sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
-                        inventory_units__available_online=True
-                    )
-                
-                # For accessories, sum quantities; for phones/laptops/tablets, count units
+                # For slug lookups, use placeholder annotations (PostgreSQL compatibility)
+                # Serializer will use prefetched available_units_list for accurate values
                 queryset = queryset.annotate(
-                    brand_count=Count('brands'),
-                    available_units_count=Case(
-                        When(product_type=Product.ProductType.ACCESSORY,
-                             then=Coalesce(Sum('inventory_units__quantity', filter=units_filter), Value(0))),
-                        default=Count('inventory_units', filter=units_filter, distinct=True),
-                        output_field=IntegerField()
-                    ),
-                    min_price=Min('inventory_units__selling_price', filter=units_filter),
-                    max_price=Max('inventory_units__selling_price', filter=units_filter),
+                    available_units_count=Value(1, output_field=IntegerField()),
+                    min_price=Value(None, output_field=DecimalField()),
+                    max_price=Value(None, output_field=DecimalField()),
                 )
                 
                 # #region agent log
