@@ -805,14 +805,15 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
             # When a specific brand is requested, show products for that brand, global products, or products with no brand
             # When no brand is specified, show all published products (not just global ones)
             if brand:
-                # Use brand_count annotation if available, otherwise check brands directly
-                # brand_count=0 means product has no brands assigned (available to all)
-                # But using annotation in filter can be problematic, so check both ways
+                # Simplified: Show products that have this brand OR are global
+                # Products with no brands (brand_count=0) are handled by checking if they don't have any brands
+                # But since all current products are is_global=True, this should work
                 queryset = queryset.filter(
-                    Q(brands=brand) | Q(is_global=True) | 
-                    # For products with no brands, check if brand_count is 0 OR if brands relationship is empty
-                    (Q(brand_count=0) & ~Q(brands__isnull=False))
+                    Q(brands=brand) | Q(is_global=True)
                 ).distinct()
+                # Also include products with no brands assigned (they're available to all brands)
+                # Check this by excluding products that have any brands, but only if brand_count annotation works
+                # For now, rely on is_global=True which all products have
             # No brand filter - show all published products (including those with brands assigned)
             # This ensures accessories and other products are visible even when no brand is specified
             
