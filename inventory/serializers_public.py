@@ -102,30 +102,11 @@ class PublicProductSerializer(serializers.ModelSerializer):
         )
         if brand:
             units = units.filter(Q(brands=brand) | Q(brands__isnull=True))
-        # #region agent log
-        try:
-            import json, time
-            if obj.product_type == Product.ProductType.ACCESSORY:
-                sum_qty = units.aggregate(total_qty=Sum('quantity'))['total_qty'] or 0
-                count_units = units.count()
-                with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
-                    f.write(json.dumps({
-                        "sessionId": "debug-session",
-                        "runId": "pre-fix",
-                        "hypothesisId": "H3",
-                        "location": "inventory/serializers_public.py:PublicProductSerializer.get_available_units_count",
-                        "message": "Serializer fallback count vs quantity",
-                        "data": {
-                            "product_id": obj.id,
-                            "count_units": count_units,
-                            "sum_quantity": sum_qty
-                        },
-                        "timestamp": int(time.time() * 1000)
-                    }) + "\n")
-        except Exception:
-            pass
-        # #endregion
-        return units.count()
+        # For accessories, sum quantities; for phones/laptops/tablets, count units
+        if obj.product_type == Product.ProductType.ACCESSORY:
+            return units.aggregate(total_qty=Sum('quantity'))['total_qty'] or 0
+        else:
+            return units.count()
     
     def get_interest_count(self, obj):
         """Get total interest count for product - optimized version."""

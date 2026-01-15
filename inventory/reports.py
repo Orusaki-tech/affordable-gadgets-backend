@@ -1,7 +1,8 @@
 """
 Report generation functions for inventory management.
 """
-from django.db.models import Sum, Count, Avg, F, Q, DecimalField, ExpressionWrapper, Case, When
+from django.db.models import Sum, Count, Avg, F, Q, DecimalField, ExpressionWrapper, Case, When, IntegerField, Value
+from django.db.models.functions import Coalesce
 from django.db.models.functions import TruncDate
 from django.utils import timezone
 from datetime import timedelta
@@ -33,12 +34,19 @@ def get_inventory_value_report():
     )['total'] or Decimal('0')
     
     # Value by product
+    # For accessories, sum quantities; for phones/laptops/tablets, count units
     by_product = InventoryUnit.objects.values(
         'product_template__id',
-        'product_template__product_name'
+        'product_template__product_name',
+        'product_template__product_type'
     ).annotate(
         unit_count=Count('id'),
-        available_count=Count('id', filter=Q(sale_status='AV')),
+        available_count=Case(
+            When(product_template__product_type=Product.ProductType.ACCESSORY,
+                 then=Coalesce(Sum('quantity', filter=Q(sale_status='AV')), Value(0))),
+            default=Count('id', filter=Q(sale_status='AV')),
+            output_field=IntegerField()
+        ),
         total_value=Sum('selling_price'),
         avg_price=Avg('selling_price')
     ).order_by('-total_value')
@@ -127,11 +135,32 @@ def get_product_performance():
         'total_revenue': Decimal,
     }, ...]
     """
+    # For accessories, sum quantities; for phones/laptops/tablets, count units
     performance = Product.objects.annotate(
-        total_units=Count('inventoryunit'),
-        available_units=Count('inventoryunit', filter=Q(inventoryunit__sale_status='AV')),
-        sold_units=Count('inventoryunit', filter=Q(inventoryunit__sale_status='SD')),
-        reserved_units=Count('inventoryunit', filter=Q(inventoryunit__sale_status='RS')),
+        total_units=Case(
+            When(product_type=Product.ProductType.ACCESSORY,
+                 then=Coalesce(Sum('inventoryunit__quantity'), Value(0))),
+            default=Count('inventoryunit'),
+            output_field=IntegerField()
+        ),
+        available_units=Case(
+            When(product_type=Product.ProductType.ACCESSORY,
+                 then=Coalesce(Sum('inventoryunit__quantity', filter=Q(inventoryunit__sale_status='AV')), Value(0))),
+            default=Count('inventoryunit', filter=Q(inventoryunit__sale_status='AV')),
+            output_field=IntegerField()
+        ),
+        sold_units=Case(
+            When(product_type=Product.ProductType.ACCESSORY,
+                 then=Coalesce(Sum('inventoryunit__quantity', filter=Q(inventoryunit__sale_status='SD')), Value(0))),
+            default=Count('inventoryunit', filter=Q(inventoryunit__sale_status='SD')),
+            output_field=IntegerField()
+        ),
+        reserved_units=Case(
+            When(product_type=Product.ProductType.ACCESSORY,
+                 then=Coalesce(Sum('inventoryunit__quantity', filter=Q(inventoryunit__sale_status='RS')), Value(0))),
+            default=Count('inventoryunit', filter=Q(inventoryunit__sale_status='RS')),
+            output_field=IntegerField()
+        ),
         avg_selling_price=Avg('inventoryunit__selling_price'),
         total_revenue=Sum(
             'inventoryunit__selling_price',

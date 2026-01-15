@@ -2,7 +2,8 @@
 from rest_framework import viewsets, permissions, status, filters, generics, exceptions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.db.models import Q, Count, Min, Max, Prefetch, Sum
+from django.db.models import Q, Count, Min, Max, Prefetch, Sum, Case, When, IntegerField, Value
+from django.db.models.functions import Coalesce
 from decimal import Decimal
 from django.conf import settings
 from inventory.models import Product, InventoryUnit, Cart, Lead, Brand, Promotion, ProductImage
@@ -79,16 +80,23 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                     inventory_units__available_online=True
                 )
             
+            # For accessories, sum quantities; for phones/laptops/tablets, count units
             queryset = queryset.annotate(
                 brand_count=Count('brands'),
-                available_units_count=Count('inventory_units', filter=units_filter, distinct=True),
+                available_units_count=Case(
+                    When(product_type=Product.ProductType.ACCESSORY,
+                         then=Coalesce(Sum('inventory_units__quantity', filter=units_filter), Value(0))),
+                    default=Count('inventory_units', filter=units_filter, distinct=True),
+                    output_field=IntegerField()
+                ),
                 min_price=Min('inventory_units__selling_price', filter=units_filter),
                 max_price=Max('inventory_units__selling_price', filter=units_filter),
             )
             
             # #region agent log
             try:
-                import json, time
+                import json, time, os, traceback
+                os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
                 accessory_sample = queryset.filter(product_type=Product.ProductType.ACCESSORY).first()
                 if accessory_sample:
                     accessory_units = accessory_sample.inventory_units.filter(units_filter)
@@ -109,8 +117,30 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                             },
                             "timestamp": int(time.time() * 1000)
                         }) + "\n")
-            except Exception:
-                pass
+                else:
+                    with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                        f.write(json.dumps({
+                            "sessionId": "debug-session",
+                            "runId": "pre-fix",
+                            "hypothesisId": "H2",
+                            "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(slug)",
+                            "message": "No accessory found in queryset",
+                            "data": {"queryset_count": queryset.count()},
+                            "timestamp": int(time.time() * 1000)
+                        }) + "\n")
+            except Exception as e:
+                import os
+                os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
+                with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                    f.write(json.dumps({
+                        "sessionId": "debug-session",
+                        "runId": "pre-fix",
+                        "hypothesisId": "H2",
+                        "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(slug)",
+                        "message": "Exception in logging",
+                        "data": {"error": str(e)},
+                        "timestamp": int(time.time() * 1000)
+                    }) + "\n")
             # #endregion
             
             return queryset
@@ -167,16 +197,23 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                 inventory_units__available_online=True
             )
         
+        # For accessories, sum quantities; for phones/laptops/tablets, count units
         queryset = queryset.annotate(
             brand_count=Count('brands'),
-            available_units_count=Count('inventory_units', filter=units_filter, distinct=True),
+            available_units_count=Case(
+                When(product_type=Product.ProductType.ACCESSORY,
+                     then=Coalesce(Sum('inventory_units__quantity', filter=units_filter), Value(0))),
+                default=Count('inventory_units', filter=units_filter, distinct=True),
+                output_field=IntegerField()
+            ),
             min_price=Min('inventory_units__selling_price', filter=units_filter),
             max_price=Max('inventory_units__selling_price', filter=units_filter),
         )
         
         # #region agent log
         try:
-            import json, time
+            import json, time, os
+            os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
             accessory_sample = queryset.filter(product_type=Product.ProductType.ACCESSORY).first()
             if accessory_sample:
                 accessory_units = accessory_sample.inventory_units.filter(units_filter)
@@ -197,8 +234,19 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                         },
                         "timestamp": int(time.time() * 1000)
                     }) + "\n")
-        except Exception:
-            pass
+        except Exception as e:
+            import os
+            os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
+            with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                f.write(json.dumps({
+                    "sessionId": "debug-session",
+                    "runId": "pre-fix",
+                    "hypothesisId": "H2",
+                    "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(list)",
+                    "message": "Exception in logging",
+                    "data": {"error": str(e)},
+                    "timestamp": int(time.time() * 1000)
+                }) + "\n")
         # #endregion
         
         # Brand filtering

@@ -5,7 +5,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.db import transaction
 from decimal import Decimal
-from django.db.models import F, Count, Min, Max, Q, Sum # Added Count, Min, Max, Q for aggregation/filtering
+from django.db.models import F, Count, Min, Max, Q, Sum, Case, When, IntegerField, Value # Added Count, Min, Max, Q for aggregation/filtering
+from django.db.models.functions import Coalesce
 from rest_framework.decorators import action # Required for potential custom actions
 from rest_framework import generics, permissions
 from rest_framework.response import Response
@@ -269,17 +270,29 @@ class ProductViewSet(viewsets.ModelViewSet):
         )
 
         # 3. Perform Aggregation
-        summary = inventory_queryset.aggregate(
-            total_available_stock=Count('id'),
-            min_price=Min('selling_price'),
-            max_price=Max('selling_price')
-        )
+        # For accessories, sum quantities; for phones/laptops/tablets, count units (quantity is always 1)
+        if product.product_type == Product.ProductType.ACCESSORY:
+            # Accessories: sum quantities across all units
+            summary = inventory_queryset.aggregate(
+                total_available_stock=Sum('quantity'),
+                min_price=Min('selling_price'),
+                max_price=Max('selling_price')
+            )
+        else:
+            # Phones/Laptops/Tablets: count units (each unit has quantity=1)
+            summary = inventory_queryset.aggregate(
+                total_available_stock=Count('id'),
+                min_price=Min('selling_price'),
+                max_price=Max('selling_price')
+            )
         
         # #region agent log
         try:
             import json, time
             count_units = inventory_queryset.count()
             sum_qty = inventory_queryset.aggregate(total_qty=Sum('quantity'))['total_qty'] or 0
+            import os
+            os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
             with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
                 f.write(json.dumps({
                     "sessionId": "debug-session",
@@ -3390,8 +3403,14 @@ class StockAlertsViewSet(viewsets.ViewSet):
         alerts = []
         
         # 1. Low Stock Alerts - Products with fewer than min_stock_threshold units available
+        # For accessories, sum quantities; for phones/laptops/tablets, count units
         low_stock_products = Product.objects.annotate(
-            available_count=Count('inventory_units', filter=Q(inventory_units__sale_status='AV'))
+            available_count=Case(
+                When(product_type=Product.ProductType.ACCESSORY, 
+                     then=Coalesce(Sum('inventory_units__quantity', filter=Q(inventory_units__sale_status='AV')), Value(0))),
+                default=Count('inventory_units', filter=Q(inventory_units__sale_status='AV')),
+                output_field=IntegerField()
+            )
         ).filter(
             Q(min_stock_threshold__isnull=False) & Q(available_count__lt=F('min_stock_threshold'))
         )
@@ -3407,6 +3426,8 @@ class StockAlertsViewSet(viewsets.ViewSet):
                 )
                 sum_qty = accessory_units.aggregate(total_qty=Sum('quantity'))['total_qty'] or 0
                 count_units = accessory_units.count()
+                import os
+                os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
                 with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
                     f.write(json.dumps({
                         "sessionId": "debug-session",
@@ -3466,8 +3487,14 @@ class StockAlertsViewSet(viewsets.ViewSet):
             })
         
         # 3. Out of Stock Alerts - Products with no available units
+        # For accessories, sum quantities; for phones/laptops/tablets, count units
         out_of_stock_products = Product.objects.annotate(
-            available_count=Count('inventory_units', filter=Q(inventory_units__sale_status='AV'))
+            available_count=Case(
+                When(product_type=Product.ProductType.ACCESSORY, 
+                     then=Coalesce(Sum('inventory_units__quantity', filter=Q(inventory_units__sale_status='AV')), Value(0))),
+                default=Count('inventory_units', filter=Q(inventory_units__sale_status='AV')),
+                output_field=IntegerField()
+            )
         ).filter(available_count=0, is_discontinued=False)
         
         for product in out_of_stock_products:
