@@ -55,6 +55,19 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                     available_online=True
                 ).count()
                 
+                # #region agent log - Detailed unit status breakdown
+                unit_status_breakdown = {}
+                if total_units > 0:
+                    # Get actual unit statuses
+                    units_by_status = product_obj.inventory_units.values('sale_status', 'available_online').annotate(
+                        count=Count('id')
+                    )
+                    unit_status_breakdown = {f"{u['sale_status']}_online_{u['available_online']}": u['count'] for u in units_by_status}
+                    # Also get sample unit details
+                    sample_units = list(product_obj.inventory_units.values('id', 'sale_status', 'available_online')[:3])
+                    unit_status_breakdown['sample_units'] = sample_units
+                # #endregion
+                
                 # Check brand assignment
                 product_brands = list(product_obj.brands.values_list('code', flat=True))
                 is_global = product_obj.is_global
@@ -71,6 +84,7 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                     'total_units': total_units,
                     'available_units': available_units,
                     'available_online_units': available_online_units,
+                    'unit_status_breakdown': unit_status_breakdown,  # NEW: Detailed breakdown
                     'would_show_in_public': (
                         p['is_published'] and 
                         not p['is_discontinued'] and 
@@ -92,13 +106,15 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                 },
                 "timestamp": int(time.time() * 1000)
             }
-            # Log to file (local) and stdout (Render logs)
+            # Log to file (local) and Django logger (Render logs)
             try:
                 with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
                     f.write(json.dumps(log_entry) + "\n")
             except: pass
-            # Also print to stdout for Render logs
-            print(f"[DEBUG] {json.dumps(log_entry)}")
+            # Use Django logger which Render captures
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"[PRODUCT_DEBUG] {json.dumps(log_entry)}")  # Use error level so it shows in Render logs
         except Exception as e:
             try:
                 os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
