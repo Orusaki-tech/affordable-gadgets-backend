@@ -2,7 +2,7 @@
 from rest_framework import viewsets, permissions, status, filters, generics, exceptions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.db.models import Q, Count, Min, Max, Prefetch
+from django.db.models import Q, Count, Min, Max, Prefetch, Sum
 from decimal import Decimal
 from django.conf import settings
 from inventory.models import Product, InventoryUnit, Cart, Lead, Brand, Promotion, ProductImage
@@ -86,6 +86,33 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                 max_price=Max('inventory_units__selling_price', filter=units_filter),
             )
             
+            # #region agent log
+            try:
+                import json, time
+                accessory_sample = queryset.filter(product_type=Product.ProductType.ACCESSORY).first()
+                if accessory_sample:
+                    accessory_units = accessory_sample.inventory_units.filter(units_filter)
+                    sum_qty = accessory_units.aggregate(total_qty=Sum('quantity'))['total_qty'] or 0
+                    count_units = accessory_units.count()
+                    with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                        f.write(json.dumps({
+                            "sessionId": "debug-session",
+                            "runId": "pre-fix",
+                            "hypothesisId": "H2",
+                            "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(slug)",
+                            "message": "Public slug count vs quantity",
+                            "data": {
+                                "product_id": accessory_sample.id,
+                                "count_units": count_units,
+                                "sum_quantity": sum_qty,
+                                "available_units_count": accessory_sample.available_units_count
+                            },
+                            "timestamp": int(time.time() * 1000)
+                        }) + "\n")
+            except Exception:
+                pass
+            # #endregion
+            
             return queryset
         
         # Normal queryset filtering for list views
@@ -146,6 +173,33 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
             min_price=Min('inventory_units__selling_price', filter=units_filter),
             max_price=Max('inventory_units__selling_price', filter=units_filter),
         )
+        
+        # #region agent log
+        try:
+            import json, time
+            accessory_sample = queryset.filter(product_type=Product.ProductType.ACCESSORY).first()
+            if accessory_sample:
+                accessory_units = accessory_sample.inventory_units.filter(units_filter)
+                sum_qty = accessory_units.aggregate(total_qty=Sum('quantity'))['total_qty'] or 0
+                count_units = accessory_units.count()
+                with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                    f.write(json.dumps({
+                        "sessionId": "debug-session",
+                        "runId": "pre-fix",
+                        "hypothesisId": "H2",
+                        "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(list)",
+                        "message": "Public list count vs quantity",
+                        "data": {
+                            "product_id": accessory_sample.id,
+                            "count_units": count_units,
+                            "sum_quantity": sum_qty,
+                            "available_units_count": accessory_sample.available_units_count
+                        },
+                        "timestamp": int(time.time() * 1000)
+                    }) + "\n")
+        except Exception:
+            pass
+        # #endregion
         
         # Brand filtering
         # When a specific brand is requested, show products for that brand, global products, or products with no brand

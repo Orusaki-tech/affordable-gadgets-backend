@@ -5,7 +5,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.db import transaction
 from decimal import Decimal
-from django.db.models import F, Count, Min, Max, Q # Added Count, Min, Max, Q for aggregation/filtering
+from django.db.models import F, Count, Min, Max, Q, Sum # Added Count, Min, Max, Q for aggregation/filtering
 from rest_framework.decorators import action # Required for potential custom actions
 from rest_framework import generics, permissions
 from rest_framework.response import Response
@@ -274,6 +274,31 @@ class ProductViewSet(viewsets.ModelViewSet):
             min_price=Min('selling_price'),
             max_price=Max('selling_price')
         )
+        
+        # #region agent log
+        try:
+            import json, time
+            count_units = inventory_queryset.count()
+            sum_qty = inventory_queryset.aggregate(total_qty=Sum('quantity'))['total_qty'] or 0
+            with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                f.write(json.dumps({
+                    "sessionId": "debug-session",
+                    "runId": "pre-fix",
+                    "hypothesisId": "H1",
+                    "location": "inventory/views.py:stock_summary",
+                    "message": "Stock summary count vs quantity",
+                    "data": {
+                        "product_id": product.pk,
+                        "product_type": product.product_type,
+                        "count_units": count_units,
+                        "sum_quantity": sum_qty,
+                        "available_stock": summary.get("total_available_stock")
+                    },
+                    "timestamp": int(time.time() * 1000)
+                }) + "\n")
+        except Exception:
+            pass
+        # #endregion
 
         # 4. Construct the response data
         response_data = {
@@ -3370,6 +3395,36 @@ class StockAlertsViewSet(viewsets.ViewSet):
         ).filter(
             Q(min_stock_threshold__isnull=False) & Q(available_count__lt=F('min_stock_threshold'))
         )
+        
+        # #region agent log
+        try:
+            import json, time
+            accessory_product = low_stock_products.filter(product_type=Product.ProductType.ACCESSORY).first()
+            if accessory_product:
+                accessory_units = InventoryUnit.objects.filter(
+                    product_template=accessory_product,
+                    sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE
+                )
+                sum_qty = accessory_units.aggregate(total_qty=Sum('quantity'))['total_qty'] or 0
+                count_units = accessory_units.count()
+                with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                    f.write(json.dumps({
+                        "sessionId": "debug-session",
+                        "runId": "pre-fix",
+                        "hypothesisId": "H4",
+                        "location": "inventory/views.py:StockAlertsViewSet.list",
+                        "message": "Low stock accessory count vs quantity",
+                        "data": {
+                            "product_id": accessory_product.id,
+                            "count_units": count_units,
+                            "sum_quantity": sum_qty,
+                            "available_count": accessory_product.available_count
+                        },
+                        "timestamp": int(time.time() * 1000)
+                    }) + "\n")
+        except Exception:
+            pass
+        # #endregion
         
         for product in low_stock_products:
             alerts.append({
