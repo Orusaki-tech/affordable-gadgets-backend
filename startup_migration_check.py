@@ -1,6 +1,7 @@
 """
 Startup migration check for migration 0027 (idempotency_key column).
 This module is imported by wsgi.py on startup to ensure the migration is applied.
+Also runs product visibility fixes on startup.
 """
 import logging
 from django.db import connection
@@ -45,6 +46,26 @@ def check_and_apply_migration_0027():
                     
     except Exception as e:
         logger.warning(f"⚠️  Could not check migration 0027: {e}")
+        # Don't fail startup - just log the warning
+        return False
+
+
+def fix_product_visibility_on_startup():
+    """
+    Fix product visibility issues on startup.
+    This ensures products are visible on the frontend by:
+    - Setting units to AVAILABLE and available_online=True
+    - Publishing products
+    - Fixing brand visibility (making products global if they have no brand assignment)
+    """
+    try:
+        from django.core.management import call_command
+        logger.info("🔍 Running product visibility fix on startup...")
+        call_command('fix_product_visibility', '--fix-brands', '--silent', verbosity=0)
+        logger.info("✅ Product visibility fix completed")
+        return True
+    except Exception as e:
+        logger.warning(f"⚠️  Could not fix product visibility on startup: {e}")
         # Don't fail startup - just log the warning
         return False
 
