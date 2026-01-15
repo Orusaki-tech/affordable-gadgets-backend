@@ -24,7 +24,7 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
     filter_backends = [filters.OrderingFilter, filters.SearchFilter]
     search_fields = ['product_name', 'brand', 'product_description']
     ordering_fields = ['product_name', 'min_price', 'max_price', 'available_units_count']
-    ordering = ['-available_units_count', 'product_name']  # Default: most available first
+    # Don't set default ordering here - it will be applied in get_queryset after annotations
     lookup_field = 'pk'  # Use primary key for detail view
     
     def list(self, request, *args, **kwargs):
@@ -578,8 +578,37 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                     # #endregion
                     raise
             
-            # Apply ordering (from OrderingFilter)
-            queryset = self.filter_queryset(queryset)
+            # Apply ordering manually to avoid OrderingFilter trying to order by annotation before it exists
+            # The annotation is now present, so we can safely order by it
+            ordering_param = self.request.query_params.get('ordering')
+            if ordering_param:
+                # User specified ordering - validate and apply
+                # Split the ordering parameter (can be comma-separated)
+                ordering_fields = [f.strip() for f in ordering_param.split(',')]
+                # Validate that all fields are in ordering_fields or are annotations we know about
+                valid_fields = ['product_name', 'min_price', 'max_price', 'available_units_count']
+                validated_ordering = []
+                for field in ordering_fields:
+                    # Remove leading - for descending
+                    field_name = field.lstrip('-')
+                    if field_name in valid_fields:
+                        validated_ordering.append(field)
+                    else:
+                        # Invalid field, skip it
+                        pass
+                if validated_ordering:
+                    queryset = queryset.order_by(*validated_ordering)
+                else:
+                    # Invalid ordering, use default
+                    queryset = queryset.order_by('-available_units_count', 'product_name')
+            else:
+                # No explicit ordering - apply default ordering after annotations
+                queryset = queryset.order_by('-available_units_count', 'product_name')
+            
+            # Apply search filter (OrderingFilter is handled above)
+            for backend in self.filter_backends:
+                if hasattr(backend, 'filter_queryset') and backend != filters.OrderingFilter:
+                    queryset = backend().filter_queryset(self.request, queryset, self)
             
             # #region agent log - Final queryset before return
             try:
