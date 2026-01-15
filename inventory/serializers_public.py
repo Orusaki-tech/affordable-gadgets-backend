@@ -296,6 +296,7 @@ class PublicPromotionSerializer(serializers.ModelSerializer):
     discount_display = serializers.SerializerMethodField()
     products = serializers.SerializerMethodField()
     banner_image_url = serializers.SerializerMethodField(read_only=True)
+    banner_image = serializers.SerializerMethodField(read_only=True)
     
     class Meta:
         model = Promotion
@@ -305,27 +306,34 @@ class PublicPromotionSerializer(serializers.ModelSerializer):
             'start_date', 'end_date', 'is_currently_active', 'product_types',
             'display_locations', 'carousel_position', 'products'
         )
-        read_only_fields = ('is_currently_active', 'discount_display', 'products', 'banner_image_url')
+        read_only_fields = ('is_currently_active', 'discount_display', 'products', 'banner_image_url', 'banner_image')
     
-    def get_banner_image_url(self, obj):
-        """Return optimized banner image URL for public API"""
+    def get_banner_image(self, obj):
+        """Return optimized banner image URL (prefer Cloudinary, fallback to absolute URL)"""
         if obj.banner_image:
             from inventory.cloudinary_utils import get_optimized_image_url
             request = self.context.get('request')
             original_url = obj.banner_image.url
-            # Build absolute URL if it's a local path
+            
+            # Try to get Cloudinary URL first
+            cloudinary_url = get_optimized_image_url(obj.banner_image, width=1080, height=1920, crop='fill')
+            
+            # If we got a Cloudinary URL, use it
+            if cloudinary_url and 'cloudinary.com' in cloudinary_url:
+                return cloudinary_url
+            
+            # If it's a local path, build absolute URL
             if (original_url.startswith('/media/') or original_url.startswith('/static/')) and request:
-                absolute_url = request.build_absolute_uri(original_url)
-                # Try to get Cloudinary URL
-                cloudinary_url = get_optimized_image_url(obj.banner_image, width=1080, height=1920, crop='fill')
-                # If Cloudinary URL is different and valid, return it
-                if cloudinary_url and cloudinary_url != original_url and 'cloudinary.com' in cloudinary_url:
-                    return cloudinary_url
-                return absolute_url
-            # Optimized for stories carousel (1080x1920) or banners (1200x400)
-            # Using 1080x1920 for stories carousel
-            return get_optimized_image_url(obj.banner_image, width=1080, height=1920, crop='fill')
+                return request.build_absolute_uri(original_url)
+            
+            # Return the URL as-is (might already be absolute)
+            return original_url
         return None
+    
+    def get_banner_image_url(self, obj):
+        """Return optimized banner image URL for public API"""
+        # Use the same logic as get_banner_image
+        return self.get_banner_image(obj)
     
     def get_products(self, obj):
         """Return list of product IDs associated with this promotion."""

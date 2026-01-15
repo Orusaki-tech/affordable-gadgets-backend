@@ -2213,6 +2213,7 @@ class PromotionSerializer(serializers.ModelSerializer):
     is_currently_active = serializers.BooleanField(read_only=True)
     product_count = serializers.SerializerMethodField()
     banner_image_url = serializers.SerializerMethodField(read_only=True)
+    banner_image = serializers.SerializerMethodField(read_only=True)
     
     class Meta:
         model = Promotion
@@ -2223,16 +2224,34 @@ class PromotionSerializer(serializers.ModelSerializer):
             'is_active', 'is_currently_active', 'products', 'product_types',
             'created_by', 'created_at', 'updated_at', 'product_count'
         )
-        read_only_fields = ('created_at', 'updated_at', 'is_currently_active', 'product_count', 'banner_image_url')
+        read_only_fields = ('created_at', 'updated_at', 'is_currently_active', 'product_count', 'banner_image_url', 'banner_image')
+    
+    def get_banner_image(self, obj):
+        """Return optimized banner image URL (prefer Cloudinary, fallback to absolute URL)"""
+        if obj.banner_image:
+            from .cloudinary_utils import get_optimized_image_url
+            request = self.context.get('request')
+            original_url = obj.banner_image.url
+            
+            # Try to get Cloudinary URL first
+            cloudinary_url = get_optimized_image_url(obj.banner_image, width=1080, height=1920, crop='fill')
+            
+            # If we got a Cloudinary URL, use it
+            if cloudinary_url and 'cloudinary.com' in cloudinary_url:
+                return cloudinary_url
+            
+            # If it's a local path, build absolute URL
+            if (original_url.startswith('/media/') or original_url.startswith('/static/')) and request:
+                return request.build_absolute_uri(original_url)
+            
+            # Return the URL as-is (might already be absolute)
+            return original_url
+        return None
     
     def get_banner_image_url(self, obj):
         """Return optimized banner image URL with Cloudinary transformations"""
-        if obj.banner_image:
-            from .cloudinary_utils import get_optimized_image_url
-            # Banner images for stories carousel - typically 1080x1920 (stories) or 1200x400 (banners)
-            # Using 1080x1920 for stories carousel optimization
-            return get_optimized_image_url(obj.banner_image, width=1080, height=1920, crop='fill')
-        return None
+        # Use the same logic as get_banner_image
+        return self.get_banner_image(obj)
     
     def get_product_count(self, obj):
         """Get count of products this promotion applies to."""

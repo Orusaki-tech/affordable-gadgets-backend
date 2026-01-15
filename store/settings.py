@@ -175,7 +175,10 @@ CLOUDINARY_STORAGE = {
     'RESOURCE_TYPE': 'auto',  # 'image', 'video', 'raw', or 'auto'
 }
 
-# Use Cloudinary for media files
+# Use Cloudinary for ALL media file uploads
+# This ensures that all ImageField and FileField instances across all models
+# (Product images, Promotion banners, Brand logos, Review videos, Receipt PDFs, etc.)
+# will automatically be stored in Cloudinary instead of local filesystem
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 # Optional: Use Cloudinary for static files too (uncomment if desired)

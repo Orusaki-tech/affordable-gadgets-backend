@@ -100,8 +100,10 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 # Use Cloudinary for static files in production (serves from CDN)
 STATICFILES_STORAGE = 'cloudinary_storage.storage.StaticCloudinaryStorage'
 
-# Media files (use Cloudinary - already configured in base settings)
+# Media files (use Cloudinary - explicitly ensure it's set)
 MEDIA_URL = '/media/'
+# Ensure Cloudinary is used for all media file uploads
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 # Security headers
 SECURE_SSL_REDIRECT = os.environ.get('SECURE_SSL_REDIRECT', 'True').lower() == 'true'
