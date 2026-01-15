@@ -312,19 +312,63 @@ class PublicPromotionSerializer(serializers.ModelSerializer):
         """Return optimized banner image URL (prefer Cloudinary, fallback to absolute URL)"""
         if obj.banner_image:
             from inventory.cloudinary_utils import get_optimized_image_url
+            import os
+            import cloudinary
+            from cloudinary import CloudinaryImage
+            from django.core.files.storage import default_storage
             request = self.context.get('request')
+            
+            # Check if the storage backend is Cloudinary
+            is_cloudinary_storage = 'cloudinary' in str(type(default_storage)).lower()
+            
+            # Get the URL from the field - Cloudinary storage should return Cloudinary URL
             original_url = obj.banner_image.url
             
-            # Try to get Cloudinary URL first
-            cloudinary_url = get_optimized_image_url(obj.banner_image, width=1080, height=1920, crop='fill')
+            # If already a Cloudinary URL, optimize it and return
+            if 'cloudinary.com' in original_url or 'res.cloudinary.com' in original_url:
+                cloudinary_url = get_optimized_image_url(obj.banner_image, width=1080, height=1920, crop='fill')
+                return cloudinary_url if cloudinary_url else original_url
             
-            # If we got a Cloudinary URL, use it
-            if cloudinary_url and 'cloudinary.com' in cloudinary_url:
-                return cloudinary_url
+            # If using Cloudinary storage but URL is local, try to get Cloudinary URL from storage
+            if is_cloudinary_storage and (original_url.startswith('/media/') or original_url.startswith('/static/')):
+                if hasattr(obj.banner_image, 'name') and obj.banner_image.name:
+                    try:
+                        # Configure Cloudinary
+                        cloudinary.config(
+                            cloud_name=os.environ.get('CLOUDINARY_CLOUD_NAME'),
+                            api_key=os.environ.get('CLOUDINARY_API_KEY'),
+                            api_secret=os.environ.get('CLOUDINARY_API_SECRET'),
+                            secure=True
+                        )
+                        
+                        # Get public_id from the image field name
+                        # Cloudinary storage uses the upload_to path + filename as public_id
+                        public_id = obj.banner_image.name
+                        # Remove file extension for Cloudinary public_id
+                        if '.' in public_id:
+                            public_id = public_id.rsplit('.', 1)[0]
+                        
+                        # Try to build Cloudinary URL
+                        cloudinary_img = CloudinaryImage(public_id)
+                        cloudinary_url = cloudinary_img.build_url(transformation=[
+                            {'width': 1080, 'height': 1920, 'crop': 'fill', 'quality': 'auto', 'format': 'auto'}
+                        ])
+                        
+                        # Verify it's a valid Cloudinary URL
+                        if cloudinary_url and 'cloudinary.com' in cloudinary_url:
+                            return cloudinary_url
+                    except Exception as e:
+                        # If Cloudinary construction fails, fall back to absolute URL
+                        pass
             
             # If it's a local path, build absolute URL
             if (original_url.startswith('/media/') or original_url.startswith('/static/')) and request:
                 return request.build_absolute_uri(original_url)
+            elif original_url.startswith('/media/') or original_url.startswith('/static/'):
+                # Construct absolute URL manually if no request context
+                host = os.environ.get('DJANGO_HOST', 'affordable-gadgets-backend.onrender.com')
+                protocol = 'https'
+                return f"{protocol}://{host}{original_url}"
             
             # Return the URL as-is (might already be absolute)
             return original_url
