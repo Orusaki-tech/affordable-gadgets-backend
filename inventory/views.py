@@ -4210,6 +4210,21 @@ class PromotionViewSet(viewsets.ModelViewSet):
         except: pass
         # #endregion
         promotion_instance = serializer.save(created_by=admin)
+        
+        # DEBUG: Log banner image upload status (print to stdout for Render logs)
+        import logging
+        logger = logging.getLogger(__name__)
+        if promotion_instance.banner_image:
+            banner_url = promotion_instance.banner_image.url
+            banner_name = promotion_instance.banner_image.name
+            is_cloudinary = 'cloudinary.com' in banner_url.lower()
+            storage_type = str(type(default_storage))
+            logger.info(f"DEBUG: Banner image after save - URL: {banner_url}, Name: {banner_name}, IsCloudinary: {is_cloudinary}, Storage: {storage_type}")
+            print(f"DEBUG: Banner image after save - URL: {banner_url}, Name: {banner_name}, IsCloudinary: {is_cloudinary}, Storage: {storage_type}")
+        else:
+            logger.info("DEBUG: No banner image after save")
+            print("DEBUG: No banner image after save")
+        
         # #region agent log
         try:
             with open('/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log', 'a') as f:

@@ -231,19 +231,39 @@ if not all([CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET]):
 # (Product images, Promotion banners, Brand logos, Review videos, Receipt PDFs, etc.)
 # will automatically be stored in Cloudinary instead of local filesystem
 # IMPORTANT: Cloudinary must be configured BEFORE this line (see above)
-DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
-
-# Log storage configuration (print to stdout for visibility in deployment logs)
-import logging
-logger = logging.getLogger(__name__)
+# CRITICAL: Only use Cloudinary storage if credentials are available
+# Otherwise django-cloudinary-storage will silently fall back to local storage
 if all([CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET]):
-    print(f"✅ CLOUDINARY STORAGE ENABLED: Using MediaCloudinaryStorage for cloud={CLOUDINARY_CLOUD_NAME}")
-    logger.info(f"Cloudinary storage enabled for cloud: {CLOUDINARY_CLOUD_NAME}")
+    DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+    
+    # Verify the storage backend will actually use Cloudinary
+    # Import and check after setting DEFAULT_FILE_STORAGE
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Force import of the storage backend to verify it's configured
+    try:
+        from cloudinary_storage.storage import MediaCloudinaryStorage
+        # The storage backend checks CLOUDINARY_STORAGE dict at import time
+        # If credentials are missing, it falls back to local storage
+        # We've already set CLOUDINARY_STORAGE above, so it should work
+        print(f"✅ CLOUDINARY STORAGE ENABLED: Using MediaCloudinaryStorage for cloud={CLOUDINARY_CLOUD_NAME}")
+        logger.info(f"Cloudinary storage enabled for cloud: {CLOUDINARY_CLOUD_NAME}")
+    except Exception as e:
+        print(f"⚠️  WARNING: Could not import MediaCloudinaryStorage: {e}")
+        logger.warning(f"Could not import MediaCloudinaryStorage: {e}")
+        # Still set it - let Django handle the import
+        DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 else:
-    print(f"❌ CLOUDINARY STORAGE ENABLED BUT CREDENTIALS MISSING! Uploads will fail.")
+    # If credentials are missing, explicitly use local storage
+    # This prevents silent failures
+    DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
+    import logging
+    logger = logging.getLogger(__name__)
+    print(f"❌ CLOUDINARY CREDENTIALS MISSING - Using local FileSystemStorage")
     logger.error(
-        "Cloudinary storage enabled but credentials missing! "
-        "Uploads will fail. Set CLOUDINARY_* environment variables."
+        "Cloudinary credentials missing! Using local FileSystemStorage. "
+        "Set CLOUDINARY_* environment variables to use Cloudinary."
     )
 
 # Optional: Use Cloudinary for static files too (uncomment if desired)
