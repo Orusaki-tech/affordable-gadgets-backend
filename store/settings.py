@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django_filters',  # Django Filter (required for DRF filter forms)
     'cloudinary_storage',  # <--- ADDED: Must be before 'cloudinary'
     'cloudinary',  # <--- ADDED: Cloudinary integration
     'rest_framework',
