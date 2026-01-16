@@ -1216,6 +1216,21 @@ class PromotionType(models.Model):
 # 9. PROMOTION MODEL (E-commerce Promotions)
 # -------------------------------------------------------------------------
 
+# Determine Cloudinary storage for Promotion banner_image
+# Force Cloudinary if credentials are available (workaround for django-cloudinary-storage detection issue)
+_promotion_banner_storage = None
+import os
+from django.conf import settings
+_cloud_name = os.environ.get('CLOUDINARY_CLOUD_NAME') or getattr(settings, 'CLOUDINARY_CLOUD_NAME', '')
+_api_key = os.environ.get('CLOUDINARY_API_KEY') or getattr(settings, 'CLOUDINARY_API_KEY', '')
+_api_secret = os.environ.get('CLOUDINARY_API_SECRET') or getattr(settings, 'CLOUDINARY_API_SECRET', '')
+if all([_cloud_name, _api_key, _api_secret]):
+    try:
+        from cloudinary_storage.storage import MediaCloudinaryStorage
+        _promotion_banner_storage = MediaCloudinaryStorage()
+    except (ImportError, Exception):
+        pass
+
 class Promotion(models.Model):
     """Promotion model for discounts and special offers."""
     brand = models.ForeignKey('Brand', on_delete=models.CASCADE, related_name='promotions')
@@ -1233,7 +1248,8 @@ class Promotion(models.Model):
         upload_to='promotions/%Y/%m/', 
         blank=True,
         null=True,
-        help_text="Banner image for promotion (required for Stories Carousel)"
+        help_text="Banner image for promotion (required for Stories Carousel)",
+        storage=_promotion_banner_storage  # Force Cloudinary storage if available
     )
     promotion_code = models.CharField(
         max_length=50,
@@ -1335,6 +1351,29 @@ class Promotion(models.Model):
         """Auto-generate promotion code if not provided."""
         if not self.promotion_code:
             self.promotion_code = self.generate_promotion_code()
+        
+        # CRITICAL FIX: Force Cloudinary storage if credentials are available
+        # django-cloudinary-storage sometimes doesn't detect credentials correctly
+        # This ensures banner_image uses Cloudinary storage
+        if self.banner_image and hasattr(self.banner_image, 'storage'):
+            from django.conf import settings
+            import os
+            
+            # Check if Cloudinary credentials are available
+            cloud_name = os.environ.get('CLOUDINARY_CLOUD_NAME') or getattr(settings, 'CLOUDINARY_CLOUD_NAME', '')
+            api_key = os.environ.get('CLOUDINARY_API_KEY') or getattr(settings, 'CLOUDINARY_API_KEY', '')
+            api_secret = os.environ.get('CLOUDINARY_API_SECRET') or getattr(settings, 'CLOUDINARY_API_SECRET', '')
+            
+            if all([cloud_name, api_key, api_secret]):
+                # Force Cloudinary storage
+                try:
+                    from cloudinary_storage.storage import MediaCloudinaryStorage
+                    # Only override if current storage is not Cloudinary
+                    if not isinstance(self.banner_image.storage, MediaCloudinaryStorage):
+                        self.banner_image.storage = MediaCloudinaryStorage()
+                except ImportError:
+                    pass  # Cloudinary storage not available, use default
+        
         super().save(*args, **kwargs)
     
     @property

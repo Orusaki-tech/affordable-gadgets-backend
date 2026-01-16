@@ -196,15 +196,25 @@ else:
     # Print to stdout so it's visible in deployment logs
     print(f"⚠️  CLOUDINARY CREDENTIALS MISSING: CLOUD_NAME={bool(CLOUDINARY_CLOUD_NAME)}, API_KEY={bool(CLOUDINARY_API_KEY)}, API_SECRET={bool(CLOUDINARY_API_SECRET)}")
 
+# CRITICAL: django-cloudinary-storage checks CLOUDINARY_STORAGE dict at import time
+# It must have non-empty values, otherwise it falls back to local storage
+# Ensure all values are strings (not empty strings)
 CLOUDINARY_STORAGE = {
-    'CLOUD_NAME': CLOUDINARY_CLOUD_NAME,
-    'API_KEY': CLOUDINARY_API_KEY,
-    'API_SECRET': CLOUDINARY_API_SECRET,
+    'CLOUD_NAME': CLOUDINARY_CLOUD_NAME if CLOUDINARY_CLOUD_NAME else '',
+    'API_KEY': CLOUDINARY_API_KEY if CLOUDINARY_API_KEY else '',
+    'API_SECRET': CLOUDINARY_API_SECRET if CLOUDINARY_API_SECRET else '',
     # Optional: Set secure delivery
     'SECURE': True,
     # Optional: Set default resource type
     'RESOURCE_TYPE': 'auto',  # 'image', 'video', 'raw', or 'auto'
 }
+
+# DEBUG: Log CLOUDINARY_STORAGE dict to verify it's set correctly
+if all([CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET]):
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"CLOUDINARY_STORAGE dict: CLOUD_NAME={CLOUDINARY_STORAGE['CLOUD_NAME'][:10]}..., API_KEY={CLOUDINARY_STORAGE['API_KEY'][:10]}..., API_SECRET={'*' * 10}...")
+    print(f"DEBUG: CLOUDINARY_STORAGE dict set - CLOUD_NAME={CLOUDINARY_STORAGE['CLOUD_NAME']}, API_KEY={CLOUDINARY_STORAGE['API_KEY'][:10]}...")
 
 # Validate Cloudinary credentials
 # Warn if Cloudinary is configured but credentials are missing
