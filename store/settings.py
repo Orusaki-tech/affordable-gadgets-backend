@@ -179,21 +179,43 @@ CLOUDINARY_STORAGE = {
     'RESOURCE_TYPE': 'auto',  # 'image', 'video', 'raw', or 'auto'
 }
 
-# Use Cloudinary for ALL media file uploads
-# This ensures that all ImageField and FileField instances across all models
-# (Product images, Promotion banners, Brand logos, Review videos, Receipt PDFs, etc.)
-# will automatically be stored in Cloudinary instead of local filesystem
-DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
-
 # Validate Cloudinary credentials
 # Warn if Cloudinary is configured but credentials are missing
 if not all([CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET]):
     import warnings
-    warnings.warn(
+    import logging
+    logger = logging.getLogger(__name__)
+    warning_msg = (
         "Cloudinary storage is enabled but credentials are missing. "
         "Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET environment variables. "
-        "Images will fail to upload if credentials are not set.",
-        UserWarning
+        "Images will fail to upload if credentials are not set."
+    )
+    warnings.warn(warning_msg, UserWarning)
+    logger.warning(warning_msg)
+    # In production, raise an error instead of silently failing
+    if os.environ.get('DJANGO_ENV') == 'production':
+        raise ValueError(
+            "Cloudinary credentials are required in production. "
+            "Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET environment variables."
+        )
+
+# Use Cloudinary for ALL media file uploads
+# This ensures that all ImageField and FileField instances across all models
+# (Product images, Promotion banners, Brand logos, Review videos, Receipt PDFs, etc.)
+# will automatically be stored in Cloudinary instead of local filesystem
+# IMPORTANT: django-cloudinary-storage will use Cloudinary if credentials are in CLOUDINARY_STORAGE dict
+# If credentials are missing, it may fall back to local storage silently
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+
+# Log storage configuration
+import logging
+logger = logging.getLogger(__name__)
+if all([CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET]):
+    logger.info(f"Cloudinary storage configured for cloud: {CLOUDINARY_CLOUD_NAME}")
+else:
+    logger.error(
+        "Cloudinary storage enabled but credentials missing! "
+        "Uploads will fail. Set CLOUDINARY_* environment variables."
     )
 
 # Optional: Use Cloudinary for static files too (uncomment if desired)
