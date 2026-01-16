@@ -1333,8 +1333,9 @@ class ReviewSerializer(serializers.ModelSerializer):
         """Block uploads if Cloudinary storage is not configured."""
         if value is None:
             return value
-        from django.core.files.storage import default_storage
-        if 'cloudinary' not in str(type(default_storage)).lower():
+        from django.conf import settings
+        cloudinary_enabled = bool(getattr(settings, 'CLOUDINARY_ENABLED', False))
+        if not cloudinary_enabled:
             raise serializers.ValidationError(
                 "Cloudinary storage is not configured. Image uploads are disabled."
             )
@@ -1344,8 +1345,9 @@ class ReviewSerializer(serializers.ModelSerializer):
         """Block uploads if Cloudinary storage is not configured."""
         if value is None:
             return value
-        from django.core.files.storage import default_storage
-        if 'cloudinary' not in str(type(default_storage)).lower():
+        from django.conf import settings
+        cloudinary_enabled = bool(getattr(settings, 'CLOUDINARY_ENABLED', False))
+        if not cloudinary_enabled:
             raise serializers.ValidationError(
                 "Cloudinary storage is not configured. Video uploads are disabled."
             )
