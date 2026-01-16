@@ -3,8 +3,46 @@ Utility functions for Cloudinary image and video transformations.
 Provides helper methods to generate optimized URLs with transformations.
 """
 import os
+import logging
 import cloudinary
 import cloudinary.api
+
+logger = logging.getLogger(__name__)
+
+# Configure Cloudinary once at module load (if credentials are available)
+_cloudinary_configured = False
+
+def _ensure_cloudinary_configured():
+    """Ensure Cloudinary is configured with credentials from environment."""
+    global _cloudinary_configured
+    
+    if _cloudinary_configured:
+        return True
+    
+    cloud_name = os.environ.get('CLOUDINARY_CLOUD_NAME')
+    api_key = os.environ.get('CLOUDINARY_API_KEY')
+    api_secret = os.environ.get('CLOUDINARY_API_SECRET')
+    
+    if not all([cloud_name, api_key, api_secret]):
+        logger.warning(
+            "Cloudinary credentials not fully configured. "
+            "Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET environment variables."
+        )
+        return False
+    
+    try:
+        cloudinary.config(
+            cloud_name=cloud_name,
+            api_key=api_key,
+            api_secret=api_secret,
+            secure=True
+        )
+        _cloudinary_configured = True
+        logger.info("Cloudinary configured successfully")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to configure Cloudinary: {e}")
+        return False
 
 
 def _get_cloudinary_url_from_field(image_field):
@@ -39,15 +77,16 @@ def _get_cloudinary_url_from_field(image_field):
     # If it's a local path but we have the image name (which might be a public_id)
     # Try to construct Cloudinary URL
     if hasattr(image_field, 'name') and image_field.name:
-        # Configure Cloudinary if not already configured
+        # Ensure Cloudinary is configured
+        if not _ensure_cloudinary_configured():
+            # If Cloudinary is not configured, return absolute URL
+            if base_url.startswith('/'):
+                host = os.environ.get('DJANGO_HOST', 'localhost:8000')
+                protocol = 'https' if os.environ.get('DJANGO_USE_HTTPS', '').lower() == 'true' else 'http'
+                return f"{protocol}://{host}{base_url}"
+            return base_url
+        
         try:
-            cloudinary.config(
-                cloud_name=os.environ.get('CLOUDINARY_CLOUD_NAME'),
-                api_key=os.environ.get('CLOUDINARY_API_KEY'),
-                api_secret=os.environ.get('CLOUDINARY_API_SECRET'),
-                secure=True
-            )
-            
             # Check if the name looks like a Cloudinary public_id (no slashes at start, or has folder structure)
             public_id = image_field.name
             
@@ -59,13 +98,15 @@ def _get_cloudinary_url_from_field(image_field):
             from cloudinary import CloudinaryImage
             cloudinary_img = CloudinaryImage(public_id)
             return cloudinary_img.build_url()
-        except Exception:
-            # If Cloudinary config fails, return the original URL as absolute
+        except Exception as e:
+            logger.warning(f"Failed to build Cloudinary URL from public_id '{image_field.name}': {e}")
+            # If Cloudinary URL construction fails, return the original URL as absolute
             if base_url.startswith('/'):
                 host = os.environ.get('DJANGO_HOST', 'localhost:8000')
                 protocol = 'https' if os.environ.get('DJANGO_USE_HTTPS', '').lower() == 'true' else 'http'
                 return f"{protocol}://{host}{base_url}"
-            pass
+            # If base_url is already absolute or doesn't start with '/', return it as-is
+            return base_url
     
     return base_url
 
@@ -91,6 +132,70 @@ def get_optimized_image_url(image_field, width=None, height=None, quality='auto'
     # Get base Cloudinary URL
     base_url = _get_cloudinary_url_from_field(image_field)
     
+    if not base_url:
+        return None
+    
+    # If it's not a Cloudinary URL, return as-is (no transformations possible)
+    if '/upload/' not in base_url or 'cloudinary.com' not in base_url:
+        return base_url
+    
+    # Use Cloudinary's URL building for better reliability
+    try:
+        from cloudinary import CloudinaryImage
+        from urllib.parse import urlparse
+        
+        # Extract public_id from Cloudinary URL
+        # Format: https://res.cloudinary.com/cloud_name/image/upload/v123/public_id.jpg
+        parsed = urlparse(base_url)
+        path_parts = parsed.path.split('/')
+        
+        # Find the upload segment and get everything after it
+        try:
+            upload_idx = path_parts.index('upload')
+            # Get everything after 'upload' (skip version if present)
+            after_upload = path_parts[upload_idx + 1:]
+            # Remove version if present (starts with 'v' followed by numbers)
+            if after_upload and after_upload[0].startswith('v') and after_upload[0][1:].isdigit():
+                after_upload = after_upload[1:]
+            # Remove transformation parameters if present
+            if after_upload and ',' in after_upload[0]:
+                after_upload = after_upload[1:]
+            
+            public_id = '/'.join(after_upload)
+            # Remove file extension for public_id
+            if '.' in public_id:
+                public_id = public_id.rsplit('.', 1)[0]
+            
+            # Build transformation parameters
+            transformation_params = {}
+            if width and height:
+                transformation_params['width'] = width
+                transformation_params['height'] = height
+                transformation_params['crop'] = crop
+            elif width:
+                transformation_params['width'] = width
+            elif height:
+                transformation_params['height'] = height
+            
+            if quality:
+                transformation_params['quality'] = quality
+            
+            if format:
+                transformation_params['format'] = format
+            
+            # Build URL with transformations
+            cloudinary_img = CloudinaryImage(public_id)
+            return cloudinary_img.build_url(**transformation_params)
+        except (ValueError, IndexError) as e:
+            logger.warning(f"Failed to parse Cloudinary URL '{base_url}': {e}. Using string replacement method.")
+            # Fallback to string replacement method
+            pass
+    
+    except Exception as e:
+        logger.warning(f"Failed to build Cloudinary URL with transformations: {e}. Using string replacement method.")
+        # Fallback to string replacement method
+    
+    # Fallback: Use string replacement (original method)
     # If no transformations needed, return base URL with auto-optimization
     if not width and not height:
         # Add auto-optimization parameters if it's a Cloudinary URL

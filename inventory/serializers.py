@@ -2213,7 +2213,9 @@ class PromotionSerializer(serializers.ModelSerializer):
     is_currently_active = serializers.BooleanField(read_only=True)
     product_count = serializers.SerializerMethodField()
     banner_image_url = serializers.SerializerMethodField(read_only=True)
-    banner_image = serializers.SerializerMethodField(read_only=True)
+    # banner_image is the model field (ImageField) - writable for uploads
+    # We override to_representation to return optimized URL instead of raw URL
+    banner_image = serializers.ImageField(required=False, allow_null=True)
     
     class Meta:
         model = Promotion
@@ -2224,7 +2226,23 @@ class PromotionSerializer(serializers.ModelSerializer):
             'is_active', 'is_currently_active', 'products', 'product_types',
             'created_by', 'created_at', 'updated_at', 'product_count'
         )
-        read_only_fields = ('created_at', 'updated_at', 'is_currently_active', 'product_count', 'banner_image_url', 'banner_image')
+        read_only_fields = ('created_at', 'updated_at', 'is_currently_active', 'product_count', 'banner_image_url')
+    
+    def to_representation(self, instance):
+        """Override to return optimized banner_image URL in response."""
+        representation = super().to_representation(instance)
+        if instance.banner_image:
+            # Replace the raw URL with optimized Cloudinary URL
+            from .cloudinary_utils import get_optimized_image_url
+            optimized_url = get_optimized_image_url(
+                instance.banner_image, 
+                width=1080, 
+                height=1920, 
+                crop='fill'
+            )
+            if optimized_url:
+                representation['banner_image'] = optimized_url
+        return representation
     
     def get_banner_image(self, obj):
         """Return optimized banner image URL (prefer Cloudinary, fallback to absolute URL)"""

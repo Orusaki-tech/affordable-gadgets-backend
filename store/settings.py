@@ -165,10 +165,14 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 # Cloudinary Configuration
 # Get credentials from environment variables or .env file
+CLOUDINARY_CLOUD_NAME = os.environ.get('CLOUDINARY_CLOUD_NAME', '')
+CLOUDINARY_API_KEY = os.environ.get('CLOUDINARY_API_KEY', '')
+CLOUDINARY_API_SECRET = os.environ.get('CLOUDINARY_API_SECRET', '')
+
 CLOUDINARY_STORAGE = {
-    'CLOUD_NAME': os.environ.get('CLOUDINARY_CLOUD_NAME', ''),
-    'API_KEY': os.environ.get('CLOUDINARY_API_KEY', ''),
-    'API_SECRET': os.environ.get('CLOUDINARY_API_SECRET', ''),
+    'CLOUD_NAME': CLOUDINARY_CLOUD_NAME,
+    'API_KEY': CLOUDINARY_API_KEY,
+    'API_SECRET': CLOUDINARY_API_SECRET,
     # Optional: Set secure delivery
     'SECURE': True,
     # Optional: Set default resource type
@@ -180,6 +184,17 @@ CLOUDINARY_STORAGE = {
 # (Product images, Promotion banners, Brand logos, Review videos, Receipt PDFs, etc.)
 # will automatically be stored in Cloudinary instead of local filesystem
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+
+# Validate Cloudinary credentials
+# Warn if Cloudinary is configured but credentials are missing
+if not all([CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET]):
+    import warnings
+    warnings.warn(
+        "Cloudinary storage is enabled but credentials are missing. "
+        "Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET environment variables. "
+        "Images will fail to upload if credentials are not set.",
+        UserWarning
+    )
 
 # Optional: Use Cloudinary for static files too (uncomment if desired)
 # STATICFILES_STORAGE = 'cloudinary_storage.storage.StaticCloudinaryStorage'
