@@ -181,13 +181,20 @@ if all([CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET]):
             api_secret=CLOUDINARY_API_SECRET,
             secure=True
         )
+        # Print to stdout so it's visible in deployment logs
+        print(f"✅ CLOUDINARY CONFIGURED: cloud={CLOUDINARY_CLOUD_NAME}, api_key={CLOUDINARY_API_KEY[:10]}...")
         import logging
         logger = logging.getLogger(__name__)
         logger.info(f"Cloudinary configured at startup for cloud: {CLOUDINARY_CLOUD_NAME}")
     except Exception as e:
+        # Print to stdout so it's visible in deployment logs
+        print(f"❌ FAILED TO CONFIGURE CLOUDINARY: {e}")
         import logging
         logger = logging.getLogger(__name__)
         logger.error(f"Failed to configure Cloudinary at startup: {e}")
+else:
+    # Print to stdout so it's visible in deployment logs
+    print(f"⚠️  CLOUDINARY CREDENTIALS MISSING: CLOUD_NAME={bool(CLOUDINARY_CLOUD_NAME)}, API_KEY={bool(CLOUDINARY_API_KEY)}, API_SECRET={bool(CLOUDINARY_API_SECRET)}")
 
 CLOUDINARY_STORAGE = {
     'CLOUD_NAME': CLOUDINARY_CLOUD_NAME,
@@ -226,12 +233,14 @@ if not all([CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET]):
 # IMPORTANT: Cloudinary must be configured BEFORE this line (see above)
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
-# Log storage configuration
+# Log storage configuration (print to stdout for visibility in deployment logs)
 import logging
 logger = logging.getLogger(__name__)
 if all([CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET]):
+    print(f"✅ CLOUDINARY STORAGE ENABLED: Using MediaCloudinaryStorage for cloud={CLOUDINARY_CLOUD_NAME}")
     logger.info(f"Cloudinary storage enabled for cloud: {CLOUDINARY_CLOUD_NAME}")
 else:
+    print(f"❌ CLOUDINARY STORAGE ENABLED BUT CREDENTIALS MISSING! Uploads will fail.")
     logger.error(
         "Cloudinary storage enabled but credentials missing! "
         "Uploads will fail. Set CLOUDINARY_* environment variables."
