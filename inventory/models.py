@@ -1221,34 +1221,57 @@ class PromotionType(models.Model):
 # CRITICAL: MediaCloudinaryStorage reads from CLOUDINARY_STORAGE dict in settings
 # We need to ensure the dict is set before instantiating the storage
 _promotion_banner_storage = None
-import os
-from django.conf import settings
 
-# Check if credentials are available
-_cloud_name = os.environ.get('CLOUDINARY_CLOUD_NAME') or getattr(settings, 'CLOUDINARY_CLOUD_NAME', '')
-_api_key = os.environ.get('CLOUDINARY_API_KEY') or getattr(settings, 'CLOUDINARY_API_KEY', '')
-_api_secret = os.environ.get('CLOUDINARY_API_SECRET') or getattr(settings, 'CLOUDINARY_API_SECRET', '')
-
-if all([_cloud_name, _api_key, _api_secret]):
+# Use a function to get storage dynamically (called when field is accessed)
+# This ensures settings are fully loaded
+def _get_promotion_storage():
+    """Get Cloudinary storage for Promotion banner_image, ensuring settings are loaded."""
+    import os
+    from django.conf import settings
+    
+    # Check if credentials are available
+    cloud_name = os.environ.get('CLOUDINARY_CLOUD_NAME') or getattr(settings, 'CLOUDINARY_CLOUD_NAME', '')
+    api_key = os.environ.get('CLOUDINARY_API_KEY') or getattr(settings, 'CLOUDINARY_API_KEY', '')
+    api_secret = os.environ.get('CLOUDINARY_API_SECRET') or getattr(settings, 'CLOUDINARY_API_SECRET', '')
+    
+    if not all([cloud_name, api_key, api_secret]):
+        return None
+    
     try:
-        # Ensure Cloudinary is configured before creating storage instance
+        # Ensure Cloudinary is configured
         import cloudinary
         cloudinary.config(
-            cloud_name=_cloud_name,
-            api_key=_api_key,
-            api_secret=_api_secret,
+            cloud_name=cloud_name,
+            api_key=api_key,
+            api_secret=api_secret,
             secure=True
         )
         
-        # Now create the storage instance - it should use the configured Cloudinary
+        # MediaCloudinaryStorage reads from settings.CLOUDINARY_STORAGE
+        # Make sure it's set in settings
+        if not hasattr(settings, 'CLOUDINARY_STORAGE'):
+            # Set it if not already set
+            settings.CLOUDINARY_STORAGE = {
+                'CLOUD_NAME': cloud_name,
+                'API_KEY': api_key,
+                'API_SECRET': api_secret,
+                'SECURE': True,
+                'RESOURCE_TYPE': 'auto',
+            }
+        
         from cloudinary_storage.storage import MediaCloudinaryStorage
-        _promotion_banner_storage = MediaCloudinaryStorage()
+        return MediaCloudinaryStorage()
     except (ImportError, Exception) as e:
-        # If storage can't be created, use None (will fall back to default)
         import logging
         logger = logging.getLogger(__name__)
         logger.warning(f"Could not create MediaCloudinaryStorage for Promotion: {e}")
-        pass
+        return None
+
+# Try to get storage at module load (will be None if settings not ready)
+try:
+    _promotion_banner_storage = _get_promotion_storage()
+except:
+    _promotion_banner_storage = None
 
 class Promotion(models.Model):
     """Promotion model for discounts and special offers."""
@@ -1268,7 +1291,7 @@ class Promotion(models.Model):
         blank=True,
         null=True,
         help_text="Banner image for promotion (required for Stories Carousel)",
-        storage=_promotion_banner_storage  # Force Cloudinary storage if available
+        storage=None  # Will use _get_promotion_storage() which ensures settings are loaded
     )
     promotion_code = models.CharField(
         max_length=50,
@@ -1371,10 +1394,9 @@ class Promotion(models.Model):
         if not self.promotion_code:
             self.promotion_code = self.generate_promotion_code()
         
-        # CRITICAL FIX: Force Cloudinary storage if credentials are available
-        # django-cloudinary-storage sometimes doesn't detect credentials correctly
-        # This ensures banner_image uses Cloudinary storage
-        if self.banner_image and hasattr(self.banner_image, 'storage'):
+        # CRITICAL FIX: Ensure banner_image uses Cloudinary storage with correct credentials
+        # The storage must read from settings.CLOUDINARY_STORAGE which has the correct credentials
+        if self.banner_image:
             from django.conf import settings
             import os
             
@@ -1384,14 +1406,37 @@ class Promotion(models.Model):
             api_secret = os.environ.get('CLOUDINARY_API_SECRET') or getattr(settings, 'CLOUDINARY_API_SECRET', '')
             
             if all([cloud_name, api_key, api_secret]):
-                # Force Cloudinary storage
+                # Ensure CLOUDINARY_STORAGE dict is set correctly in settings
+                # MediaCloudinaryStorage reads from this dict
+                if not hasattr(settings, 'CLOUDINARY_STORAGE') or not settings.CLOUDINARY_STORAGE.get('API_SECRET'):
+                    settings.CLOUDINARY_STORAGE = {
+                        'CLOUD_NAME': cloud_name,
+                        'API_KEY': api_key,
+                        'API_SECRET': api_secret,
+                        'SECURE': True,
+                        'RESOURCE_TYPE': 'auto',
+                    }
+                
+                # Ensure Cloudinary is configured
+                import cloudinary
+                cloudinary.config(
+                    cloud_name=cloud_name,
+                    api_key=api_key,
+                    api_secret=api_secret,
+                    secure=True
+                )
+                
+                # Set storage on the field - MediaCloudinaryStorage will read from settings.CLOUDINARY_STORAGE
                 try:
                     from cloudinary_storage.storage import MediaCloudinaryStorage
-                    # Only override if current storage is not Cloudinary
-                    if not isinstance(self.banner_image.storage, MediaCloudinaryStorage):
-                        self.banner_image.storage = MediaCloudinaryStorage()
-                except ImportError:
-                    pass  # Cloudinary storage not available, use default
+                    # Get the field and set its storage
+                    banner_field = self._meta.get_field('banner_image')
+                    if banner_field.storage is None or not isinstance(banner_field.storage, MediaCloudinaryStorage):
+                        banner_field.storage = MediaCloudinaryStorage()
+                except (ImportError, Exception) as e:
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(f"Could not set MediaCloudinaryStorage for banner_image: {e}")
         
         super().save(*args, **kwargs)
     
