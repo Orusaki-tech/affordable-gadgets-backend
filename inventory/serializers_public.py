@@ -348,8 +348,39 @@ class PublicPromotionSerializer(serializers.ModelSerializer):
             print(f"[DEBUG] get_banner_image: {log_data}", file=sys.stderr)
             # #endregion
             
-            # If already a Cloudinary URL, optimize it and return
+            # If already a Cloudinary URL, add transformations to it directly
+            # This preserves the correct public_id that the storage backend knows about
             if 'cloudinary.com' in original_url or 'res.cloudinary.com' in original_url:
+                # Use the URL from storage backend and add transformations
+                # This avoids reconstructing the URL which might use wrong public_id
+                try:
+                    # Parse the URL and add transformations
+                    if '/upload/' in original_url:
+                        parts = original_url.split('/upload/')
+                        if len(parts) == 2:
+                            after_upload = parts[1]
+                            # Build transformation string
+                            transform_str = 'c_fill,h_1920,q_auto,w_1080'
+                            
+                            # Check if transformations already exist
+                            path_parts = after_upload.split('/')
+                            if path_parts and (',' in path_parts[0] or any(x in path_parts[0] for x in ['w_', 'h_', 'c_', 'q_', 'f_'])):
+                                # Replace existing transformations
+                                path_parts[0] = transform_str
+                                new_after_upload = '/'.join(path_parts)
+                            else:
+                                # Add new transformations before the path
+                                new_after_upload = f'{transform_str}/{after_upload}'
+                            
+                            optimized_url = f"{parts[0]}/upload/{new_after_upload}"
+                            return optimized_url
+                except Exception as e:
+                    logger.warning(f"Failed to add transformations to Cloudinary URL: {e}. Using original URL.")
+                    # Fall back to using get_optimized_image_url
+                    cloudinary_url = get_optimized_image_url(obj.banner_image, width=1080, height=1920, crop='fill')
+                    return cloudinary_url if cloudinary_url else original_url
+                
+                # If parsing failed, try the utility function
                 cloudinary_url = get_optimized_image_url(obj.banner_image, width=1080, height=1920, crop='fill')
                 return cloudinary_url if cloudinary_url else original_url
             
@@ -390,42 +421,59 @@ class PublicPromotionSerializer(serializers.ModelSerializer):
                         
                         # Get public_id from the image field name
                         # Cloudinary storage uses the upload_to path + filename as public_id
-                        # IMPORTANT: django-cloudinary-storage adds 'media/' prefix because of MEDIA_URL='/media/'
-                        # So the actual public_id in Cloudinary includes 'media/' prefix
-                        # DO NOT remove it - it's part of the actual Cloudinary public_id
+                        # Note: Depending on MEDIA_TAG setting, public_id might or might not have 'media/' prefix
                         public_id = obj.banner_image.name
-                        
-                        # Keep 'media/' prefix if present - it's part of the Cloudinary public_id
-                        # django-cloudinary-storage uploads files with 'media/' prefix
-                        
-                        # #region agent log
-                        try:
-                            with open('/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log', 'a') as f:
-                                f.write(json.dumps({"location":"serializers_public.py:362","message":"Extracting public_id from image name","data":{"promotion_id":obj.id,"image_name":obj.banner_image.name,"public_id_after_cleanup":public_id},"timestamp":int(__import__('time').time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}) + '\n')
-                        except: pass
-                        # #endregion
                         
                         # Remove file extension for Cloudinary public_id (Cloudinary stores without extension)
                         if '.' in public_id:
                             public_id = public_id.rsplit('.', 1)[0]
                         
                         # Try to build Cloudinary URL with transformations
-                        cloudinary_img = CloudinaryImage(public_id)
-                        cloudinary_url = cloudinary_img.build_url(transformation=[
-                            {'width': 1080, 'height': 1920, 'crop': 'fill', 'quality': 'auto', 'format': 'auto'}
-                        ])
-                        # #region agent log
+                        # Try with the public_id as-is first (preserves any prefix that was used during upload)
                         try:
-                            with open('/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log', 'a') as f:
-                                f.write(json.dumps({"location":"serializers_public.py:375","message":"Cloudinary URL constructed","data":{"promotion_id":obj.id,"public_id":public_id,"cloudinary_url":cloudinary_url,"is_valid":'cloudinary.com' in str(cloudinary_url).lower()},"timestamp":int(__import__('time').time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}) + '\n')
-                        except: pass
-                        # #endregion
+                            cloudinary_img = CloudinaryImage(public_id)
+                            cloudinary_url = cloudinary_img.build_url(transformation=[
+                                {'width': 1080, 'height': 1920, 'crop': 'fill', 'quality': 'auto', 'format': 'auto'}
+                            ])
+                            
+                            # Verify it's a valid Cloudinary URL
+                            if cloudinary_url and 'cloudinary.com' in cloudinary_url:
+                                # #region agent log
+                                try:
+                                    with open('/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log', 'a') as f:
+                                        f.write(json.dumps({"location":"serializers_public.py:375","message":"Cloudinary URL constructed","data":{"promotion_id":obj.id,"public_id":public_id,"cloudinary_url":cloudinary_url,"is_valid":'cloudinary.com' in str(cloudinary_url).lower()},"timestamp":int(__import__('time').time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}) + '\n')
+                                except: pass
+                                # #endregion
+                                return cloudinary_url
+                        except Exception as e:
+                            logger.warning(f"Failed to build Cloudinary URL with public_id '{public_id}': {e}")
                         
-                        # Verify it's a valid Cloudinary URL and return it
-                        # Note: Even if image doesn't exist on Cloudinary yet, return the URL
-                        # The frontend can handle 404s with placeholders
-                        if cloudinary_url and 'cloudinary.com' in cloudinary_url:
-                            return cloudinary_url
+                        # If that failed, try without 'media/' prefix if it was present
+                        # This handles cases where MEDIA_TAG was set to empty string
+                        if public_id.startswith('media/'):
+                            try:
+                                public_id_no_media = public_id[6:]  # Remove 'media/' prefix
+                                cloudinary_img = CloudinaryImage(public_id_no_media)
+                                cloudinary_url = cloudinary_img.build_url(transformation=[
+                                    {'width': 1080, 'height': 1920, 'crop': 'fill', 'quality': 'auto', 'format': 'auto'}
+                                ])
+                                if cloudinary_url and 'cloudinary.com' in cloudinary_url:
+                                    return cloudinary_url
+                            except Exception as e:
+                                logger.warning(f"Failed to build Cloudinary URL without 'media/' prefix: {e}")
+                        
+                        # If both attempts failed, try adding 'media/' prefix if it wasn't there
+                        if not public_id.startswith('media/'):
+                            try:
+                                public_id_with_media = f'media/{public_id}'
+                                cloudinary_img = CloudinaryImage(public_id_with_media)
+                                cloudinary_url = cloudinary_img.build_url(transformation=[
+                                    {'width': 1080, 'height': 1920, 'crop': 'fill', 'quality': 'auto', 'format': 'auto'}
+                                ])
+                                if cloudinary_url and 'cloudinary.com' in cloudinary_url:
+                                    return cloudinary_url
+                            except Exception as e:
+                                logger.warning(f"Failed to build Cloudinary URL with 'media/' prefix: {e}")
                     except Exception as e:
                         # #region agent log
                         try:
