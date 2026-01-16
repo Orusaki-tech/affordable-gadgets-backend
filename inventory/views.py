@@ -4265,7 +4265,7 @@ class PromotionViewSet(viewsets.ModelViewSet):
             promotion_instance.save()
     
     def perform_update(self, serializer):
-        """Allow update only if user owns the promotion (for Marketing Managers)."""
+        """Allow update for Marketing Managers (full access)."""
         instance = serializer.instance
         user = self.request.user
         
@@ -4301,10 +4301,78 @@ class PromotionViewSet(viewsets.ModelViewSet):
             if admin.is_global_admin:
                 serializer.save()
                 return
+            # Marketing Managers can edit any promotion (full access)
+            if admin.is_marketing_manager:
+                # Parse display_locations JSON string if it comes from FormData
+                display_locations = self.request.data.get('display_locations')
+                if display_locations is not None and isinstance(display_locations, str):
+                    import json
+                    try:
+                        display_locations = json.loads(display_locations)
+                        if hasattr(self.request.data, '_mutable'):
+                            self.request.data._mutable = True
+                        self.request.data['display_locations'] = display_locations
+                        if hasattr(self.request.data, '_mutable'):
+                            self.request.data._mutable = False
+                    except (json.JSONDecodeError, ValueError):
+                        from rest_framework.exceptions import ValidationError
+                        raise ValidationError({
+                            'display_locations': ['Display locations must be valid JSON.']
+                        })
+                
+                # Parse is_active from FormData
+                if 'is_active' in self.request.data:
+                    is_active_value = self.request.data['is_active']
+                    if isinstance(is_active_value, str):
+                        is_active_bool = is_active_value.lower() == 'true'
+                        if hasattr(self.request.data, '_mutable'):
+                            self.request.data._mutable = True
+                        self.request.data['is_active'] = is_active_bool
+                        if hasattr(self.request.data, '_mutable'):
+                            self.request.data._mutable = False
+                
+                # Validate same requirements as create
+                if 'products' in self.request.data:
+                    products = self.request.data.get('products', [])
+                    if hasattr(self.request.data, 'getlist'):
+                        products_list = self.request.data.getlist('products')
+                        has_products = len(products_list) > 0 and any(p for p in products_list if p)
+                    elif isinstance(products, list):
+                        has_products = len(products) > 0
+                    else:
+                        has_products = bool(products)
+                else:
+                    has_products = instance.products.exists() if instance else False
+                
+                product_types = self.request.data.get('product_types', instance.product_types if instance else '')
+                
+                if not has_products and not product_types:
+                    from rest_framework.exceptions import ValidationError
+                    raise ValidationError({
+                        'non_field_errors': ['At least one product or product type must be specified.']
+                    })
+                
+                promotion_instance = serializer.save()
+                
+                # Handle products ManyToMany field
+                if 'products' in self.request.data:
+                    products = self.request.data.get('products', [])
+                    product_ids = []
+                    
+                    if hasattr(self.request.data, 'getlist'):
+                        product_ids = [int(p) for p in self.request.data.getlist('products') if p]
+                    elif isinstance(products, list):
+                        product_ids = [int(p) if isinstance(p, (int, str)) else (p.id if hasattr(p, 'id') else p) for p in products if p]
+                    elif products:
+                        product_ids = [int(products)] if str(products).isdigit() else []
+                    
+                    promotion_instance.products.set(product_ids)
+                
+                return
         except Admin.DoesNotExist:
             pass
         
-        # Marketing Managers can only edit their own promotions
+        # Fallback for other admin types - check ownership
         if instance.created_by and instance.created_by.user != user:
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied('You can only edit promotions you created.')
@@ -4384,7 +4452,7 @@ class PromotionViewSet(viewsets.ModelViewSet):
             promotion_instance.products.set(product_ids)
     
     def perform_destroy(self, instance):
-        """Allow delete only if user owns the promotion (for Marketing Managers)."""
+        """Allow delete for Marketing Managers (full access)."""
         user = self.request.user
         
         # Superusers and global admins can delete any promotion
@@ -4397,10 +4465,14 @@ class PromotionViewSet(viewsets.ModelViewSet):
             if admin.is_global_admin:
                 instance.delete()
                 return
+            # Marketing Managers can delete any promotion (full access)
+            if admin.is_marketing_manager:
+                instance.delete()
+                return
         except Admin.DoesNotExist:
             pass
         
-        # Marketing Managers can only delete their own promotions
+        # Fallback for other admin types - check ownership
         if instance.created_by and instance.created_by.user != user:
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied('You can only delete promotions you created.')
