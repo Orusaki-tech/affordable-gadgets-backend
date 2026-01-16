@@ -1255,8 +1255,8 @@ class ReviewSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.product_name', read_only=True)
     is_admin_review = serializers.BooleanField(read_only=True)  # Computed from customer field
     review_image_url = serializers.SerializerMethodField(read_only=True)
-    # review_image is the model field (ImageField) - writable for uploads
-    review_image = serializers.ImageField(required=False, allow_null=True)
+    # review_image is the model field (ImageField) - writable for uploads only
+    review_image = serializers.ImageField(required=False, allow_null=True, write_only=True)
     
     def get_customer_username(self, obj):
         """Get customer username, handling None customer (admin reviews)."""
@@ -1288,46 +1288,17 @@ class ReviewSerializer(serializers.ModelSerializer):
         return None
 
     def get_review_image_url(self, obj):
-        """Returns the optimized URL for the review image."""
+        """Returns the optimized Cloudinary URL for the review image."""
         if not obj.review_image:
             return None
 
         from .cloudinary_utils import get_optimized_image_url
-        import os
-        import cloudinary
-        from cloudinary import CloudinaryImage
-
         original_url = obj.review_image.url
+        if 'cloudinary.com' not in original_url and 'res.cloudinary.com' not in original_url:
+            return None
 
-        # If already a Cloudinary URL, optimize it and return
-        if 'cloudinary.com' in original_url or 'res.cloudinary.com' in original_url:
-            optimized_url = get_optimized_image_url(obj.review_image, width=700, height=900, crop='fill')
-            return optimized_url if optimized_url else original_url
-
-        # If URL is local, try to construct a Cloudinary URL from the image name
-        is_local_path = (
-            original_url.startswith('/media/') or original_url.startswith('/static/') or
-            '/media/' in original_url or '/static/' in original_url
-        )
-        if is_local_path and hasattr(obj.review_image, 'name') and obj.review_image.name:
-            try:
-                cloudinary.config(
-                    cloud_name=os.environ.get('CLOUDINARY_CLOUD_NAME'),
-                    api_key=os.environ.get('CLOUDINARY_API_KEY'),
-                    api_secret=os.environ.get('CLOUDINARY_API_SECRET'),
-                    secure=True
-                )
-
-                public_id = obj.review_image.name
-                if '.' in public_id:
-                    public_id = public_id.rsplit('.', 1)[0]
-
-                cloudinary_img = CloudinaryImage(public_id)
-                return cloudinary_img.build_url(width=700, height=900, crop='fill')
-            except Exception:
-                return None
-
-        return None
+        optimized_url = get_optimized_image_url(obj.review_image, width=700, height=900, crop='fill')
+        return optimized_url if optimized_url else original_url
 
     def validate_review_image(self, value):
         """Block uploads if Cloudinary storage is not configured."""
