@@ -1291,7 +1291,7 @@ class Promotion(models.Model):
         blank=True,
         null=True,
         help_text="Banner image for promotion (required for Stories Carousel)",
-        storage=None  # Will use _get_promotion_storage() which ensures settings are loaded
+        storage=None  # Will be set dynamically in save() method to ensure Cloudinary is used
     )
     promotion_code = models.CharField(
         max_length=50,
@@ -1394,49 +1394,55 @@ class Promotion(models.Model):
         if not self.promotion_code:
             self.promotion_code = self.generate_promotion_code()
         
-        # CRITICAL FIX: Ensure banner_image uses Cloudinary storage with correct credentials
-        # The storage must read from settings.CLOUDINARY_STORAGE which has the correct credentials
-        if self.banner_image:
-            from django.conf import settings
-            import os
+        # CRITICAL FIX: Ensure banner_image uses Cloudinary storage BEFORE saving
+        # Set storage on the field BEFORE super().save() so it's used during file upload
+        from django.conf import settings
+        import os
+        
+        # Check if Cloudinary credentials are available
+        cloud_name = os.environ.get('CLOUDINARY_CLOUD_NAME') or getattr(settings, 'CLOUDINARY_CLOUD_NAME', '')
+        api_key = os.environ.get('CLOUDINARY_API_KEY') or getattr(settings, 'CLOUDINARY_API_KEY', '')
+        api_secret = os.environ.get('CLOUDINARY_API_SECRET') or getattr(settings, 'CLOUDINARY_API_SECRET', '')
+        
+        if all([cloud_name, api_key, api_secret]):
+            # Ensure CLOUDINARY_STORAGE dict is set correctly in settings
+            # MediaCloudinaryStorage reads from this dict
+            if not hasattr(settings, 'CLOUDINARY_STORAGE') or not settings.CLOUDINARY_STORAGE.get('API_SECRET'):
+                settings.CLOUDINARY_STORAGE = {
+                    'CLOUD_NAME': cloud_name,
+                    'API_KEY': api_key,
+                    'API_SECRET': api_secret,
+                    'SECURE': True,
+                    'RESOURCE_TYPE': 'auto',
+                }
             
-            # Check if Cloudinary credentials are available
-            cloud_name = os.environ.get('CLOUDINARY_CLOUD_NAME') or getattr(settings, 'CLOUDINARY_CLOUD_NAME', '')
-            api_key = os.environ.get('CLOUDINARY_API_KEY') or getattr(settings, 'CLOUDINARY_API_KEY', '')
-            api_secret = os.environ.get('CLOUDINARY_API_SECRET') or getattr(settings, 'CLOUDINARY_API_SECRET', '')
+            # Ensure Cloudinary is configured
+            import cloudinary
+            cloudinary.config(
+                cloud_name=cloud_name,
+                api_key=api_key,
+                api_secret=api_secret,
+                secure=True
+            )
             
-            if all([cloud_name, api_key, api_secret]):
-                # Ensure CLOUDINARY_STORAGE dict is set correctly in settings
-                # MediaCloudinaryStorage reads from this dict
-                if not hasattr(settings, 'CLOUDINARY_STORAGE') or not settings.CLOUDINARY_STORAGE.get('API_SECRET'):
-                    settings.CLOUDINARY_STORAGE = {
-                        'CLOUD_NAME': cloud_name,
-                        'API_KEY': api_key,
-                        'API_SECRET': api_secret,
-                        'SECURE': True,
-                        'RESOURCE_TYPE': 'auto',
-                    }
-                
-                # Ensure Cloudinary is configured
-                import cloudinary
-                cloudinary.config(
-                    cloud_name=cloud_name,
-                    api_key=api_key,
-                    api_secret=api_secret,
-                    secure=True
-                )
-                
-                # Set storage on the field - MediaCloudinaryStorage will read from settings.CLOUDINARY_STORAGE
-                try:
-                    from cloudinary_storage.storage import MediaCloudinaryStorage
-                    # Get the field and set its storage
-                    banner_field = self._meta.get_field('banner_image')
-                    if banner_field.storage is None or not isinstance(banner_field.storage, MediaCloudinaryStorage):
-                        banner_field.storage = MediaCloudinaryStorage()
-                except (ImportError, Exception) as e:
-                    import logging
-                    logger = logging.getLogger(__name__)
-                    logger.warning(f"Could not set MediaCloudinaryStorage for banner_image: {e}")
+            # CRITICAL: Set storage on the field BEFORE super().save()
+            # This ensures the file is uploaded to Cloudinary, not local storage
+            try:
+                from cloudinary_storage.storage import MediaCloudinaryStorage
+                banner_field = self._meta.get_field('banner_image')
+                # Always set to MediaCloudinaryStorage if credentials are available
+                banner_field.storage = MediaCloudinaryStorage()
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.info(f"Promotion.save(): Set banner_image storage to MediaCloudinaryStorage")
+            except (ImportError, Exception) as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Promotion.save(): Failed to set MediaCloudinaryStorage: {e}")
+        else:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning("Promotion.save(): Cloudinary credentials not available, using default storage.")
         
         super().save(*args, **kwargs)
     
