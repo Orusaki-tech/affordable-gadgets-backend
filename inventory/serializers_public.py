@@ -433,7 +433,8 @@ class PublicPromotionSerializer(serializers.ModelSerializer):
                         try:
                             cloudinary_img = CloudinaryImage(public_id)
                             cloudinary_url = cloudinary_img.build_url(transformation=[
-                                {'width': 1080, 'height': 1920, 'crop': 'fill', 'quality': 'auto', 'format': 'auto'}
+                                {'width': 1080, 'height': 1920, 'crop': 'fill', 'quality': 'auto'}
+                                # Removed 'format': 'auto' - Cloudinary handles auto-format automatically
                             ])
                             
                             # Verify it's a valid Cloudinary URL

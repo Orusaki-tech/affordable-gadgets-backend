@@ -155,10 +155,11 @@ def get_optimized_image_url(image_field, width=None, height=None, quality='auto'
             elif height:
                 transformation_params['height'] = height
             
-            if quality:
+            if quality and quality != 'auto':
                 transformation_params['quality'] = quality
             
-            if format:
+            # Don't pass format='auto' - Cloudinary handles auto-format automatically
+            if format and format != 'auto':
                 transformation_params['format'] = format
             
             # Build URL with transformations using the actual public_id
@@ -196,10 +197,11 @@ def get_optimized_image_url(image_field, width=None, height=None, quality='auto'
                     elif height:
                         transformations.append(f'h_{height}')
                     
-                    if quality:
+                    if quality and quality != 'auto':
                         transformations.append(f'q_{quality}')
                     
-                    if format:
+                    # Don't add f_auto - Cloudinary handles auto-format automatically
+                    if format and format != 'auto':
                         transformations.append(f'f_{format}')
                     
                     if transformations:
@@ -246,10 +248,12 @@ def get_optimized_image_url(image_field, width=None, height=None, quality='auto'
             elif height:
                 transformation_params['height'] = height
             
-            if quality:
+            if quality and quality != 'auto':
                 transformation_params['quality'] = quality
             
-            if format:
+            # Don't pass format='auto' - Cloudinary handles auto-format automatically
+            # Only pass format if it's a specific format (jpg, png, webp, etc.)
+            if format and format != 'auto':
                 transformation_params['format'] = format
             
             # Try with the public_id as-is first (preserves any prefix that was used during upload)
@@ -341,10 +345,11 @@ def get_optimized_image_url(image_field, width=None, height=None, quality='auto'
             elif height:
                 transformation_params['height'] = height
             
-            if quality:
+            if quality and quality != 'auto':
                 transformation_params['quality'] = quality
             
-            if format:
+            # Don't pass format='auto' - Cloudinary handles auto-format automatically
+            if format and format != 'auto':
                 transformation_params['format'] = format
             
             # Build URL with transformations
@@ -373,10 +378,11 @@ def get_optimized_image_url(image_field, width=None, height=None, quality='auto'
             elif height:
                 transformation_params['height'] = height
             
-            if quality:
+            if quality and quality != 'auto':
                 transformation_params['quality'] = quality
             
-            if format:
+            # Don't pass format='auto' - Cloudinary handles auto-format automatically
+            if format and format != 'auto':
                 transformation_params['format'] = format
             
             # Build URL with transformations using the actual public_id
@@ -422,10 +428,11 @@ def get_optimized_image_url(image_field, width=None, height=None, quality='auto'
             elif height:
                 transformation_params['height'] = height
             
-            if quality:
+            if quality and quality != 'auto':
                 transformation_params['quality'] = quality
             
-            if format:
+            # Don't pass format='auto' - Cloudinary handles auto-format automatically
+            if format and format != 'auto':
                 transformation_params['format'] = format
             
             # Build URL with transformations
@@ -441,11 +448,9 @@ def get_optimized_image_url(image_field, width=None, height=None, quality='auto'
         # Fallback to string replacement method
     
     # Fallback: Use string replacement (original method)
-    # If no transformations needed, return base URL with auto-optimization
+    # If no transformations needed, return base URL as-is
+    # Cloudinary handles auto-optimization automatically, no need to add f_auto
     if not width and not height:
-        # Add auto-optimization parameters if it's a Cloudinary URL
-        if '/upload/' in base_url:
-            return base_url.replace('/upload/', '/upload/q_auto,f_auto/')
         return base_url
     
     # Build transformation string
@@ -458,10 +463,11 @@ def get_optimized_image_url(image_field, width=None, height=None, quality='auto'
     elif height:
         transformations.append(f'h_{height}')
     
-    if quality:
+    if quality and quality != 'auto':
         transformations.append(f'q_{quality}')
     
-    if format:
+    # Don't add f_auto - Cloudinary handles auto-format automatically
+    if format and format != 'auto':
         transformations.append(f'f_{format}')
     
     transform_str = ','.join(transformations)
@@ -574,10 +580,11 @@ def get_video_url(video_field, width=None, height=None, quality='auto', format='
     elif height:
         transformations.append(f'h_{height}')
     
-    if quality:
+    if quality and quality != 'auto':
         transformations.append(f'q_{quality}')
     
-    if format:
+    # Don't add f_auto - Cloudinary handles auto-format automatically
+    if format and format != 'auto':
         transformations.append(f'f_{format}')
     
     transform_str = ','.join(transformations)
