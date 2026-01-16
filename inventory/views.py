@@ -1016,9 +1016,34 @@ class ReviewViewSet(viewsets.ModelViewSet):
             # Regular customers must have a Customer profile
             try:
                 customer = Customer.objects.get(user=self.request.user)
-                serializer.save(customer=customer)
+                review = serializer.save(customer=customer)
             except Customer.DoesNotExist:
                 raise exceptions.PermissionDenied("Review creation requires a valid Customer profile.")
+
+            if review and (not review.purchase_date or not review.product_condition):
+                order_item = (
+                    OrderItem.objects
+                    .filter(
+                        order__customer=review.customer,
+                        inventory_unit__product_template=review.product,
+                        order__status__in=[Order.StatusChoices.PAID, Order.StatusChoices.DELIVERED]
+                    )
+                    .select_related('order', 'inventory_unit')
+                    .order_by('-order__created_at')
+                    .first()
+                )
+
+                if order_item:
+                    update_fields = []
+                    if not review.purchase_date:
+                        review.purchase_date = order_item.order.created_at.date()
+                        update_fields.append('purchase_date')
+                    if not review.product_condition and order_item.inventory_unit:
+                        review.product_condition = order_item.inventory_unit.get_condition_display()
+                        update_fields.append('product_condition')
+
+                    if update_fields:
+                        review.save(update_fields=update_fields)
     
     @action(detail=False, methods=['post'], permission_classes=[IsAdminUser])
     def bulk_action(self, request):

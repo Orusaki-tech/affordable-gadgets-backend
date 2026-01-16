@@ -776,6 +776,27 @@ class Review(models.Model):
         verbose_name="Review Video Link",
         help_text="Optional link to a video (Google Drive, YouTube, etc.). If both file and URL are provided, URL takes precedence."
     )
+
+    review_image = models.ImageField(
+        upload_to='review_images/%Y/%m/',
+        blank=True,
+        null=True,
+        verbose_name="Review Photo",
+        help_text="Optional photo uploaded by the reviewer"
+    )
+
+    product_condition = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="Condition at time of purchase (e.g. New, Refurbished, Pre-owned)"
+    )
+
+    purchase_date = models.DateField(
+        blank=True,
+        null=True,
+        help_text="Date the item was purchased"
+    )
     
     class Meta:
         ordering = ['-date_posted']

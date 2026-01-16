@@ -221,8 +221,12 @@ if all([CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET]):
     print(f"DEBUG: CLOUDINARY_STORAGE dict set - CLOUD_NAME={CLOUDINARY_STORAGE['CLOUD_NAME']}, API_KEY={CLOUDINARY_STORAGE['API_KEY'][:10]}...")
 
 # Validate Cloudinary credentials
+CLOUDINARY_ENABLED = all([CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET])
+CLOUDINARY_REQUIRED = os.environ.get('CLOUDINARY_REQUIRED', '').lower() == 'true'
+CLOUDINARY_STRICT = CLOUDINARY_REQUIRED or not DEBUG
+
 # Warn if Cloudinary is configured but credentials are missing
-if not all([CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET]):
+if not CLOUDINARY_ENABLED:
     import warnings
     import logging
     logger = logging.getLogger(__name__)
@@ -233,10 +237,10 @@ if not all([CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET]):
     )
     warnings.warn(warning_msg, UserWarning)
     logger.warning(warning_msg)
-    # In production, raise an error instead of silently failing
-    if os.environ.get('DJANGO_ENV') == 'production':
+    # In production (or when explicitly required), raise an error instead of silently failing
+    if CLOUDINARY_STRICT:
         raise ValueError(
-            "Cloudinary credentials are required in production. "
+            "Cloudinary credentials are required. "
             "Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET environment variables."
         )
 
@@ -247,7 +251,7 @@ if not all([CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET]):
 # IMPORTANT: Cloudinary must be configured BEFORE this line (see above)
 # CRITICAL: Only use Cloudinary storage if credentials are available
 # Otherwise django-cloudinary-storage will silently fall back to local storage
-if all([CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET]):
+if CLOUDINARY_ENABLED:
     DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
     
     # Verify the storage backend will actually use Cloudinary

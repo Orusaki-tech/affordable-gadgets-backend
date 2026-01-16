@@ -1254,6 +1254,7 @@ class ReviewSerializer(serializers.ModelSerializer):
     customer_username = serializers.SerializerMethodField(read_only=True)
     product_name = serializers.CharField(source='product.product_name', read_only=True)
     is_admin_review = serializers.BooleanField(read_only=True)  # Computed from customer field
+    review_image_url = serializers.SerializerMethodField(read_only=True)
     
     def get_customer_username(self, obj):
         """Get customer username, handling None customer (admin reviews)."""
@@ -1266,10 +1267,15 @@ class ReviewSerializer(serializers.ModelSerializer):
         model = Review
         fields = (
             'id', 'product', 'video_file', 'video_url', 'video_file_url',
-            'product_name', 'customer', 'customer_username', 'rating', 
+            'review_image', 'review_image_url',
+            'product_name', 'product_condition', 'purchase_date',
+            'customer', 'customer_username', 'rating',
             'comment', 'date_posted', 'is_admin_review'
         )
-        read_only_fields = ('id', 'customer', 'date_posted', 'is_admin_review', 'video_file_url')
+        read_only_fields = (
+            'id', 'customer', 'date_posted', 'is_admin_review',
+            'video_file_url', 'review_image_url'
+        )
 
     def get_video_file_url(self, obj):
         """Returns the full URL to the uploaded video file with optimization."""
@@ -1277,6 +1283,13 @@ class ReviewSerializer(serializers.ModelSerializer):
             from .cloudinary_utils import get_video_url
             # Return optimized video URL from Cloudinary
             return get_video_url(obj.video_file)
+        return None
+
+    def get_review_image_url(self, obj):
+        """Returns the optimized URL for the review image."""
+        if obj.review_image:
+            from .cloudinary_utils import get_optimized_image_url
+            return get_optimized_image_url(obj.review_image, width=700, height=900, crop='fill')
         return None
 
 class OrderItemSerializer(serializers.ModelSerializer):
