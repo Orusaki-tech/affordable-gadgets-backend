@@ -207,6 +207,10 @@ CLOUDINARY_STORAGE = {
     'SECURE': True,
     # Optional: Set default resource type
     'RESOURCE_TYPE': 'auto',  # 'image', 'video', 'raw', or 'auto'
+    # CRITICAL: Prevent django-cloudinary-storage from adding 'media/' prefix
+    # By default it uses MEDIA_URL to construct paths, but we want clean paths
+    'MEDIA_TAG': '',  # Empty string prevents media/ prefix
+    'INVALID_VIDEO': False,
 }
 
 # DEBUG: Log CLOUDINARY_STORAGE dict to verify it's set correctly

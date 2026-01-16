@@ -140,8 +140,41 @@ def get_optimized_image_url(image_field, width=None, height=None, quality='auto'
         return base_url
     
     # Use Cloudinary's URL building for better reliability
+    # CRITICAL: Use image_field.name directly - it contains the actual public_id in Cloudinary
+    # django-cloudinary-storage stores files with 'media/' prefix, so name will be 'media/promotions/...'
+    # The URL from storage might not include 'media/', but the actual public_id does
     try:
         from cloudinary import CloudinaryImage
+        
+        # Prefer using image_field.name directly - it's the actual public_id in Cloudinary
+        if hasattr(image_field, 'name') and image_field.name:
+            public_id = image_field.name
+            # Remove file extension for public_id
+            if '.' in public_id:
+                public_id = public_id.rsplit('.', 1)[0]
+            
+            # Build transformation parameters
+            transformation_params = {}
+            if width and height:
+                transformation_params['width'] = width
+                transformation_params['height'] = height
+                transformation_params['crop'] = crop
+            elif width:
+                transformation_params['width'] = width
+            elif height:
+                transformation_params['height'] = height
+            
+            if quality:
+                transformation_params['quality'] = quality
+            
+            if format:
+                transformation_params['format'] = format
+            
+            # Build URL with transformations using the actual public_id
+            cloudinary_img = CloudinaryImage(public_id)
+            return cloudinary_img.build_url(**transformation_params)
+        
+        # Fallback: Parse from URL if name is not available
         from urllib.parse import urlparse
         
         # Extract public_id from Cloudinary URL
