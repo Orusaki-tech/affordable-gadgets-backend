@@ -2247,10 +2247,13 @@ class PromotionSerializer(serializers.ModelSerializer):
                 cloudinary_url = get_optimized_image_url(obj.banner_image, width=1080, height=1920, crop='fill')
                 return cloudinary_url if cloudinary_url else original_url
             
-            # If using Cloudinary storage but URL is local (relative or absolute), try to get Cloudinary URL from storage
+            # If URL is local (relative or absolute), try to construct Cloudinary URL from image name
+            # This handles cases where images were uploaded before Cloudinary was configured
             is_local_path = (original_url.startswith('/media/') or original_url.startswith('/static/') or 
                            '/media/' in original_url or '/static/' in original_url)
-            if is_cloudinary_storage and is_local_path:
+            # Always try Cloudinary URL construction if we detect a local path
+            # This handles images uploaded before Cloudinary was configured
+            if is_local_path:
                 if hasattr(obj.banner_image, 'name') and obj.banner_image.name:
                     try:
                         # Configure Cloudinary
@@ -2263,7 +2266,13 @@ class PromotionSerializer(serializers.ModelSerializer):
                         
                         # Get public_id from the image field name
                         # Cloudinary storage uses the upload_to path + filename as public_id
+                        # For images uploaded before Cloudinary, the name might be a full path like "promotions/2026/01/iphone_14_pro_max.jpg"
                         public_id = obj.banner_image.name
+                        
+                        # Remove leading "media/" if present (from old local storage paths)
+                        if public_id.startswith('media/'):
+                            public_id = public_id[6:]  # Remove "media/" prefix
+                        
                         # Remove file extension for Cloudinary public_id
                         if '.' in public_id:
                             public_id = public_id.rsplit('.', 1)[0]
