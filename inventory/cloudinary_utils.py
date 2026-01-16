@@ -129,29 +129,20 @@ def get_optimized_image_url(image_field, width=None, height=None, quality='auto'
     if not image_field:
         return None
     
-    # Get base Cloudinary URL
-    base_url = _get_cloudinary_url_from_field(image_field)
-    
-    if not base_url:
-        return None
-    
-    # If it's not a Cloudinary URL, return as-is (no transformations possible)
-    if '/upload/' not in base_url or 'cloudinary.com' not in base_url:
-        return base_url
-    
-    # Use Cloudinary's URL building for better reliability
-    # CRITICAL: Use image_field.name directly - it contains the actual public_id in Cloudinary
+    # CRITICAL: Always use image_field.name if available - it contains the actual public_id
     # django-cloudinary-storage stores files with 'media/' prefix, so name will be 'media/promotions/...'
     # The URL from storage might not include 'media/', but the actual public_id does
-    try:
-        from cloudinary import CloudinaryImage
-        
-        # Prefer using image_field.name directly - it's the actual public_id in Cloudinary
-        if hasattr(image_field, 'name') and image_field.name:
+    if hasattr(image_field, 'name') and image_field.name:
+        try:
+            from cloudinary import CloudinaryImage
+            
             public_id = image_field.name
             # Remove file extension for public_id
             if '.' in public_id:
                 public_id = public_id.rsplit('.', 1)[0]
+            
+            # DEBUG: Log the public_id to help diagnose issues
+            logger.debug(f"Building Cloudinary URL from public_id: {public_id}")
             
             # Build transformation parameters
             transformation_params = {}
@@ -171,8 +162,114 @@ def get_optimized_image_url(image_field, width=None, height=None, quality='auto'
                 transformation_params['format'] = format
             
             # Build URL with transformations using the actual public_id
+            # IMPORTANT: public_id should include 'media/' prefix if django-cloudinary-storage added it
+            cloudinary_img = CloudinaryImage(public_id)
+            built_url = cloudinary_img.build_url(**transformation_params)
+            logger.debug(f"Built Cloudinary URL: {built_url}")
+            return built_url
+        except Exception as e:
+            logger.warning(f"Failed to build Cloudinary URL from image_field.name '{image_field.name}': {e}")
+            # Fall through to URL parsing method
+    
+    # Fallback: Get base Cloudinary URL and parse it
+    base_url = _get_cloudinary_url_from_field(image_field)
+    
+    if not base_url:
+        return None
+    
+    # If it's not a Cloudinary URL, return as-is (no transformations possible)
+    if '/upload/' not in base_url or 'cloudinary.com' not in base_url:
+        return base_url
+    
+    # Use Cloudinary's URL building for better reliability
+    try:
+        from cloudinary import CloudinaryImage
+        from urllib.parse import urlparse
+        
+        # Extract public_id from Cloudinary URL
+        # Format: https://res.cloudinary.com/cloud_name/image/upload/v123/public_id.jpg
+        parsed = urlparse(base_url)
+        path_parts = parsed.path.split('/')
+        
+        # Find the upload segment and get everything after it
+        try:
+            upload_idx = path_parts.index('upload')
+            # Get everything after 'upload' (skip version if present)
+            after_upload = path_parts[upload_idx + 1:]
+            # Remove version if present (starts with 'v' followed by numbers)
+            if after_upload and after_upload[0].startswith('v') and after_upload[0][1:].isdigit():
+                after_upload = after_upload[1:]
+            # Remove transformation parameters if present
+            if after_upload and ',' in after_upload[0]:
+                after_upload = after_upload[1:]
+            
+            public_id = '/'.join(after_upload)
+            # Remove file extension for public_id
+            if '.' in public_id:
+                public_id = public_id.rsplit('.', 1)[0]
+            
+            # CRITICAL: If URL doesn't have 'media/' but file was uploaded with it, add it
+            # Check if the original URL path suggests 'media/' should be present
+            # django-cloudinary-storage adds 'media/' prefix because of MEDIA_URL='/media/'
+            if not public_id.startswith('media/') and hasattr(image_field, 'name') and image_field.name and 'media/' in image_field.name:
+                # The file was uploaded with 'media/' prefix, so add it back
+                public_id = 'media/' + public_id
+            
+            # Build transformation parameters
+            transformation_params = {}
+            if width and height:
+                transformation_params['width'] = width
+                transformation_params['height'] = height
+                transformation_params['crop'] = crop
+            elif width:
+                transformation_params['width'] = width
+            elif height:
+                transformation_params['height'] = height
+            
+            if quality:
+                transformation_params['quality'] = quality
+            
+            if format:
+                transformation_params['format'] = format
+            
+            # Build URL with transformations
             cloudinary_img = CloudinaryImage(public_id)
             return cloudinary_img.build_url(**transformation_params)
+        except (ValueError, IndexError) as e:
+            logger.warning(f"Failed to parse Cloudinary URL '{base_url}': {e}. Using string replacement method.")
+            # Fallback to string replacement method
+            pass
+            public_id = image_field.name
+            # Remove file extension for public_id
+            if '.' in public_id:
+                public_id = public_id.rsplit('.', 1)[0]
+            
+            # DEBUG: Log the public_id to help diagnose issues
+            logger.debug(f"Building Cloudinary URL from public_id: {public_id}")
+            
+            # Build transformation parameters
+            transformation_params = {}
+            if width and height:
+                transformation_params['width'] = width
+                transformation_params['height'] = height
+                transformation_params['crop'] = crop
+            elif width:
+                transformation_params['width'] = width
+            elif height:
+                transformation_params['height'] = height
+            
+            if quality:
+                transformation_params['quality'] = quality
+            
+            if format:
+                transformation_params['format'] = format
+            
+            # Build URL with transformations using the actual public_id
+            # IMPORTANT: public_id should include 'media/' prefix if django-cloudinary-storage added it
+            cloudinary_img = CloudinaryImage(public_id)
+            built_url = cloudinary_img.build_url(**transformation_params)
+            logger.debug(f"Built Cloudinary URL: {built_url}")
+            return built_url
         
         # Fallback: Parse from URL if name is not available
         from urllib.parse import urlparse

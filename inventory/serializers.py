@@ -2283,13 +2283,13 @@ class PromotionSerializer(serializers.ModelSerializer):
                         )
                         
                         # Get public_id from the image field name
-                        # Cloudinary storage uses the upload_to path + filename as public_id
-                        # For images uploaded before Cloudinary, the name might be a full path like "promotions/2026/01/iphone_14_pro_max.jpg"
+                        # IMPORTANT: django-cloudinary-storage stores files with 'media/' prefix
+                        # because of MEDIA_URL='/media/' in settings
+                        # DO NOT remove it - it's part of the actual Cloudinary public_id
                         public_id = obj.banner_image.name
                         
-                        # Remove leading "media/" if present (from old local storage paths)
-                        if public_id.startswith('media/'):
-                            public_id = public_id[6:]  # Remove "media/" prefix
+                        # Keep 'media/' prefix if present - it's part of the Cloudinary public_id
+                        # django-cloudinary-storage uploads files with 'media/' prefix
                         
                         # Remove file extension for Cloudinary public_id
                         if '.' in public_id:
