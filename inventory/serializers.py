@@ -1287,10 +1287,17 @@ class ReviewSerializer(serializers.ModelSerializer):
 
     def get_review_image_url(self, obj):
         """Returns the optimized URL for the review image."""
-        if obj.review_image:
+        if not obj.review_image:
+            return None
+        try:
             from .cloudinary_utils import get_optimized_image_url
             return get_optimized_image_url(obj.review_image, width=700, height=900, crop='fill')
-        return None
+        except Exception:
+            # Fallback to raw URL if optimization fails (prevents 500s on listing)
+            try:
+                return obj.review_image.url
+            except Exception:
+                return None
 
 class OrderItemSerializer(serializers.ModelSerializer):
     """
