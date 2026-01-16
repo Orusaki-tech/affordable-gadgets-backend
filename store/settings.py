@@ -169,6 +169,26 @@ CLOUDINARY_CLOUD_NAME = os.environ.get('CLOUDINARY_CLOUD_NAME', '')
 CLOUDINARY_API_KEY = os.environ.get('CLOUDINARY_API_KEY', '')
 CLOUDINARY_API_SECRET = os.environ.get('CLOUDINARY_API_SECRET', '')
 
+# CRITICAL: Configure Cloudinary BEFORE storage backend is initialized
+# django-cloudinary-storage checks for Cloudinary config at import time
+# If not configured, it falls back to local storage silently
+if all([CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET]):
+    try:
+        import cloudinary
+        cloudinary.config(
+            cloud_name=CLOUDINARY_CLOUD_NAME,
+            api_key=CLOUDINARY_API_KEY,
+            api_secret=CLOUDINARY_API_SECRET,
+            secure=True
+        )
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Cloudinary configured at startup for cloud: {CLOUDINARY_CLOUD_NAME}")
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Failed to configure Cloudinary at startup: {e}")
+
 CLOUDINARY_STORAGE = {
     'CLOUD_NAME': CLOUDINARY_CLOUD_NAME,
     'API_KEY': CLOUDINARY_API_KEY,
@@ -203,15 +223,14 @@ if not all([CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET]):
 # This ensures that all ImageField and FileField instances across all models
 # (Product images, Promotion banners, Brand logos, Review videos, Receipt PDFs, etc.)
 # will automatically be stored in Cloudinary instead of local filesystem
-# IMPORTANT: django-cloudinary-storage will use Cloudinary if credentials are in CLOUDINARY_STORAGE dict
-# If credentials are missing, it may fall back to local storage silently
+# IMPORTANT: Cloudinary must be configured BEFORE this line (see above)
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 # Log storage configuration
 import logging
 logger = logging.getLogger(__name__)
 if all([CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET]):
-    logger.info(f"Cloudinary storage configured for cloud: {CLOUDINARY_CLOUD_NAME}")
+    logger.info(f"Cloudinary storage enabled for cloud: {CLOUDINARY_CLOUD_NAME}")
 else:
     logger.error(
         "Cloudinary storage enabled but credentials missing! "
