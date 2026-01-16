@@ -1218,17 +1218,36 @@ class PromotionType(models.Model):
 
 # Determine Cloudinary storage for Promotion banner_image
 # Force Cloudinary if credentials are available (workaround for django-cloudinary-storage detection issue)
+# CRITICAL: MediaCloudinaryStorage reads from CLOUDINARY_STORAGE dict in settings
+# We need to ensure the dict is set before instantiating the storage
 _promotion_banner_storage = None
 import os
 from django.conf import settings
+
+# Check if credentials are available
 _cloud_name = os.environ.get('CLOUDINARY_CLOUD_NAME') or getattr(settings, 'CLOUDINARY_CLOUD_NAME', '')
 _api_key = os.environ.get('CLOUDINARY_API_KEY') or getattr(settings, 'CLOUDINARY_API_KEY', '')
 _api_secret = os.environ.get('CLOUDINARY_API_SECRET') or getattr(settings, 'CLOUDINARY_API_SECRET', '')
+
 if all([_cloud_name, _api_key, _api_secret]):
     try:
+        # Ensure Cloudinary is configured before creating storage instance
+        import cloudinary
+        cloudinary.config(
+            cloud_name=_cloud_name,
+            api_key=_api_key,
+            api_secret=_api_secret,
+            secure=True
+        )
+        
+        # Now create the storage instance - it should use the configured Cloudinary
         from cloudinary_storage.storage import MediaCloudinaryStorage
         _promotion_banner_storage = MediaCloudinaryStorage()
-    except (ImportError, Exception):
+    except (ImportError, Exception) as e:
+        # If storage can't be created, use None (will fall back to default)
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Could not create MediaCloudinaryStorage for Promotion: {e}")
         pass
 
 class Promotion(models.Model):
