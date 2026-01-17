@@ -4,7 +4,7 @@ __pycache__/
 *$py.class
 *.so
 .Python
-env/
+
 venv/
 ENV/
 build/
@@ -32,7 +32,7 @@ db.sqlite3-journal
 /staticfiles
 
 # Environment variables
-.env
+
 .env.local
 .env.*.local
 

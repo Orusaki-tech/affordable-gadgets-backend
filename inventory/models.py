@@ -1612,3 +1612,18 @@ class Receipt(models.Model):
     
     def __str__(self):
         return f"Receipt {self.receipt_number} for Order {self.order.order_id}"
+
+
+# -------------------------------------------------------------------------
+# ENUM CHOICES (module-level exports for drf-spectacular overrides)
+# -------------------------------------------------------------------------
+
+ORDER_STATUS_CHOICES = Order.StatusChoices.choices
+LEAD_STATUS_CHOICES = Lead.StatusChoices.choices
+RESERVATION_REQUEST_STATUS_CHOICES = ReservationRequest.StatusChoices.choices
+RETURN_REQUEST_STATUS_CHOICES = ReturnRequest.StatusChoices.choices
+UNIT_TRANSFER_STATUS_CHOICES = UnitTransfer.StatusChoices.choices
+INVENTORY_UNIT_SALE_STATUS_CHOICES = InventoryUnit.SaleStatusChoices.choices
+PESAPAL_PAYMENT_STATUS_CHOICES = PesapalPayment.StatusChoices.choices
+PESAPAL_REFUND_STATUS_CHOICES = PesapalRefund.StatusChoices.choices
+PRODUCT_TYPE_CHOICES = Product.ProductType.choices

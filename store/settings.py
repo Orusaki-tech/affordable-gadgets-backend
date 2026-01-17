@@ -170,6 +170,9 @@ CLOUDINARY_CLOUD_NAME = os.environ.get('CLOUDINARY_CLOUD_NAME', '')
 CLOUDINARY_API_KEY = os.environ.get('CLOUDINARY_API_KEY', '')
 CLOUDINARY_API_SECRET = os.environ.get('CLOUDINARY_API_SECRET', '')
 
+# Misc app secrets
+FIX_PRODUCTS_SECRET_KEY = os.environ.get('FIX_PRODUCTS_SECRET_KEY', '')
+
 # CRITICAL: Configure Cloudinary BEFORE storage backend is initialized
 # django-cloudinary-storage checks for Cloudinary config at import time
 # If not configured, it falls back to local storage silently
@@ -314,6 +317,16 @@ SPECTACULAR_SETTINGS = {
         {'url': '/api/inventory/', 'description': 'Inventory Management API'},
         {'url': '/api/v1/public/', 'description': 'Public E-commerce API'},
     ],
+    'ENUM_NAME_OVERRIDES': {
+        'OrderStatusEnum': 'inventory.models.ORDER_STATUS_CHOICES',
+        'LeadStatusEnum': 'inventory.models.LEAD_STATUS_CHOICES',
+        'ReservationRequestStatusEnum': 'inventory.models.RESERVATION_REQUEST_STATUS_CHOICES',
+        'ReturnRequestStatusEnum': 'inventory.models.RETURN_REQUEST_STATUS_CHOICES',
+        'InventoryUnitSaleStatusEnum': 'inventory.models.INVENTORY_UNIT_SALE_STATUS_CHOICES',
+        'PesapalPaymentStatusEnum': 'inventory.models.PESAPAL_PAYMENT_STATUS_CHOICES',
+        'PesapalRefundStatusEnum': 'inventory.models.PESAPAL_REFUND_STATUS_CHOICES',
+        'ProductTypesEnum': 'inventory.models.PRODUCT_TYPE_CHOICES',
+    },
     'TAGS': [
         {'name': 'Account & Profile Management', 'description': 'User authentication and profile management'},
         {'name': 'Core Catalog & Inventory Management', 'description': 'Products, units, reports, and inventory operations'},
@@ -326,10 +339,6 @@ SPECTACULAR_SETTINGS = {
     # Customize schema generation
     'SCHEMA_PATH_PREFIX_TRIM': True,  # Trim common prefix from paths
     'DEFAULT_GENERATOR_CLASS': 'drf_spectacular.generators.SchemaGenerator',
-    'ENUM_NAME_OVERRIDES': {
-        'OrderStatusEnum': 'inventory.models.Order.StatusChoices',
-        'SaleStatusEnum': 'inventory.models.InventoryUnit.SaleStatusChoices',
-    },
 }
 
 # --- Pesapal Configuration ---

@@ -1,5 +1,6 @@
 """Public API serializers for e-commerce frontend."""
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field, extend_schema_serializer, OpenApiTypes
 from decimal import Decimal
 from django.db.models import Q, Sum
 from inventory.models import Product, InventoryUnit, Cart, CartItem, Lead, LeadItem, Promotion
@@ -10,6 +11,7 @@ import sys
 logger = logging.getLogger(__name__)
 
 
+@extend_schema_serializer(component_name="PublicInventoryUnitPublic")
 class PublicInventoryUnitSerializer(serializers.ModelSerializer):
     """Public unit serializer with interest count."""
     interest_count = serializers.SerializerMethodField()
@@ -27,9 +29,11 @@ class PublicInventoryUnitSerializer(serializers.ModelSerializer):
             'color_name', 'interest_count', 'images'
         ]
     
+    @extend_schema_field(OpenApiTypes.INT)
     def get_interest_count(self, obj):
         return InterestService.get_interest_count(obj)
     
+    @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_images(self, obj):
         """Return list of image URLs for this unit with color information."""
         from inventory.cloudinary_utils import get_optimized_image_url
@@ -89,10 +93,12 @@ class PublicProductSerializer(serializers.ModelSerializer):
             'primary_image', 'slug', 'product_video_url', 'tags'
         ]
     
+    @extend_schema_field(serializers.ListField(child=serializers.CharField()))
     def get_tags(self, obj):
         """Return list of tag names."""
         return [tag.name for tag in obj.tags.all()]
     
+    @extend_schema_field(OpenApiTypes.INT)
     def get_available_units_count(self, obj):
         """Count available units for current brand - use prefetched list for accurate brand filtering."""
         # Use prefetched available_units_list if available (correctly filtered by brand)
@@ -122,6 +128,7 @@ class PublicProductSerializer(serializers.ModelSerializer):
         else:
             return units.count()
     
+    @extend_schema_field(OpenApiTypes.INT)
     def get_interest_count(self, obj):
         """Get total interest count for product - optimized version."""
         # Use prefetched available units if available
@@ -154,6 +161,7 @@ class PublicProductSerializer(serializers.ModelSerializer):
             expires_at__gt=timezone.now()
         ).distinct().count()
     
+    @extend_schema_field(OpenApiTypes.NUMBER)
     def get_min_price(self, obj):
         """Get min price for available units - use prefetched list for accurate brand filtering."""
         # Use prefetched available_units_list if available (correctly filtered by brand)
@@ -178,6 +186,7 @@ class PublicProductSerializer(serializers.ModelSerializer):
         prices = units.values_list('selling_price', flat=True)
         return float(min(prices)) if prices else None
     
+    @extend_schema_field(OpenApiTypes.NUMBER)
     def get_max_price(self, obj):
         """Get max price for available units - use prefetched list for accurate brand filtering."""
         # Use prefetched available_units_list if available (correctly filtered by brand)
@@ -202,6 +211,7 @@ class PublicProductSerializer(serializers.ModelSerializer):
         prices = units.values_list('selling_price', flat=True)
         return float(max(prices)) if prices else None
     
+    @extend_schema_field(serializers.URLField(allow_null=True))
     def get_primary_image(self, obj):
         """Get primary product image URL - use prefetched data if available."""
         from inventory.cloudinary_utils import get_optimized_image_url
@@ -257,6 +267,7 @@ class CartSerializer(serializers.ModelSerializer):
             'delivery_address', 'total_value', 'expires_at', 'is_submitted'
         ]
     
+    @extend_schema_field(OpenApiTypes.NUMBER)
     def get_total_value(self, obj):
         total = Decimal('0.00')
         for item in obj.items.all():
@@ -294,6 +305,27 @@ class CheckoutSerializer(serializers.Serializer):
     delivery_address = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
 
+class CartCreateSerializer(serializers.Serializer):
+    """Serializer for cart creation (session + customer context)."""
+    session_key = serializers.CharField(required=False, allow_blank=True)
+    customer_phone = serializers.CharField(required=False, allow_blank=True)
+
+
+class CartItemCreateSerializer(serializers.Serializer):
+    """Serializer for adding items to cart."""
+    inventory_unit_id = serializers.IntegerField()
+    quantity = serializers.IntegerField(required=False, default=1)
+    promotion_id = serializers.IntegerField(required=False, allow_null=True)
+    unit_price = serializers.DecimalField(required=False, allow_null=True, max_digits=10, decimal_places=2)
+
+
+class CheckoutResponseSerializer(serializers.Serializer):
+    """Serializer for checkout response."""
+    message = serializers.CharField()
+    lead_reference = serializers.CharField()
+    lead = LeadSerializer()
+
+
 class PublicPromotionSerializer(serializers.ModelSerializer):
     """Public promotion serializer (limited fields)."""
     is_currently_active = serializers.BooleanField(read_only=True)
@@ -312,6 +344,7 @@ class PublicPromotionSerializer(serializers.ModelSerializer):
         )
         read_only_fields = ('is_currently_active', 'discount_display', 'products', 'banner_image_url', 'banner_image')
     
+    @extend_schema_field(serializers.URLField(allow_null=True))
     def get_banner_image(self, obj):
         """Return optimized banner image URL (prefer Cloudinary, fallback to absolute URL)"""
         if obj.banner_image:
@@ -524,15 +557,18 @@ class PublicPromotionSerializer(serializers.ModelSerializer):
             return original_url
         return None
     
+    @extend_schema_field(serializers.URLField(allow_null=True))
     def get_banner_image_url(self, obj):
         """Return optimized banner image URL for public API"""
         # Use the same logic as get_banner_image
         return self.get_banner_image(obj)
     
+    @extend_schema_field(serializers.ListField(child=serializers.IntegerField()))
     def get_products(self, obj):
         """Return list of product IDs associated with this promotion."""
         return list(obj.products.values_list('id', flat=True))
     
+    @extend_schema_field(serializers.CharField(allow_null=True))
     def get_discount_display(self, obj):
         """Get formatted discount display."""
         if obj.discount_percentage:

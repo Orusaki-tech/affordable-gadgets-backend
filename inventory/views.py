@@ -1,6 +1,6 @@
 import logging
 
-from rest_framework import viewsets, generics, permissions, exceptions
+from rest_framework import viewsets, generics, permissions, exceptions, serializers
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.db import transaction
@@ -24,6 +24,15 @@ from django.core.files.base import ContentFile
 from .serializers import CustomerRegistrationSerializer, CustomerLoginSerializer
 from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.authtoken.models import Token 
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiTypes, OpenApiParameter
+
+# --- Schema helpers (drf-spectacular) ---
+class EmptySerializer(serializers.Serializer):
+    pass
+
+
+class FixProductVisibilitySerializer(serializers.Serializer):
+    secret_key = serializers.CharField(required=False, allow_blank=True)
 
 # Assume these models are imported from your app's models.py
 from .models import (
@@ -2411,6 +2420,7 @@ class CustomerLogoutView(generics.GenericAPIView):
     POST: Logs out the user by deleting their authentication token.
     Requires authentication (IsAuthenticated) via the provided token header.
     """
+    serializer_class = EmptySerializer
     # Restrict the view to only allow POST requests. This prevents the GET request 
     # (which triggers the browsable API) from demanding a serializer.
     http_method_names = ['post']
@@ -2418,6 +2428,7 @@ class CustomerLogoutView(generics.GenericAPIView):
     # Only authenticated users can perform this action
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(request=EmptySerializer, responses=OpenApiTypes.OBJECT)
     def post(self, request):
         try:
             # TokenAuthentication attaches the Token instance to request.auth.
@@ -2484,6 +2495,7 @@ class OrderReceiptView(APIView):
     """
     permission_classes = [permissions.AllowAny]
     authentication_classes = []
+    serializer_class = EmptySerializer
     
     def perform_content_negotiation(self, request, force=False):
         """
@@ -2494,6 +2506,7 @@ class OrderReceiptView(APIView):
         # DRF will use default renderers, but we handle format ourselves in get()
         return (None, None)
     
+    @extend_schema(responses=OpenApiTypes.BINARY)
     def get(self, request, order_id):
         """
         Generate and return receipt HTML/PDF.
@@ -3379,7 +3392,9 @@ class ReportsViewSet(viewsets.ViewSet):
     Provides various analytical reports for decision-making.
     """
     permission_classes = [CanApproveRequests]  # Inventory Manager or Superuser
+    serializer_class = EmptySerializer
     
+    @extend_schema(responses=OpenApiTypes.OBJECT)
     @action(detail=False, methods=['get'])
     def inventory_value(self, request):
         """Get inventory value report."""
@@ -3387,6 +3402,7 @@ class ReportsViewSet(viewsets.ViewSet):
         report_data = get_inventory_value_report()
         return Response(report_data, status=status.HTTP_200_OK)
     
+    @extend_schema(responses=OpenApiTypes.OBJECT)
     @action(detail=False, methods=['get'])
     def stock_movement(self, request):
         """Get stock movement report."""
@@ -3395,6 +3411,7 @@ class ReportsViewSet(viewsets.ViewSet):
         report_data = get_stock_movement_report(days=days)
         return Response(report_data, status=status.HTTP_200_OK)
     
+    @extend_schema(responses=OpenApiTypes.OBJECT)
     @action(detail=False, methods=['get'])
     def product_performance(self, request):
         """Get product performance report."""
@@ -3402,6 +3419,7 @@ class ReportsViewSet(viewsets.ViewSet):
         report_data = get_product_performance()
         return Response(report_data, status=status.HTTP_200_OK)
     
+    @extend_schema(responses=OpenApiTypes.OBJECT)
     @action(detail=False, methods=['get'])
     def aging_inventory(self, request):
         """Get aging inventory report."""
@@ -3410,6 +3428,7 @@ class ReportsViewSet(viewsets.ViewSet):
         report_data = get_aging_inventory(days_threshold=days_threshold)
         return Response(report_data, status=status.HTTP_200_OK)
     
+    @extend_schema(responses=OpenApiTypes.OBJECT)
     @action(detail=False, methods=['get'])
     def salesperson_performance(self, request):
         """Get salesperson performance report."""
@@ -3418,6 +3437,7 @@ class ReportsViewSet(viewsets.ViewSet):
         report_data = get_salesperson_performance(days=days)
         return Response(report_data, status=status.HTTP_200_OK)
     
+    @extend_schema(responses=OpenApiTypes.OBJECT)
     @action(detail=False, methods=['get'])
     def request_management(self, request):
         """Get request management statistics."""
@@ -3472,7 +3492,9 @@ class StockAlertsViewSet(viewsets.ViewSet):
     Returns alerts for low stock, expiring reservations, and status issues.
     """
     permission_classes = [CanApproveRequests]  # Inventory Manager or Superuser
+    serializer_class = EmptySerializer
     
+    @extend_schema(responses=OpenApiTypes.OBJECT)
     def list(self, request):
         """Get all stock alerts."""
         alerts = []
@@ -3668,8 +3690,16 @@ class BrandViewSet(viewsets.ModelViewSet):
         return queryset.none()
 
 
+@extend_schema_view(
+    retrieve=extend_schema(parameters=[OpenApiParameter('id', OpenApiTypes.INT, OpenApiParameter.PATH)]),
+    update=extend_schema(parameters=[OpenApiParameter('id', OpenApiTypes.INT, OpenApiParameter.PATH)]),
+    partial_update=extend_schema(parameters=[OpenApiParameter('id', OpenApiTypes.INT, OpenApiParameter.PATH)]),
+    destroy=extend_schema(parameters=[OpenApiParameter('id', OpenApiTypes.INT, OpenApiParameter.PATH)]),
+    assign=extend_schema(parameters=[OpenApiParameter('id', OpenApiTypes.INT, OpenApiParameter.PATH)]),
+)
 class LeadViewSet(viewsets.ModelViewSet):
     """Lead management for salespersons only."""
+    queryset = Lead.objects.all()
     serializer_class = LeadSerializer
     permission_classes = [IsAdminUser]  # Base permission, refined in get_permissions
     
@@ -4508,7 +4538,9 @@ class PromotionViewSet(viewsets.ModelViewSet):
 class FixProductVisibilityView(APIView):
     """Admin endpoint to fix product visibility by setting units to AVAILABLE."""
     permission_classes = [permissions.AllowAny]  # Allow access with secret key
+    serializer_class = FixProductVisibilitySerializer
     
+    @extend_schema(request=FixProductVisibilitySerializer, responses=OpenApiTypes.OBJECT)
     def post(self, request):
         """Fix all inventory units to be available."""
         from inventory.models import InventoryUnit
@@ -4569,7 +4601,19 @@ class FixProductVisibilityView(APIView):
 class PesapalIPNView(APIView):
     """Handle Pesapal IPN (Instant Payment Notification) callbacks."""
     permission_classes = [permissions.AllowAny]  # Pesapal will call this
+    serializer_class = EmptySerializer
     
+    @extend_schema(
+        parameters=[
+            OpenApiParameter('OrderTrackingId', OpenApiTypes.STR, OpenApiParameter.QUERY),
+            OpenApiParameter('OrderNotificationType', OpenApiTypes.STR, OpenApiParameter.QUERY),
+            OpenApiParameter('OrderMerchantReference', OpenApiTypes.STR, OpenApiParameter.QUERY),
+            OpenApiParameter('PaymentStatusDescription', OpenApiTypes.STR, OpenApiParameter.QUERY),
+            OpenApiParameter('PaymentMethod', OpenApiTypes.STR, OpenApiParameter.QUERY),
+            OpenApiParameter('PaymentAccount', OpenApiTypes.STR, OpenApiParameter.QUERY),
+        ],
+        responses=OpenApiTypes.OBJECT,
+    )
     def get(self, request):
         print(f"\n[PESAPAL] ========== VIEW: IPN CALLBACK START ==========")
         print(f"[PESAPAL] Request Method: {request.method}")

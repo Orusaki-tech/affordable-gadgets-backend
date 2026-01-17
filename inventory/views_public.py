@@ -2,6 +2,7 @@
 from rest_framework import viewsets, permissions, status, filters, generics, exceptions
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiTypes, OpenApiParameter
 from django.db.models import Q, Count, Min, Max, Prefetch, Sum, Case, When, IntegerField, Value, DecimalField
 from django.db.models.functions import Coalesce
 from decimal import Decimal
@@ -9,13 +10,30 @@ from django.conf import settings
 from inventory.models import Product, InventoryUnit, Cart, Lead, Brand, Promotion, ProductImage
 from inventory.serializers_public import (
     PublicProductSerializer, PublicInventoryUnitSerializer,
-    CartSerializer, CartItemSerializer, CheckoutSerializer, PublicPromotionSerializer
+    CartSerializer, CartItemSerializer, CheckoutSerializer, PublicPromotionSerializer,
+    CartCreateSerializer, CartItemCreateSerializer, CheckoutResponseSerializer
 )
 from inventory.serializers import LeadSerializer
 from inventory.services.cart_service import CartService
 from inventory.services.customer_service import CustomerService
 
 
+@extend_schema_view(
+    list=extend_schema(
+        parameters=[
+            OpenApiParameter('page', OpenApiTypes.INT, OpenApiParameter.QUERY),
+            OpenApiParameter('page_size', OpenApiTypes.INT, OpenApiParameter.QUERY),
+            OpenApiParameter('type', OpenApiTypes.STR, OpenApiParameter.QUERY),
+            OpenApiParameter('search', OpenApiTypes.STR, OpenApiParameter.QUERY),
+            OpenApiParameter('brand_filter', OpenApiTypes.STR, OpenApiParameter.QUERY),
+            OpenApiParameter('min_price', OpenApiTypes.NUMBER, OpenApiParameter.QUERY),
+            OpenApiParameter('max_price', OpenApiTypes.NUMBER, OpenApiParameter.QUERY),
+            OpenApiParameter('ordering', OpenApiTypes.STR, OpenApiParameter.QUERY),
+            OpenApiParameter('promotion', OpenApiTypes.INT, OpenApiParameter.QUERY),
+            OpenApiParameter('slug', OpenApiTypes.STR, OpenApiParameter.QUERY),
+        ]
+    )
+)
 class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
     """Public product browsing."""
     queryset = Product.objects.filter(is_discontinued=False, is_published=True)
@@ -1143,6 +1161,7 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
         return context
     
     @action(detail=True, methods=['get'])
+    @extend_schema(responses=PublicInventoryUnitSerializer(many=True))
     def units(self, request, pk=None):
         """Get available units for a product with interest count."""
         # Get product by pk, bypassing queryset filters to ensure we can access any published product
@@ -1196,6 +1215,7 @@ class CartViewSet(viewsets.ModelViewSet):
         # This allows frontend to refresh cart after checkout
         return Cart.objects.filter(brand=brand)
     
+    @extend_schema(request=CartCreateSerializer, responses=CartSerializer)
     def create(self, request):
         """Create or get existing cart."""
         brand = getattr(request, 'brand', None)
@@ -1225,6 +1245,7 @@ class CartViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=True, methods=['post'])
+    @extend_schema(request=CartItemCreateSerializer, responses=CartItemSerializer)
     def items(self, request, pk=None):
         """Add item to cart."""
         cart = self.get_object()
@@ -1249,7 +1270,11 @@ class CartViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
     
-    @action(detail=True, methods=['delete'], url_path='items/(?P<item_id>[^/.]+)')
+    @action(detail=True, methods=['delete'], url_path='items/(?P<item_id>\\d+)')
+    @extend_schema(
+        parameters=[OpenApiParameter('item_id', OpenApiTypes.INT, OpenApiParameter.PATH)],
+        responses=OpenApiTypes.OBJECT,
+    )
     def remove_item(self, request, pk=None, item_id=None):
         """Remove one item from cart (reduce quantity by 1, or delete if quantity is 1)."""
         from inventory.models import CartItem
@@ -1296,6 +1321,7 @@ class CartViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
     
     @action(detail=True, methods=['post'])
+    @extend_schema(request=CheckoutSerializer, responses=CheckoutResponseSerializer)
     def checkout(self, request, pk=None):
         """Checkout cart (convert to Lead)."""
         import logging
@@ -1394,6 +1420,10 @@ class CartViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
     
     @action(detail=False, methods=['get'])
+    @extend_schema(
+        parameters=[OpenApiParameter('phone', OpenApiTypes.STR, OpenApiParameter.QUERY)],
+        responses=OpenApiTypes.OBJECT,
+    )
     def recognize(self, request):
         """Check if customer is returning (by phone)."""
         phone = request.query_params.get('phone')
@@ -1418,6 +1448,15 @@ class CartViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@extend_schema(
+    parameters=[
+        OpenApiParameter('min_price', OpenApiTypes.NUMBER, OpenApiParameter.QUERY),
+        OpenApiParameter('max_price', OpenApiTypes.NUMBER, OpenApiParameter.QUERY),
+        OpenApiParameter('page', OpenApiTypes.INT, OpenApiParameter.QUERY),
+        OpenApiParameter('page_size', OpenApiTypes.INT, OpenApiParameter.QUERY),
+    ],
+    responses=PublicProductSerializer(many=True),
+)
 class PhoneSearchByBudgetView(generics.ListAPIView):
     """
     GET: Allows customers to search for available phone Products 

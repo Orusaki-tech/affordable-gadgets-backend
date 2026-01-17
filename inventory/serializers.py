@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field, extend_schema_serializer, OpenApiTypes
 from django.contrib.auth.password_validation import validate_password # NEW: For password strength
 from rest_framework.authtoken.models import Token # NEW: For generating auth tokens
 from django.contrib.auth import authenticate
@@ -72,6 +73,7 @@ class AdminSerializer(serializers.ModelSerializer):
         if 'brand_ids' in self.fields:
             self.fields['brand_ids'].queryset = Brand.objects.filter(is_active=True)
     
+    @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_brands(self, obj):
         """Return list of brands associated with this admin"""
         brands = obj.brands.all()
@@ -90,6 +92,7 @@ class AdminSerializer(serializers.ModelSerializer):
         fields = ('id', 'user', 'username', 'email', 'admin_code', 'last_login', 'date_joined', 'roles', 'role_ids', 'brands', 'brand_ids', 'is_global_admin', 'reserved_units_count')
         read_only_fields = ('id', 'user', 'username', 'email', 'last_login', 'date_joined', 'roles', 'brands', 'is_global_admin', 'reserved_units_count')
     
+    @extend_schema_field(OpenApiTypes.INT)
     def get_reserved_units_count(self, obj):
         """Count of units currently reserved by this admin."""
         return InventoryUnit.objects.filter(reserved_by=obj, sale_status=InventoryUnit.SaleStatusChoices.RESERVED).count()
@@ -486,6 +489,7 @@ class ProductImageSerializer(serializers.ModelSerializer):
         fields = ('id', 'product', 'image', 'is_primary', 'image_url', 'alt_text', 'image_caption', 'display_order')
         read_only_fields = ('id',)
     
+    @extend_schema_field(serializers.URLField(allow_null=True))
     def get_image_url(self, obj):
         """Return optimized image URL with Cloudinary transformations"""
         if obj.image:
@@ -560,6 +564,7 @@ class InventoryUnitImageSerializer(serializers.ModelSerializer):
         fields = ('id', 'inventory_unit', 'image', 'is_primary', 'image_url', 'color', 'color_id', 'color_name', 'created_at')
         read_only_fields = ('id', 'created_at', 'color', 'color_name')
     
+    @extend_schema_field(serializers.URLField(allow_null=True))
     def get_image_url(self, obj):
         """Return optimized image URL with Cloudinary transformations"""
         if obj.image:
@@ -661,6 +666,7 @@ class ProductSerializer(serializers.ModelSerializer):
         )
         read_only_fields = ('id', 'created_at', 'updated_at', 'images', 'created_by', 'updated_by', 'seo_score', 'og_image_url', 'product_video_file_url', 'brands')
     
+    @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_brands(self, obj):
         """Return list of brands associated with this product"""
         # Import here to avoid circular import
@@ -675,6 +681,7 @@ class ProductSerializer(serializers.ModelSerializer):
             for brand in brands
         ]
     
+    @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_images(self, obj):
         """Return list of image URLs for this product with alt text and ordering"""
         if hasattr(obj, 'images'):
@@ -693,6 +700,7 @@ class ProductSerializer(serializers.ModelSerializer):
             ]
         return []
     
+    @extend_schema_field(serializers.URLField(allow_null=True))
     def get_og_image_url(self, obj):
         """Return OG image URL if available with optimization"""
         if obj.og_image:
@@ -701,6 +709,7 @@ class ProductSerializer(serializers.ModelSerializer):
             return get_optimized_image_url(obj.og_image, width=1200, height=630, crop='fill')
         return None
     
+    @extend_schema_field(serializers.URLField(allow_null=True))
     def get_product_video_file_url(self, obj):
         """Return product video file URL if available with optimization"""
         if obj.product_video_file:
@@ -709,6 +718,7 @@ class ProductSerializer(serializers.ModelSerializer):
             return get_video_url(obj.product_video_file)
         return None
     
+    @extend_schema_field(OpenApiTypes.INT)
     def get_seo_score(self, obj):
         """Calculate SEO completion score (0-100)"""
         score = 0
@@ -816,6 +826,7 @@ class ProductAccessorySerializer(serializers.ModelSerializer):
     accessory_video_url = serializers.CharField(source='accessory.product_video_url', read_only=True)
     accessory_price_range = serializers.SerializerMethodField()
     
+    @extend_schema_field(serializers.URLField(allow_null=True))
     def get_accessory_primary_image(self, obj):
         """Get the primary image URL for the accessory product."""
         from inventory.models import ProductImage
@@ -856,6 +867,7 @@ class ProductAccessorySerializer(serializers.ModelSerializer):
                 return cloudinary_url
         return None
     
+    @extend_schema_field(serializers.DictField(child=serializers.FloatField(allow_null=True)))
     def get_accessory_price_range(self, obj):
         """Get price range for available accessory units."""
         from inventory.models import InventoryUnit
@@ -897,6 +909,7 @@ class ProductAccessorySerializer(serializers.ModelSerializer):
     
     accessory_color_variants = serializers.SerializerMethodField()
     
+    @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_accessory_color_variants(self, obj):
         """
         Get all available color variants for this accessory.
@@ -1141,6 +1154,7 @@ class InventoryUnitSerializer(serializers.ModelSerializer):
         )
         read_only_fields = ('id', 'sale_status', 'images', 'reserved_by_id', 'reserved_by_username', 'reserved_until', 'can_reserve', 'can_transfer', 'is_reservation_expired')
     
+    @extend_schema_field(OpenApiTypes.BOOL)
     def get_can_reserve(self, obj):
         """Check if current user can reserve this unit."""
         request = self.context.get('request')
@@ -1156,6 +1170,7 @@ class InventoryUnitSerializer(serializers.ModelSerializer):
         except Admin.DoesNotExist:
             return False
     
+    @extend_schema_field(OpenApiTypes.BOOL)
     def get_can_transfer(self, obj):
         """Check if current user can request transfer of this unit."""
         request = self.context.get('request')
@@ -1174,6 +1189,7 @@ class InventoryUnitSerializer(serializers.ModelSerializer):
         except Admin.DoesNotExist:
             return False
     
+    @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_images(self, obj):
         """Return list of image URLs for this inventory unit"""
         if hasattr(obj, 'images'):
@@ -1337,6 +1353,7 @@ class InventoryUnitSerializer(serializers.ModelSerializer):
 
 # --- PUBLIC-FACING INVENTORY UNIT SERIALIZER (Safe fields only) ---
 
+@extend_schema_serializer(component_name="PublicInventoryUnitAdmin")
 class PublicInventoryUnitSerializer(serializers.ModelSerializer):
     product_template_name = serializers.CharField(source='product_template.product_name', read_only=True)
     product_brand = serializers.CharField(source='product_template.brand', read_only=True)
@@ -1368,6 +1385,7 @@ class ReviewSerializer(serializers.ModelSerializer):
     # review_image is the model field (ImageField) - writable for uploads
     review_image = serializers.ImageField(required=False, allow_null=True)
     
+    @extend_schema_field(serializers.CharField(allow_null=True))
     def get_customer_username(self, obj):
         """Get customer username, handling None customer (admin reviews)."""
         if obj.customer and obj.customer.user:
@@ -1389,6 +1407,7 @@ class ReviewSerializer(serializers.ModelSerializer):
             'video_file_url', 'review_image_url'
         )
 
+    @extend_schema_field(serializers.URLField(allow_null=True))
     def get_video_file_url(self, obj):
         """Returns the full URL to the uploaded video file with optimization."""
         if obj.video_file:
@@ -1464,6 +1483,7 @@ class ReviewSerializer(serializers.ModelSerializer):
 
         return instance
 
+    @extend_schema_field(serializers.URLField(allow_null=True))
     def get_review_image_url(self, obj):
         """Return optimized review image URL (prefer Cloudinary, fallback to constructed URL)."""
         if obj.review_image:
@@ -1576,12 +1596,14 @@ class OrderSerializer(serializers.ModelSerializer):
     brand = serializers.PrimaryKeyRelatedField(read_only=True, allow_null=True)
     brand_name = serializers.SerializerMethodField(read_only=True)
     
+    @extend_schema_field(serializers.CharField(allow_null=True))
     def get_customer_username(self, obj):
         """Get customer username, handling None user."""
         if obj.customer and obj.customer.user:
             return obj.customer.user.username
         return obj.customer.name if obj.customer else None
     
+    @extend_schema_field(serializers.CharField())
     def get_customer_phone(self, obj):
         """Get customer phone number - prefer from source_lead for online orders, otherwise from customer."""
         # For online orders, get phone from the lead
@@ -1592,6 +1614,7 @@ class OrderSerializer(serializers.ModelSerializer):
             return obj.customer.phone or obj.customer.phone_number or ''
         return ''
     
+    @extend_schema_field(serializers.CharField())
     def get_delivery_address(self, obj):
         """Get delivery address - prefer from source_lead for online orders, otherwise from customer."""
         # For online orders, get address from the lead
@@ -1602,6 +1625,7 @@ class OrderSerializer(serializers.ModelSerializer):
             return obj.customer.delivery_address or obj.customer.address or ''
         return ''
     
+    @extend_schema_field(serializers.CharField(allow_null=True))
     def get_brand_name(self, obj):
         """Get brand name, handling None brand."""
         return obj.brand.name if obj.brand else None
@@ -1792,6 +1816,7 @@ class ReservationRequestSerializer(serializers.ModelSerializer):
             'notes': {'required': False},
         }
     
+    @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_requesting_salesperson_brands(self, obj):
         """Get brands associated with the requesting salesperson."""
         if not obj.requesting_salesperson:
@@ -1808,6 +1833,7 @@ class ReservationRequestSerializer(serializers.ModelSerializer):
             for brand in brands
         ]
     
+    @extend_schema_field(serializers.CharField(allow_null=True))
     def get_inventory_unit_name(self, obj):
         """Get name of first unit (for backward compatibility)."""
         if obj.inventory_units.exists():
@@ -1816,6 +1842,7 @@ class ReservationRequestSerializer(serializers.ModelSerializer):
             return obj.inventory_unit.product_template.product_name
         return None
     
+    @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_inventory_units_details(self, obj):
         """Get detailed information about all units in the request."""
         units = []
@@ -2096,10 +2123,12 @@ class ReturnRequestSerializer(serializers.ModelSerializer):
         )
         read_only_fields = ('id', 'requesting_salesperson', 'requested_at', 'approved_at', 'approved_by')
     
+    @extend_schema_field(OpenApiTypes.INT)
     def get_inventory_units_count(self, obj):
         """Return count of units in this return request."""
         return obj.inventory_units.count()
     
+    @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_inventory_units_detail(self, obj):
         """Return basic info about units in this return request."""
         return [
@@ -2111,6 +2140,7 @@ class ReturnRequestSerializer(serializers.ModelSerializer):
             for unit in obj.inventory_units.all()
         ]
     
+    @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_transfer_history(self, obj):
         """Get transfer history for units in this return request."""
         from .models import UnitTransfer
@@ -2140,6 +2170,7 @@ class ReturnRequestSerializer(serializers.ModelSerializer):
             for transfer in transfers
         ]
     
+    @extend_schema_field(serializers.DictField(child=serializers.IntegerField()))
     def get_net_holdings_info(self, obj):
         """Calculate net holdings for the requesting salesperson."""
         from .models import UnitTransfer
@@ -2351,6 +2382,7 @@ class BrandSerializer(serializers.ModelSerializer):
         )
         read_only_fields = ('created_at', 'updated_at', 'logo_url')
     
+    @extend_schema_field(serializers.URLField(allow_null=True))
     def get_logo_url(self, obj):
         """Return optimized logo URL with Cloudinary transformations"""
         if obj.logo:
@@ -2426,6 +2458,7 @@ class LeadSerializer(serializers.ModelSerializer):
             'lead_reference', 'submitted_at', 'converted_at', 'order_id'
         )
     
+    @extend_schema_field(serializers.CharField(allow_null=True))
     def get_customer_name_display(self, obj):
         """Get customer name for display."""
         if obj.customer:
@@ -2626,11 +2659,13 @@ class PromotionSerializer(serializers.ModelSerializer):
             return original_url
         return None
     
+    @extend_schema_field(serializers.URLField(allow_null=True))
     def get_banner_image_url(self, obj):
         """Return optimized banner image URL with Cloudinary transformations"""
         # Use the same logic as get_banner_image
         return self.get_banner_image(obj)
     
+    @extend_schema_field(OpenApiTypes.INT)
     def get_product_count(self, obj):
         """Get count of products this promotion applies to."""
         # If product_types is set, count all products of that type for the brand
