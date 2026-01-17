@@ -493,6 +493,35 @@ class ProductImageSerializer(serializers.ModelSerializer):
             # Return optimized URL (auto-optimized by Cloudinary)
             return get_optimized_image_url(obj.image)
         return None
+
+    def create(self, validated_data):
+        image = validated_data.pop('image', None)
+        instance = super().create(validated_data)
+
+        if image:
+            from .cloudinary_utils import upload_image_to_cloudinary
+            saved_name, _ = upload_image_to_cloudinary(image, 'product_photos')
+            if saved_name:
+                instance.image.name = saved_name
+                instance.save()
+
+        return instance
+
+    def update(self, instance, validated_data):
+        image = validated_data.pop('image', None)
+        instance = super().update(instance, validated_data)
+
+        if image is not None:
+            if image:
+                from .cloudinary_utils import upload_image_to_cloudinary
+                saved_name, _ = upload_image_to_cloudinary(image, 'product_photos')
+                if saved_name:
+                    instance.image.name = saved_name
+            else:
+                instance.image = None
+            instance.save()
+
+        return instance
     
     def validate_alt_text(self, value):
         """Warn if alt_text is missing (but don't block - can be added later)"""
@@ -538,6 +567,35 @@ class InventoryUnitImageSerializer(serializers.ModelSerializer):
             # Return optimized URL (auto-optimized by Cloudinary)
             return get_optimized_image_url(obj.image)
         return None
+
+    def create(self, validated_data):
+        image = validated_data.pop('image', None)
+        instance = super().create(validated_data)
+
+        if image:
+            from .cloudinary_utils import upload_image_to_cloudinary
+            saved_name, _ = upload_image_to_cloudinary(image, 'unit_photos')
+            if saved_name:
+                instance.image.name = saved_name
+                instance.save()
+
+        return instance
+
+    def update(self, instance, validated_data):
+        image = validated_data.pop('image', None)
+        instance = super().update(instance, validated_data)
+
+        if image is not None:
+            if image:
+                from .cloudinary_utils import upload_image_to_cloudinary
+                saved_name, _ = upload_image_to_cloudinary(image, 'unit_photos')
+                if saved_name:
+                    instance.image.name = saved_name
+            else:
+                instance.image = None
+            instance.save()
+
+        return instance
 
 class TagSerializer(serializers.ModelSerializer):
     """Serializer for Tag model."""
@@ -689,6 +747,58 @@ class ProductSerializer(serializers.ModelSerializer):
         if value and len(value) > 160:
             raise serializers.ValidationError("Meta description should be 160 characters or less for optimal SEO.")
         return value
+
+    def create(self, validated_data):
+        og_image = validated_data.pop('og_image', None)
+        product_video_file = validated_data.pop('product_video_file', None)
+
+        instance = super().create(validated_data)
+
+        if og_image:
+            from .cloudinary_utils import upload_image_to_cloudinary
+            saved_name, _ = upload_image_to_cloudinary(og_image, 'og_images')
+            if saved_name:
+                instance.og_image.name = saved_name
+
+        if product_video_file:
+            from .cloudinary_utils import upload_video_to_cloudinary
+            saved_name, _ = upload_video_to_cloudinary(product_video_file, 'product_videos')
+            if saved_name:
+                instance.product_video_file.name = saved_name
+
+        if og_image or product_video_file:
+            instance.save()
+
+        return instance
+
+    def update(self, instance, validated_data):
+        og_image = validated_data.pop('og_image', None)
+        product_video_file = validated_data.pop('product_video_file', None)
+
+        instance = super().update(instance, validated_data)
+
+        if og_image is not None:
+            if og_image:
+                from .cloudinary_utils import upload_image_to_cloudinary
+                saved_name, _ = upload_image_to_cloudinary(og_image, 'og_images')
+                if saved_name:
+                    instance.og_image.name = saved_name
+            else:
+                instance.og_image = None
+
+        if product_video_file is not None:
+            if product_video_file:
+                from .cloudinary_utils import upload_video_to_cloudinary
+                saved_name, _ = upload_video_to_cloudinary(product_video_file, 'product_videos')
+                if saved_name:
+                    instance.product_video_file.name = saved_name
+            else:
+                instance.product_video_file = None
+
+        if og_image is not None or product_video_file is not None:
+            instance.save()
+
+        return instance
 
 # --- PRODUCT ACCESSORY LINK SERIALIZER ---
 
@@ -2249,6 +2359,35 @@ class BrandSerializer(serializers.ModelSerializer):
             return get_optimized_image_url(obj.logo, width=200, height=200, crop='fill')
         return None
 
+    def create(self, validated_data):
+        logo = validated_data.pop('logo', None)
+        instance = super().create(validated_data)
+
+        if logo:
+            from .cloudinary_utils import upload_image_to_cloudinary
+            saved_name, _ = upload_image_to_cloudinary(logo, 'brand_logos')
+            if saved_name:
+                instance.logo.name = saved_name
+                instance.save()
+
+        return instance
+
+    def update(self, instance, validated_data):
+        logo = validated_data.pop('logo', None)
+        instance = super().update(instance, validated_data)
+
+        if logo is not None:
+            if logo:
+                from .cloudinary_utils import upload_image_to_cloudinary
+                saved_name, _ = upload_image_to_cloudinary(logo, 'brand_logos')
+                if saved_name:
+                    instance.logo.name = saved_name
+            else:
+                instance.logo = None
+            instance.save()
+
+        return instance
+
 
 class LeadItemSerializer(serializers.ModelSerializer):
     """Serializer for LeadItem (admin)."""
@@ -2379,6 +2518,35 @@ class PromotionSerializer(serializers.ModelSerializer):
             if optimized_url:
                 representation['banner_image'] = optimized_url
         return representation
+
+    def create(self, validated_data):
+        banner_image = validated_data.pop('banner_image', None)
+        instance = super().create(validated_data)
+
+        if banner_image:
+            from .cloudinary_utils import upload_image_to_cloudinary
+            saved_name, _ = upload_image_to_cloudinary(banner_image, 'promotions')
+            if saved_name:
+                instance.banner_image.name = saved_name
+                instance.save()
+
+        return instance
+
+    def update(self, instance, validated_data):
+        banner_image = validated_data.pop('banner_image', None)
+        instance = super().update(instance, validated_data)
+
+        if banner_image is not None:
+            if banner_image:
+                from .cloudinary_utils import upload_image_to_cloudinary
+                saved_name, _ = upload_image_to_cloudinary(banner_image, 'promotions')
+                if saved_name:
+                    instance.banner_image.name = saved_name
+            else:
+                instance.banner_image = None
+            instance.save()
+
+        return instance
     
     def get_banner_image(self, obj):
         """Return optimized banner image URL (prefer Cloudinary, fallback to absolute URL)"""
