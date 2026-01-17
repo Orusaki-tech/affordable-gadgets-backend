@@ -48,7 +48,7 @@ def _ensure_cloudinary_configured():
 
 def upload_image_to_cloudinary(file_obj, folder):
     """
-    Save an image file using the configured Cloudinary storage backend.
+    Save an image file directly to Cloudinary storage.
 
     Returns a tuple of (file_name, url).
     """
@@ -59,18 +59,19 @@ def upload_image_to_cloudinary(file_obj, folder):
     if not _ensure_cloudinary_configured():
         raise ValueError("Cloudinary is not configured")
 
-    from django.core.files.storage import default_storage
+    from cloudinary_storage.storage import MediaCloudinaryStorage
 
+    storage = MediaCloudinaryStorage()
     ext = os.path.splitext(getattr(file_obj, 'name', '') or '')[1]
     unique_name = f"{uuid.uuid4().hex}{ext}"
     storage_path = f"{folder.strip('/')}/{unique_name}"
-    saved_name = default_storage.save(storage_path, file_obj)
-    return saved_name, default_storage.url(saved_name)
+    saved_name = storage.save(storage_path, file_obj)
+    return saved_name, storage.url(saved_name)
 
 
 def upload_video_to_cloudinary(file_obj, folder):
     """
-    Save a video file using the configured Cloudinary storage backend.
+    Save a video file directly to Cloudinary storage.
 
     Returns a tuple of (file_name, url).
     """
@@ -81,13 +82,14 @@ def upload_video_to_cloudinary(file_obj, folder):
     if not _ensure_cloudinary_configured():
         raise ValueError("Cloudinary is not configured")
 
-    from django.core.files.storage import default_storage
+    from cloudinary_storage.storage import MediaCloudinaryStorage
 
+    storage = MediaCloudinaryStorage()
     ext = os.path.splitext(getattr(file_obj, 'name', '') or '')[1]
     unique_name = f"{uuid.uuid4().hex}{ext}"
     storage_path = f"{folder.strip('/')}/{unique_name}"
-    saved_name = default_storage.save(storage_path, file_obj)
-    return saved_name, default_storage.url(saved_name)
+    saved_name = storage.save(storage_path, file_obj)
+    return saved_name, storage.url(saved_name)
 
 
 def _get_cloudinary_url_from_field(image_field):
