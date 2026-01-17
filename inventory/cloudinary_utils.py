@@ -4,6 +4,7 @@ Provides helper methods to generate optimized URLs with transformations.
 """
 import os
 import logging
+import uuid
 import cloudinary
 import cloudinary.api
 
@@ -43,6 +44,50 @@ def _ensure_cloudinary_configured():
     except Exception as e:
         logger.error(f"Failed to configure Cloudinary: {e}")
         return False
+
+
+def upload_image_to_cloudinary(file_obj, folder):
+    """
+    Save an image file using the configured Cloudinary storage backend.
+
+    Returns a tuple of (file_name, url).
+    """
+    if not file_obj:
+        return None, None
+
+    # Ensure Cloudinary is configured before saving
+    if not _ensure_cloudinary_configured():
+        raise ValueError("Cloudinary is not configured")
+
+    from django.core.files.storage import default_storage
+
+    ext = os.path.splitext(getattr(file_obj, 'name', '') or '')[1]
+    unique_name = f"{uuid.uuid4().hex}{ext}"
+    storage_path = f"{folder.strip('/')}/{unique_name}"
+    saved_name = default_storage.save(storage_path, file_obj)
+    return saved_name, default_storage.url(saved_name)
+
+
+def upload_video_to_cloudinary(file_obj, folder):
+    """
+    Save a video file using the configured Cloudinary storage backend.
+
+    Returns a tuple of (file_name, url).
+    """
+    if not file_obj:
+        return None, None
+
+    # Ensure Cloudinary is configured before saving
+    if not _ensure_cloudinary_configured():
+        raise ValueError("Cloudinary is not configured")
+
+    from django.core.files.storage import default_storage
+
+    ext = os.path.splitext(getattr(file_obj, 'name', '') or '')[1]
+    unique_name = f"{uuid.uuid4().hex}{ext}"
+    storage_path = f"{folder.strip('/')}/{unique_name}"
+    saved_name = default_storage.save(storage_path, file_obj)
+    return saved_name, default_storage.url(saved_name)
 
 
 def _get_cloudinary_url_from_field(image_field):

@@ -1302,6 +1302,58 @@ class ReviewSerializer(serializers.ModelSerializer):
                 representation['review_image'] = optimized_url
         return representation
 
+    def create(self, validated_data):
+        review_image = validated_data.pop('review_image', None)
+        video_file = validated_data.pop('video_file', None)
+
+        review = super().create(validated_data)
+
+        if review_image:
+            from .cloudinary_utils import upload_image_to_cloudinary
+            saved_name, _ = upload_image_to_cloudinary(review_image, 'review_images')
+            if saved_name:
+                review.review_image.name = saved_name
+
+        if video_file:
+            from .cloudinary_utils import upload_video_to_cloudinary
+            saved_name, _ = upload_video_to_cloudinary(video_file, 'review_videos')
+            if saved_name:
+                review.video_file.name = saved_name
+
+        if review_image or video_file:
+            review.save()
+
+        return review
+
+    def update(self, instance, validated_data):
+        review_image = validated_data.pop('review_image', None)
+        video_file = validated_data.pop('video_file', None)
+
+        instance = super().update(instance, validated_data)
+
+        if review_image is not None:
+            if review_image:
+                from .cloudinary_utils import upload_image_to_cloudinary
+                saved_name, _ = upload_image_to_cloudinary(review_image, 'review_images')
+                if saved_name:
+                    instance.review_image.name = saved_name
+            else:
+                instance.review_image = None
+
+        if video_file is not None:
+            if video_file:
+                from .cloudinary_utils import upload_video_to_cloudinary
+                saved_name, _ = upload_video_to_cloudinary(video_file, 'review_videos')
+                if saved_name:
+                    instance.video_file.name = saved_name
+            else:
+                instance.video_file = None
+
+        if review_image is not None or video_file is not None:
+            instance.save()
+
+        return instance
+
     def get_review_image_url(self, obj):
         """Return optimized review image URL (prefer Cloudinary, fallback to constructed URL)."""
         if obj.review_image:
