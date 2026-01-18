@@ -1754,6 +1754,14 @@ class OrderSerializer(serializers.ModelSerializer):
             order.save()
             
             return order
+
+
+class InitiatePaymentRequestSerializer(serializers.Serializer):
+    """Request payload for initiating a Pesapal payment on an existing order."""
+    callback_url = serializers.URLField()
+    cancellation_url = serializers.URLField(required=False, allow_null=True, allow_blank=True)
+    customer = serializers.JSONField(required=False)
+    billing_address = serializers.JSONField(required=False)
     
     def update(self, instance, validated_data):
         """

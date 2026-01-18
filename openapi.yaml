@@ -2025,13 +2025,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/OrderRequest'
+              $ref: '#/components/schemas/InitiatePaymentRequestRequest'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/OrderRequest'
+              $ref: '#/components/schemas/InitiatePaymentRequestRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/OrderRequest'
+              $ref: '#/components/schemas/InitiatePaymentRequestRequest'
         required: true
       security:
       - {}
@@ -2040,7 +2040,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Order'
+                type: object
+                additionalProperties: {}
           description: ''
   /orders/{order_id}/payment_status/:
     get:
@@ -5274,6 +5275,12 @@ paths:
     get:
       operationId: api_v1_public_cart_recognize_retrieve
       description: Check if customer is returning (by phone).
+      parameters:
+      - in: query
+        name: phone
+        schema:
+          type: string
+        required: true
       tags:
       - api
       security:
@@ -5285,7 +5292,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Cart'
+                type: object
+                additionalProperties: {}
           description: ''
   /api/v1/public/phone-search/:
     get:
@@ -5414,7 +5422,7 @@ paths:
           description: ''
   /api/v1/public/products/{id}/units/:
     get:
-      operationId: api_v1_public_products_units_retrieve
+      operationId: api_v1_public_products_units_list
       description: Get available units for a product with interest count.
       parameters:
       - in: path
@@ -5423,6 +5431,24 @@ paths:
           type: integer
         description: A unique integer value identifying this product.
         required: true
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
       tags:
       - api
       security:
@@ -5434,7 +5460,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PublicProduct'
+                $ref: '#/components/schemas/PaginatedPublicInventoryUnitPublicList'
           description: ''
   /api/v1/public/promotions/:
     get:
@@ -6394,6 +6420,23 @@ components:
       description: |-
         * `A` - Grade A
         * `B` - Grade B
+    InitiatePaymentRequestRequest:
+      type: object
+      description: Request payload for initiating a Pesapal payment on an existing
+        order.
+      properties:
+        callback_url:
+          type: string
+          format: uri
+          minLength: 1
+        cancellation_url:
+          type: string
+          format: uri
+          nullable: true
+        customer: {}
+        billing_address: {}
+      required:
+      - callback_url
     InventoryUnit:
       type: object
       description: |-
@@ -7525,6 +7568,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PublicInventoryUnitAdmin'
+    PaginatedPublicInventoryUnitPublicList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicInventoryUnitPublic'
     PaginatedPublicProductList:
       type: object
       required:

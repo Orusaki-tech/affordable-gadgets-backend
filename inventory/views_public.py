@@ -1160,8 +1160,8 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
         context['request'] = self.request
         return context
     
+    @extend_schema(methods=['GET'], responses=PublicInventoryUnitSerializer(many=True))
     @action(detail=True, methods=['get'])
-    @extend_schema(responses=PublicInventoryUnitSerializer(many=True))
     def units(self, request, pk=None):
         """Get available units for a product with interest count."""
         # Get product by pk, bypassing queryset filters to ensure we can access any published product
@@ -1185,6 +1185,20 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(serializer.data)
 
 
+@extend_schema_view(
+    recognize=extend_schema(
+        methods=['GET'],
+        parameters=[
+            OpenApiParameter(
+                name='phone',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                required=True,
+            )
+        ],
+        responses=OpenApiTypes.OBJECT,
+    ),
+)
 class CartViewSet(viewsets.ModelViewSet):
     """Cart management."""
     serializer_class = CartSerializer
@@ -1421,7 +1435,15 @@ class CartViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     @extend_schema(
-        parameters=[OpenApiParameter('phone', OpenApiTypes.STR, OpenApiParameter.QUERY)],
+        methods=['GET'],
+        parameters=[
+            OpenApiParameter(
+                name='phone',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                required=True,
+            )
+        ],
         responses=OpenApiTypes.OBJECT,
     )
     def recognize(self, request):

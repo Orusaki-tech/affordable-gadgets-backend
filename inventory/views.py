@@ -62,7 +62,7 @@ from .serializers import (
     PublicInventoryUnitSerializer, InventoryUnitImageSerializer,
     ReservationRequestSerializer, ReturnRequestSerializer, UnitTransferSerializer, NotificationSerializer,
     AuditLogSerializer, TagSerializer, BrandSerializer, LeadSerializer, CartSerializer, PromotionSerializer,
-    PromotionTypeSerializer,
+    PromotionTypeSerializer, InitiatePaymentRequestSerializer,
 )
 from .services.lead_service import LeadService
 
@@ -2149,6 +2149,7 @@ class OrderViewSet(viewsets.ModelViewSet):
                 'cart_cleared': cart_cleared
             })
     
+    @extend_schema(request=InitiatePaymentRequestSerializer, responses=OpenApiTypes.OBJECT)
     @action(detail=True, methods=['post'], permission_classes=[permissions.AllowAny], authentication_classes=[])
     def initiate_payment(self, request, pk=None, **kwargs):
         """Initiate Pesapal payment for an order."""
