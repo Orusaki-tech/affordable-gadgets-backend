@@ -303,7 +303,7 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                 request.query_params.get('page_size', '24')
             )
             if cache_enabled and hasattr(response, 'data'):
-                cache.set(cache_key, response.data, 60)
+                cache.set(cache_key, response.data, 180)
             return response
         except Exception as e:
             # #region agent log - List exception
@@ -433,9 +433,36 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                     primary_images_prefetch
                 )
                 
-                # For slug lookups, no annotations needed (PostgreSQL compatibility)
-                # Serializer will use prefetched available_units_list for accurate values
-                # Annotations cause PostgreSQL evaluation issues, so we skip them
+                # For slug lookups, annotate aggregate fields for the detail serializer
+                unit_base = InventoryUnit.objects.filter(
+                    product_template=OuterRef('pk'),
+                    sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+                    available_online=True
+                )
+                if brand:
+                    unit_base = unit_base.filter(Q(brands=brand) | Q(brands__isnull=True))
+
+                unit_count_sub = unit_base.values('product_template').annotate(
+                    total=Count('id')
+                ).values('total')[:1]
+                unit_qty_sub = unit_base.values('product_template').annotate(
+                    total=Coalesce(Sum('quantity'), Value(0))
+                ).values('total')[:1]
+                min_price_sub = unit_base.order_by('selling_price').values('selling_price')[:1]
+                max_price_sub = unit_base.order_by('-selling_price').values('selling_price')[:1]
+
+                queryset = queryset.annotate(
+                    available_units_count=Case(
+                        When(
+                            product_type=Product.ProductType.ACCESSORY,
+                            then=Coalesce(Subquery(unit_qty_sub), Value(0)),
+                        ),
+                        default=Coalesce(Subquery(unit_count_sub), Value(0)),
+                        output_field=IntegerField(),
+                    ),
+                    min_price=Coalesce(Subquery(min_price_sub), Value(None), output_field=DecimalField(max_digits=10, decimal_places=2)),
+                    max_price=Coalesce(Subquery(max_price_sub), Value(None), output_field=DecimalField(max_digits=10, decimal_places=2)),
+                )
                 
                 # #region agent log
                 try:
@@ -493,6 +520,7 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = super().get_queryset()
             brand = getattr(self.request, 'brand', None)
             is_list = getattr(self, 'action', None) == 'list' and not self.request.query_params.get('slug')
+            is_detail = getattr(self, 'action', None) == 'retrieve'
             
             # #region agent log - After initial queryset
             try:
@@ -663,6 +691,48 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                     max_price=Coalesce(Subquery(max_price_sub), Value(None), output_field=DecimalField(max_digits=10, decimal_places=2)),
                 )
                 return queryset
+
+            if is_detail:
+                # Detail path: prefetch filtered units and primary images and annotate aggregates
+                available_units_prefetch = Prefetch(
+                    'inventory_units',
+                    queryset=InventoryUnit.objects.filter(available_units_filter).select_related('product_color'),
+                    to_attr='available_units_list'
+                )
+                queryset = queryset.prefetch_related(
+                    available_units_prefetch,
+                    primary_images_prefetch
+                )
+
+                unit_base = InventoryUnit.objects.filter(
+                    product_template=OuterRef('pk'),
+                    sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+                    available_online=True
+                )
+                if brand:
+                    unit_base = unit_base.filter(Q(brands=brand) | Q(brands__isnull=True))
+
+                unit_count_sub = unit_base.values('product_template').annotate(
+                    total=Count('id')
+                ).values('total')[:1]
+                unit_qty_sub = unit_base.values('product_template').annotate(
+                    total=Coalesce(Sum('quantity'), Value(0))
+                ).values('total')[:1]
+                min_price_sub = unit_base.order_by('selling_price').values('selling_price')[:1]
+                max_price_sub = unit_base.order_by('-selling_price').values('selling_price')[:1]
+
+                return queryset.annotate(
+                    available_units_count=Case(
+                        When(
+                            product_type=Product.ProductType.ACCESSORY,
+                            then=Coalesce(Subquery(unit_qty_sub), Value(0)),
+                        ),
+                        default=Coalesce(Subquery(unit_count_sub), Value(0)),
+                        output_field=IntegerField(),
+                    ),
+                    min_price=Coalesce(Subquery(min_price_sub), Value(None), output_field=DecimalField(max_digits=10, decimal_places=2)),
+                    max_price=Coalesce(Subquery(max_price_sub), Value(None), output_field=DecimalField(max_digits=10, decimal_places=2)),
+                )
 
             # Prefetch available units with brand filtering
             available_units_prefetch = Prefetch(
