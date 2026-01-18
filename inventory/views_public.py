@@ -226,27 +226,27 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                     serialized_products = []
                     if response_data and response_data.get('results'):
                         for p in response_data.get('results', [])[:3]:
-                        serialized_products.append({
-                            'id': p.get('id'),
-                            'product_name': p.get('product_name'),
-                            'available_units_count': p.get('available_units_count', 0)
-                        })
-                
-                os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-                with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
-                    f.write(json.dumps({
-                        "sessionId": "debug-session",
-                        "runId": "run1",
-                        "hypothesisId": "H5",
-                        "location": "inventory/views_public.py:PublicProductViewSet.list(after_super)",
-                        "message": "After calling super().list()",
-                        "data": {
-                            "response_count": response_data.get('count', 0) if response_data else 0,
-                            "results_count": result_count,
-                            "has_next": response_data.get('next') is not None if response_data else False,
-                            "has_previous": response_data.get('previous') is not None if response_data else False,
-                            "serialized_products": serialized_products
-                        },
+                            serialized_products.append({
+                                'id': p.get('id'),
+                                'product_name': p.get('product_name'),
+                                'available_units_count': p.get('available_units_count', 0)
+                            })
+                    
+                    os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
+                    with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                        f.write(json.dumps({
+                            "sessionId": "debug-session",
+                            "runId": "run1",
+                            "hypothesisId": "H5",
+                            "location": "inventory/views_public.py:PublicProductViewSet.list(after_super)",
+                            "message": "After calling super().list()",
+                            "data": {
+                                "response_count": response_data.get('count', 0) if response_data else 0,
+                                "results_count": result_count,
+                                "has_next": response_data.get('next') is not None if response_data else False,
+                                "has_previous": response_data.get('previous') is not None if response_data else False,
+                                "serialized_products": serialized_products
+                            },
                         "timestamp": int(time.time() * 1000)
                     }) + "\n")
             except Exception as log_err:
