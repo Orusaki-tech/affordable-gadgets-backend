@@ -249,20 +249,20 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                             },
                             "timestamp": int(time.time() * 1000)
                         }) + "\n")
-            except Exception as log_err:
-                try:
-                    os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-                    with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
-                        f.write(json.dumps({
-                            "sessionId": "debug-session",
-                            "runId": "run1",
-                            "hypothesisId": "H5",
-                            "location": "inventory/views_public.py:PublicProductViewSet.list(after_super_error)",
-                            "message": "Error checking response after super().list()",
-                            "data": {"error": str(log_err), "traceback": traceback.format_exc()},
-                            "timestamp": int(time.time() * 1000)
-                        }) + "\n")
-                except: pass
+                except Exception as log_err:
+                    try:
+                        os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
+                        with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                            f.write(json.dumps({
+                                "sessionId": "debug-session",
+                                "runId": "run1",
+                                "hypothesisId": "H5",
+                                "location": "inventory/views_public.py:PublicProductViewSet.list(after_super_error)",
+                                "message": "Error checking response after super().list()",
+                                "data": {"error": str(log_err), "traceback": traceback.format_exc()},
+                                "timestamp": int(time.time() * 1000)
+                            }) + "\n")
+                    except: pass
             # #endregion
             
             duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
