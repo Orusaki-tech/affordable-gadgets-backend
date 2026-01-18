@@ -243,6 +243,17 @@ class PublicProductSerializer(serializers.ModelSerializer):
         return None
 
 
+class PublicProductListSerializer(PublicProductSerializer):
+    """Lightweight product serializer for list endpoints."""
+
+    class Meta(PublicProductSerializer.Meta):
+        fields = [
+            'id', 'product_name', 'brand', 'model_series', 'product_type',
+            'available_units_count', 'min_price', 'max_price',
+            'primary_image', 'slug', 'product_video_url'
+        ]
+
+
 class CartItemSerializer(serializers.ModelSerializer):
     """Cart item serializer."""
     inventory_unit = PublicInventoryUnitSerializer(read_only=True)

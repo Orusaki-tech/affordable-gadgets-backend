@@ -9,7 +9,7 @@ from decimal import Decimal
 from django.conf import settings
 from inventory.models import Product, InventoryUnit, Cart, Lead, Brand, Promotion, ProductImage
 from inventory.serializers_public import (
-    PublicProductSerializer, PublicInventoryUnitSerializer,
+    PublicProductSerializer, PublicProductListSerializer, PublicInventoryUnitSerializer,
     CartSerializer, CartItemSerializer, CheckoutSerializer, PublicPromotionSerializer,
     CartCreateSerializer, CartItemCreateSerializer, CheckoutResponseSerializer
 )
@@ -44,6 +44,11 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
     ordering_fields = ['product_name']  # Only order by real fields, not calculated ones
     # Don't set default ordering here - it will be applied in get_queryset after annotations
     lookup_field = 'pk'  # Use primary key for detail view
+
+    def get_serializer_class(self):
+        if getattr(self, 'action', None) == 'list':
+            return PublicProductListSerializer
+        return PublicProductSerializer
     
     # #region agent log - Check ALL products in database (before any filtering)
     def _log_all_products_debug(self):
@@ -154,69 +159,73 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
         import json, time, os, traceback
         import logging
         logger = logging.getLogger(__name__)
+        start_time = time.perf_counter()
+        debug_enabled = settings.DEBUG or request.query_params.get('debug') == '1'
         
         try:
             # #region agent log - Before list call
-            try:
-                queryset = self.get_queryset()
-                queryset_count = queryset.count()
-                
-                # Check if queryset can be evaluated (PostgreSQL might fail here)
+            if debug_enabled:
                 try:
-                    sample_products = list(queryset.values('id', 'product_name', 'is_global')[:3])
-                    queryset_evaluates = True
-                except Exception as eval_err:
-                    sample_products = []
-                    queryset_evaluates = False
-                    eval_error = str(eval_err)
-                
-                os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-                with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
-                    f.write(json.dumps({
-                        "sessionId": "debug-session",
-                        "runId": "run1",
-                        "hypothesisId": "H1,H2,H3,H4,H5",
-                        "location": "inventory/views_public.py:PublicProductViewSet.list(before_super)",
-                        "message": "Before calling super().list() - queryset evaluation test",
-                        "data": {
-                            "queryset_count": queryset_count,
-                            "queryset_evaluates": queryset_evaluates,
-                            "sample_products": sample_products,
-                            "eval_error": eval_error if not queryset_evaluates else None,
-                            "query_params": dict(request.query_params),
-                            "page": request.query_params.get('page', '1'),
-                            "page_size": request.query_params.get('page_size', '24'),
-                            "brand_code": request.headers.get('X-Brand-Code', 'NOT_PROVIDED')
-                        },
-                        "timestamp": int(time.time() * 1000)
-                    }) + "\n")
-            except Exception as log_err:
-                try:
+                    queryset = self.get_queryset()
+                    queryset_count = queryset.count()
+                    
+                    # Check if queryset can be evaluated (PostgreSQL might fail here)
+                    try:
+                        sample_products = list(queryset.values('id', 'product_name', 'is_global')[:3])
+                        queryset_evaluates = True
+                    except Exception as eval_err:
+                        sample_products = []
+                        queryset_evaluates = False
+                        eval_error = str(eval_err)
+                    
                     os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
                     with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
                         f.write(json.dumps({
                             "sessionId": "debug-session",
                             "runId": "run1",
                             "hypothesisId": "H1,H2,H3,H4,H5",
-                            "location": "inventory/views_public.py:PublicProductViewSet.list(before_super_error)",
-                            "message": "Error checking queryset before super().list()",
-                            "data": {"error": str(log_err), "traceback": traceback.format_exc()},
+                            "location": "inventory/views_public.py:PublicProductViewSet.list(before_super)",
+                            "message": "Before calling super().list() - queryset evaluation test",
+                            "data": {
+                                "queryset_count": queryset_count,
+                                "queryset_evaluates": queryset_evaluates,
+                                "sample_products": sample_products,
+                                "eval_error": eval_error if not queryset_evaluates else None,
+                                "query_params": dict(request.query_params),
+                                "page": request.query_params.get('page', '1'),
+                                "page_size": request.query_params.get('page_size', '24'),
+                                "brand_code": request.headers.get('X-Brand-Code', 'NOT_PROVIDED')
+                            },
                             "timestamp": int(time.time() * 1000)
                         }) + "\n")
-                except: pass
+                except Exception as log_err:
+                    try:
+                        os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
+                        with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                            f.write(json.dumps({
+                                "sessionId": "debug-session",
+                                "runId": "run1",
+                                "hypothesisId": "H1,H2,H3,H4,H5",
+                                "location": "inventory/views_public.py:PublicProductViewSet.list(before_super_error)",
+                                "message": "Error checking queryset before super().list()",
+                                "data": {"error": str(log_err), "traceback": traceback.format_exc()},
+                                "timestamp": int(time.time() * 1000)
+                            }) + "\n")
+                    except: pass
             # #endregion
             
             response = super().list(request, *args, **kwargs)
             
             # #region agent log - After list call
-            try:
-                response_data = response.data if hasattr(response, 'data') else None
-                result_count = len(response_data.get('results', [])) if response_data else 0
-                
-                # Check what products were serialized and their available_units_count
-                serialized_products = []
-                if response_data and response_data.get('results'):
-                    for p in response_data.get('results', [])[:3]:
+            if debug_enabled:
+                try:
+                    response_data = response.data if hasattr(response, 'data') else None
+                    result_count = len(response_data.get('results', [])) if response_data else 0
+                    
+                    # Check what products were serialized and their available_units_count
+                    serialized_products = []
+                    if response_data and response_data.get('results'):
+                        for p in response_data.get('results', [])[:3]:
                         serialized_products.append({
                             'id': p.get('id'),
                             'product_name': p.get('product_name'),
@@ -256,6 +265,13 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                 except: pass
             # #endregion
             
+            duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
+            logger.info(
+                "public_products_list completed in %sms (page=%s page_size=%s)",
+                duration_ms,
+                request.query_params.get('page', '1'),
+                request.query_params.get('page_size', '24')
+            )
             return response
         except Exception as e:
             # #region agent log - List exception
