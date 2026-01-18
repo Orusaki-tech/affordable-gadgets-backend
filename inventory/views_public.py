@@ -334,6 +334,21 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                 {"detail": "An error occurred while loading products. Please try again later."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+    def retrieve(self, request, *args, **kwargs):
+        """Cache public product detail responses."""
+        debug_enabled = settings.DEBUG or request.query_params.get('debug') == '1'
+        cache_enabled = not debug_enabled and request.method == 'GET'
+        if cache_enabled:
+            cache_key = "public_product_detail:" + request.headers.get('X-Brand-Code', '') + ":" + str(kwargs.get('pk'))
+            cached = cache.get(cache_key)
+            if cached is not None:
+                return Response(cached)
+
+        response = super().retrieve(request, *args, **kwargs)
+        if cache_enabled and hasattr(response, 'data'):
+            cache.set(cache_key, response.data, 120)
+        return response
     
     def get_serializer_context(self):
         """Add request to serializer context for absolute URL building."""

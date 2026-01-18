@@ -295,6 +295,9 @@ class ProductImage(models.Model):
 
     class Meta:
         ordering = ['display_order', 'id']
+        indexes = [
+            models.Index(fields=['product', 'is_primary']),
+        ]
 
     def __str__(self):
         return f"Image for {self.product.product_name} (ID: {self.id})"
