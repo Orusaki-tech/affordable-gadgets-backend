@@ -982,7 +982,11 @@ class ReviewViewSet(viewsets.ModelViewSet):
         # For public API, filter by brand if available
         brand = getattr(self.request, 'brand', None)
         if brand:
-            queryset = queryset.filter(product__brand=brand)
+            queryset = queryset.filter(
+                Q(product__brands=brand) |
+                Q(product__brands__isnull=True) |
+                Q(product__is_global=True)
+            ).distinct()
         
         return queryset
     
