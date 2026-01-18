@@ -3,8 +3,10 @@ from rest_framework import viewsets, permissions, status, filters, generics, exc
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiTypes, OpenApiParameter
-from django.db.models import Q, Count, Min, Max, Prefetch, Sum, Case, When, IntegerField, Value, DecimalField
+from django.db.models import Q, Count, Min, Max, Prefetch, Sum, Case, When, IntegerField, Value, DecimalField, OuterRef, Subquery
 from django.db.models.functions import Coalesce
+from django.core.cache import cache
+from urllib.parse import urlencode
 from decimal import Decimal
 from django.conf import settings
 from inventory.models import Product, InventoryUnit, Cart, Lead, Brand, Promotion, ProductImage
@@ -46,7 +48,7 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
     lookup_field = 'pk'  # Use primary key for detail view
 
     def get_serializer_class(self):
-        if getattr(self, 'action', None) == 'list':
+        if getattr(self, 'action', None) == 'list' and not self.request.query_params.get('slug'):
             return PublicProductListSerializer
         return PublicProductSerializer
     
@@ -161,6 +163,12 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
         logger = logging.getLogger(__name__)
         start_time = time.perf_counter()
         debug_enabled = settings.DEBUG or request.query_params.get('debug') == '1'
+        cache_enabled = not debug_enabled and request.method == 'GET'
+        if cache_enabled:
+            cache_key = "public_products_list:" + request.headers.get('X-Brand-Code', '') + ":" + urlencode(sorted(request.query_params.items()))
+            cached = cache.get(cache_key)
+            if cached is not None:
+                return Response(cached)
         
         try:
             # #region agent log - Before list call
@@ -294,6 +302,8 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                 request.query_params.get('page', '1'),
                 request.query_params.get('page_size', '24')
             )
+            if cache_enabled and hasattr(response, 'data'):
+                cache.set(cache_key, response.data, 60)
             return response
         except Exception as e:
             # #region agent log - List exception
@@ -467,6 +477,7 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
             # Normal queryset filtering for list views
             queryset = super().get_queryset()
             brand = getattr(self.request, 'brand', None)
+            is_list = getattr(self, 'action', None) == 'list' and not self.request.query_params.get('slug')
             
             # #region agent log - After initial queryset
             try:
@@ -587,13 +598,6 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                 except: pass
             # #endregion
             
-            # Prefetch available units with brand filtering
-            available_units_prefetch = Prefetch(
-                'inventory_units',
-                queryset=InventoryUnit.objects.filter(available_units_filter).select_related('product_color'),
-                to_attr='available_units_list'
-            )
-            
             # Prefetch primary images
             primary_images_prefetch = Prefetch(
                 'images',
@@ -601,6 +605,57 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                 to_attr='primary_images_list'
             )
             
+            if is_list:
+                queryset = queryset.only(
+                    'id',
+                    'product_name',
+                    'brand',
+                    'model_series',
+                    'product_type',
+                    'slug',
+                    'product_video_url',
+                    'is_published',
+                    'is_discontinued',
+                ).prefetch_related(primary_images_prefetch)
+
+                unit_base = InventoryUnit.objects.filter(
+                    product_template=OuterRef('pk'),
+                    sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+                    available_online=True
+                )
+                if brand:
+                    unit_base = unit_base.filter(Q(brands=brand) | Q(brands__isnull=True))
+
+                unit_count_sub = unit_base.values('product_template').annotate(
+                    total=Count('id')
+                ).values('total')[:1]
+                unit_qty_sub = unit_base.values('product_template').annotate(
+                    total=Coalesce(Sum('quantity'), Value(0))
+                ).values('total')[:1]
+                min_price_sub = unit_base.order_by('selling_price').values('selling_price')[:1]
+                max_price_sub = unit_base.order_by('-selling_price').values('selling_price')[:1]
+
+                queryset = queryset.annotate(
+                    available_units_count=Case(
+                        When(
+                            product_type=Product.ProductType.ACCESSORY,
+                            then=Coalesce(Subquery(unit_qty_sub), Value(0)),
+                        ),
+                        default=Coalesce(Subquery(unit_count_sub), Value(0)),
+                        output_field=IntegerField(),
+                    ),
+                    min_price=Coalesce(Subquery(min_price_sub), Value(None), output_field=DecimalField(max_digits=10, decimal_places=2)),
+                    max_price=Coalesce(Subquery(max_price_sub), Value(None), output_field=DecimalField(max_digits=10, decimal_places=2)),
+                )
+                return queryset
+
+            # Prefetch available units with brand filtering
+            available_units_prefetch = Prefetch(
+                'inventory_units',
+                queryset=InventoryUnit.objects.filter(available_units_filter).select_related('product_color'),
+                to_attr='available_units_list'
+            )
+
             # Annotate with aggregated data to avoid N+1 queries
             queryset = queryset.prefetch_related(
                 available_units_prefetch,

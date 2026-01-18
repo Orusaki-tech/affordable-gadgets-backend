@@ -251,6 +251,12 @@ class Product(models.Model):
         help_text="If True, product is available to all brands regardless of brand assignment"
     )
 
+    class Meta:
+        indexes = [
+            models.Index(fields=['is_published', 'is_discontinued']),
+            models.Index(fields=['product_type']),
+        ]
+
     def __str__(self):
         return self.product_name
     
@@ -464,6 +470,14 @@ class InventoryUnit(models.Model):
         default=True,
         help_text="Whether this unit can be purchased online"
     )
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['product_template', 'sale_status', 'available_online']),
+            models.Index(fields=['product_template', 'available_online']),
+            models.Index(fields=['sale_status']),
+            models.Index(fields=['available_online']),
+        ]
     
     @property
     def is_reservation_expired(self):
