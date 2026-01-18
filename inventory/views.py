@@ -4,6 +4,8 @@ from rest_framework import viewsets, generics, permissions, exceptions, serializ
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.db import transaction
+from django.core.cache import cache
+from urllib.parse import urlencode
 from decimal import Decimal
 from django.db.models import F, Count, Min, Max, Q, Sum, Case, When, IntegerField, Value # Added Count, Min, Max, Q for aggregation/filtering
 from django.db.models.functions import Coalesce
@@ -929,6 +931,21 @@ class PhoneSearchByBudgetView(generics.ListAPIView):
         ).order_by('selling_price') # Order by ascending price
         
         return queryset
+
+    def list(self, request, *args, **kwargs):
+        """Cache budget search results to smooth spikes."""
+        debug_enabled = settings.DEBUG or request.query_params.get('debug') == '1'
+        cache_enabled = not debug_enabled and request.method == 'GET'
+        if cache_enabled:
+            cache_key = "public_phone_search:" + urlencode(sorted(request.query_params.items()))
+            cached = cache.get(cache_key)
+            if cached is not None:
+                return Response(cached)
+
+        response = super().list(request, *args, **kwargs)
+        if cache_enabled and hasattr(response, 'data'):
+            cache.set(cache_key, response.data, 120)
+        return response
 
 
 class PublicAvailableUnitsView(generics.ListAPIView):
