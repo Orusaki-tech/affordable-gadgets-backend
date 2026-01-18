@@ -247,8 +247,8 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                                 "has_previous": response_data.get('previous') is not None if response_data else False,
                                 "serialized_products": serialized_products
                             },
-                        "timestamp": int(time.time() * 1000)
-                    }) + "\n")
+                            "timestamp": int(time.time() * 1000)
+                        }) + "\n")
             except Exception as log_err:
                 try:
                     os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
