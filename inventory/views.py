@@ -2502,7 +2502,7 @@ class AdminProfileView(generics.RetrieveAPIView):
             return Admin.objects.get(user=self.request.user)
         except Admin.DoesNotExist:
             # Auto-create Admin profile for staff users
-            if self.request.user.is_staff:
+            if self.request.user.is_staff or self.request.user.is_superuser:
                 admin_code = f"ADM-{self.request.user.username.upper()[:10]}"
                 admin = Admin.objects.create(user=self.request.user, admin_code=admin_code)
                 return admin
