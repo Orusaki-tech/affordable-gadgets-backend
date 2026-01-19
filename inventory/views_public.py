@@ -328,8 +328,6 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
             except: pass
             # #endregion
             logger.error(f"Error in PublicProductViewSet.list: {e}", exc_info=True)
-            from rest_framework.response import Response
-            from rest_framework import status
             return Response(
                 {"detail": "An error occurred while loading products. Please try again later."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
