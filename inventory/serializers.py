@@ -2609,16 +2609,20 @@ class PromotionSerializer(serializers.ModelSerializer):
             image = Image.open(value)
             width, height = image.size
             # #region agent log
-            with open(log_path, "a", encoding="utf-8") as log_file:
-                log_file.write(json.dumps({
-                    "sessionId": "debug-session",
-                    "runId": "pre-fix",
-                    "hypothesisId": "H3",
-                    "location": "serializers.py:validate_banner_image",
-                    "message": "banner image dimensions",
-                    "data": {"width": width, "height": height, "content_type": getattr(value, "content_type", None), "size": getattr(value, "size", None)},
-                    "timestamp": int(time.time() * 1000)
-                }) + "\n")
+            try:
+                os.makedirs(os.path.dirname(log_path), exist_ok=True)
+                with open(log_path, "a", encoding="utf-8") as log_file:
+                    log_file.write(json.dumps({
+                        "sessionId": "debug-session",
+                        "runId": "pre-fix",
+                        "hypothesisId": "H3",
+                        "location": "serializers.py:validate_banner_image",
+                        "message": "banner image dimensions",
+                        "data": {"width": width, "height": height, "content_type": getattr(value, "content_type", None), "size": getattr(value, "size", None)},
+                        "timestamp": int(time.time() * 1000)
+                    }) + "\n")
+            except Exception:
+                pass
             # #endregion agent log
         finally:
             try:
