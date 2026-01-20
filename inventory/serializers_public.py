@@ -90,7 +90,8 @@ class PublicProductSerializer(serializers.ModelSerializer):
             'id', 'product_name', 'brand', 'model_series', 'product_type',
             'product_description', 'long_description', 'product_highlights',
             'available_units_count', 'interest_count', 'min_price', 'max_price', 
-            'primary_image', 'slug', 'product_video_url', 'tags'
+            'primary_image', 'slug', 'product_video_url', 'tags',
+            'meta_title', 'meta_description'  # SEO fields
         ]
     
     @extend_schema_field(serializers.ListField(child=serializers.CharField()))
