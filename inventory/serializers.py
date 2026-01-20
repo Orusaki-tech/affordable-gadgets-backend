@@ -2,6 +2,7 @@ from rest_framework import serializers
 from drf_spectacular.utils import extend_schema_field, extend_schema_serializer, OpenApiTypes
 from django.contrib.auth.password_validation import validate_password # NEW: For password strength
 from rest_framework.authtoken.models import Token # NEW: For generating auth tokens
+from rest_framework.authtoken.serializers import AuthTokenSerializer
 from django.contrib.auth import authenticate
 from .models import (
     Product, Order, OrderItem, Customer, ProductImage, Review, ProductAccessory,
@@ -346,6 +347,59 @@ class CustomerRegistrationSerializer(serializers.Serializer):
             'token': token,
             'message': 'Registration successful. Token generated for immediate use.'
         }
+class AdminAuthTokenSerializer(serializers.Serializer):
+    """
+    Custom admin authentication serializer that:
+    1. Accepts both username and email (for backward compatibility, 'username' can be an email)
+    2. Checks that user has is_staff=True before allowing login
+    """
+    username = serializers.CharField(required=False, allow_blank=True)
+    password = serializers.CharField(style={'input_type': 'password'}, trim_whitespace=False)
+    
+    def validate(self, attrs):
+        """
+        Custom validation that supports both username and email login,
+        and ensures the user has staff privileges.
+        """
+        username_or_email = attrs.get('username', '').strip()
+        password = attrs.get('password')
+        
+        if not username_or_email:
+            raise serializers.ValidationError({"username": "Must include 'username' (can be username or email)."})
+        
+        if not password:
+            raise serializers.ValidationError({"password": "Must include 'password'."})
+        
+        # Try to find the user by username or email
+        auth_username = username_or_email
+        try:
+            # If it looks like an email, try to find the user by email first
+            if '@' in username_or_email:
+                user_obj = User.objects.filter(email__iexact=username_or_email).first()
+                if user_obj:
+                    auth_username = user_obj.username  # Use the found username for auth
+        except Exception:
+            pass  # Fall through to try username authentication
+        
+        # Use Django's authenticate function
+        user = authenticate(username=auth_username, password=password)
+        
+        if not user:
+            raise serializers.ValidationError("Unable to log in with provided credentials.")
+        
+        if not user.is_active:
+            raise serializers.ValidationError("User account is disabled.")
+        
+        # CRITICAL: Check that user has staff privileges
+        if not user.is_staff and not user.is_superuser:
+            raise serializers.ValidationError(
+                "This account does not have admin privileges. Only staff users can access the admin panel."
+            )
+        
+        attrs['user'] = user
+        return attrs
+
+
 class CustomerLoginSerializer(serializers.Serializer):
     """
     Serializer to handle username/email and password authentication.

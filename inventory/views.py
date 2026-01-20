@@ -23,7 +23,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.conf import settings 
 from django.http import HttpResponse, FileResponse
 from django.core.files.base import ContentFile
-from .serializers import CustomerRegistrationSerializer, CustomerLoginSerializer
+from .serializers import CustomerRegistrationSerializer, CustomerLoginSerializer, AdminAuthTokenSerializer
 from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.authtoken.models import Token 
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiTypes, OpenApiParameter
@@ -2401,7 +2401,12 @@ class AdminTokenLoginView(ObtainAuthToken):
     """
     Custom token login view that updates last_login field.
     Use this instead of the default obtain_auth_token for admin users.
+    
+    Supports both username and email login (username field can contain an email).
+    Only allows users with is_staff=True or is_superuser=True to login.
     """
+    serializer_class = AdminAuthTokenSerializer
+    
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
