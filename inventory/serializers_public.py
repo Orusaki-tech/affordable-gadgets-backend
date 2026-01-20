@@ -360,7 +360,7 @@ class PublicPromotionSerializer(serializers.ModelSerializer):
     def get_banner_image(self, obj):
         """Return optimized banner image URL (prefer Cloudinary, fallback to absolute URL)"""
         if obj.banner_image:
-            from inventory.cloudinary_utils import get_optimized_image_url
+            from inventory.cloudinary_utils import get_promotion_image_url
             import os
             import json
             import cloudinary
@@ -405,7 +405,7 @@ class PublicPromotionSerializer(serializers.ModelSerializer):
                         if len(parts) == 2:
                             after_upload = parts[1]
                             # Build transformation string
-                            transform_str = 'c_fill,h_1920,q_auto,w_1080'
+                            transform_str = 'c_fill,h_1200,q_auto,w_1200'
                             
                             # Check if transformations already exist
                             path_parts = after_upload.split('/')
@@ -422,11 +422,11 @@ class PublicPromotionSerializer(serializers.ModelSerializer):
                 except Exception as e:
                     logger.warning(f"Failed to add transformations to Cloudinary URL: {e}. Using original URL.")
                     # Fall back to using get_optimized_image_url
-                    cloudinary_url = get_optimized_image_url(obj.banner_image, width=1080, height=1920, crop='fill')
+                    cloudinary_url = get_promotion_image_url(obj.banner_image, size='lg', crop='fill')
                     return cloudinary_url if cloudinary_url else original_url
                 
                 # If parsing failed, try the utility function
-                cloudinary_url = get_optimized_image_url(obj.banner_image, width=1080, height=1920, crop='fill')
+                cloudinary_url = get_promotion_image_url(obj.banner_image, size='lg', crop='fill')
                 return cloudinary_url if cloudinary_url else original_url
             
             # If URL is local (relative or absolute), try to construct Cloudinary URL from image name
@@ -478,7 +478,7 @@ class PublicPromotionSerializer(serializers.ModelSerializer):
                         try:
                             cloudinary_img = CloudinaryImage(public_id)
                             cloudinary_url = cloudinary_img.build_url(transformation=[
-                                {'width': 1080, 'height': 1920, 'crop': 'fill', 'quality': 'auto'}
+                                {'width': 1200, 'height': 1200, 'crop': 'fill', 'quality': 'auto'}
                                 # Removed 'format': 'auto' - Cloudinary handles auto-format automatically
                             ])
                             
@@ -501,7 +501,7 @@ class PublicPromotionSerializer(serializers.ModelSerializer):
                                 public_id_no_media = public_id[6:]  # Remove 'media/' prefix
                                 cloudinary_img = CloudinaryImage(public_id_no_media)
                                 cloudinary_url = cloudinary_img.build_url(transformation=[
-                                    {'width': 1080, 'height': 1920, 'crop': 'fill', 'quality': 'auto', 'format': 'auto'}
+                                    {'width': 1200, 'height': 1200, 'crop': 'fill', 'quality': 'auto', 'format': 'auto'}
                                 ])
                                 if cloudinary_url and 'cloudinary.com' in cloudinary_url:
                                     return cloudinary_url
@@ -514,7 +514,7 @@ class PublicPromotionSerializer(serializers.ModelSerializer):
                                 public_id_with_media = f'media/{public_id}'
                                 cloudinary_img = CloudinaryImage(public_id_with_media)
                                 cloudinary_url = cloudinary_img.build_url(transformation=[
-                                    {'width': 1080, 'height': 1920, 'crop': 'fill', 'quality': 'auto', 'format': 'auto'}
+                                    {'width': 1200, 'height': 1200, 'crop': 'fill', 'quality': 'auto', 'format': 'auto'}
                                 ])
                                 if cloudinary_url and 'cloudinary.com' in cloudinary_url:
                                     return cloudinary_url

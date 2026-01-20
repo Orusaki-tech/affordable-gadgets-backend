@@ -10,6 +10,15 @@ import cloudinary.api
 
 logger = logging.getLogger(__name__)
 
+# Square promotion image sizes (px)
+PROMOTION_SIZE_MAP = {
+    'xs': 150,
+    'sm': 300,
+    'md': 600,
+    'lg': 1200,
+    'xl': 2400,
+}
+
 # Configure Cloudinary once at module load (if credentials are available)
 _cloudinary_configured = False
 
@@ -586,6 +595,29 @@ def get_product_image_url(image_field, size='medium'):
         width=800,
         height=800,
         crop='fill',
+        quality='auto',
+        format='auto'
+    )
+
+
+def get_promotion_image_url(image_field, size='lg', crop='fill'):
+    """
+    Get square promotion image URL with predefined sizes.
+
+    Args:
+        image_field: Django ImageField instance
+        size: 'xs'(150), 'sm'(300), 'md'(600), 'lg'(1200), 'xl'(2400)
+        crop: Crop mode ('fill', 'fit', 'scale', etc.)
+
+    Returns:
+        Optimized promotion image URL
+    """
+    size_px = PROMOTION_SIZE_MAP.get(size, 1200)
+    return get_optimized_image_url(
+        image_field,
+        width=size_px,
+        height=size_px,
+        crop=crop,
         quality='auto',
         format='auto'
     )

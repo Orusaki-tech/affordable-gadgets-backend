@@ -2597,17 +2597,45 @@ class PromotionSerializer(serializers.ModelSerializer):
             'created_by', 'created_at', 'updated_at', 'product_count'
         )
         read_only_fields = ('created_at', 'updated_at', 'is_currently_active', 'product_count', 'banner_image_url')
+
+    def validate_banner_image(self, value):
+        from PIL import Image
+        import json
+        import time
+        log_path = "/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log"
+        if not value:
+            return value
+        try:
+            image = Image.open(value)
+            width, height = image.size
+            # #region agent log
+            with open(log_path, "a", encoding="utf-8") as log_file:
+                log_file.write(json.dumps({
+                    "sessionId": "debug-session",
+                    "runId": "pre-fix",
+                    "hypothesisId": "H3",
+                    "location": "serializers.py:validate_banner_image",
+                    "message": "banner image dimensions",
+                    "data": {"width": width, "height": height, "content_type": getattr(value, "content_type", None), "size": getattr(value, "size", None)},
+                    "timestamp": int(time.time() * 1000)
+                }) + "\n")
+            # #endregion agent log
+        finally:
+            try:
+                value.seek(0)
+            except Exception:
+                pass
+        return value
     
     def to_representation(self, instance):
         """Override to return optimized banner_image URL in response."""
         representation = super().to_representation(instance)
         if instance.banner_image:
             # Replace the raw URL with optimized Cloudinary URL
-            from .cloudinary_utils import get_optimized_image_url
-            optimized_url = get_optimized_image_url(
-                instance.banner_image, 
-                width=1080, 
-                height=1920, 
+            from .cloudinary_utils import get_promotion_image_url
+            optimized_url = get_promotion_image_url(
+                instance.banner_image,
+                size='lg',
                 crop='fill'
             )
             if optimized_url:
@@ -2646,7 +2674,7 @@ class PromotionSerializer(serializers.ModelSerializer):
     def get_banner_image(self, obj):
         """Return optimized banner image URL (prefer Cloudinary, fallback to absolute URL)"""
         if obj.banner_image:
-            from .cloudinary_utils import get_optimized_image_url
+            from .cloudinary_utils import get_promotion_image_url
             import os
             import cloudinary
             from cloudinary import CloudinaryImage
@@ -2661,7 +2689,7 @@ class PromotionSerializer(serializers.ModelSerializer):
             
             # If already a Cloudinary URL, optimize it and return
             if 'cloudinary.com' in original_url or 'res.cloudinary.com' in original_url:
-                cloudinary_url = get_optimized_image_url(obj.banner_image, width=1080, height=1920, crop='fill')
+                cloudinary_url = get_promotion_image_url(obj.banner_image, size='lg', crop='fill')
                 return cloudinary_url if cloudinary_url else original_url
             
             # If URL is local (relative or absolute), try to construct Cloudinary URL from image name
@@ -2697,7 +2725,7 @@ class PromotionSerializer(serializers.ModelSerializer):
                         # Try to build Cloudinary URL
                         cloudinary_img = CloudinaryImage(public_id)
                         cloudinary_url = cloudinary_img.build_url(transformation=[
-                            {'width': 1080, 'height': 1920, 'crop': 'fill', 'quality': 'auto'}
+                            {'width': 1200, 'height': 1200, 'crop': 'fill', 'quality': 'auto'}
                             # Removed 'format': 'auto' - Cloudinary handles auto-format automatically
                         ])
                         
