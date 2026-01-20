@@ -1,0 +1,21 @@
+graph LR
+    subgraph "Public API - /api/v1/public/"
+        Products[GET /products/<br/>List Products]
+        ProductDetail[GET /products/:id<br/>Product Details]
+        Cart[POST /cart/<br/>Add to Cart]
+        CartGet[GET /cart/<br/>Get Cart]
+        Promotions[GET /promotions/<br/>List Promotions]
+        Reviews[GET /reviews/<br/>Product Reviews]
+        BudgetSearch[POST /phone-search/<br/>Budget Search]
+    end
+    
+    Products --> ProductDetail
+    Products --> Cart
+    Cart --> CartGet
+    Products --> Reviews
+    Products --> Promotions
+    Products --> BudgetSearch
+    
+    style Products fill:#4caf50
+    style Cart fill:#ff9800
+    style Promotions fill:#2196f3

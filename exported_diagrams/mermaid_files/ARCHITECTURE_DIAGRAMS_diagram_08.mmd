@@ -1,0 +1,25 @@
+sequenceDiagram
+    participant Admin
+    participant AdminFrontend
+    participant OrderAPI
+    participant OrderService
+    participant PaymentService
+    participant NotificationService
+    participant DB
+    
+    Admin->>AdminFrontend: View Orders
+    AdminFrontend->>OrderAPI: GET /api/inventory/orders/
+    OrderAPI->>DB: Query Orders
+    DB-->>OrderAPI: Orders List
+    OrderAPI-->>AdminFrontend: Orders Data
+    
+    Admin->>AdminFrontend: Confirm Payment
+    AdminFrontend->>OrderAPI: POST /orders/{id}/confirm_payment/
+    OrderAPI->>OrderService: confirm_payment()
+    OrderService->>DB: Update Order Status
+    OrderService->>DB: Update Unit Sale Status
+    OrderService->>PaymentService: Mark Payment Confirmed
+    OrderService->>NotificationService: Send Confirmation
+    NotificationService->>NotificationService: Send WhatsApp/SMS
+    OrderService-->>OrderAPI: Payment Confirmed
+    OrderAPI-->>AdminFrontend: Success Response

@@ -1,0 +1,33 @@
+graph TB
+    subgraph "Production Environment"
+        subgraph "Frontend Layer"
+            EcommerceVercel[E-commerce Frontend<br/>Vercel]
+            AdminVercel[Admin Frontend<br/>Vercel/Netlify]
+        end
+        
+        subgraph "Backend Layer"
+            DjangoRailway[Django Backend<br/>Railway/Heroku]
+        end
+        
+        subgraph "Database Layer"
+            PostgresDB[(PostgreSQL<br/>Managed Database)]
+        end
+        
+        subgraph "External Services"
+            CloudinaryCDN[Cloudinary CDN]
+            PesapalProd[Pesapal Production]
+            TwilioProd[Twilio Production]
+        end
+    end
+    
+    EcommerceVercel -->|HTTPS| DjangoRailway
+    AdminVercel -->|HTTPS| DjangoRailway
+    DjangoRailway -->|Connection Pool| PostgresDB
+    DjangoRailway -->|API Calls| CloudinaryCDN
+    DjangoRailway -->|API Calls| PesapalProd
+    DjangoRailway -->|API Calls| TwilioProd
+    
+    style EcommerceVercel fill:#4caf50
+    style AdminVercel fill:#4caf50
+    style DjangoRailway fill:#9c27b0
+    style PostgresDB fill:#f44336

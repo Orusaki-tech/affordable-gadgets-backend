@@ -1,0 +1,26 @@
+sequenceDiagram
+    participant User
+    participant CheckoutPage
+    participant API
+    participant Backend
+    participant Pesapal
+    
+    User->>CheckoutPage: Fill Checkout Form
+    User->>CheckoutPage: Submit Order
+    CheckoutPage->>API: createOrder(orderData)
+    API->>Backend: POST /api/inventory/orders/
+    Backend-->>API: Order Created
+    API-->>CheckoutPage: Order Data
+    
+    CheckoutPage->>API: initiatePayment(orderId)
+    API->>Backend: POST /orders/:id/initiate_payment/
+    Backend->>Pesapal: Submit Payment Request
+    Pesapal-->>Backend: Redirect URL
+    Backend-->>API: Payment Initiated
+    API-->>CheckoutPage: Redirect URL
+    CheckoutPage->>User: Redirect to Pesapal
+    
+    User->>Pesapal: Complete Payment
+    Pesapal->>Backend: IPN Callback
+    Pesapal->>CheckoutPage: Return to Callback URL
+    CheckoutPage->>User: Show Success Page

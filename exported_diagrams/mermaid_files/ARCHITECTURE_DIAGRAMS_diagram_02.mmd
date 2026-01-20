@@ -1,0 +1,40 @@
+graph TB
+    subgraph "Frontend Applications"
+        Ecommerce[E-commerce Frontend<br/>Next.js 14<br/>Port: 3000]
+        AdminPanel[Admin Frontend<br/>React CRA<br/>Port: 3000]
+    end
+    
+    subgraph "Backend Services"
+        API[Django REST API<br/>Django 5.2.7<br/>Port: 8000]
+        AdminUI[Django Admin<br/>Built-in Admin]
+    end
+    
+    subgraph "Data Storage"
+        PostgreSQL[(PostgreSQL<br/>Database)]
+        CloudinaryStorage[Cloudinary<br/>Media Storage]
+    end
+    
+    subgraph "External APIs"
+        PesapalAPI[Pesapal API<br/>Payment Gateway]
+        TwilioAPI[Twilio API<br/>Messaging]
+    end
+    
+    Ecommerce -->|REST API<br/>/api/v1/public/| API
+    AdminPanel -->|REST API<br/>/api/inventory/| API
+    AdminPanel -->|Token Auth| API
+    AdminUI -->|Direct Access| API
+    
+    API -->|ORM Queries| PostgreSQL
+    API -->|Image Uploads| CloudinaryStorage
+    API -->|Payment Initiation| PesapalAPI
+    API -->|Payment Callbacks| PesapalAPI
+    API -->|Send Messages| TwilioAPI
+    
+    style Ecommerce fill:#4caf50
+    style AdminPanel fill:#4caf50
+    style API fill:#9c27b0
+    style AdminUI fill:#9c27b0
+    style PostgreSQL fill:#f44336
+    style CloudinaryStorage fill:#ff9800
+    style PesapalAPI fill:#2196f3
+    style TwilioAPI fill:#2196f3

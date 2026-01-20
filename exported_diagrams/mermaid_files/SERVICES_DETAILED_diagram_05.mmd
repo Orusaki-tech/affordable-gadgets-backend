@@ -1,0 +1,16 @@
+sequenceDiagram
+    participant User
+    participant API
+    participant ReceiptService
+    participant Template
+    participant WeasyPrint
+    
+    User->>API: GET /orders/:id/receipt/
+    API->>ReceiptService: generate_receipt(order)
+    ReceiptService->>Template: Load HTML Template
+    Template-->>ReceiptService: Template Content
+    ReceiptService->>ReceiptService: Render with Order Data
+    ReceiptService->>WeasyPrint: Convert HTML to PDF
+    WeasyPrint-->>ReceiptService: PDF Bytes
+    ReceiptService-->>API: PDF Content
+    API-->>User: PDF Download

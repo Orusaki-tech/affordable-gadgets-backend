@@ -1,0 +1,21 @@
+graph TB
+    Root["Root /"] --> Home["Home Page /"]
+    Root --> Products["Products /products"]
+    Root --> ProductDetail["Product Detail /products/:slug"]
+    Root --> Cart["Cart /cart"]
+    Root --> Checkout["Checkout /checkout"]
+    Root --> Payment["Payment /payment/:orderId"]
+    Root --> PaymentCallback["Payment Callback /payment/callback"]
+    Root --> PaymentSuccess["Payment Success /payment/success"]
+    Root --> PaymentCancelled["Payment Cancelled /payment/cancelled"]
+    Root --> Orders["Orders /orders/:orderId"]
+    Root --> Promotions["Promotions /promotions"]
+    Root --> BudgetSearch["Budget Search /budget-search"]
+    Root --> MatchScore["Match Score /match-score"]
+    Root --> Reviews["Reviews /reviews"]
+    
+    style Root fill:#9c27b0
+    style Home fill:#4caf50
+    style Products fill:#2196f3
+    style Cart fill:#ff9800
+    style Checkout fill:#f44336

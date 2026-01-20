@@ -1,0 +1,7 @@
+stateDiagram-v2
+    [*] --> PENDING: create_lead_from_cart()
+    PENDING --> CONTACTED: Salesperson Contacts
+    CONTACTED --> CONVERTED: Convert to Order
+    CONTACTED --> REJECTED: Customer Rejects
+    CONVERTED --> [*]
+    REJECTED --> [*]

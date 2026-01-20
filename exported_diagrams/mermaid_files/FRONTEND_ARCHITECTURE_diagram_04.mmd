@@ -1,0 +1,24 @@
+sequenceDiagram
+    participant User
+    participant ProductsPage
+    participant ProductGrid
+    participant ProductCard
+    participant API
+    participant Backend
+    
+    User->>ProductsPage: Navigate to /products
+    ProductsPage->>API: useProducts(queryParams)
+    API->>Backend: GET /api/v1/public/products/
+    Backend-->>API: Products List
+    API-->>ProductsPage: Products Data
+    ProductsPage->>ProductGrid: Render Products
+    ProductGrid->>ProductCard: Render Each Product
+    ProductCard->>User: Display Product
+    
+    User->>ProductCard: Click Product
+    ProductCard->>ProductsPage: Navigate to /products/:slug
+    ProductsPage->>API: useProduct(slug)
+    API->>Backend: GET /api/v1/public/products/:id/
+    Backend-->>API: Product Details
+    API-->>ProductsPage: Product Data
+    ProductsPage->>User: Display Product Details

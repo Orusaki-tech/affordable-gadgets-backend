@@ -1,0 +1,28 @@
+graph TB
+    CartService --> CustomerService
+    CartService --> InventoryUnit
+    CartService --> Brand
+    
+    LeadService --> CartService
+    LeadService --> CustomerService
+    LeadService --> Order
+    
+    PaymentService --> Order
+    PaymentService --> PesapalService
+    PaymentService --> InventoryUnit
+    
+    ReceiptService --> Order
+    ReceiptService --> Template
+    
+    WhatsAppService --> Order
+    WhatsAppService --> TwilioAPI
+    
+    InterestService --> Customer
+    InterestService --> Product
+    
+    style CartService fill:#e3f2fd
+    style PaymentService fill:#fff3e0
+    style LeadService fill:#f3e5f5
+    style ReceiptService fill:#e8f5e9
+    style WhatsAppService fill:#fce4ec
+    style InterestService fill:#fff9c4

@@ -1,0 +1,17 @@
+graph TB
+    Start[Cart Operation Request] --> CheckCart{Cart Exists?}
+    CheckCart -->|No| CreateCart[Create New Cart]
+    CheckCart -->|Yes| CheckExpired{Is Expired?}
+    CheckExpired -->|Yes| DeleteCart[Delete Expired Cart]
+    DeleteCart --> CreateCart
+    CheckExpired -->|No| UseCart[Use Existing Cart]
+    CreateCart --> UseCart
+    UseCart --> Operation{Operation Type}
+    Operation -->|Add| ValidateUnit[Validate Unit Available]
+    Operation -->|Remove| RemoveItem[Remove Item]
+    Operation -->|Update| UpdateQuantity[Update Quantity]
+    ValidateUnit --> AddItem[Add to Cart]
+    AddItem --> CalculateTotal[Calculate Total]
+    RemoveItem --> CalculateTotal
+    UpdateQuantity --> CalculateTotal
+    CalculateTotal --> ReturnCart[Return Cart]

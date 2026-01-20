@@ -1,0 +1,35 @@
+graph TB
+    Root[Root Layout] --> Providers[Providers]
+    Providers --> Header[Header Component]
+    Providers --> MainContent[Main Content]
+    Providers --> Footer[Footer Component]
+    
+    MainContent --> HomePage[Home Page]
+    MainContent --> ProductsPage[Products Page]
+    MainContent --> ProductDetail[Product Detail]
+    MainContent --> CartPage[Cart Page]
+    MainContent --> CheckoutPage[Checkout Page]
+    
+    HomePage --> StoriesCarousel[Stories Carousel]
+    HomePage --> PromotionsSection[Promotions Section]
+    HomePage --> FeaturedProducts[Featured Products]
+    
+    ProductsPage --> ProductGrid[Product Grid]
+    ProductGrid --> ProductCard[Product Card]
+    
+    ProductDetail --> ProductImages[Product Images]
+    ProductDetail --> ProductInfo[Product Info]
+    ProductDetail --> AddToCart[Add to Cart Button]
+    
+    CartPage --> CartSummary[Cart Summary]
+    CartPage --> CartItems[Cart Items List]
+    
+    CheckoutPage --> CheckoutForm[Checkout Form]
+    CheckoutForm --> PaymentInit[Payment Initiation]
+    
+    style Root fill:#9c27b0
+    style Providers fill:#2196f3
+    style HomePage fill:#4caf50
+    style ProductsPage fill:#4caf50
+    style CartPage fill:#ff9800
+    style CheckoutPage fill:#f44336

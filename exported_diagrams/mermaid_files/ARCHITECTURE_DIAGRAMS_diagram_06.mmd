@@ -1,0 +1,20 @@
+sequenceDiagram
+    participant Customer
+    participant Frontend
+    participant CartAPI
+    participant CartService
+    participant DB
+    
+    Customer->>Frontend: Add to Cart
+    Frontend->>CartAPI: POST /api/v1/public/cart/
+    CartAPI->>CartService: get_or_create_cart()
+    CartService->>DB: Query Cart by session/phone
+    DB-->>CartService: Cart or None
+    alt Cart Not Found
+        CartService->>DB: Create New Cart
+    end
+    CartService->>DB: Add CartItem
+    DB-->>CartService: CartItem Created
+    CartService-->>CartAPI: Cart with Items
+    CartAPI-->>Frontend: Cart Response
+    Frontend-->>Customer: Cart Updated

@@ -1,0 +1,76 @@
+graph TB
+    subgraph "E-commerce Frontend - Next.js"
+        subgraph "Pages"
+            HomePage[Home Page<br/>Stories, Promotions]
+            ProductsPage[Products Page<br/>Listing & Search]
+            ProductDetail[Product Detail<br/>Single Product View]
+            CartPage[Cart Page<br/>Cart Management]
+            CheckoutPage[Checkout Page<br/>Order Creation]
+            OrderPage[Order Page<br/>Order Tracking]
+        end
+        
+        subgraph "Components"
+            Header[Header Component]
+            Footer[Footer Component]
+            ProductCard[Product Card]
+            ProductGrid[Product Grid]
+            CartSummary[Cart Summary]
+            StoriesCarousel[Stories Carousel]
+        end
+        
+        subgraph "API Layer"
+            PublicAPIClient[Public API Client<br/>lib/api/]
+            ReactQueryHooks[React Query Hooks<br/>lib/hooks/]
+        end
+        
+        subgraph "State Management"
+            CartContext[Cart Context]
+            BrandContext[Brand Context]
+        end
+    end
+    
+    subgraph "Admin Frontend - React"
+        subgraph "Pages"
+            InventoryPage[Inventory Management]
+            OrdersPage[Order Management]
+            ProductsPageAdmin[Product Management]
+            AdminUsersPage[Admin User Management]
+        end
+        
+        subgraph "Components"
+            DataTable[Data Table]
+            FormComponents[Form Components]
+            Charts[Charts & Reports]
+        end
+        
+        subgraph "API Layer"
+            AdminAPIClient[Admin API Client]
+            AuthService[Auth Service]
+        end
+    end
+    
+    subgraph "Backend API"
+        DjangoAPI[Django REST API]
+    end
+    
+    HomePage --> StoriesCarousel
+    ProductsPage --> ProductGrid
+    ProductGrid --> ProductCard
+    CartPage --> CartSummary
+    CheckoutPage --> PublicAPIClient
+    
+    PublicAPIClient --> ReactQueryHooks
+    ReactQueryHooks --> DjangoAPI
+    CartContext --> CartPage
+    
+    InventoryPage --> AdminAPIClient
+    OrdersPage --> AdminAPIClient
+    AdminAPIClient --> AuthService
+    AuthService --> DjangoAPI
+    
+    style HomePage fill:#4caf50
+    style ProductsPage fill:#4caf50
+    style CartPage fill:#4caf50
+    style InventoryPage fill:#2196f3
+    style OrdersPage fill:#2196f3
+    style DjangoAPI fill:#9c27b0

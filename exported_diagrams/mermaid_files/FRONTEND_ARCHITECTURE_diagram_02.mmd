@@ -1,0 +1,14 @@
+graph LR
+    Component[React Component] --> Hook[React Query Hook]
+    Hook --> APIClient[API Client Function]
+    APIClient --> HTTP[HTTP Request]
+    HTTP --> Backend[Django Backend]
+    Backend --> HTTP
+    HTTP --> APIClient
+    APIClient --> Hook
+    Hook --> Component
+    
+    style Component fill:#4caf50
+    style Hook fill:#2196f3
+    style APIClient fill:#ff9800
+    style Backend fill:#9c27b0

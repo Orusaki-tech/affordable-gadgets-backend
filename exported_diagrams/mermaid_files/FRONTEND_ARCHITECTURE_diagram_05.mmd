@@ -1,0 +1,17 @@
+sequenceDiagram
+    participant User
+    participant ProductDetail
+    participant CartContext
+    participant API
+    participant Backend
+    
+    User->>ProductDetail: Click "Add to Cart"
+    ProductDetail->>CartContext: addToCart(unitId, quantity)
+    CartContext->>API: addToCart(unitId, quantity)
+    API->>Backend: POST /api/v1/public/cart/
+    Backend-->>API: Cart Updated
+    API-->>CartContext: Cart Data
+    CartContext->>CartContext: Update Local State
+    CartContext->>CartContext: Save to localStorage
+    CartContext->>ProductDetail: Cart Updated
+    ProductDetail->>User: Show Success Message

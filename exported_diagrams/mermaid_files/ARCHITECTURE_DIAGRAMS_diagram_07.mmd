@@ -1,0 +1,29 @@
+sequenceDiagram
+    participant Customer
+    participant Frontend
+    participant OrderAPI
+    participant PaymentService
+    participant PesapalAPI
+    participant IPNHandler
+    
+    Customer->>Frontend: Initiate Checkout
+    Frontend->>OrderAPI: Create Order
+    OrderAPI->>OrderAPI: Create Order & OrderItems
+    OrderAPI-->>Frontend: Order Created
+    
+    Customer->>Frontend: Pay Now
+    Frontend->>OrderAPI: POST /orders/{id}/initiate_payment/
+    OrderAPI->>PaymentService: initiate_payment()
+    PaymentService->>PesapalAPI: Submit Order Request
+    PesapalAPI-->>PaymentService: Redirect URL
+    PaymentService-->>OrderAPI: Payment Initiated
+    OrderAPI-->>Frontend: Redirect URL
+    Frontend->>Customer: Redirect to Pesapal
+    
+    Customer->>PesapalAPI: Complete Payment
+    PesapalAPI->>IPNHandler: POST /pesapal/ipn/
+    IPNHandler->>PaymentService: Process IPN
+    PaymentService->>PaymentService: Update Order Status
+    PaymentService->>PaymentService: Update Unit Status
+    PesapalAPI->>Frontend: Callback URL
+    Frontend->>Customer: Payment Success

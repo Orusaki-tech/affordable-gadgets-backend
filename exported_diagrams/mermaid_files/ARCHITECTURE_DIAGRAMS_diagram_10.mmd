@@ -1,0 +1,48 @@
+graph TB
+    subgraph "Admin API - /api/inventory/"
+        Auth[POST /auth/token/login/<br/>Admin Login]
+        
+        subgraph "Inventory Management"
+            ProductsAdmin[CRUD /products/<br/>Product Management]
+            UnitsAdmin[CRUD /units/<br/>Unit Management]
+            ImagesAdmin[CRUD /images/<br/>Image Management]
+        end
+        
+        subgraph "Order Management"
+            OrdersAdmin[CRUD /orders/<br/>Order Management]
+            OrderReceipt[GET /orders/:id/receipt/<br/>Generate Receipt]
+            ConfirmPayment[POST /orders/:id/confirm_payment/<br/>Confirm Payment]
+            InitiatePayment[POST /orders/:id/initiate_payment/<br/>Initiate Payment]
+        end
+        
+        subgraph "User Management"
+            Admins[CRUD /admins/<br/>Admin Users]
+            AdminRoles[CRUD /admin-roles/<br/>Roles Management]
+        end
+        
+        subgraph "Content Management"
+            PromotionsAdmin[CRUD /promotions/<br/>Promotions]
+            ReviewsAdmin[CRUD /reviews/<br/>Reviews]
+        end
+        
+        subgraph "Reports & Analytics"
+            Reports[GET /reports/<br/>Generate Reports]
+            StockAlerts[GET /stock-alerts/<br/>Stock Alerts]
+        end
+    end
+    
+    Auth --> ProductsAdmin
+    Auth --> UnitsAdmin
+    Auth --> OrdersAdmin
+    Auth --> Admins
+    Auth --> PromotionsAdmin
+    Auth --> Reports
+    
+    OrdersAdmin --> OrderReceipt
+    OrdersAdmin --> ConfirmPayment
+    OrdersAdmin --> InitiatePayment
+    
+    style Auth fill:#ff9800
+    style OrdersAdmin fill:#4caf50
+    style ProductsAdmin fill:#2196f3
+    style Reports fill:#9c27b0

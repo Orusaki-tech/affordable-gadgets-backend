@@ -1,0 +1,9 @@
+stateDiagram-v2
+    [*] --> PENDING: initiate_payment()
+    PENDING --> PROCESSING: Pesapal Processing
+    PROCESSING --> COMPLETED: Payment Success
+    PROCESSING --> FAILED: Payment Failed
+    PROCESSING --> CANCELLED: User Cancelled
+    COMPLETED --> [*]
+    FAILED --> PENDING: Retry Payment
+    CANCELLED --> [*]

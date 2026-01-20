@@ -1,0 +1,72 @@
+graph TB
+    subgraph "Django REST API"
+        subgraph "API Layer"
+            PublicAPI[Public API Views<br/>views_public.py]
+            AdminAPI[Admin API Views<br/>views.py]
+            AuthAPI[Auth Endpoints<br/>Token Login]
+        end
+        
+        subgraph "Service Layer"
+            CartService[Cart Service<br/>cart_service.py]
+            CustomerService[Customer Service<br/>customer_service.py]
+            PaymentService[Pesapal Payment Service<br/>pesapal_payment_service.py]
+            LeadService[Lead Service<br/>lead_service.py]
+            InterestService[Interest Service<br/>interest_service.py]
+            ReceiptService[Receipt Service<br/>receipt_service.py]
+            WhatsAppService[WhatsApp Service<br/>whatsapp_service.py]
+        end
+        
+        subgraph "Model Layer"
+            ProductModel[Product Models<br/>Product, Brand, Category]
+            InventoryModel[Inventory Models<br/>InventoryUnit, Cart, CartItem]
+            OrderModel[Order Models<br/>Order, OrderItem, Lead]
+            UserModel[User Models<br/>User, Admin, Customer]
+            PaymentModel[Payment Models<br/>PesapalPayment, PaymentNotification]
+        end
+        
+        subgraph "Middleware & Utils"
+            CORS[CORS Middleware]
+            AuthMiddleware[Authentication Middleware]
+            BrandMiddleware[Brand Middleware]
+            CloudinaryUtils[Cloudinary Utils]
+        end
+    end
+    
+    subgraph "External Services"
+        PesapalAPI[Pesapal API]
+        TwilioAPI[Twilio API]
+        CloudinaryAPI[Cloudinary API]
+    end
+    
+    PublicAPI --> CartService
+    PublicAPI --> CustomerService
+    AdminAPI --> PaymentService
+    AdminAPI --> LeadService
+    AdminAPI --> InterestService
+    
+    CartService --> InventoryModel
+    CustomerService --> UserModel
+    PaymentService --> PaymentModel
+    PaymentService --> PesapalAPI
+    LeadService --> OrderModel
+    InterestService --> InventoryModel
+    ReceiptService --> OrderModel
+    WhatsAppService --> TwilioAPI
+    
+    ProductModel --> CloudinaryUtils
+    InventoryModel --> CloudinaryUtils
+    CloudinaryUtils --> CloudinaryAPI
+    
+    AuthAPI --> UserModel
+    
+    style PublicAPI fill:#81c784
+    style AdminAPI fill:#64b5f6
+    style AuthAPI fill:#ffb74d
+    style CartService fill:#ba68c8
+    style CustomerService fill:#ba68c8
+    style PaymentService fill:#ba68c8
+    style LeadService fill:#ba68c8
+    style ProductModel fill:#e57373
+    style InventoryModel fill:#e57373
+    style OrderModel fill:#e57373
+    style UserModel fill:#e57373
