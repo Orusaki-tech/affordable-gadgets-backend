@@ -53,7 +53,7 @@ from .permissions import (
     CanCreateReviews, IsInventoryManagerOrSalespersonReadOnly,
     IsInventoryManagerOrReadOnly, IsSuperuser, IsMarketingManager, IsOrderManager,
     IsInventoryManagerOrMarketingManagerReadOnly, IsContentCreatorOrInventoryManager,
-    get_admin_from_user
+    IsContentCreatorOrInventoryManagerOrReadOnly, get_admin_from_user
 )
 from .serializers import (
     ProductImageSerializer, ProductSerializer, ProductAccessorySerializer, ReviewSerializer, 
