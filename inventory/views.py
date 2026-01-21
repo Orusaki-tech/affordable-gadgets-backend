@@ -2121,7 +2121,7 @@ class OrderViewSet(viewsets.ModelViewSet):
             instance.save(update_fields=['status'])
     
     @action(detail=True, methods=['post'])
-    def confirm_payment(self, request, pk=None):
+    def confirm_payment(self, request, pk=None, order_id=None):
         """Confirm payment for an order - transitions units from PENDING_PAYMENT to SOLD and status to PAID."""
         order = self.get_object()
         payment_method = (request.data.get('payment_method') or 'CASH').upper()
