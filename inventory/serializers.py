@@ -2402,12 +2402,18 @@ class NotificationSerializer(serializers.ModelSerializer):
     """Serializer for Notification model."""
     notification_type_display = serializers.CharField(source='get_notification_type_display', read_only=True)
     recipient_username = serializers.CharField(source='recipient.username', read_only=True)
+    content_type_model = serializers.SerializerMethodField()
+
+    def get_content_type_model(self, obj):
+        if not obj.content_type:
+            return None
+        return f"{obj.content_type.app_label}.{obj.content_type.model}"
     
     class Meta:
         model = Notification
         fields = (
             'id', 'recipient', 'recipient_username', 'notification_type', 'notification_type_display',
-            'title', 'message', 'is_read', 'created_at', 'content_type', 'object_id'
+            'title', 'message', 'is_read', 'created_at', 'content_type', 'object_id', 'content_type_model'
         )
         read_only_fields = ('id', 'recipient', 'created_at')
 
