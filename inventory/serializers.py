@@ -1647,6 +1647,7 @@ class OrderSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
     customer_username = serializers.SerializerMethodField(read_only=True)
     customer_phone = serializers.SerializerMethodField(read_only=True)
+    customer_email = serializers.SerializerMethodField(read_only=True)
     delivery_address = serializers.SerializerMethodField(read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     order_source = serializers.CharField(required=False)  # Writable for creation, set by view
@@ -1671,6 +1672,18 @@ class OrderSerializer(serializers.ModelSerializer):
         if obj.customer:
             return obj.customer.phone or obj.customer.phone_number or ''
         return ''
+
+    @extend_schema_field(serializers.CharField())
+    def get_customer_email(self, obj):
+        """Get customer email - prefer from source_lead for online orders, otherwise from customer."""
+        if hasattr(obj, 'source_lead') and obj.source_lead:
+            return obj.source_lead.customer_email or ''
+        if obj.customer:
+            if obj.customer.email:
+                return obj.customer.email
+            if obj.customer.user and hasattr(obj.customer.user, 'email'):
+                return obj.customer.user.email or ''
+        return ''
     
     @extend_schema_field(serializers.CharField())
     def get_delivery_address(self, obj):
@@ -1691,7 +1704,7 @@ class OrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
         fields = (
-            'order_id', 'user', 'customer', 'customer_username', 'customer_phone', 'delivery_address',
+            'order_id', 'user', 'customer', 'customer_username', 'customer_phone', 'customer_email', 'delivery_address',
             'created_at', 'status', 'status_display', 'order_source', 'order_source_display',
             'total_amount', 'order_items', 'brand', 'brand_name'
         )
