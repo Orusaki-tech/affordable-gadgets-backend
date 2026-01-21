@@ -1384,12 +1384,16 @@ class InventoryUnitSerializer(serializers.ModelSerializer):
         # Auto-create ReturnRequest for buyback units
         if source == InventoryUnit.SourceChoices.BUYBACK_CUSTOMER:
             from inventory.models import ReturnRequest
-            return_request = ReturnRequest.objects.create(
-                requesting_salesperson=None,  # Buyback units don't have a salesperson
-                status=ReturnRequest.StatusChoices.PENDING,
-                notes="Auto-created for buyback unit"
-            )
-            return_request.inventory_units.add(unit)
+            existing_request = unit.return_requests.filter(
+                status=ReturnRequest.StatusChoices.PENDING
+            ).first()
+            if not existing_request:
+                return_request = ReturnRequest.objects.create(
+                    requesting_salesperson=None,  # Buyback units don't have a salesperson
+                    status=ReturnRequest.StatusChoices.PENDING,
+                    notes="Auto-created for buyback unit"
+                )
+                return_request.inventory_units.add(unit)
         
         return unit
     
