@@ -643,6 +643,15 @@ class PesapalPaymentService:
                                 unit.save(update_fields=['sale_status'])
                         
                         print(f"[PESAPAL] ✓ Payment verified as completed - Order marked as PAID")
+                        
+                        # Generate and send receipt automatically (email + WhatsApp)
+                        try:
+                            from inventory.services.receipt_service import ReceiptService
+                            receipt, email_sent, whatsapp_sent = ReceiptService.generate_and_send_receipt(payment.order)
+                            print(f"[PESAPAL] Receipt generated: {receipt.receipt_number}, Email sent: {email_sent}, WhatsApp sent: {whatsapp_sent}")
+                        except Exception as e:
+                            logger.error(f"Failed to generate receipt for order {payment.order.order_id}: {e}")
+                            print(f"[PESAPAL] WARNING: Receipt generation failed: {e}")
                     
                     payment.save()
                     print(f"[PESAPAL] Payment status updated in database")

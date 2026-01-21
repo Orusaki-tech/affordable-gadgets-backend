@@ -357,11 +357,15 @@ Affordable Gadgets Team
             # Create receipt
             receipt = ReceiptService.create_and_save_receipt(order)
             
-            # Send email
-            email_sent = ReceiptService.send_receipt_email(order, receipt)
+            # Send email only if not already sent
+            email_sent = receipt.email_sent
+            if not email_sent:
+                email_sent = ReceiptService.send_receipt_email(order, receipt)
             
-            # Send WhatsApp
-            whatsapp_sent = ReceiptService.send_receipt_whatsapp(order, receipt)
+            # Send WhatsApp only if not already sent
+            whatsapp_sent = receipt.whatsapp_sent
+            if not whatsapp_sent:
+                whatsapp_sent = ReceiptService.send_receipt_whatsapp(order, receipt)
             
             return receipt, email_sent, whatsapp_sent
             
