@@ -2196,6 +2196,26 @@ class OrderViewSet(viewsets.ModelViewSet):
             order.status = Order.StatusChoices.PAID
             order.save(update_fields=['status'])
             
+            # Generate and send receipt automatically (email + WhatsApp)
+            try:
+                from inventory.services.receipt_service import ReceiptService
+                receipt, email_sent, whatsapp_sent = ReceiptService.generate_and_send_receipt(order)
+                logger.info(
+                    "Receipt generated after cash confirmation",
+                    extra={
+                        'order_id': str(order.order_id),
+                        'receipt_number': receipt.receipt_number,
+                        'email_sent': email_sent,
+                        'whatsapp_sent': whatsapp_sent,
+                    },
+                )
+            except Exception as e:
+                logger.error(
+                    f"Failed to generate receipt after cash confirmation for order {order.order_id}: {e}",
+                    exc_info=True,
+                )
+                # Don't fail payment confirmation if receipt generation fails
+            
             # Clear the associated cart if it exists (cart is linked to lead, which is linked to order)
             # This ensures the customer's cart is cleared once payment is confirmed
             cart_cleared = False
