@@ -685,6 +685,16 @@ class PesapalPaymentService:
         
         # Refresh payment from database to get updated status
         payment.refresh_from_db()
+        receipt_email_sent = None
+        receipt_whatsapp_sent = None
+        try:
+            if payment.status == PesapalPayment.StatusChoices.COMPLETED:
+                receipt = getattr(payment.order, 'receipt', None)
+                if receipt:
+                    receipt_email_sent = receipt.email_sent
+                    receipt_whatsapp_sent = receipt.whatsapp_sent
+        except Exception:
+            pass
         
         # Convert datetime objects to ISO format strings for JSON serialization
         initiated_at_str = payment.initiated_at.isoformat() if payment.initiated_at else None
@@ -692,6 +702,7 @@ class PesapalPaymentService:
         
         return {
             'status': payment.status,
+            'order_status': payment.order.status,
             'order_tracking_id': payment.pesapal_order_tracking_id,
             'payment_id': payment.pesapal_payment_id,
             'payment_reference': payment.pesapal_reference,
@@ -703,6 +714,8 @@ class PesapalPaymentService:
             'completed_at': completed_at_str,
             'is_verified': payment.is_verified,
             'ipn_received': payment.ipn_received,
+            'receipt_email_sent': receipt_email_sent,
+            'receipt_whatsapp_sent': receipt_whatsapp_sent,
         }
 
 
