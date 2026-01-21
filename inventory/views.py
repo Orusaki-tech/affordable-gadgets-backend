@@ -70,6 +70,49 @@ from .services.lead_service import LeadService
 
 logger = logging.getLogger(__name__)
 
+def resolve_staff_brand_or_raise(request, brand_id=None, *, require_brand=False):
+    """
+    Resolve a brand for staff actions and enforce role-based brand access.
+    Returns a Brand instance or None.
+    """
+    if not request.user.is_authenticated or not request.user.is_staff:
+        return None
+
+    admin = get_admin_from_user(request.user)
+    if not admin:
+        raise exceptions.PermissionDenied("Staff account is missing an admin profile.")
+
+    is_global = request.user.is_superuser or admin.is_global_admin
+
+    if brand_id:
+        try:
+            brand_id = int(brand_id)
+        except (TypeError, ValueError):
+            raise exceptions.ValidationError({'brand': 'Brand must be a valid integer.'})
+
+        try:
+            brand = Brand.objects.get(id=brand_id, is_active=True)
+        except Brand.DoesNotExist:
+            raise exceptions.ValidationError({'brand': 'Invalid brand.'})
+
+        if not is_global and not admin.brands.filter(id=brand.id).exists():
+            raise exceptions.PermissionDenied("Brand is not assigned to your role.")
+
+        return brand
+
+    if is_global:
+        if require_brand:
+            raise exceptions.ValidationError({'brand': 'Brand is required.'})
+        return None
+
+    if admin.brands.count() == 1:
+        return admin.brands.first()
+
+    if require_brand:
+        raise exceptions.ValidationError({'brand': 'Brand is required for staff actions.'})
+
+    return None
+
 
 # --- CORE INVENTORY AND CATALOG VIEWSETS ---
 
@@ -493,37 +536,19 @@ class InventoryUnitViewSet(viewsets.ModelViewSet):
         # Get required data from request
         customer_name = request.data.get('customer_name')
         customer_phone = request.data.get('customer_phone')
-        brand_id = request.data.get('brand_id')
+        brand_id = request.data.get('brand_id') or request.data.get('brand')
         
         if not customer_name or not customer_phone:
             return Response({
                 'error': 'customer_name and customer_phone are required'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        if not brand_id:
-            return Response({
-                'error': 'brand_id is required'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Convert brand_id to int if it's a string
         try:
-            brand_id = int(brand_id)
-        except (ValueError, TypeError):
-            return Response({
-                'error': f'brand_id must be a valid integer, got: {brand_id}'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Validate brand exists
-        try:
-            brand = Brand.objects.get(id=brand_id, is_active=True)
-        except Brand.DoesNotExist:
-            logger.warning(f"Brand {brand_id} not found or inactive")
-            return Response({'error': 'Brand not found or inactive'}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            logger.error(f"Error getting brand {brand_id}: {str(e)}", exc_info=True)
-            return Response({
-                'error': f'Error validating brand: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            brand = resolve_staff_brand_or_raise(request, brand_id=brand_id, require_brand=True)
+        except exceptions.ValidationError as exc:
+            return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
+        except exceptions.PermissionDenied as exc:
+            return Response({'error': exc.detail}, status=status.HTTP_403_FORBIDDEN)
         
         try:
             with transaction.atomic():
@@ -1945,9 +1970,12 @@ class OrderViewSet(viewsets.ModelViewSet):
         customer_email = self.request.data.get('customer_email')
         delivery_address = self.request.data.get('delivery_address')
         
+        admin = get_admin_from_user(self.request.user) if self.request.user.is_authenticated and self.request.user.is_staff else None
+        
         if self.request.user.is_authenticated and self.request.user.is_staff:
             # Sales/admin staff create walk-in orders for the provided customer details
-            admin = get_admin_from_user(self.request.user)
+            if not admin:
+                raise exceptions.PermissionDenied("Staff account is missing an admin profile.")
             is_walk_in_creator = (
                 self.request.user.is_superuser or
                 (admin and (admin.is_salesperson or admin.is_global_admin))
@@ -2007,9 +2035,19 @@ class OrderViewSet(viewsets.ModelViewSet):
                 brand = Brand.objects.get(id=brand_id, is_active=True)
             except Brand.DoesNotExist:
                 raise exceptions.ValidationError({'brand': 'Invalid brand.'})
+            if self.request.user.is_authenticated and self.request.user.is_staff:
+                if not admin:
+                    raise exceptions.PermissionDenied("Staff account is missing an admin profile.")
+                if not (self.request.user.is_superuser or admin.is_global_admin):
+                    if admin.brands.exists():
+                        if not admin.brands.filter(id=brand.id).exists():
+                            raise exceptions.PermissionDenied("Brand is not assigned to your role.")
+                    else:
+                        raise exceptions.PermissionDenied("You must be assigned to at least one brand to create orders.")
         elif self.request.user.is_authenticated and self.request.user.is_staff:
-            admin = get_admin_from_user(self.request.user)
-            if admin and admin.brands.count() == 1:
+            if not admin:
+                raise exceptions.PermissionDenied("Staff account is missing an admin profile.")
+            if admin.brands.count() == 1:
                 brand = admin.brands.first()
             else:
                 raise exceptions.ValidationError({'brand': 'Brand is required for staff orders.'})
@@ -2020,6 +2058,7 @@ class OrderViewSet(viewsets.ModelViewSet):
             'customer_id': customer.id if customer else None,
             'user_id': user.id if user else None,
             'order_source': order_source,
+            'brand_id': brand.id if brand else None,
         })
         
         # Save the order, passing the customer, user, order_source, and idempotency_key to the serializer's create() method
@@ -2031,6 +2070,8 @@ class OrderViewSet(viewsets.ModelViewSet):
                 'user': user,
                 'order_source': order_source,
             }
+            if brand:
+                save_kwargs['brand'] = brand
             if idempotency_key:
                 save_kwargs['idempotency_key'] = idempotency_key
                 logger.info(f"Saving order with idempotency_key: {idempotency_key[:20]}...")
