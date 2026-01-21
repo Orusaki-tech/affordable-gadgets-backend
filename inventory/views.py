@@ -3130,15 +3130,16 @@ class ReturnRequestViewSet(viewsets.ModelViewSet):
                 expires_at=timezone.now()
             )
             
-            # Create notifications
-            Notification.objects.create(
-                recipient=request_obj.requesting_salesperson.user,
-                notification_type=Notification.NotificationType.RETURN_APPROVED,
-                title="Return Approved",
-                message=f"Your return request for {units.count()} unit(s) has been approved. Units are now available.",
-                content_type=ContentType.objects.get_for_model(ReturnRequest),
-                object_id=request_obj.id
-            )
+            # Create notifications (salesperson returns only; buybacks have no salesperson)
+            if request_obj.requesting_salesperson and request_obj.requesting_salesperson.user:
+                Notification.objects.create(
+                    recipient=request_obj.requesting_salesperson.user,
+                    notification_type=Notification.NotificationType.RETURN_APPROVED,
+                    title="Return Approved",
+                    message=f"Your return request for {units.count()} unit(s) has been approved. Units are now available.",
+                    content_type=ContentType.objects.get_for_model(ReturnRequest),
+                    object_id=request_obj.id
+                )
             
             # Notify inventory managers and superusers
             managers = Admin.objects.filter(roles__name=AdminRole.RoleChoices.INVENTORY_MANAGER).select_related('user')
