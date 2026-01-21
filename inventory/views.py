@@ -151,6 +151,10 @@ class ProductViewSet(viewsets.ModelViewSet):
             # Only Inventory Managers and Superusers can update full product fields
             from .permissions import IsInventoryManagerOrSuperuser
             return [IsInventoryManagerOrSuperuser()]
+        if self.action == 'update_content':
+            # Content Creators and Inventory Managers can update content fields
+            from .permissions import IsContentCreatorOrInventoryManager
+            return [IsContentCreatorOrInventoryManager()]
         # For read operations, allow Salespersons, Inventory Managers, and Marketing Managers (read-only for Salespersons and Marketing Managers)
         return [IsSalespersonOrInventoryManagerOrMarketingManagerReadOnly()]
     

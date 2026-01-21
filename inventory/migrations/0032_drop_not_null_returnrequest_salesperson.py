@@ -9,12 +9,34 @@ class Migration(migrations.Migration):
     operations = [
         migrations.RunSQL(
             sql=(
-                "ALTER TABLE inventory_returnrequest "
-                "ALTER COLUMN requesting_salesperson_id DROP NOT NULL;"
+                "DO $$\n"
+                "BEGIN\n"
+                "  IF EXISTS (\n"
+                "    SELECT 1\n"
+                "    FROM information_schema.columns\n"
+                "    WHERE table_name = 'inventory_returnrequest'\n"
+                "      AND column_name = 'requesting_salesperson_id'\n"
+                "      AND is_nullable = 'NO'\n"
+                "  ) THEN\n"
+                "    ALTER TABLE inventory_returnrequest\n"
+                "      ALTER COLUMN requesting_salesperson_id DROP NOT NULL;\n"
+                "  END IF;\n"
+                "END $$;"
             ),
             reverse_sql=(
-                "ALTER TABLE inventory_returnrequest "
-                "ALTER COLUMN requesting_salesperson_id SET NOT NULL;"
+                "DO $$\n"
+                "BEGIN\n"
+                "  IF EXISTS (\n"
+                "    SELECT 1\n"
+                "    FROM information_schema.columns\n"
+                "    WHERE table_name = 'inventory_returnrequest'\n"
+                "      AND column_name = 'requesting_salesperson_id'\n"
+                "      AND is_nullable = 'YES'\n"
+                "  ) THEN\n"
+                "    ALTER TABLE inventory_returnrequest\n"
+                "      ALTER COLUMN requesting_salesperson_id SET NOT NULL;\n"
+                "  END IF;\n"
+                "END $$;"
             ),
         ),
     ]
