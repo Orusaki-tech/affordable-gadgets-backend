@@ -2109,6 +2109,12 @@ class OrderViewSet(viewsets.ModelViewSet):
     def confirm_payment(self, request, pk=None):
         """Confirm payment for an order - transitions units from PENDING_PAYMENT to SOLD and status to PAID."""
         order = self.get_object()
+        payment_method = (request.data.get('payment_method') or 'CASH').upper()
+        if payment_method != 'CASH':
+            return Response(
+                {'error': 'Manual payment confirmation is only allowed for CASH payments.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         
         # Check permissions (salespersons can confirm their own orders, Order Managers can confirm any)
         if not request.user.is_staff:
@@ -2196,6 +2202,7 @@ class OrderViewSet(viewsets.ModelViewSet):
             
             return Response({
                 'message': message,
+                'payment_method': payment_method,
                 'units_updated': units_updated,
                 'order_id': str(order.order_id),
                 'order_status': order.get_status_display(),
@@ -2256,6 +2263,36 @@ class OrderViewSet(viewsets.ModelViewSet):
             cancellation_url = request.data.get('cancellation_url', callback_url)
             customer = request.data.get('customer', None)
             billing_address = request.data.get('billing_address', None)
+            
+            # For walk-in orders, build customer details from the order if not provided
+            if not customer and order.customer:
+                customer = {}
+                customer_email = order.customer.email
+                customer_phone = order.customer.phone or order.customer.phone_number
+                if customer_email:
+                    customer['email'] = customer_email
+                if customer_phone:
+                    customer['phone_number'] = customer_phone
+                if order.customer.name:
+                    name_parts = order.customer.name.split(' ', 1)
+                    customer['first_name'] = name_parts[0] if len(name_parts) > 0 else ''
+                    customer['last_name'] = name_parts[1] if len(name_parts) > 1 else ''
+            
+            # Ensure walk-in payments have a phone number for Pesapal
+            if order.order_source == Order.OrderSourceChoices.WALK_IN:
+                customer_phone = None
+                if customer:
+                    customer_phone = customer.get('phone_number') or customer.get('phone')
+                if not customer_phone:
+                    return Response(
+                        {'error': 'customer_phone is required to initiate walk-in payment.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            
+            if not billing_address and order.customer and order.customer.delivery_address:
+                billing_address = {
+                    'line_1': order.customer.delivery_address
+                }
             
             print(f"[PESAPAL] Calling service.initiate_payment...")
             result = service.initiate_payment(
