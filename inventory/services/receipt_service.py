@@ -52,6 +52,12 @@ class ReceiptService:
             return f"{base_number}_{counter}"
         
         return base_number
+
+    @staticmethod
+    def get_receipt_url(order: Order, format_type: str = 'pdf') -> str:
+        base_url = getattr(settings, 'BACKEND_PUBLIC_URL', None) or 'https://affordable-gadgets-backend.onrender.com'
+        base_url = base_url.rstrip('/')
+        return f"{base_url}/api/inventory/orders/{order.order_id}/receipt/?format={format_type}"
     
     @staticmethod
     def get_receipt_context(order: Order) -> dict:
@@ -177,15 +183,12 @@ class ReceiptService:
             raise
     
     @staticmethod
-    def create_and_save_receipt(order: Order) -> Receipt:
-        """Create receipt record and save PDF file."""
+    def create_and_save_receipt(order: Order, generate_pdf: bool = False) -> Receipt:
+        """Create receipt record and optionally save PDF file."""
         try:
             # Generate HTML
             html_content = ReceiptService.generate_receipt_html(order)
-            
-            # Generate PDF
-            pdf_bytes = ReceiptService.generate_receipt_pdf(order, html_content)
-            
+
             # Generate receipt number
             receipt_number = ReceiptService.generate_receipt_number(order)
             
@@ -212,12 +215,11 @@ class ReceiptService:
                 receipt.html_content = html_content
                 receipt.save(update_fields=['html_content'])
             
-            # Save PDF file
-            if not receipt.pdf_file or (receipt.pdf_file and not os.path.exists(receipt.pdf_file.path)):
-                receipt.pdf_file.save(pdf_path, 
-                    ContentFile(pdf_bytes), 
-                    save=True
-                )
+            # Save PDF file only if requested
+            if generate_pdf:
+                pdf_bytes = ReceiptService.generate_receipt_pdf(order, html_content)
+                if not receipt.pdf_file or (receipt.pdf_file and not os.path.exists(receipt.pdf_file.path)):
+                    receipt.pdf_file.save(pdf_path, ContentFile(pdf_bytes), save=True)
             
             logger.info(f"Receipt created for order {order.order_id}: {receipt_number}")
             return receipt
@@ -246,12 +248,7 @@ class ReceiptService:
                 logger.warning(f"No email found for order {order.order_id}, cannot send receipt")
                 return False
             
-            # Generate PDF if not exists
-            if not receipt.pdf_file or (receipt.pdf_file and not os.path.exists(receipt.pdf_file.path)):
-                pdf_bytes = ReceiptService.generate_receipt_pdf(order)
-                pdf_filename = f"receipt_{order.order_id}_{receipt.receipt_number}.pdf"
-                pdf_path = os.path.join('receipts', timezone.now().strftime('%Y/%m'), pdf_filename)
-                receipt.pdf_file.save(pdf_path, ContentFile(pdf_bytes), save=True)
+            receipt_url = ReceiptService.get_receipt_url(order, format_type='pdf')
             
             # Prepare email
             customer_name = customer.name or 'Customer'
@@ -259,6 +256,7 @@ class ReceiptService:
             message = f"""Dear {customer_name},
 
 Thank you for your purchase! Please find your receipt attached.
+You can also download it here: {receipt_url}
 
 Receipt Number: {receipt.receipt_number}
 Order ID: {order.order_id}
@@ -278,7 +276,7 @@ Affordable Gadgets Team
                 to=[customer_email],
             )
             
-            # Attach PDF
+            # Attach PDF if already generated
             if receipt.pdf_file and os.path.exists(receipt.pdf_file.path):
                 email.attach_file(receipt.pdf_file.path)
             
@@ -325,13 +323,15 @@ Affordable Gadgets Team
             
             customer_name = customer.name or 'Customer'
             
+            receipt_url = ReceiptService.get_receipt_url(order, format_type='pdf')
             # Send WhatsApp message
             whatsapp_sent = WhatsAppService.send_receipt_whatsapp(
                 phone_number=customer_phone,
                 receipt_number=receipt.receipt_number,
                 order_id=str(order.order_id),
                 total_amount=float(order.total_amount),
-                customer_name=customer_name
+                customer_name=customer_name,
+                pdf_url=receipt_url
             )
             
             if whatsapp_sent:
@@ -355,7 +355,7 @@ Affordable Gadgets Team
         """
         try:
             # Create receipt
-            receipt = ReceiptService.create_and_save_receipt(order)
+            receipt = ReceiptService.create_and_save_receipt(order, generate_pdf=False)
             
             # Send email only if not already sent
             email_sent = receipt.email_sent

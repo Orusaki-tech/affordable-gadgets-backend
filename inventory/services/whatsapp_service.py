@@ -99,6 +99,7 @@ class WhatsAppService:
             client = Client(account_sid, auth_token)
             
             # Prepare message
+            receipt_line = f"\n📄 Receipt: {pdf_url}\n" if pdf_url else "\n"
             message_body = f"""🎉 *Payment Confirmed!*
 
 Dear {customer_name},
@@ -109,7 +110,7 @@ Thank you for your purchase at Affordable Gadgets!
 • Receipt No: {receipt_number}
 • Order ID: {order_id}
 • Total Amount: Ksh {total_amount:,.2f}
-
+{receipt_line}
 Your receipt has been sent to your email. If you have any questions, please contact us at +254717881573.
 
 Best regards,
