@@ -75,6 +75,7 @@ class WhatsAppService:
         try:
             from twilio.rest import Client
             from twilio.base.exceptions import TwilioRestException
+            from twilio.http.http_client import HttpClient
         except ImportError:
             logger.error("Twilio library not installed. Install with: pip install twilio")
             return False
@@ -95,8 +96,10 @@ class WhatsAppService:
                 logger.warning(f"Invalid phone number format: {phone_number}")
                 return False
             
-            # Initialize Twilio client
-            client = Client(account_sid, auth_token)
+            # Initialize Twilio client with timeout to avoid blocking workers
+            timeout = int(getattr(settings, 'TWILIO_TIMEOUT', 10))
+            http_client = HttpClient(timeout=timeout)
+            client = Client(account_sid, auth_token, http_client=http_client)
             
             # Prepare message
             receipt_line = f"\n📄 Receipt: {pdf_url}\n" if pdf_url else "\n"
@@ -161,6 +164,7 @@ Affordable Gadgets Team
         try:
             from twilio.rest import Client
             from twilio.base.exceptions import TwilioRestException
+            from twilio.http.http_client import HttpClient
         except ImportError:
             logger.error("Twilio library not installed. Install with: pip install twilio")
             return False
@@ -181,8 +185,10 @@ Affordable Gadgets Team
                 logger.warning(f"Invalid phone number format: {phone_number}")
                 return False
             
-            # Initialize Twilio client
-            client = Client(account_sid, auth_token)
+            # Initialize Twilio client with timeout to avoid blocking workers
+            timeout = int(getattr(settings, 'TWILIO_TIMEOUT', 10))
+            http_client = HttpClient(timeout=timeout)
+            client = Client(account_sid, auth_token, http_client=http_client)
             
             # Prepare message
             message_body = f"""🎉 *Payment Confirmed!*
