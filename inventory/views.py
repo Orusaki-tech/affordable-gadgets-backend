@@ -1945,8 +1945,29 @@ class OrderViewSet(viewsets.ModelViewSet):
         customer_email = self.request.data.get('customer_email')
         delivery_address = self.request.data.get('delivery_address')
         
-        if self.request.user.is_authenticated:
-            # Authenticated user - use existing customer
+        if self.request.user.is_authenticated and self.request.user.is_staff:
+            # Sales/admin staff create walk-in orders for the provided customer details
+            admin = get_admin_from_user(self.request.user)
+            is_walk_in_creator = (
+                self.request.user.is_superuser or
+                (admin and (admin.is_salesperson or admin.is_global_admin))
+            )
+            if not is_walk_in_creator:
+                raise exceptions.PermissionDenied("You do not have permission to create walk-in orders.")
+            if not customer_name or not customer_phone:
+                raise exceptions.ValidationError({
+                    'customer_name': 'This field is required for walk-in orders.',
+                    'customer_phone': 'This field is required for walk-in orders.'
+                })
+            customer, _ = CustomerService.get_or_create_customer(
+                name=customer_name,
+                phone=customer_phone,
+                email=customer_email,
+                delivery_address=delivery_address
+            )
+            user = customer.user if customer and customer.user else None
+        elif self.request.user.is_authenticated:
+            # Authenticated customer - use existing customer profile
             try:
                 customer = Customer.objects.get(user=self.request.user)
                 user = self.request.user
@@ -1968,9 +1989,13 @@ class OrderViewSet(viewsets.ModelViewSet):
             )
             user = None  # No user account for guest customers
         
-        # Set order_source to ONLINE for guest orders (or if not specified)
-        # Also add it to validated_data so serializer can access it
-        order_source = self.request.data.get('order_source', Order.OrderSourceChoices.ONLINE)
+        # Set order_source default based on context (walk-in for staff, online for others)
+        order_source = self.request.data.get('order_source')
+        if not order_source:
+            if self.request.user.is_authenticated and self.request.user.is_staff:
+                order_source = Order.OrderSourceChoices.WALK_IN
+            else:
+                order_source = Order.OrderSourceChoices.ONLINE
         if 'order_source' not in serializer.validated_data:
             serializer.validated_data['order_source'] = order_source
         
