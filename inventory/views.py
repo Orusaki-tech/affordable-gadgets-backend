@@ -1998,6 +1998,21 @@ class OrderViewSet(viewsets.ModelViewSet):
                 order_source = Order.OrderSourceChoices.ONLINE
         if 'order_source' not in serializer.validated_data:
             serializer.validated_data['order_source'] = order_source
+
+        # Ensure staff orders are associated with a brand
+        brand_id = self.request.data.get('brand') or self.request.data.get('brand_id')
+        brand = None
+        if brand_id:
+            try:
+                brand = Brand.objects.get(id=brand_id, is_active=True)
+            except Brand.DoesNotExist:
+                raise exceptions.ValidationError({'brand': 'Invalid brand.'})
+        elif self.request.user.is_authenticated and self.request.user.is_staff:
+            admin = get_admin_from_user(self.request.user)
+            if admin and admin.brands.count() == 1:
+                brand = admin.brands.first()
+            else:
+                raise exceptions.ValidationError({'brand': 'Brand is required for staff orders.'})
         
         logger.info("About to save order", extra={
             'has_idempotency_key': bool(idempotency_key),
