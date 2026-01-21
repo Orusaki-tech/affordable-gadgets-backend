@@ -528,6 +528,26 @@ class IsContentCreatorOrInventoryManager(permissions.BasePermission):
         return admin.is_content_creator or admin.is_inventory_manager
 
 
+class IsInventoryManagerOrSuperuser(permissions.BasePermission):
+    """Permission for create/delete: Inventory Managers or Superusers only."""
+    
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        
+        if request.user.is_superuser:
+            return True
+        
+        if not request.user.is_staff:
+            return False
+        
+        admin = get_admin_from_user(request.user)
+        if not admin:
+            return False
+        
+        return admin.is_inventory_manager
+
+
 class IsInventoryManagerOrSalespersonReadOnly(permissions.BasePermission):
     """
     Permission for Inventory Units:

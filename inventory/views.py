@@ -78,7 +78,7 @@ class ProductViewSet(viewsets.ModelViewSet):
     CRUD for Product Templates.
     - Public: Read-only access
     - Inventory Manager: Full CRUD access
-    - Content Creator: Can edit content fields (descriptions, images, SEO) but NOT inventory fields, and CANNOT delete products
+    - Content Creator: Can update content via update_content only (no create/delete)
     - Salesperson: Read-only access
     - Superuser: Full access
     """
@@ -143,11 +143,14 @@ class ProductViewSet(viewsets.ModelViewSet):
     
     def get_permissions(self):
         """Apply different permissions based on action"""
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            # For write operations, allow Content Creators and Inventory Managers, but NOT Marketing Managers
-            # Marketing Managers can only read products and attach promotions
-            from .permissions import IsContentCreatorOrInventoryManager
-            return [IsContentCreatorOrInventoryManager()]
+        if self.action in ['create', 'destroy']:
+            # Only Inventory Managers and Superusers can create/delete products
+            from .permissions import IsInventoryManagerOrSuperuser
+            return [IsInventoryManagerOrSuperuser()]
+        if self.action in ['update', 'partial_update']:
+            # Only Inventory Managers and Superusers can update full product fields
+            from .permissions import IsInventoryManagerOrSuperuser
+            return [IsInventoryManagerOrSuperuser()]
         # For read operations, allow Salespersons, Inventory Managers, and Marketing Managers (read-only for Salespersons and Marketing Managers)
         return [IsSalespersonOrInventoryManagerOrMarketingManagerReadOnly()]
     
