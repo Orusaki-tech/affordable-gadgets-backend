@@ -19,6 +19,30 @@ class IsAdminOrReadOnly(permissions.BasePermission):
         # Write permissions are only allowed to Admin users
         return bool(request.user and request.user.is_authenticated and request.user.is_staff)
 
+class IsContentCreatorOrInventoryManagerOrReadOnly(permissions.BasePermission):
+    """
+    Allow public read access, but restrict write access to Content Creators,
+    Inventory Managers, or Superusers.
+    """
+    def has_permission(self, request, view):
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        
+        if not request.user or not request.user.is_authenticated:
+            return False
+        
+        if request.user.is_superuser:
+            return True
+        
+        if not request.user.is_staff:
+            return False
+        
+        admin = get_admin_from_user(request.user)
+        if not admin:
+            return False
+        
+        return admin.is_content_creator or admin.is_inventory_manager
+
 class IsAdminUser(permissions.BasePermission):
     """
     Custom permission to only allow Admins (staff users) to perform any action.

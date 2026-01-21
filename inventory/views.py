@@ -364,11 +364,11 @@ class ProductImageViewSet(viewsets.ModelViewSet):
     CRUD for individual product images.
     Only Admins can add/manage images; everyone can view product images 
     (which are nested in ProductViewSet).
-    Uses IsAdminOrReadOnly.
+    Uses IsContentCreatorOrInventoryManagerOrReadOnly.
     """
     queryset = ProductImage.objects.all().select_related('product')
     serializer_class = ProductImageSerializer
-    permission_classes = [IsAdminOrReadOnly]
+    permission_classes = [IsContentCreatorOrInventoryManagerOrReadOnly]
     parser_classes = [MultiPartParser, FormParser]
 
 class InventoryUnitImageViewSet(viewsets.ModelViewSet):
