@@ -474,6 +474,7 @@ class IsInventoryManagerOrMarketingManagerReadOnly(permissions.BasePermission):
     Permission for Inventory Units:
     - Inventory Manager: Full access (read/write)
     - Marketing Manager: Read-only access
+    - Salesperson: Read-only access
     - Superuser: Full access
     """
     
@@ -491,9 +492,9 @@ class IsInventoryManagerOrMarketingManagerReadOnly(permissions.BasePermission):
         if not admin:
             return False
         
-        # Read access for marketing manager, write access for inventory manager
+        # Read access for marketing manager or salesperson, write access for inventory manager
         if request.method in permissions.SAFE_METHODS:
-            return admin.is_marketing_manager or admin.is_inventory_manager
+            return admin.is_marketing_manager or admin.is_salesperson or admin.is_inventory_manager
         
         # Write access only for inventory manager or superuser
         return admin.is_inventory_manager
