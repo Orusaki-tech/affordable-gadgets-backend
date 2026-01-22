@@ -463,6 +463,25 @@
                     <div class="value">{{ item_description }}</div>
                 </div>
 
+                {% if bundle_summary %}
+                <div class="form-group">
+                    <label>Bundle Summary</label>
+                    <div class="value" style="border: none;">
+                        {% for bundle in bundle_summary %}
+                        <div style="margin-bottom: 8px;">
+                            <div style="font-weight: bold; margin-bottom: 4px;">{{ bundle.bundle_title }}</div>
+                            <ul style="margin-left: 16px;">
+                                {% for item in bundle.items %}
+                                <li>{{ item.product_name }} × {{ item.quantity }} @ {{ item.unit_price }}</li>
+                                {% endfor %}
+                            </ul>
+                            <div style="font-size: 12px; margin-top: 4px;">Bundle total: {{ bundle.total }}</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
                 <div class="form-group">
                     <label>Storage</label>
                     <div class="value">{{ storage|default:"" }}</div>

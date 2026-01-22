@@ -45,6 +45,8 @@ router.register(r'brands', views.BrandViewSet, basename='brand')
 router.register(r'leads', views.LeadViewSet, basename='lead')
 router.register(r'promotion-types', views.PromotionTypeViewSet, basename='promotion-type')
 router.register(r'promotions', views.PromotionViewSet, basename='promotion')
+router.register(r'bundles', views.BundleViewSet, basename='bundle')
+router.register(r'bundle-items', views.BundleItemViewSet, basename='bundle-item')
 
 
 # --- 2. Define Custom GenericAPIView Paths ---

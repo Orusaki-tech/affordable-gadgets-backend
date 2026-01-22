@@ -427,7 +427,7 @@ class InventoryUnit(models.Model):
         unique=True, 
         null=True, 
         blank=True,
-        help_text="Required for Phones/Laptops/Tablets. Not used for Accessories."
+        help_text="Required for Phones/Laptops/Tablets. Optional for Accessories."
     )
     imei = models.CharField(max_length=15, unique=True, null=True, blank=True, 
                             help_text="IMEI for Phones/SIM-enabled Tablets")
@@ -600,6 +600,20 @@ class OrderItem(models.Model):
         help_text="Quantity of this item bought in the order."
     )
     unit_price_at_purchase = models.DecimalField(max_digits=10, decimal_places=2, help_text="Selling price of the unit at the moment of order.",default=Decimal('0.00'))
+    bundle = models.ForeignKey(
+        'Bundle',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='order_items',
+        help_text="Bundle applied to this order item (if any)"
+    )
+    bundle_group_id = models.UUIDField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Groups order items added as a single bundle"
+    )
     
     @property
     def sub_total(self):
@@ -1154,6 +1168,20 @@ class LeadItem(models.Model):
     inventory_unit = models.ForeignKey(InventoryUnit, on_delete=models.CASCADE, related_name='lead_items')
     quantity = models.PositiveIntegerField(default=1)
     unit_price = models.DecimalField(max_digits=10, decimal_places=2, help_text="Price at time of lead creation")
+    bundle = models.ForeignKey(
+        'Bundle',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='lead_items',
+        help_text="Bundle applied to this lead item (if any)"
+    )
+    bundle_group_id = models.UUIDField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Groups lead items added as a single bundle"
+    )
     
     class Meta:
         unique_together = ['lead', 'inventory_unit']
@@ -1204,6 +1232,20 @@ class CartItem(models.Model):
     """Items in a shopping cart."""
     cart = models.ForeignKey(Cart, on_delete=models.CASCADE, related_name='items')
     inventory_unit = models.ForeignKey(InventoryUnit, on_delete=models.CASCADE)
+    bundle = models.ForeignKey(
+        'Bundle',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='cart_items',
+        help_text="Bundle applied to this item (if any)"
+    )
+    bundle_group_id = models.UUIDField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Groups cart items added as a single bundle"
+    )
     quantity = models.PositiveIntegerField(default=1)
     unit_price = models.DecimalField(
         max_digits=10, 
@@ -1222,7 +1264,7 @@ class CartItem(models.Model):
     added_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:
-        unique_together = ['cart', 'inventory_unit']
+        unique_together = ['cart', 'inventory_unit', 'bundle_group_id']
     
     def get_unit_price(self):
         """Return unit_price if set, otherwise selling_price."""
@@ -1230,6 +1272,113 @@ class CartItem(models.Model):
     
     def __str__(self):
         return f"{self.inventory_unit.product_template.product_name} in Cart {self.cart.id}"
+
+
+# -------------------------------------------------------------------------
+# 8.5. BUNDLE MODELS (Product Packages)
+# -------------------------------------------------------------------------
+
+class Bundle(models.Model):
+    """Bundle/Package of products sold together at a combined price/discount."""
+    class PricingMode(models.TextChoices):
+        FIXED = 'FX', _('Fixed Bundle Price')
+        PERCENT = 'PC', _('Percentage Off Items Total')
+        AMOUNT = 'AM', _('Fixed Amount Off Items Total')
+    
+    brand = models.ForeignKey('Brand', on_delete=models.CASCADE, related_name='bundles')
+    main_product = models.ForeignKey(
+        Product,
+        on_delete=models.PROTECT,
+        related_name='bundles',
+        help_text="Primary product this bundle is attached to"
+    )
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    start_date = models.DateTimeField(null=True, blank=True)
+    end_date = models.DateTimeField(null=True, blank=True)
+    pricing_mode = models.CharField(
+        max_length=2,
+        choices=PricingMode.choices,
+        default=PricingMode.FIXED
+    )
+    bundle_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Total bundle price (required for Fixed pricing)"
+    )
+    discount_percentage = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Percentage discount on items total (for Percentage pricing)"
+    )
+    discount_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Fixed discount amount on items total (for Amount pricing)"
+    )
+    show_in_listings = models.BooleanField(
+        default=True,
+        help_text="Show bundle badge in search/category lists"
+    )
+    created_by = models.ForeignKey(
+        'Admin',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_bundles'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['brand', 'is_active']),
+            models.Index(fields=['main_product', 'is_active']),
+        ]
+    
+    def __str__(self):
+        return f"{self.title} - {self.brand.name}"
+
+    @property
+    def is_currently_active(self):
+        now = timezone.now()
+        if not self.is_active:
+            return False
+        if self.start_date and now < self.start_date:
+            return False
+        if self.end_date and now > self.end_date:
+            return False
+        return True
+
+
+class BundleItem(models.Model):
+    """Individual items inside a bundle."""
+    bundle = models.ForeignKey(Bundle, on_delete=models.CASCADE, related_name='items')
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='bundle_items')
+    quantity = models.PositiveIntegerField(default=1)
+    override_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Optional override price for this item in the bundle"
+    )
+    display_order = models.IntegerField(default=0)
+    
+    class Meta:
+        ordering = ['display_order', 'id']
+        unique_together = ('bundle', 'product')
+    
+    def __str__(self):
+        return f"{self.product.product_name} x{self.quantity} in {self.bundle.title}"
 
 
 # -------------------------------------------------------------------------

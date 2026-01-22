@@ -9,11 +9,12 @@ from django.core.cache import cache
 from urllib.parse import urlencode
 from decimal import Decimal
 from django.conf import settings
-from inventory.models import Product, InventoryUnit, Cart, Lead, Brand, Promotion, ProductImage
+from inventory.models import Product, InventoryUnit, Cart, Lead, Brand, Promotion, ProductImage, Bundle, BundleItem
 from inventory.serializers_public import (
     PublicProductSerializer, PublicProductListSerializer, PublicInventoryUnitSerializer,
     CartSerializer, CartItemSerializer, CheckoutSerializer, PublicPromotionSerializer,
-    CartCreateSerializer, CartItemCreateSerializer, CheckoutResponseSerializer
+    CartCreateSerializer, CartItemCreateSerializer, CartBundleCreateSerializer, CheckoutResponseSerializer,
+    PublicBundleSerializer
 )
 from inventory.serializers import LeadSerializer
 from inventory.services.cart_service import CartService
@@ -352,6 +353,7 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
         """Add request to serializer context for absolute URL building."""
         context = super().get_serializer_context()
         context['request'] = self.request
+        context['brand'] = getattr(self.request, 'brand', None)
         return context
     
     def get_queryset(self):
@@ -1459,6 +1461,37 @@ class CartViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Inventory unit not found'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], url_path='bundles')
+    @extend_schema(request=CartBundleCreateSerializer, responses=CartSerializer)
+    def bundles(self, request, pk=None):
+        """Add a bundle to cart."""
+        cart = self.get_object()
+        serializer = CartBundleCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        bundle_id = serializer.validated_data['bundle_id']
+        main_unit_id = serializer.validated_data.get('main_inventory_unit_id')
+        bundle_item_ids = serializer.validated_data.get('bundle_item_ids')
+        if bundle_item_ids is not None and len(bundle_item_ids) == 0:
+            return Response({'error': 'Select at least one bundle item'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            bundle = Bundle.objects.get(id=bundle_id)
+            created_items, group_id = CartService.add_bundle_to_cart(
+                cart,
+                bundle,
+                main_inventory_unit_id=main_unit_id,
+                bundle_item_ids=bundle_item_ids
+            )
+            cart.refresh_from_db()
+            response = CartSerializer(cart).data
+            response['bundle_group_id'] = str(group_id)
+            response['bundle_item_ids'] = [item.id for item in created_items]
+            return Response(response, status=status.HTTP_201_CREATED)
+        except Bundle.DoesNotExist:
+            return Response({'error': 'Bundle not found'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
     
     @action(detail=True, methods=['delete'], url_path='items/(?P<item_id>\\d+)')
     @extend_schema(
@@ -1788,6 +1821,50 @@ class PublicPromotionViewSet(viewsets.ReadOnlyModelViewSet):
             start_date__lte=now,
             end_date__gte=now
         )
+        
+        return queryset
+
+
+@extend_schema_view(
+    list=extend_schema(
+        parameters=[
+            OpenApiParameter('page', OpenApiTypes.INT, OpenApiParameter.QUERY),
+            OpenApiParameter('product', OpenApiTypes.INT, OpenApiParameter.QUERY),
+        ]
+    )
+)
+class PublicBundleViewSet(viewsets.ReadOnlyModelViewSet):
+    """Public bundle ViewSet."""
+    serializer_class = PublicBundleSerializer
+    permission_classes = [permissions.AllowAny]
+    
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        context['brand'] = getattr(self.request, 'brand', None)
+        return context
+    
+    def get_queryset(self):
+        brand = getattr(self.request, 'brand', None)
+        if not brand:
+            return Bundle.objects.none()
+        
+        from django.utils import timezone
+        now = timezone.now()
+        queryset = Bundle.objects.filter(
+            brand=brand,
+            is_active=True
+        ).select_related('main_product').prefetch_related('items')
+        
+        # Date window filtering (if set)
+        queryset = queryset.filter(
+            Q(start_date__isnull=True) | Q(start_date__lte=now),
+            Q(end_date__isnull=True) | Q(end_date__gte=now)
+        )
+        
+        main_product_id = self.request.query_params.get('product')
+        if main_product_id:
+            queryset = queryset.filter(main_product_id=main_product_id)
         
         return queryset
 

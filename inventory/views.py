@@ -41,7 +41,8 @@ from .models import (
     Product, ProductAccessory, Review, Color, UnitAcquisitionSource, 
     InventoryUnit, Order, OrderItem, Customer, Admin, User,  ProductImage, InventoryUnitImage,
     AdminRole, ReservationRequest, ReturnRequest, UnitTransfer, Notification, AuditLog, Tag,
-    Brand, Lead, LeadItem, Cart, CartItem, Promotion, PromotionType, Receipt
+    Brand, Lead, LeadItem, Cart, CartItem, Promotion, PromotionType, Receipt,
+    Bundle, BundleItem
 )
 
 # Assume these serializers are defined in your app's serializers.py
@@ -65,6 +66,7 @@ from .serializers import (
     ReservationRequestSerializer, ReturnRequestSerializer, UnitTransferSerializer, NotificationSerializer,
     AuditLogSerializer, TagSerializer, BrandSerializer, LeadSerializer, CartSerializer, PromotionSerializer,
     PromotionTypeSerializer, InitiatePaymentRequestSerializer,
+    BundleSerializer, BundleItemSerializer
 )
 from .services.lead_service import LeadService
 
@@ -4824,6 +4826,53 @@ class FixProductVisibilityView(APIView):
                 {"success": False, "error": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+class BundleViewSet(viewsets.ModelViewSet):
+    """Bundle management ViewSet (admin and marketing managers)."""
+    queryset = Bundle.objects.all().select_related('brand', 'main_product').prefetch_related('items')
+    serializer_class = BundleSerializer
+    permission_classes = [IsAdminUser | IsMarketingManager]
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        brand = getattr(self.request, 'brand', None)
+        user = self.request.user
+        
+        if brand:
+            queryset = queryset.filter(brand=brand)
+        
+        is_active = self.request.query_params.get('is_active')
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+        
+        if user.is_superuser:
+            return queryset
+        
+        try:
+            admin = Admin.objects.get(user=user)
+            if admin.is_global_admin:
+                return queryset
+            if admin.brands.exists():
+                queryset = queryset.filter(brand__in=admin.brands.all())
+        except Admin.DoesNotExist:
+            return Bundle.objects.none()
+        
+        return queryset
+    
+    def perform_create(self, serializer):
+        try:
+            admin = Admin.objects.get(user=self.request.user)
+        except Admin.DoesNotExist:
+            admin = None
+        serializer.save(created_by=admin)
+
+
+class BundleItemViewSet(viewsets.ModelViewSet):
+    """Bundle item management (admin and marketing managers)."""
+    queryset = BundleItem.objects.all().select_related('bundle', 'product')
+    serializer_class = BundleItemSerializer
+    permission_classes = [IsAdminUser | IsMarketingManager]
 
 
 class PesapalIPNView(APIView):

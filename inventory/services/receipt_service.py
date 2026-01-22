@@ -65,7 +65,8 @@ class ReceiptService:
         # Get order items with all related data
         order_items = order.order_items.select_related(
             'inventory_unit__product_template',
-            'inventory_unit__product_color'
+            'inventory_unit__product_color',
+            'bundle'
         ).all()
         
         # Get customer details
@@ -97,6 +98,29 @@ class ReceiptService:
             logger.warning(f"Could not determine payment method: {e}")
             payment_methods_checked.append('mpesa')  # Default to MPESA
         
+        # Build bundle groups (if any)
+        bundle_groups = {}
+        for item in order_items:
+            if not item.bundle_group_id:
+                continue
+            group_key = str(item.bundle_group_id)
+            if group_key not in bundle_groups:
+                bundle_groups[group_key] = {
+                    'bundle_title': item.bundle.title if item.bundle else 'Bundle',
+                    'items': [],
+                    'total': Decimal('0.00')
+                }
+            item_total = item.unit_price_at_purchase * item.quantity
+            bundle_groups[group_key]['items'].append({
+                'product_name': item.inventory_unit.product_template.product_name if item.inventory_unit else 'Item',
+                'quantity': item.quantity,
+                'unit_price': item.unit_price_at_purchase,
+                'total': item_total
+            })
+            bundle_groups[group_key]['total'] += item_total
+
+        bundle_summary = list(bundle_groups.values())
+
         # Get first order item (for single-item receipts)
         order_item = order_items.first()
         inventory_unit = order_item.inventory_unit if order_item else None
@@ -133,6 +157,7 @@ class ReceiptService:
             'payment_method': payment_method,
             'payment_methods_checked': payment_methods_checked,
             'phone_number': '+254717881573',  # Company phone
+            'bundle_summary': bundle_summary,
         }
         
         return context

@@ -12,19 +12,22 @@ paths:
       description: |-
         Custom token login view that updates last_login field.
         Use this instead of the default obtain_auth_token for admin users.
+
+        Supports both username and email login (username field can contain an email).
+        Only allows users with is_staff=True or is_superuser=True to login.
       tags:
       - api
       requestBody:
         content:
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/AuthTokenRequest'
+              $ref: '#/components/schemas/AdminAuthTokenRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/AuthTokenRequest'
+              $ref: '#/components/schemas/AdminAuthTokenRequest'
           application/json:
             schema:
-              $ref: '#/components/schemas/AuthTokenRequest'
+              $ref: '#/components/schemas/AdminAuthTokenRequest'
         required: true
       security:
       - tokenAuth: []
@@ -34,7 +37,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthToken'
+                $ref: '#/components/schemas/AdminAuthToken'
           description: ''
   /accessories-link/:
     get:
@@ -823,6 +826,322 @@ paths:
       responses:
         '204':
           description: No response body
+  /bundle-items/:
+    get:
+      operationId: bundle_items_list
+      description: Bundle item management (admin and marketing managers).
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - bundle-items
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedBundleItemList'
+          description: ''
+    post:
+      operationId: bundle_items_create
+      description: Bundle item management (admin and marketing managers).
+      tags:
+      - bundle-items
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BundleItemRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BundleItemRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BundleItemRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BundleItem'
+          description: ''
+  /bundle-items/{id}/:
+    get:
+      operationId: bundle_items_retrieve
+      description: Bundle item management (admin and marketing managers).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this bundle item.
+        required: true
+      tags:
+      - bundle-items
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BundleItem'
+          description: ''
+    put:
+      operationId: bundle_items_update
+      description: Bundle item management (admin and marketing managers).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this bundle item.
+        required: true
+      tags:
+      - bundle-items
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BundleItemRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BundleItemRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BundleItemRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BundleItem'
+          description: ''
+    patch:
+      operationId: bundle_items_partial_update
+      description: Bundle item management (admin and marketing managers).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this bundle item.
+        required: true
+      tags:
+      - bundle-items
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedBundleItemRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedBundleItemRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedBundleItemRequest'
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BundleItem'
+          description: ''
+    delete:
+      operationId: bundle_items_destroy
+      description: Bundle item management (admin and marketing managers).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this bundle item.
+        required: true
+      tags:
+      - bundle-items
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /bundles/:
+    get:
+      operationId: bundles_list
+      description: Bundle management ViewSet (admin and marketing managers).
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - bundles
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedBundleList'
+          description: ''
+    post:
+      operationId: bundles_create
+      description: Bundle management ViewSet (admin and marketing managers).
+      tags:
+      - bundles
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BundleRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BundleRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BundleRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bundle'
+          description: ''
+  /bundles/{id}/:
+    get:
+      operationId: bundles_retrieve
+      description: Bundle management ViewSet (admin and marketing managers).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this bundle.
+        required: true
+      tags:
+      - bundles
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bundle'
+          description: ''
+    put:
+      operationId: bundles_update
+      description: Bundle management ViewSet (admin and marketing managers).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this bundle.
+        required: true
+      tags:
+      - bundles
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BundleRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BundleRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BundleRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bundle'
+          description: ''
+    patch:
+      operationId: bundles_partial_update
+      description: Bundle management ViewSet (admin and marketing managers).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this bundle.
+        required: true
+      tags:
+      - bundles
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedBundleRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedBundleRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedBundleRequest'
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bundle'
+          description: ''
+    delete:
+      operationId: bundles_destroy
+      description: Bundle management ViewSet (admin and marketing managers).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this bundle.
+        required: true
+      tags:
+      - bundles
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
   /colors/:
     get:
       operationId: colors_list
@@ -1000,7 +1319,7 @@ paths:
         CRUD for individual product images.
         Only Admins can add/manage images; everyone can view product images
         (which are nested in ProductViewSet).
-        Uses IsAdminOrReadOnly.
+        Uses IsContentCreatorOrInventoryManagerOrReadOnly.
       parameters:
       - name: page
         required: false
@@ -1026,7 +1345,7 @@ paths:
         CRUD for individual product images.
         Only Admins can add/manage images; everyone can view product images
         (which are nested in ProductViewSet).
-        Uses IsAdminOrReadOnly.
+        Uses IsContentCreatorOrInventoryManagerOrReadOnly.
       tags:
       - images
       requestBody:
@@ -1055,7 +1374,7 @@ paths:
         CRUD for individual product images.
         Only Admins can add/manage images; everyone can view product images
         (which are nested in ProductViewSet).
-        Uses IsAdminOrReadOnly.
+        Uses IsContentCreatorOrInventoryManagerOrReadOnly.
       parameters:
       - in: path
         name: id
@@ -1081,7 +1400,7 @@ paths:
         CRUD for individual product images.
         Only Admins can add/manage images; everyone can view product images
         (which are nested in ProductViewSet).
-        Uses IsAdminOrReadOnly.
+        Uses IsContentCreatorOrInventoryManagerOrReadOnly.
       parameters:
       - in: path
         name: id
@@ -1116,7 +1435,7 @@ paths:
         CRUD for individual product images.
         Only Admins can add/manage images; everyone can view product images
         (which are nested in ProductViewSet).
-        Uses IsAdminOrReadOnly.
+        Uses IsContentCreatorOrInventoryManagerOrReadOnly.
       parameters:
       - in: path
         name: id
@@ -1150,7 +1469,7 @@ paths:
         CRUD for individual product images.
         Only Admins can add/manage images; everyone can view product images
         (which are nested in ProductViewSet).
-        Uses IsAdminOrReadOnly.
+        Uses IsContentCreatorOrInventoryManagerOrReadOnly.
       parameters:
       - in: path
         name: id
@@ -2189,7 +2508,7 @@ paths:
         CRUD for Product Templates.
         - Public: Read-only access
         - Inventory Manager: Full CRUD access
-        - Content Creator: Can edit content fields (descriptions, images, SEO) but NOT inventory fields, and CANNOT delete products
+        - Content Creator: Can update content via update_content only (no create/delete)
         - Salesperson: Read-only access
         - Superuser: Full access
       parameters:
@@ -2217,7 +2536,7 @@ paths:
         CRUD for Product Templates.
         - Public: Read-only access
         - Inventory Manager: Full CRUD access
-        - Content Creator: Can edit content fields (descriptions, images, SEO) but NOT inventory fields, and CANNOT delete products
+        - Content Creator: Can update content via update_content only (no create/delete)
         - Salesperson: Read-only access
         - Superuser: Full access
       tags:
@@ -2251,7 +2570,7 @@ paths:
         CRUD for Product Templates.
         - Public: Read-only access
         - Inventory Manager: Full CRUD access
-        - Content Creator: Can edit content fields (descriptions, images, SEO) but NOT inventory fields, and CANNOT delete products
+        - Content Creator: Can update content via update_content only (no create/delete)
         - Salesperson: Read-only access
         - Superuser: Full access
       parameters:
@@ -2279,7 +2598,7 @@ paths:
         CRUD for Product Templates.
         - Public: Read-only access
         - Inventory Manager: Full CRUD access
-        - Content Creator: Can edit content fields (descriptions, images, SEO) but NOT inventory fields, and CANNOT delete products
+        - Content Creator: Can update content via update_content only (no create/delete)
         - Salesperson: Read-only access
         - Superuser: Full access
       parameters:
@@ -2319,7 +2638,7 @@ paths:
         CRUD for Product Templates.
         - Public: Read-only access
         - Inventory Manager: Full CRUD access
-        - Content Creator: Can edit content fields (descriptions, images, SEO) but NOT inventory fields, and CANNOT delete products
+        - Content Creator: Can update content via update_content only (no create/delete)
         - Salesperson: Read-only access
         - Superuser: Full access
       parameters:
@@ -2358,7 +2677,7 @@ paths:
         CRUD for Product Templates.
         - Public: Read-only access
         - Inventory Manager: Full CRUD access
-        - Content Creator: Can edit content fields (descriptions, images, SEO) but NOT inventory fields, and CANNOT delete products
+        - Content Creator: Can update content via update_content only (no create/delete)
         - Salesperson: Read-only access
         - Superuser: Full access
       parameters:
@@ -5009,6 +5328,56 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/v1/public/bundles/:
+    get:
+      operationId: api_v1_public_bundles_list
+      description: Public bundle ViewSet.
+      parameters:
+      - in: query
+        name: page
+        schema:
+          type: integer
+      - in: query
+        name: product
+        schema:
+          type: integer
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPublicBundleList'
+          description: ''
+  /api/v1/public/bundles/{id}/:
+    get:
+      operationId: api_v1_public_bundles_retrieve
+      description: Public bundle ViewSet.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this bundle.
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicBundle'
+          description: ''
   /api/v1/public/cart/:
     get:
       operationId: api_v1_public_cart_list
@@ -5172,6 +5541,42 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/v1/public/cart/{id}/bundles/:
+    post:
+      operationId: api_v1_public_cart_bundles_create
+      description: Add a bundle to cart.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this cart.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CartRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CartRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CartRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+          description: ''
   /api/v1/public/cart/{id}/checkout/:
     post:
       operationId: api_v1_public_cart_checkout_create
@@ -5394,12 +5799,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedPublicProductList'
+                $ref: '#/components/schemas/PaginatedPublicProductListList'
           description: ''
   /api/v1/public/products/{id}/:
     get:
       operationId: api_v1_public_products_retrieve
-      description: Public product browsing.
+      description: Cache public product detail responses.
       parameters:
       - in: path
         name: id
@@ -5818,6 +6223,33 @@ components:
           readOnly: true
       required:
       - admin_code
+    AdminAuthToken:
+      type: object
+      description: |-
+        Custom admin authentication serializer that:
+        1. Accepts both username and email (for backward compatibility, 'username' can be an email)
+        2. Checks that user has is_staff=True before allowing login
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+      required:
+      - password
+    AdminAuthTokenRequest:
+      type: object
+      description: |-
+        Custom admin authentication serializer that:
+        1. Accepts both username and email (for backward compatibility, 'username' can be an email)
+        2. Checks that user has is_staff=True before allowing login
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+          minLength: 1
+      required:
+      - password
     AdminCreate:
       type: object
       description: |-
@@ -5992,26 +6424,6 @@ components:
           type: string
           format: date-time
           readOnly: true
-    AuthToken:
-      type: object
-      properties:
-        token:
-          type: string
-          readOnly: true
-    AuthTokenRequest:
-      type: object
-      properties:
-        username:
-          type: string
-          writeOnly: true
-          minLength: 1
-        password:
-          type: string
-          writeOnly: true
-          minLength: 1
-      required:
-      - password
-      - username
     BlankEnum:
       enum:
       - ''
@@ -6091,6 +6503,200 @@ components:
       required:
       - code
       - name
+    Bundle:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        brand:
+          type: integer
+        brand_name:
+          type: string
+          readOnly: true
+        main_product:
+          type: integer
+          description: Primary product this bundle is attached to
+        main_product_name:
+          type: string
+          readOnly: true
+        title:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+        is_active:
+          type: boolean
+        start_date:
+          type: string
+          format: date-time
+          nullable: true
+        end_date:
+          type: string
+          format: date-time
+          nullable: true
+        pricing_mode:
+          $ref: '#/components/schemas/PricingModeEnum'
+        bundle_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+          description: Total bundle price (required for Fixed pricing)
+        discount_percentage:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          nullable: true
+          description: Percentage discount on items total (for Percentage pricing)
+        discount_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+          description: Fixed discount amount on items total (for Amount pricing)
+        show_in_listings:
+          type: boolean
+          description: Show bundle badge in search/category lists
+        created_by:
+          type: integer
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/BundleItem'
+          readOnly: true
+        is_currently_active:
+          type: boolean
+          readOnly: true
+      required:
+      - brand
+      - main_product
+      - title
+    BundleItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        bundle:
+          type: integer
+        product:
+          type: integer
+        product_name:
+          type: string
+          readOnly: true
+        product_slug:
+          type: string
+          readOnly: true
+        quantity:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        override_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+          description: Optional override price for this item in the bundle
+        display_order:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+        product_primary_image:
+          type: string
+          format: uri
+          nullable: true
+          readOnly: true
+      required:
+      - bundle
+      - product
+    BundleItemRequest:
+      type: object
+      properties:
+        bundle:
+          type: integer
+        product:
+          type: integer
+        quantity:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        override_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+          description: Optional override price for this item in the bundle
+        display_order:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+      required:
+      - bundle
+      - product
+    BundleRequest:
+      type: object
+      properties:
+        brand:
+          type: integer
+        main_product:
+          type: integer
+          description: Primary product this bundle is attached to
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+        is_active:
+          type: boolean
+        start_date:
+          type: string
+          format: date-time
+          nullable: true
+        end_date:
+          type: string
+          format: date-time
+          nullable: true
+        pricing_mode:
+          $ref: '#/components/schemas/PricingModeEnum'
+        bundle_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+          description: Total bundle price (required for Fixed pricing)
+        discount_percentage:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          nullable: true
+          description: Percentage discount on items total (for Percentage pricing)
+        discount_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+          description: Fixed discount amount on items total (for Amount pricing)
+        show_in_listings:
+          type: boolean
+          description: Show bundle badge in search/category lists
+        created_by:
+          type: integer
+          nullable: true
+      required:
+      - brand
+      - main_product
+      - title
     Cart:
       type: object
       description: Cart serializer.
@@ -6157,6 +6763,15 @@ components:
           readOnly: true
         promotion_id:
           type: integer
+          readOnly: true
+          nullable: true
+        bundle_id:
+          type: integer
+          readOnly: true
+          nullable: true
+        bundle_group_id:
+          type: string
+          format: uuid
           readOnly: true
           nullable: true
     CartItemRequest:
@@ -6510,7 +7125,7 @@ components:
         serial_number:
           type: string
           nullable: true
-          description: Required for Phones/Laptops/Tablets. Not used for Accessories.
+          description: Required for Phones/Laptops/Tablets. Optional for Accessories.
           maxLength: 100
         imei:
           type: string
@@ -6675,7 +7290,7 @@ components:
         serial_number:
           type: string
           nullable: true
-          description: Required for Phones/Laptops/Tablets. Not used for Accessories.
+          description: Required for Phones/Laptops/Tablets. Optional for Accessories.
           maxLength: 100
         imei:
           type: string
@@ -6963,6 +7578,10 @@ components:
           maximum: 2147483647
           minimum: 0
           nullable: true
+        content_type_model:
+          type: string
+          nullable: true
+          readOnly: true
       required:
       - message
       - notification_type
@@ -7048,6 +7667,9 @@ components:
         customer_phone:
           type: string
           readOnly: true
+        customer_email:
+          type: string
+          readOnly: true
         delivery_address:
           type: string
           readOnly: true
@@ -7128,6 +7750,19 @@ components:
           format: decimal
           pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
           readOnly: true
+        bundle_id:
+          type: integer
+          readOnly: true
+          nullable: true
+        bundle_title:
+          type: string
+          readOnly: true
+          nullable: true
+        bundle_group_id:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
     OrderItemRequest:
       type: object
       description: Nested serializer for displaying OrderItems.
@@ -7246,6 +7881,52 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Brand'
+    PaginatedBundleItemList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/BundleItem'
+    PaginatedBundleList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Bundle'
     PaginatedCartList:
       type: object
       required:
@@ -7545,6 +8226,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PromotionType'
+    PaginatedPublicBundleList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicBundle'
     PaginatedPublicInventoryUnitAdminList:
       type: object
       required:
@@ -7614,6 +8318,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PublicProduct'
+    PaginatedPublicProductListList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicProductList'
     PaginatedPublicPromotionList:
       type: object
       required:
@@ -7802,6 +8529,77 @@ components:
           type: string
           description: Domain for this brand's e-commerce site
           maxLength: 255
+    PatchedBundleItemRequest:
+      type: object
+      properties:
+        bundle:
+          type: integer
+        product:
+          type: integer
+        quantity:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        override_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+          description: Optional override price for this item in the bundle
+        display_order:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+    PatchedBundleRequest:
+      type: object
+      properties:
+        brand:
+          type: integer
+        main_product:
+          type: integer
+          description: Primary product this bundle is attached to
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+        is_active:
+          type: boolean
+        start_date:
+          type: string
+          format: date-time
+          nullable: true
+        end_date:
+          type: string
+          format: date-time
+          nullable: true
+        pricing_mode:
+          $ref: '#/components/schemas/PricingModeEnum'
+        bundle_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+          description: Total bundle price (required for Fixed pricing)
+        discount_percentage:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          nullable: true
+          description: Percentage discount on items total (for Percentage pricing)
+        discount_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+          description: Fixed discount amount on items total (for Amount pricing)
+        show_in_listings:
+          type: boolean
+          description: Show bundle badge in search/category lists
+        created_by:
+          type: integer
+          nullable: true
     PatchedCartRequest:
       type: object
       description: Cart serializer.
@@ -7924,7 +8722,7 @@ components:
         serial_number:
           type: string
           nullable: true
-          description: Required for Phones/Laptops/Tablets. Not used for Accessories.
+          description: Required for Phones/Laptops/Tablets. Optional for Accessories.
           maxLength: 100
         imei:
           type: string
@@ -8287,6 +9085,11 @@ components:
             type: integer
             writeOnly: true
           writeOnly: true
+        inventory_unit_quantities:
+          type: object
+          additionalProperties:
+            type: integer
+            minimum: 1
         status:
           $ref: '#/components/schemas/ReservationRequestStatusEnum'
         notes:
@@ -8400,6 +9203,16 @@ components:
         notes:
           type: string
           description: Optional notes
+    PricingModeEnum:
+      enum:
+      - FX
+      - PC
+      - AM
+      type: string
+      description: |-
+        * `FX` - Fixed Bundle Price
+        * `PC` - Percentage Off Items Total
+        * `AM` - Fixed Amount Off Items Total
     Product:
       type: object
       description: Serializes the generic Product template.
@@ -9030,6 +9843,111 @@ components:
       required:
       - code
       - name
+    PublicBundle:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        brand:
+          type: integer
+        main_product_id:
+          type: integer
+          readOnly: true
+        main_product_name:
+          type: string
+          readOnly: true
+        main_product_slug:
+          type: string
+          readOnly: true
+        title:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+        pricing_mode:
+          $ref: '#/components/schemas/PricingModeEnum'
+        bundle_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+          description: Total bundle price (required for Fixed pricing)
+        discount_percentage:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          nullable: true
+          description: Percentage discount on items total (for Percentage pricing)
+        discount_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+          description: Fixed discount amount on items total (for Amount pricing)
+        show_in_listings:
+          type: boolean
+          description: Show bundle badge in search/category lists
+        is_currently_active:
+          type: boolean
+          readOnly: true
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicBundleItem'
+          readOnly: true
+        items_min_total:
+          type: number
+          readOnly: true
+        items_max_total:
+          type: number
+          readOnly: true
+      required:
+      - brand
+      - title
+    PublicBundleItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        product_id:
+          type: integer
+          readOnly: true
+        product_name:
+          type: string
+          readOnly: true
+        product_slug:
+          type: string
+          readOnly: true
+        product_type:
+          type: string
+          readOnly: true
+        quantity:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        override_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+          description: Optional override price for this item in the bundle
+        display_order:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+        primary_image:
+          type: string
+          format: uri
+          nullable: true
+          readOnly: true
+        min_price:
+          type: number
+          readOnly: true
+        max_price:
+          type: number
+          readOnly: true
     PublicInventoryUnitAdmin:
       type: object
       properties:
@@ -9252,6 +10170,82 @@ components:
           items:
             type: string
           readOnly: true
+        has_active_bundle:
+          type: boolean
+          readOnly: true
+        bundle_price_preview:
+          type: number
+          description: Return minimum effective bundle price for listings (if available).
+          readOnly: true
+        meta_title:
+          type: string
+          description: SEO title (50-60 chars recommended)
+          maxLength: 60
+        meta_description:
+          type: string
+          description: SEO description (150-160 chars recommended)
+          maxLength: 160
+      required:
+      - product_name
+    PublicProductList:
+      type: object
+      description: Lightweight product serializer for list endpoints.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        product_name:
+          type: string
+          maxLength: 255
+        brand:
+          type: string
+          description: e.g., Samsung, Apple, Dell
+          maxLength: 50
+        model_series:
+          type: string
+          description: e.g., S series, Fold, XPS
+          maxLength: 100
+        product_type:
+          $ref: '#/components/schemas/ProductTypesEnum'
+        available_units_count:
+          type: integer
+          description: Count available units for current brand - use prefetched list
+            for accurate brand filtering.
+          readOnly: true
+        min_price:
+          type: number
+          description: Get min price for available units - use prefetched list for
+            accurate brand filtering.
+          readOnly: true
+        max_price:
+          type: number
+          description: Get max price for available units - use prefetched list for
+            accurate brand filtering.
+          readOnly: true
+        primary_image:
+          type: string
+          format: uri
+          nullable: true
+          readOnly: true
+        slug:
+          type: string
+          description: URL-friendly slug (auto-generated from product_name if not
+            provided)
+          maxLength: 255
+          pattern: ^[-a-zA-Z0-9_]+$
+        product_video_url:
+          type: string
+          format: uri
+          nullable: true
+          description: Link to product video (YouTube, Vimeo, etc.)
+          maxLength: 500
+        has_active_bundle:
+          type: boolean
+          readOnly: true
+        bundle_price_preview:
+          type: number
+          description: Return minimum effective bundle price for listings (if available).
+          readOnly: true
       required:
       - product_name
     PublicPromotion:
@@ -9378,6 +10372,11 @@ components:
             type: integer
           readOnly: true
           description: Inventory units in this reservation request
+        inventory_unit_quantities:
+          type: object
+          additionalProperties:
+            type: integer
+            minimum: 1
         inventory_units_details:
           type: array
           items:
@@ -9429,6 +10428,11 @@ components:
             type: integer
             writeOnly: true
           writeOnly: true
+        inventory_unit_quantities:
+          type: object
+          additionalProperties:
+            type: integer
+            minimum: 1
         status:
           $ref: '#/components/schemas/ReservationRequestStatusEnum'
         notes:

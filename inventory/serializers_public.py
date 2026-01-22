@@ -3,7 +3,7 @@ from rest_framework import serializers
 from drf_spectacular.utils import extend_schema_field, extend_schema_serializer, OpenApiTypes
 from decimal import Decimal
 from django.db.models import Q, Sum
-from inventory.models import Product, InventoryUnit, Cart, CartItem, Lead, LeadItem, Promotion
+from inventory.models import Product, InventoryUnit, Cart, CartItem, Lead, LeadItem, Promotion, Bundle, BundleItem, ProductImage
 from inventory.services.interest_service import InterestService
 import logging
 import sys
@@ -77,6 +77,8 @@ class PublicProductSerializer(serializers.ModelSerializer):
     max_price = serializers.SerializerMethodField()
     primary_image = serializers.SerializerMethodField()
     tags = serializers.SerializerMethodField()
+    has_active_bundle = serializers.SerializerMethodField()
+    bundle_price_preview = serializers.SerializerMethodField()
     product_highlights = serializers.ListField(
         child=serializers.CharField(),
         read_only=True,
@@ -90,7 +92,7 @@ class PublicProductSerializer(serializers.ModelSerializer):
             'id', 'product_name', 'brand', 'model_series', 'product_type',
             'product_description', 'long_description', 'product_highlights',
             'available_units_count', 'interest_count', 'min_price', 'max_price', 
-            'primary_image', 'slug', 'product_video_url', 'tags',
+            'primary_image', 'slug', 'product_video_url', 'tags', 'has_active_bundle', 'bundle_price_preview',
             'meta_title', 'meta_description'  # SEO fields
         ]
     
@@ -98,6 +100,83 @@ class PublicProductSerializer(serializers.ModelSerializer):
     def get_tags(self, obj):
         """Return list of tag names."""
         return [tag.name for tag in obj.tags.all()]
+
+    @extend_schema_field(OpenApiTypes.BOOL)
+    def get_has_active_bundle(self, obj):
+        value = getattr(obj, 'has_active_bundle', None)
+        if value is not None:
+            return bool(value)
+        from inventory.models import Bundle
+        from django.utils import timezone
+        brand = self.context.get('brand')
+        now = timezone.now()
+        queryset = Bundle.objects.filter(
+            main_product=obj,
+            is_active=True,
+            show_in_listings=True
+        ).filter(
+            Q(start_date__isnull=True) | Q(start_date__lte=now),
+            Q(end_date__isnull=True) | Q(end_date__gte=now)
+        )
+        if brand:
+            queryset = queryset.filter(brand=brand)
+        return queryset.exists()
+
+    @extend_schema_field(OpenApiTypes.NUMBER)
+    def get_bundle_price_preview(self, obj):
+        """Return minimum effective bundle price for listings (if available)."""
+        brand = self.context.get('brand')
+        now = timezone.now()
+        bundles = Bundle.objects.filter(
+            main_product=obj,
+            is_active=True,
+            show_in_listings=True
+        ).filter(
+            Q(start_date__isnull=True) | Q(start_date__lte=now),
+            Q(end_date__isnull=True) | Q(end_date__gte=now)
+        )
+        if brand:
+            bundles = bundles.filter(brand=brand)
+        bundles = bundles.prefetch_related('items__product')
+
+        def items_min_total(bundle):
+            total = Decimal('0.00')
+            for item in bundle.items.all():
+                if item.override_price is not None:
+                    price = Decimal(str(item.override_price))
+                else:
+                    min_price = item.product.min_price
+                    if min_price is None:
+                        units = InventoryUnit.objects.filter(
+                            product_template=item.product,
+                            sale_status='AV',
+                            available_online=True
+                        )
+                        if not units.exists():
+                            return None
+                        min_price = min(units.values_list('selling_price', flat=True))
+                    price = Decimal(str(min_price))
+                total += price * item.quantity
+            return total
+
+        best_price = None
+        for bundle in bundles:
+            if bundle.pricing_mode == Bundle.PricingMode.FIXED and bundle.bundle_price is not None:
+                price = Decimal(str(bundle.bundle_price))
+            else:
+                base_total = items_min_total(bundle)
+                if base_total is None:
+                    continue
+                if bundle.pricing_mode == Bundle.PricingMode.PERCENT and bundle.discount_percentage is not None:
+                    discount = (base_total * Decimal(str(bundle.discount_percentage))) / Decimal('100')
+                    price = max(Decimal('0.00'), base_total - discount)
+                elif bundle.pricing_mode == Bundle.PricingMode.AMOUNT and bundle.discount_amount is not None:
+                    price = max(Decimal('0.00'), base_total - Decimal(str(bundle.discount_amount)))
+                else:
+                    price = base_total
+            if best_price is None or price < best_price:
+                best_price = price
+        return float(best_price) if best_price is not None else None
     
     @extend_schema_field(OpenApiTypes.INT)
     def get_available_units_count(self, obj):
@@ -251,7 +330,7 @@ class PublicProductListSerializer(PublicProductSerializer):
         fields = [
             'id', 'product_name', 'brand', 'model_series', 'product_type',
             'available_units_count', 'min_price', 'max_price',
-            'primary_image', 'slug', 'product_video_url'
+            'primary_image', 'slug', 'product_video_url', 'has_active_bundle', 'bundle_price_preview'
         ]
 
 
@@ -261,10 +340,12 @@ class CartItemSerializer(serializers.ModelSerializer):
     inventory_unit_id = serializers.IntegerField(write_only=True)
     unit_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
     promotion_id = serializers.IntegerField(source='promotion.id', read_only=True, allow_null=True)
+    bundle_id = serializers.IntegerField(source='bundle.id', read_only=True, allow_null=True)
+    bundle_group_id = serializers.UUIDField(read_only=True, allow_null=True)
     
     class Meta:
         model = CartItem
-        fields = ['id', 'inventory_unit', 'inventory_unit_id', 'quantity', 'unit_price', 'promotion_id']
+        fields = ['id', 'inventory_unit', 'inventory_unit_id', 'quantity', 'unit_price', 'promotion_id', 'bundle_id', 'bundle_group_id']
 
 
 class CartSerializer(serializers.ModelSerializer):
@@ -286,6 +367,109 @@ class CartSerializer(serializers.ModelSerializer):
             unit_price = item.get_unit_price()  # Use stored promotion price
             total += unit_price * item.quantity
         return float(total)
+
+
+# -------------------------------------------------------------------------
+# BUNDLE SERIALIZERS (PUBLIC)
+# -------------------------------------------------------------------------
+
+class PublicBundleItemSerializer(serializers.ModelSerializer):
+    product_id = serializers.IntegerField(source='product.id', read_only=True)
+    product_name = serializers.CharField(source='product.product_name', read_only=True)
+    product_slug = serializers.CharField(source='product.slug', read_only=True)
+    product_type = serializers.CharField(source='product.product_type', read_only=True)
+    primary_image = serializers.SerializerMethodField()
+    min_price = serializers.SerializerMethodField()
+    max_price = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = BundleItem
+        fields = [
+            'id', 'product_id', 'product_name', 'product_slug', 'product_type',
+            'quantity', 'override_price', 'display_order', 'primary_image',
+            'min_price', 'max_price'
+        ]
+
+    def _get_price_range(self, product: Product):
+        if product.min_price is not None and product.max_price is not None:
+            return product.min_price, product.max_price
+        units = InventoryUnit.objects.filter(product_template=product, sale_status='AV', available_online=True)
+        if not units.exists():
+            return None, None
+        prices = list(units.values_list('selling_price', flat=True))
+        return min(prices), max(prices)
+
+    @extend_schema_field(OpenApiTypes.NUMBER)
+    def get_min_price(self, obj):
+        min_price, _ = self._get_price_range(obj.product)
+        return min_price
+
+    @extend_schema_field(OpenApiTypes.NUMBER)
+    def get_max_price(self, obj):
+        _, max_price = self._get_price_range(obj.product)
+        return max_price
+
+    @extend_schema_field(serializers.URLField(allow_null=True))
+    def get_primary_image(self, obj):
+        from inventory.cloudinary_utils import get_optimized_image_url
+        primary_image = ProductImage.objects.filter(product=obj.product, is_primary=True).first()
+        if primary_image and primary_image.image:
+            original_url = primary_image.image.url
+            cloudinary_url = get_optimized_image_url(primary_image.image)
+            return cloudinary_url or original_url
+        return None
+
+
+class PublicBundleSerializer(serializers.ModelSerializer):
+    items = PublicBundleItemSerializer(many=True, read_only=True)
+    main_product_id = serializers.IntegerField(source='main_product.id', read_only=True)
+    main_product_name = serializers.CharField(source='main_product.product_name', read_only=True)
+    main_product_slug = serializers.CharField(source='main_product.slug', read_only=True)
+    is_currently_active = serializers.BooleanField(read_only=True)
+    items_min_total = serializers.SerializerMethodField()
+    items_max_total = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Bundle
+        fields = [
+            'id', 'brand', 'main_product_id', 'main_product_name', 'main_product_slug',
+            'title', 'description', 'pricing_mode', 'bundle_price', 'discount_percentage',
+            'discount_amount', 'show_in_listings', 'is_currently_active',
+            'items', 'items_min_total', 'items_max_total'
+        ]
+
+    def _get_items_total(self, obj):
+        min_total = Decimal('0.00')
+        max_total = Decimal('0.00')
+        for item in obj.items.all():
+            if item.override_price is not None:
+                price = Decimal(str(item.override_price))
+                min_total += price * item.quantity
+                max_total += price * item.quantity
+                continue
+            min_price = item.product.min_price
+            max_price = item.product.max_price
+            if min_price is None or max_price is None:
+                units = InventoryUnit.objects.filter(product_template=item.product, sale_status='AV', available_online=True)
+                if units.exists():
+                    prices = list(units.values_list('selling_price', flat=True))
+                    min_price = min(prices)
+                    max_price = max(prices)
+            if min_price is not None:
+                min_total += Decimal(str(min_price)) * item.quantity
+            if max_price is not None:
+                max_total += Decimal(str(max_price)) * item.quantity
+        return min_total, max_total
+
+    @extend_schema_field(OpenApiTypes.NUMBER)
+    def get_items_min_total(self, obj):
+        min_total, _ = self._get_items_total(obj)
+        return min_total
+
+    @extend_schema_field(OpenApiTypes.NUMBER)
+    def get_items_max_total(self, obj):
+        _, max_total = self._get_items_total(obj)
+        return max_total
 
 
 class LeadItemSerializer(serializers.ModelSerializer):
@@ -329,6 +513,17 @@ class CartItemCreateSerializer(serializers.Serializer):
     quantity = serializers.IntegerField(required=False, default=1)
     promotion_id = serializers.IntegerField(required=False, allow_null=True)
     unit_price = serializers.DecimalField(required=False, allow_null=True, max_digits=10, decimal_places=2)
+
+
+class CartBundleCreateSerializer(serializers.Serializer):
+    """Serializer for adding a bundle to cart."""
+    bundle_id = serializers.IntegerField()
+    main_inventory_unit_id = serializers.IntegerField(required=False, allow_null=True)
+    bundle_item_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        required=False,
+        allow_empty=True
+    )
 
 
 class CheckoutResponseSerializer(serializers.Serializer):

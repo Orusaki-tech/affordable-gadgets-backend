@@ -66,7 +66,9 @@ class LeadService:
                     order=order,
                     inventory_unit=unit,
                     quantity=lead_item.quantity,
-                    unit_price_at_purchase=lead_item.unit_price
+                    unit_price_at_purchase=lead_item.unit_price,
+                    bundle=lead_item.bundle,
+                    bundle_group_id=lead_item.bundle_group_id
                 )
             
             # Update lead - link to order (this creates the source_lead relationship)

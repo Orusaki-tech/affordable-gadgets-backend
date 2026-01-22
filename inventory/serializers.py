@@ -8,7 +8,7 @@ from .models import (
     Product, Order, OrderItem, Customer, ProductImage, Review, ProductAccessory,
     Admin, Color, User, InventoryUnit, UnitAcquisitionSource, InventoryUnitImage,
     AdminRole, ReservationRequest, ReturnRequest, UnitTransfer, Notification, AuditLog, Tag,
-    Brand, Lead, LeadItem, Cart, CartItem, Promotion
+    Brand, Lead, LeadItem, Cart, CartItem, Promotion, PromotionType, Bundle, BundleItem
 )
 from decimal import Decimal
 from django.db import transaction
@@ -1329,10 +1329,11 @@ class InventoryUnitSerializer(serializers.ModelSerializer):
                 if not data.get('processor_details', getattr(self.instance, 'processor_details', None)):
                     raise serializers.ValidationError({"processor_details": "Processor details are required for Laptops."})
         else:
-            # Accessories don't need serial_number or IMEI
-            if current_sn:
+            # Accessories can optionally have serial numbers.
+            # If a serial is present, treat it as a single unit.
+            if current_sn and current_quantity != 1:
                 raise serializers.ValidationError({
-                    "serial_number": "Accessories should not have serial numbers."
+                    "quantity": "Quantity must be 1 when an accessory has a serial number."
                 })
             if current_imei:
                 raise serializers.ValidationError({
@@ -1612,6 +1613,9 @@ class OrderItemSerializer(serializers.ModelSerializer):
     imei = serializers.CharField(source='inventory_unit.imei', read_only=True, allow_null=True)
     unit_id = serializers.IntegerField(source='inventory_unit.id', read_only=True, allow_null=True)
     sub_total = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    bundle_id = serializers.IntegerField(source='bundle.id', read_only=True, allow_null=True)
+    bundle_title = serializers.CharField(source='bundle.title', read_only=True, allow_null=True)
+    bundle_group_id = serializers.UUIDField(read_only=True, allow_null=True)
     
     # This field accepts the ID from the client and resolves it to the InventoryUnit instance.
     # It passes the resolved instance under the key 'inventory_unit' to the parent create() method.
@@ -1624,7 +1628,8 @@ class OrderItemSerializer(serializers.ModelSerializer):
         model = OrderItem
         fields = (
             'id', 'inventory_unit', 'inventory_unit_id', 'unit_id', 'product_template_name', 
-            'serial_number', 'imei', 'quantity', 'unit_price_at_purchase', 'sub_total'
+            'serial_number', 'imei', 'quantity', 'unit_price_at_purchase', 'sub_total',
+            'bundle_id', 'bundle_title', 'bundle_group_id'
         )
         # FIX: Removed 'inventory_unit' from read_only_fields. 
         # The 'inventory_unit_id' field handles the write, and the 'inventory_unit' 
@@ -2497,6 +2502,7 @@ class NotificationSerializer(serializers.ModelSerializer):
     recipient_username = serializers.CharField(source='recipient.username', read_only=True)
     content_type_model = serializers.SerializerMethodField()
 
+    @extend_schema_field(serializers.CharField(allow_null=True))
     def get_content_type_model(self, obj):
         if not obj.content_type:
             return None
@@ -2874,3 +2880,49 @@ class PromotionSerializer(serializers.ModelSerializer):
         
         # Only specific products are set (no product_types)
         return obj.products.count()
+
+
+# -------------------------------------------------------------------------
+# BUNDLE SERIALIZERS (ADMIN)
+# -------------------------------------------------------------------------
+
+class BundleItemSerializer(serializers.ModelSerializer):
+    product_name = serializers.CharField(source='product.product_name', read_only=True)
+    product_slug = serializers.CharField(source='product.slug', read_only=True)
+    product_primary_image = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = BundleItem
+        fields = (
+            'id', 'bundle', 'product', 'product_name', 'product_slug',
+            'quantity', 'override_price', 'display_order', 'product_primary_image'
+        )
+        read_only_fields = ('id', 'product_name', 'product_slug', 'product_primary_image')
+
+    @extend_schema_field(serializers.URLField(allow_null=True))
+    def get_product_primary_image(self, obj):
+        from inventory.cloudinary_utils import get_optimized_image_url
+        primary_image = ProductImage.objects.filter(product=obj.product, is_primary=True).first()
+        if primary_image and primary_image.image:
+            original_url = primary_image.image.url
+            optimized_url = get_optimized_image_url(primary_image.image)
+            return optimized_url or original_url
+        return None
+
+
+class BundleSerializer(serializers.ModelSerializer):
+    items = BundleItemSerializer(many=True, read_only=True)
+    main_product_name = serializers.CharField(source='main_product.product_name', read_only=True)
+    brand_name = serializers.CharField(source='brand.name', read_only=True)
+    is_currently_active = serializers.BooleanField(read_only=True)
+    
+    class Meta:
+        model = Bundle
+        fields = (
+            'id', 'brand', 'brand_name', 'main_product', 'main_product_name',
+            'title', 'description', 'is_active', 'start_date', 'end_date',
+            'pricing_mode', 'bundle_price', 'discount_percentage', 'discount_amount',
+            'show_in_listings', 'created_by', 'created_at', 'updated_at',
+            'items', 'is_currently_active'
+        )
+        read_only_fields = ('created_at', 'updated_at', 'items', 'is_currently_active')

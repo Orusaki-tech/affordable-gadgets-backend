@@ -3,12 +3,34 @@ from django.utils import timezone
 from datetime import timedelta
 from decimal import Decimal
 from django.db.models import Q
-from inventory.models import Cart, CartItem, InventoryUnit, Brand
+from inventory.models import Cart, CartItem, InventoryUnit, Brand, Bundle, BundleItem
+import uuid
 from inventory.services.customer_service import CustomerService
 from inventory.services.lead_service import LeadService
 
 
 class CartService:
+    @staticmethod
+    def _validate_unit_for_cart(cart, inventory_unit):
+        """Ensure inventory unit is available and allowed for cart's brand."""
+        if inventory_unit.sale_status != InventoryUnit.SaleStatusChoices.AVAILABLE:
+            raise ValueError(f"Unit {inventory_unit.id} is not available")
+        if not inventory_unit.available_online:
+            raise ValueError(f"Unit {inventory_unit.id} is not available for online purchase")
+
+        product = inventory_unit.product_template
+        unit_has_company_brands = inventory_unit.brands.exists()
+        product_has_company_brands = product.brands.exists()
+
+        if unit_has_company_brands:
+            if cart.brand not in inventory_unit.brands.all():
+                if not product.is_global and cart.brand not in product.brands.all():
+                    raise ValueError("Unit not available for this company brand")
+        else:
+            if product_has_company_brands:
+                if cart.brand not in product.brands.all():
+                    raise ValueError("Unit not available for this company brand")
+
     @staticmethod
     def get_or_create_cart(session_key=None, customer_phone=None, brand=None):
         """Get existing cart or create new one."""
@@ -51,14 +73,7 @@ class CartService:
     @staticmethod
     def add_item_to_cart(cart, inventory_unit, quantity=1, promotion_id=None, unit_price=None):
         """Add item to cart (no reservation, just tracking)."""
-        # Validate unit is available
-        if inventory_unit.sale_status != InventoryUnit.SaleStatusChoices.AVAILABLE:
-            raise ValueError(f"Unit {inventory_unit.id} is not available")
-        
-        if not inventory_unit.available_online:
-            raise ValueError(f"Unit {inventory_unit.id} is not available for online purchase")
-        
-        # Check company brand availability
+        CartService._validate_unit_for_cart(cart, inventory_unit)
         product = inventory_unit.product_template
         unit_has_company_brands = inventory_unit.brands.exists()
         product_has_company_brands = product.brands.exists()
@@ -132,6 +147,93 @@ class CartService:
             cart_item.save()
         
         return cart_item
+
+    @staticmethod
+    def add_bundle_to_cart(cart, bundle, main_inventory_unit_id=None, bundle_item_ids=None):
+        """Add a bundle to cart by creating grouped CartItems."""
+        if bundle.brand_id != cart.brand_id:
+            raise ValueError("Bundle not available for this brand")
+        if not bundle.is_currently_active:
+            raise ValueError("Bundle is not active")
+
+        group_id = uuid.uuid4()
+        items_queryset = bundle.items.all().select_related('product')
+        if bundle_item_ids:
+            items_queryset = items_queryset.filter(id__in=bundle_item_ids)
+        items = list(items_queryset)
+        if not items:
+            raise ValueError("Bundle has no items")
+
+        # Build base item prices
+        item_prices = []
+        selected_units = []
+        for item in items:
+            unit = None
+            if item.product_id == bundle.main_product_id and main_inventory_unit_id:
+                unit = InventoryUnit.objects.filter(
+                    id=main_inventory_unit_id,
+                    product_template=item.product,
+                    sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+                    available_online=True
+                ).first()
+            if unit is None:
+                unit = InventoryUnit.objects.filter(
+                    product_template=item.product,
+                    sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+                    available_online=True
+                ).order_by('id').first()
+            if unit is None:
+                raise ValueError(f"No available unit for {item.product.product_name}")
+            CartService._validate_unit_for_cart(cart, unit)
+            selected_units.append((item, unit))
+            base_price = Decimal(str(item.override_price)) if item.override_price is not None else unit.selling_price
+            item_prices.append(base_price * item.quantity)
+
+        items_total = sum(item_prices, Decimal('0.00'))
+        if items_total <= 0:
+            raise ValueError("Bundle total cannot be zero")
+
+        # Determine target total based on pricing mode
+        if bundle.pricing_mode == Bundle.PricingMode.FIXED and bundle.bundle_price is not None:
+            target_total = Decimal(str(bundle.bundle_price))
+        elif bundle.pricing_mode == Bundle.PricingMode.PERCENT and bundle.discount_percentage is not None:
+            discount = (items_total * Decimal(str(bundle.discount_percentage))) / Decimal('100')
+            target_total = max(Decimal('0.00'), items_total - discount)
+        elif bundle.pricing_mode == Bundle.PricingMode.AMOUNT and bundle.discount_amount is not None:
+            target_total = max(Decimal('0.00'), items_total - Decimal(str(bundle.discount_amount)))
+        else:
+            target_total = items_total
+
+        # Distribute bundle total proportionally to items
+        factor = (target_total / items_total) if items_total > 0 else Decimal('1')
+        remaining = target_total
+        created_items = []
+        for index, (item, unit) in enumerate(selected_units):
+            base_price = Decimal(str(item.override_price)) if item.override_price is not None else unit.selling_price
+            if index == len(selected_units) - 1:
+                unit_price = remaining / Decimal(item.quantity)
+            else:
+                unit_price = (base_price * factor).quantize(Decimal('0.01'))
+                remaining -= unit_price * item.quantity
+            cart_item, created = CartItem.objects.get_or_create(
+                cart=cart,
+                inventory_unit=unit,
+                defaults={
+                    'quantity': item.quantity,
+                    'unit_price': unit_price,
+                    'bundle': bundle,
+                    'bundle_group_id': group_id
+                }
+            )
+            if not created:
+                cart_item.quantity += item.quantity
+                cart_item.unit_price = unit_price
+                cart_item.bundle = bundle
+                cart_item.bundle_group_id = group_id
+                cart_item.save()
+            created_items.append(cart_item)
+
+        return created_items, group_id
     
     @staticmethod
     def checkout_cart(cart, customer_name, customer_phone, customer_email=None, delivery_address=None):
@@ -185,7 +287,9 @@ class CartService:
                     lead=lead,
                     inventory_unit=cart_item.inventory_unit,
                     quantity=cart_item.quantity,
-                    unit_price=unit_price  # Store promotion price
+                    unit_price=unit_price,  # Store promotion price
+                    bundle=cart_item.bundle,
+                    bundle_group_id=cart_item.bundle_group_id
                 )
             
             # Link cart to lead
