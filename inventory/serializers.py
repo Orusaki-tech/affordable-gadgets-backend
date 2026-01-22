@@ -1875,6 +1875,10 @@ class ReservationRequestSerializer(serializers.ModelSerializer):
         write_only=True,
         required=False
     )
+    inventory_unit_quantities = serializers.DictField(
+        child=serializers.IntegerField(min_value=1),
+        required=False
+    )
     inventory_units_details = serializers.SerializerMethodField()
     approved_by_username = serializers.CharField(source='approved_by.user.username', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
@@ -1884,7 +1888,7 @@ class ReservationRequestSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'requesting_salesperson', 'requesting_salesperson_username', 'requesting_salesperson_brands',
             'inventory_unit', 'inventory_unit_id', 'inventory_unit_name',  # Legacy
-            'inventory_units', 'inventory_unit_ids', 'inventory_units_details',  # New
+            'inventory_units', 'inventory_unit_ids', 'inventory_unit_quantities', 'inventory_units_details',  # New
             'status', 'status_display', 'requested_at', 'approved_at', 
             'expires_at', 'approved_by', 'approved_by_username', 'notes'
         )
@@ -1925,8 +1929,10 @@ class ReservationRequestSerializer(serializers.ModelSerializer):
     def get_inventory_units_details(self, obj):
         """Get detailed information about all units in the request."""
         units = []
+        unit_quantities = obj.inventory_unit_quantities or {}
         # Use new ManyToMany field
         for unit in obj.inventory_units.all():
+            requested_quantity = unit_quantities.get(str(unit.id)) or unit_quantities.get(unit.id) or 1
             units.append({
                 'id': unit.id,
                 'product_name': unit.product_template.product_name,
@@ -1936,9 +1942,11 @@ class ReservationRequestSerializer(serializers.ModelSerializer):
                 'selling_price': str(unit.selling_price),
                 'sale_status': unit.sale_status,
                 'sale_status_display': unit.get_sale_status_display(),
+                'requested_quantity': requested_quantity,
             })
         # Fallback to old single unit field during migration
         if not units and obj.inventory_unit:
+            requested_quantity = unit_quantities.get(str(obj.inventory_unit.id)) or unit_quantities.get(obj.inventory_unit.id) or 1
             units.append({
                 'id': obj.inventory_unit.id,
                 'product_name': obj.inventory_unit.product_template.product_name,
@@ -1948,6 +1956,7 @@ class ReservationRequestSerializer(serializers.ModelSerializer):
                 'selling_price': str(obj.inventory_unit.selling_price),
                 'sale_status': obj.inventory_unit.sale_status,
                 'sale_status_display': obj.inventory_unit.get_sale_status_display(),
+                'requested_quantity': requested_quantity,
             })
         return units
     
@@ -1981,14 +1990,70 @@ class ReservationRequestSerializer(serializers.ModelSerializer):
             # For updates, allow partial data (PATCH)
             # If no units are provided, that's okay - we'll keep existing units
             logger.info(f"Update validation for request {self.instance.id}. Attrs keys: {list(attrs.keys())}")
+
+            inventory_units = attrs.get('inventory_units')
+            inventory_unit = attrs.get('inventory_unit')
+            if inventory_unit and not inventory_units:
+                inventory_units = [inventory_unit]
+
+            if inventory_units is None:
+                inventory_units = list(self.instance.inventory_units.all())
+                if not inventory_units and self.instance.inventory_unit:
+                    inventory_units = [self.instance.inventory_unit]
+
+            unit_quantities = attrs.get('inventory_unit_quantities')
+            if unit_quantities is not None:
+                normalized_quantities = {}
+                for unit_id, qty in unit_quantities.items():
+                    normalized_quantities[int(unit_id)] = int(qty)
+                unit_ids = {unit.id for unit in inventory_units}
+                extra_ids = set(normalized_quantities.keys()) - unit_ids
+                if extra_ids:
+                    raise serializers.ValidationError("Quantity provided for units not in this request.")
+                for unit in inventory_units:
+                    requested_qty = normalized_quantities.get(unit.id)
+                    if requested_qty is None:
+                        raise serializers.ValidationError("Quantity must be provided for each unit in the request.")
+                    if unit.product_template.product_type != Product.ProductType.ACCESSORY and requested_qty != 1:
+                        raise serializers.ValidationError(f"Unit {unit.id} does not support quantity > 1.")
+                    if unit.product_template.product_type == Product.ProductType.ACCESSORY and requested_qty > unit.quantity:
+                        raise serializers.ValidationError(f"Unit {unit.id} only has {unit.quantity} available.")
+                attrs['inventory_unit_quantities'] = normalized_quantities
             return attrs
         
         # For creates, require at least one unit
         inventory_unit_ids = attrs.get('inventory_units', [])
         inventory_unit_id = attrs.get('inventory_unit')
+        unit_quantities = attrs.get('inventory_unit_quantities')
         
         if not inventory_unit_ids and not inventory_unit_id:
             raise serializers.ValidationError("At least one inventory unit must be specified.")
+
+        # Normalize units list for validation
+        inventory_units = list(inventory_unit_ids)
+        if inventory_unit_id and not inventory_units:
+            inventory_units = [inventory_unit_id]
+
+        # Validate and normalize quantities
+        if unit_quantities is not None:
+            normalized_quantities = {}
+            for unit_id, qty in unit_quantities.items():
+                normalized_quantities[int(unit_id)] = int(qty)
+            unit_ids = {unit.id for unit in inventory_units}
+            extra_ids = set(normalized_quantities.keys()) - unit_ids
+            if extra_ids:
+                raise serializers.ValidationError("Quantity provided for units not in this request.")
+            for unit in inventory_units:
+                requested_qty = normalized_quantities.get(unit.id)
+                if requested_qty is None:
+                    raise serializers.ValidationError("Quantity must be provided for each unit in the request.")
+                if unit.product_template.product_type != Product.ProductType.ACCESSORY and requested_qty != 1:
+                    raise serializers.ValidationError(f"Unit {unit.id} does not support quantity > 1.")
+                if unit.product_template.product_type == Product.ProductType.ACCESSORY and requested_qty > unit.quantity:
+                    raise serializers.ValidationError(f"Unit {unit.id} only has {unit.quantity} available.")
+            attrs['inventory_unit_quantities'] = normalized_quantities
+        else:
+            attrs['inventory_unit_quantities'] = {unit.id: 1 for unit in inventory_units}
         
         return attrs
     
@@ -2011,6 +2076,7 @@ class ReservationRequestSerializer(serializers.ModelSerializer):
         # Extract units (handle both old and new format)
         inventory_units = validated_data.pop('inventory_units', [])
         inventory_unit = validated_data.pop('inventory_unit', None)
+        inventory_unit_quantities = validated_data.pop('inventory_unit_quantities', {})
         
         # Convert old single unit to list if needed
         if inventory_unit and not inventory_units:
@@ -2024,6 +2090,8 @@ class ReservationRequestSerializer(serializers.ModelSerializer):
         
         # Add units to ManyToMany relationship
         reservation_request.inventory_units.set(inventory_units)
+        reservation_request.inventory_unit_quantities = inventory_unit_quantities or {unit.id: 1 for unit in inventory_units}
+        reservation_request.save(update_fields=['inventory_unit_quantities'])
         
         # Also set old field for migration compatibility
         if inventory_unit:
@@ -2120,6 +2188,7 @@ class ReservationRequestSerializer(serializers.ModelSerializer):
             # Extract units
             inventory_units = validated_data.pop('inventory_units', None)
             inventory_unit = validated_data.pop('inventory_unit', None)
+            inventory_unit_quantities = validated_data.pop('inventory_unit_quantities', None)
             
             logger.info(f"Extracted units: inventory_units={inventory_units is not None}, inventory_unit={inventory_unit is not None}")
             
@@ -2152,13 +2221,20 @@ class ReservationRequestSerializer(serializers.ModelSerializer):
                 
                 logger.info(f"Setting {len(inventory_units)} units on request {instance.id}")
                 instance.inventory_units.set(inventory_units)
+                if inventory_unit_quantities is None:
+                    inventory_unit_quantities = {unit.id: 1 for unit in inventory_units}
             
             # Handle old single unit format
             if inventory_unit:
                 if inventory_unit.sale_status != InventoryUnit.SaleStatusChoices.AVAILABLE:
                     raise serializers.ValidationError(f"Unit {inventory_unit.id} is not available for reservation.")
                 instance.inventory_units.set([inventory_unit])
-                instance.inventory_unit = inventory_unit
+                if inventory_unit_quantities is None:
+                    inventory_unit_quantities = {inventory_unit.id: 1}
+            if inventory_unit_quantities is not None:
+                instance.inventory_unit_quantities = inventory_unit_quantities
+                if inventory_unit is not None:
+                    instance.inventory_unit = inventory_unit
             
             # Update other fields
             if 'notes' in validated_data:

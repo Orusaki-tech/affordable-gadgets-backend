@@ -877,6 +877,11 @@ class ReservationRequest(models.Model):
         limit_choices_to={'roles__name': AdminRole.RoleChoices.INVENTORY_MANAGER}
     )
     notes = models.TextField(blank=True, help_text="Additional notes or comments")
+    inventory_unit_quantities = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Requested quantities by inventory unit id (for accessories)."
+    )
     
     class Meta:
         ordering = ['-requested_at']

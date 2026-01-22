@@ -3048,12 +3048,67 @@ class ReservationRequestViewSet(viewsets.ModelViewSet):
                     units = [request_obj.inventory_unit]
                 
                 unit_names = []
+                updated_units = []
+                updated_quantities = {}
+                unit_quantities = request_obj.inventory_unit_quantities or {}
                 for unit in units:
-                    unit.sale_status = InventoryUnit.SaleStatusChoices.RESERVED
-                    unit.reserved_by = request_obj.requesting_salesperson
-                    unit.reserved_until = timezone.now() + timedelta(days=2)
-                    unit.save()
-                    unit_names.append(unit.product_template.product_name)
+                    requested_qty = unit_quantities.get(str(unit.id)) or unit_quantities.get(unit.id) or 1
+                    if requested_qty > unit.quantity:
+                        requested_qty = unit.quantity
+                    if unit.product_template.product_type == Product.ProductType.ACCESSORY:
+                        if requested_qty < unit.quantity:
+                            remaining_qty = unit.quantity - requested_qty
+                            unit.quantity = remaining_qty
+                            unit.save(update_fields=['quantity'])
+
+                            reserved_unit = InventoryUnit.objects.create(
+                                product_template=unit.product_template,
+                                product_color=unit.product_color,
+                                acquisition_source_details=unit.acquisition_source_details,
+                                quantity=requested_qty,
+                                condition=unit.condition,
+                                source=unit.source,
+                                sale_status=InventoryUnit.SaleStatusChoices.RESERVED,
+                                grade=unit.grade,
+                                cost_of_unit=unit.cost_of_unit,
+                                selling_price=unit.selling_price,
+                                serial_number=None,
+                                imei=None,
+                                storage_gb=unit.storage_gb,
+                                ram_gb=unit.ram_gb,
+                                battery_mah=unit.battery_mah,
+                                is_sim_enabled=unit.is_sim_enabled,
+                                processor_details=unit.processor_details,
+                                date_sourced=unit.date_sourced,
+                                reserved_by=request_obj.requesting_salesperson,
+                                reserved_until=timezone.now() + timedelta(days=2),
+                                available_online=unit.available_online,
+                            )
+                            reserved_unit.brands.set(unit.brands.all())
+                            updated_units.append(reserved_unit)
+                            updated_quantities[reserved_unit.id] = requested_qty
+                            unit_names.append(reserved_unit.product_template.product_name)
+                        else:
+                            unit.sale_status = InventoryUnit.SaleStatusChoices.RESERVED
+                            unit.reserved_by = request_obj.requesting_salesperson
+                            unit.reserved_until = timezone.now() + timedelta(days=2)
+                            unit.save()
+                            updated_units.append(unit)
+                            updated_quantities[unit.id] = requested_qty
+                            unit_names.append(unit.product_template.product_name)
+                    else:
+                        unit.sale_status = InventoryUnit.SaleStatusChoices.RESERVED
+                        unit.reserved_by = request_obj.requesting_salesperson
+                        unit.reserved_until = timezone.now() + timedelta(days=2)
+                        unit.save()
+                        updated_units.append(unit)
+                        updated_quantities[unit.id] = 1
+                        unit_names.append(unit.product_template.product_name)
+
+                if updated_units:
+                    request_obj.inventory_units.set(updated_units)
+                    request_obj.inventory_unit_quantities = updated_quantities
+                    request_obj.save(update_fields=['inventory_unit_quantities'])
                 
                 # Create notification message
                 if len(unit_names) == 1:
