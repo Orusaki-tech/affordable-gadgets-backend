@@ -1788,6 +1788,14 @@ class PhoneSearchByBudgetView(generics.ListAPIView):
         return context
 
 
+@extend_schema_view(
+    list=extend_schema(
+        parameters=[
+            OpenApiParameter('page', OpenApiTypes.INT, OpenApiParameter.QUERY),
+            OpenApiParameter('page_size', OpenApiTypes.INT, OpenApiParameter.QUERY),
+        ]
+    )
+)
 class PublicPromotionViewSet(viewsets.ReadOnlyModelViewSet):
     def get_serializer_context(self):
         """Add request to serializer context for absolute URL building."""
