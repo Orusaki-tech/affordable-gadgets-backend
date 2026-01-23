@@ -360,6 +360,22 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
         from inventory.models import ProductImage, Product
         import json, time, os, traceback
         
+        def apply_public_ordering(queryset):
+            """Apply safe ordering for public list endpoints."""
+            ordering_param = self.request.query_params.get('ordering')
+            if ordering_param:
+                ordering_fields = [f.strip() for f in ordering_param.split(',')]
+                valid_fields = ['product_name', 'min_price', 'max_price']
+                validated_ordering = []
+                for field in ordering_fields:
+                    field_name = field.lstrip('-')
+                    if field_name in valid_fields:
+                        validated_ordering.append(field)
+                if validated_ordering:
+                    return queryset.order_by(*validated_ordering)
+            # Default ordering for stable pagination
+            return queryset.order_by('product_name')
+        
         # #region agent log - Entry
         try:
             os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
@@ -690,7 +706,7 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                     min_price=Coalesce(Subquery(min_price_sub), Value(None), output_field=DecimalField(max_digits=10, decimal_places=2)),
                     max_price=Coalesce(Subquery(max_price_sub), Value(None), output_field=DecimalField(max_digits=10, decimal_places=2)),
                 )
-                return queryset
+                return apply_public_ordering(queryset)
 
             if is_detail:
                 # Detail path: prefetch filtered units and primary images and annotate aggregates
@@ -1152,32 +1168,8 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                     # #endregion
                     raise
             
-            # Apply ordering manually
-            # NOTE: We don't order by available_units_count because it's a placeholder Value(1)
-            # The serializer calculates the real count from prefetched data
-            # Ordering by placeholder values can cause PostgreSQL issues
-            ordering_param = self.request.query_params.get('ordering')
-            if ordering_param:
-                # User specified ordering - validate and apply
-                # Split the ordering parameter (can be comma-separated)
-                ordering_fields = [f.strip() for f in ordering_param.split(',')]
-                # Validate that all fields are in ordering_fields (excluding available_units_count placeholder)
-                valid_fields = ['product_name', 'min_price', 'max_price']
-                validated_ordering = []
-                for field in ordering_fields:
-                    # Remove leading - for descending
-                    field_name = field.lstrip('-')
-                    if field_name in valid_fields:
-                        validated_ordering.append(field)
-                    # Skip available_units_count - it's a placeholder, not a real value
-                if validated_ordering:
-                    queryset = queryset.order_by(*validated_ordering)
-                else:
-                    # Invalid ordering, use default
-                    queryset = queryset.order_by('product_name')
-            else:
-                # No explicit ordering - use simple default that works in PostgreSQL
-                queryset = queryset.order_by('product_name')
+            # Apply ordering manually (stable pagination; avoid placeholder ordering)
+            queryset = apply_public_ordering(queryset)
             
             # Apply search filter (OrderingFilter is handled above)
             for backend in self.filter_backends:
