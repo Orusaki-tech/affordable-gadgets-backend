@@ -412,19 +412,19 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
             try:
                 self._log_all_products_debug(debug_enabled=debug_enabled)
             except Exception as e:
-            try:
-                os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
-                with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
-                    f.write(json.dumps({
-                        "sessionId": "debug-session",
-                        "runId": "run1",
-                        "hypothesisId": "H1,H2,H3,H4,H5",
-                        "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(debug_check_error)",
-                        "message": "Error calling _log_all_products_debug",
-                        "data": {"error": str(e)},
-                        "timestamp": int(time.time() * 1000)
-                    }) + "\n")
-            except: pass
+                try:
+                    os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                    with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
+                        f.write(json.dumps({
+                            "sessionId": "debug-session",
+                            "runId": "run1",
+                            "hypothesisId": "H1,H2,H3,H4,H5",
+                            "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(debug_check_error)",
+                            "message": "Error calling _log_all_products_debug",
+                            "data": {"error": str(e)},
+                            "timestamp": int(time.time() * 1000)
+                        }) + "\n")
+                except: pass
         # #endregion
         
         try:
