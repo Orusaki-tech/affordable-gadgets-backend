@@ -391,6 +391,14 @@ CORS_ALLOWED_ORIGINS = [
     "http://192.168.1.77:3002",  # Local network IP alternative port
 ]
 
+# Allow Vercel deployments in development configs as well.
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://.*\.vercel\.app$",
+    r"^https://.*-git-.*-.*-.*\.vercel\.app$",
+    r"^https://affordable-gadgets-frontend.*\.vercel\.app$",
+    r"^https://affordable-gadgets-admin.*\.vercel\.app$",
+]
+
 # Allow credentials (cookies, authorization headers) if needed
 CORS_ALLOW_CREDENTIALS = True
 
