@@ -5166,6 +5166,18 @@ paths:
         description: A page number within the paginated result set.
         schema:
           type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: display_location
+        required: false
+        in: query
+        description: Comma-separated display locations to include.
+        schema:
+          type: string
       tags:
       - api
       security:
