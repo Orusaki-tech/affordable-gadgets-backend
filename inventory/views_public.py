@@ -54,8 +54,10 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
         return PublicProductSerializer
     
     # #region agent log - Check ALL products in database (before any filtering)
-    def _log_all_products_debug(self):
+    def _log_all_products_debug(self, debug_enabled=False):
         """Log all products in database for debugging visibility issues."""
+        if not debug_enabled:
+            return
         import json, time, os
         from inventory.models import Product, InventoryUnit
         try:
@@ -140,7 +142,7 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
             # Use Django logger which Render captures
             import logging
             logger = logging.getLogger(__name__)
-            logger.error(f"[PRODUCT_DEBUG] {json.dumps(log_entry)}")  # Use error level so it shows in Render logs
+            logger.debug(f"[PRODUCT_DEBUG] {json.dumps(log_entry)}")
         except Exception as e:
             try:
                 os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
@@ -160,10 +162,14 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
     def list(self, request, *args, **kwargs):
         """Override list to catch exceptions during queryset evaluation."""
         import json, time, os, traceback
+        debug_enabled = (
+            settings.DEBUG
+            or self.request.query_params.get('debug') == '1'
+            or os.getenv("PUBLIC_PRODUCT_DEBUG") == "1"
+        )
         import logging
         logger = logging.getLogger(__name__)
         start_time = time.perf_counter()
-        debug_enabled = settings.DEBUG or request.query_params.get('debug') == '1'
         cache_enabled = not debug_enabled and request.method == 'GET'
         if cache_enabled:
             cache_key = "public_products_list:" + request.headers.get('X-Brand-Code', '') + ":" + urlencode(sorted(request.query_params.items()))
@@ -359,6 +365,11 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         from inventory.models import ProductImage, Product
         import json, time, os, traceback
+        debug_enabled = (
+            settings.DEBUG
+            or self.request.query_params.get('debug') == '1'
+            or os.getenv("PUBLIC_PRODUCT_DEBUG") == "1"
+        )
         
         def apply_public_ordering(queryset):
             """Apply safe ordering for public list endpoints."""
@@ -397,9 +408,10 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
         # #endregion
         
         # #region agent log - Comprehensive product check
-        try:
-            self._log_all_products_debug()
-        except Exception as e:
+        if debug_enabled:
+            try:
+                self._log_all_products_debug(debug_enabled=debug_enabled)
+            except Exception as e:
             try:
                 os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
                 with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
