@@ -54,7 +54,8 @@ from .permissions import (
     CanCreateReviews, IsInventoryManagerOrSalespersonReadOnly,
     IsInventoryManagerOrReadOnly, IsSuperuser, IsMarketingManager, IsOrderManager,
     IsInventoryManagerOrMarketingManagerReadOnly, IsContentCreatorOrInventoryManager,
-    IsContentCreatorOrInventoryManagerOrReadOnly, get_admin_from_user
+    IsContentCreatorOrInventoryManagerOrReadOnly, IsBundleManagerOrReadOnly,
+    get_admin_from_user
 )
 from .serializers import (
     ProductImageSerializer, ProductSerializer, ProductAccessorySerializer, ReviewSerializer, 
@@ -4832,7 +4833,7 @@ class BundleViewSet(viewsets.ModelViewSet):
     """Bundle management ViewSet (admin and marketing managers)."""
     queryset = Bundle.objects.all().select_related('brand', 'main_product').prefetch_related('items')
     serializer_class = BundleSerializer
-    permission_classes = [IsAdminUser | IsMarketingManager]
+    permission_classes = [IsBundleManagerOrReadOnly]
     
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -4872,7 +4873,7 @@ class BundleItemViewSet(viewsets.ModelViewSet):
     """Bundle item management (admin and marketing managers)."""
     queryset = BundleItem.objects.all().select_related('bundle', 'product')
     serializer_class = BundleItemSerializer
-    permission_classes = [IsAdminUser | IsMarketingManager]
+    permission_classes = [IsBundleManagerOrReadOnly]
 
 
 class PesapalIPNView(APIView):

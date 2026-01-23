@@ -500,6 +500,39 @@ class IsInventoryManagerOrMarketingManagerReadOnly(permissions.BasePermission):
         return admin.is_inventory_manager
 
 
+class IsBundleManagerOrReadOnly(permissions.BasePermission):
+    """
+    Bundles:
+    - Marketing Manager / Global Admin / Superuser: full access
+    - Inventory Manager / Content Creator / Order Manager / Salesperson: read-only
+    """
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        if request.user.is_superuser:
+            return True
+
+        if not request.user.is_staff:
+            return False
+
+        admin = get_admin_from_user(request.user)
+        if not admin:
+            return False
+
+        if request.method in permissions.SAFE_METHODS:
+            return (
+                admin.is_marketing_manager
+                or admin.is_inventory_manager
+                or admin.is_content_creator
+                or admin.is_order_manager
+                or admin.is_salesperson
+                or admin.is_global_admin
+            )
+
+        return admin.is_marketing_manager or admin.is_global_admin
+
+
 class IsSalespersonOrInventoryManagerOrMarketingManagerReadOnly(permissions.BasePermission):
     """
     Permission for Product read access:
