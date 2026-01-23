@@ -1,5 +1,6 @@
 """Public API ViewSets for e-commerce frontend."""
 from rest_framework import viewsets, permissions, status, filters, generics, exceptions
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiTypes, OpenApiParameter
@@ -1800,11 +1801,17 @@ class PhoneSearchByBudgetView(generics.ListAPIView):
         return context
 
 
+class PublicPromotionPagination(PageNumberPagination):
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
 @extend_schema_view(
     list=extend_schema(
         parameters=[
             OpenApiParameter('page', OpenApiTypes.INT, OpenApiParameter.QUERY),
             OpenApiParameter('page_size', OpenApiTypes.INT, OpenApiParameter.QUERY),
+            OpenApiParameter('display_location', OpenApiTypes.STR, OpenApiParameter.QUERY),
         ]
     )
 )
@@ -1818,6 +1825,7 @@ class PublicPromotionViewSet(viewsets.ReadOnlyModelViewSet):
     """Public promotion ViewSet."""
     serializer_class = PublicPromotionSerializer
     permission_classes = [permissions.AllowAny]
+    pagination_class = PublicPromotionPagination
     
     def get_queryset(self):
         brand = getattr(self.request, 'brand', None)
@@ -1833,6 +1841,19 @@ class PublicPromotionViewSet(viewsets.ReadOnlyModelViewSet):
             start_date__lte=now,
             end_date__gte=now
         )
+
+        display_location_param = self.request.query_params.get('display_location')
+        if display_location_param:
+            locations = [
+                location.strip()
+                for location in display_location_param.split(',')
+                if location.strip()
+            ]
+            if locations:
+                location_query = Q(display_locations=[]) | Q(display_locations__isnull=True)
+                for location in locations:
+                    location_query |= Q(display_locations__contains=[location])
+                queryset = queryset.filter(location_query)
         
         return queryset
 

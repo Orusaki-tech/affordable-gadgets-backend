@@ -7,7 +7,6 @@ from django.utils import timezone
 from inventory.models import Product, InventoryUnit, Cart, CartItem, Lead, LeadItem, Promotion, Bundle, BundleItem, ProductImage
 from inventory.services.interest_service import InterestService
 import logging
-import sys
 
 logger = logging.getLogger(__name__)
 
@@ -558,36 +557,12 @@ class PublicPromotionSerializer(serializers.ModelSerializer):
         if obj.banner_image:
             from inventory.cloudinary_utils import get_promotion_image_url
             import os
-            import json
             import cloudinary
             from cloudinary import CloudinaryImage
-            from django.core.files.storage import default_storage
-            from django.conf import settings
             request = self.context.get('request')
-            
-            # Check what storage is configured
-            configured_storage = getattr(settings, 'DEFAULT_FILE_STORAGE', 'Not set')
-            
-            # Check if the storage backend is Cloudinary
-            storage_type = str(type(default_storage))
-            storage_module = getattr(default_storage, '__module__', '')
-            storage_class = getattr(default_storage, '__class__', type(default_storage))
-            is_cloudinary_storage = ('cloudinary' in storage_type.lower() or 
-                                   'cloudinary' in storage_module.lower() or
-                                   'cloudinary' in str(storage_class).lower())
             
             # Get the URL from the field - Cloudinary storage should return Cloudinary URL
             original_url = obj.banner_image.url
-            banner_image_name = obj.banner_image.name if hasattr(obj.banner_image, 'name') else None
-            # #region agent log
-            log_data = {"location":"serializers_public.py:311","message":"get_banner_image called","data":{"promotion_id":obj.id,"original_url":original_url,"configured_storage":configured_storage,"storage_type":storage_type,"storage_module":storage_module,"storage_class":str(storage_class),"is_cloudinary_storage":is_cloudinary_storage,"banner_image_name":banner_image_name,"is_cloudinary_url":'cloudinary.com' in str(original_url).lower()},"timestamp":int(__import__('time').time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}
-            try:
-                with open('/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log', 'a') as f:
-                    f.write(json.dumps(log_data) + '\n')
-            except: pass
-            logger.info(f"[DEBUG] get_banner_image: {log_data}")
-            print(f"[DEBUG] get_banner_image: {log_data}", file=sys.stderr)
-            # #endregion
             
             # If already a Cloudinary URL, add transformations to it directly
             # This preserves the correct public_id that the storage backend knows about
@@ -629,15 +604,6 @@ class PublicPromotionSerializer(serializers.ModelSerializer):
             # This handles cases where images were uploaded before Cloudinary was configured
             is_local_path = (original_url.startswith('/media/') or original_url.startswith('/static/') or 
                            '/media/' in original_url or '/static/' in original_url)
-            # #region agent log
-            log_data = {"location":"serializers_public.py:340","message":"Checking local path condition","data":{"promotion_id":obj.id,"is_local_path":is_local_path,"is_cloudinary_storage":is_cloudinary_storage,"condition_met":is_local_path,"has_name":hasattr(obj.banner_image, 'name'),"name_value":obj.banner_image.name if hasattr(obj.banner_image, 'name') else None},"timestamp":int(__import__('time').time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"C"}
-            try:
-                with open('/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log', 'a') as f:
-                    f.write(json.dumps(log_data) + '\n')
-            except: pass
-            logger.info(f"[DEBUG] local path check: {log_data}")
-            print(f"[DEBUG] local path check: {log_data}", file=sys.stderr)
-            # #endregion
             # Always try Cloudinary URL construction if we detect a local path
             # This handles images uploaded before Cloudinary was configured
             if is_local_path:
@@ -647,12 +613,6 @@ class PublicPromotionSerializer(serializers.ModelSerializer):
                         cloud_name = os.environ.get('CLOUDINARY_CLOUD_NAME')
                         api_key = os.environ.get('CLOUDINARY_API_KEY')
                         api_secret = os.environ.get('CLOUDINARY_API_SECRET')
-                        # #region agent log
-                        try:
-                            with open('/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log', 'a') as f:
-                                f.write(json.dumps({"location":"serializers_public.py:330","message":"Attempting to construct Cloudinary URL","data":{"promotion_id":obj.id,"has_cloud_name":bool(cloud_name),"has_api_key":bool(api_key),"has_api_secret":bool(api_secret),"banner_image_name":obj.banner_image.name},"timestamp":int(__import__('time').time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}) + '\n')
-                        except: pass
-                        # #endregion
                         cloudinary.config(
                             cloud_name=cloud_name,
                             api_key=api_key,
@@ -680,12 +640,6 @@ class PublicPromotionSerializer(serializers.ModelSerializer):
                             
                             # Verify it's a valid Cloudinary URL
                             if cloudinary_url and 'cloudinary.com' in cloudinary_url:
-                                # #region agent log
-                                try:
-                                    with open('/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log', 'a') as f:
-                                        f.write(json.dumps({"location":"serializers_public.py:375","message":"Cloudinary URL constructed","data":{"promotion_id":obj.id,"public_id":public_id,"cloudinary_url":cloudinary_url,"is_valid":'cloudinary.com' in str(cloudinary_url).lower()},"timestamp":int(__import__('time').time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}) + '\n')
-                                except: pass
-                                # #endregion
                                 return cloudinary_url
                         except Exception as e:
                             logger.warning(f"Failed to build Cloudinary URL with public_id '{public_id}': {e}")
@@ -717,51 +671,21 @@ class PublicPromotionSerializer(serializers.ModelSerializer):
                             except Exception as e:
                                 logger.warning(f"Failed to build Cloudinary URL with 'media/' prefix: {e}")
                     except Exception as e:
-                        # #region agent log
-                        try:
-                            with open('/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log', 'a') as f:
-                                f.write(json.dumps({"location":"serializers_public.py:360","message":"Cloudinary URL construction failed","data":{"promotion_id":obj.id,"error":str(e)},"timestamp":int(__import__('time').time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}) + '\n')
-                        except: pass
-                        # #endregion
                         # If Cloudinary construction fails, fall back to absolute URL
                         pass
             
             # If it's a local path, build absolute URL
-            # #region agent log
-            try:
-                with open('/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log', 'a') as f:
-                    f.write(json.dumps({"location":"serializers_public.py:403","message":"Falling back to absolute URL construction","data":{"promotion_id":obj.id,"original_url":original_url,"has_request":bool(request),"starts_with_media":original_url.startswith('/media/') if original_url else False,"starts_with_static":original_url.startswith('/static/') if original_url else False},"timestamp":int(__import__('time').time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"D"}) + '\n')
-            except: pass
-            # #endregion
             if (original_url.startswith('/media/') or original_url.startswith('/static/')) and request:
                 absolute_url = request.build_absolute_uri(original_url)
-                # #region agent log
-                try:
-                    with open('/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log', 'a') as f:
-                        f.write(json.dumps({"location":"serializers_public.py:410","message":"Returning absolute URL with request","data":{"promotion_id":obj.id,"absolute_url":absolute_url},"timestamp":int(__import__('time').time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"D"}) + '\n')
-                except: pass
-                # #endregion
                 return absolute_url
             elif original_url.startswith('/media/') or original_url.startswith('/static/'):
                 # Construct absolute URL manually if no request context
                 host = os.environ.get('DJANGO_HOST', 'affordable-gadgets-backend.onrender.com')
                 protocol = 'https'
                 absolute_url = f"{protocol}://{host}{original_url}"
-                # #region agent log
-                try:
-                    with open('/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log', 'a') as f:
-                        f.write(json.dumps({"location":"serializers_public.py:420","message":"Returning absolute URL without request","data":{"promotion_id":obj.id,"absolute_url":absolute_url,"host":host},"timestamp":int(__import__('time').time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"D"}) + '\n')
-                except: pass
-                # #endregion
                 return absolute_url
             
             # Return the URL as-is (might already be absolute)
-            # #region agent log
-            try:
-                with open('/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log', 'a') as f:
-                    f.write(json.dumps({"location":"serializers_public.py:428","message":"Returning original URL as-is","data":{"promotion_id":obj.id,"original_url":original_url},"timestamp":int(__import__('time').time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"D"}) + '\n')
-            except: pass
-            # #endregion
             return original_url
         return None
     
