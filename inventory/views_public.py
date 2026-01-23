@@ -59,7 +59,7 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
         import json, time, os
         from inventory.models import Product, InventoryUnit
         try:
-            os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
+            os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
             # Get ALL products regardless of published/discontinued status
             all_products = Product.objects.all().values('id', 'product_name', 'is_published', 'is_discontinued', 'is_global')
             all_products_list = list(all_products)
@@ -134,7 +134,7 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
             }
             # Log to file (local) and Django logger (Render logs)
             try:
-                with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
                     f.write(json.dumps(log_entry) + "\n")
             except: pass
             # Use Django logger which Render captures
@@ -143,8 +143,8 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
             logger.error(f"[PRODUCT_DEBUG] {json.dumps(log_entry)}")  # Use error level so it shows in Render logs
         except Exception as e:
             try:
-                os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-                with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
                     f.write(json.dumps({
                         "sessionId": "debug-session",
                         "runId": "run1",
@@ -187,8 +187,8 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                         queryset_evaluates = False
                         eval_error = str(eval_err)
                     
-                    os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-                    with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                    os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                    with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
                         f.write(json.dumps({
                             "sessionId": "debug-session",
                             "runId": "run1",
@@ -209,8 +209,8 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                         }) + "\n")
                 except Exception as log_err:
                     try:
-                        os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-                        with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                        os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                        with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
                             f.write(json.dumps({
                                 "sessionId": "debug-session",
                                 "runId": "run1",
@@ -241,11 +241,11 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                             })
 
                     os.makedirs(
-                        "/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor",
+                        "/tmp/affordable-gadgets-debug",
                         exist_ok=True,
                     )
                     with open(
-                        "/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log",
+                        "/tmp/affordable-gadgets-debug/debug.log",
                         "a",
                     ) as f:
                         f.write(
@@ -271,11 +271,11 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                 except Exception as log_err:
                     try:
                         os.makedirs(
-                            "/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor",
+                            "/tmp/affordable-gadgets-debug",
                             exist_ok=True,
                         )
                         with open(
-                            "/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log",
+                            "/tmp/affordable-gadgets-debug/debug.log",
                             "a",
                         ) as f:
                             f.write(
@@ -309,8 +309,8 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
         except Exception as e:
             # #region agent log - List exception
             try:
-                os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-                with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
                     f.write(json.dumps({
                         "sessionId": "debug-session",
                         "runId": "run1",
@@ -362,8 +362,8 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
         
         # #region agent log - Entry
         try:
-            os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-            with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+            os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+            with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
                 f.write(json.dumps({
                     "sessionId": "debug-session",
                     "runId": "run1",
@@ -385,8 +385,8 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
             self._log_all_products_debug()
         except Exception as e:
             try:
-                os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-                with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
                     f.write(json.dumps({
                         "sessionId": "debug-session",
                         "runId": "run1",
@@ -467,13 +467,13 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                 # #region agent log
                 try:
                     import json, time, os, traceback
-                    os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
+                    os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
                     accessory_sample = queryset.filter(product_type=Product.ProductType.ACCESSORY).first()
                     if accessory_sample:
                         accessory_units = accessory_sample.inventory_units.filter(units_filter)
                         sum_qty = accessory_units.aggregate(total_qty=Sum('quantity'))['total_qty'] or 0
                         count_units = accessory_units.count()
-                        with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                        with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
                             f.write(json.dumps({
                                 "sessionId": "debug-session",
                                 "runId": "pre-fix",
@@ -489,7 +489,7 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                                 "timestamp": int(time.time() * 1000)
                             }) + "\n")
                     else:
-                        with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                        with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
                             f.write(json.dumps({
                                 "sessionId": "debug-session",
                                 "runId": "pre-fix",
@@ -501,8 +501,8 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                             }) + "\n")
                 except Exception as e:
                     import os
-                    os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-                    with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                    os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                    with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
                         f.write(json.dumps({
                             "sessionId": "debug-session",
                             "runId": "pre-fix",
@@ -532,8 +532,8 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                     sample_products = list(queryset.values('id', 'product_name', 'is_published', 'is_discontinued')[:5])
                 except Exception:
                     sample_products = [{"error": "could_not_fetch"}]
-                os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-                with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
                     f.write(json.dumps({
                         "sessionId": "debug-session",
                         "runId": "run1",
@@ -550,8 +550,8 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                     }) + "\n")
             except Exception as e:
                 try:
-                    os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-                    with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                    os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                    with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
                         f.write(json.dumps({
                             "sessionId": "debug-session",
                             "runId": "run1",
@@ -607,8 +607,8 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                         sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
                         available_online=True
                     ).count()
-                    os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-                    with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                    os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                    with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
                         f.write(json.dumps({
                             "sessionId": "debug-session",
                             "runId": "run1",
@@ -627,8 +627,8 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                         }) + "\n")
             except Exception as e:
                 try:
-                    os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-                    with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                    os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                    with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
                         f.write(json.dumps({
                             "sessionId": "debug-session",
                             "runId": "run1",
@@ -763,8 +763,8 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
             
             # #region agent log - Before annotations
             try:
-                os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-                with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
                     f.write(json.dumps({
                         "sessionId": "debug-session",
                         "runId": "run1",
@@ -799,8 +799,8 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                             matching_qty = matching_units.aggregate(total=Sum('quantity'))['total'] or 0
                         else:
                             matching_qty = matching_count
-                        os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-                        with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                        os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                        with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
                             f.write(json.dumps({
                                 "sessionId": "debug-session",
                                 "runId": "run1",
@@ -820,8 +820,8 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                             }) + "\n")
                 except Exception as e:
                     try:
-                        os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-                        with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                        os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                        with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
                             f.write(json.dumps({
                                 "sessionId": "debug-session",
                                 "runId": "run1",
@@ -866,8 +866,8 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                     sample_after = queryset.first()
                     if sample_after:
                         prefetched_count = len(sample_after.available_units_list) if hasattr(sample_after, 'available_units_list') else 0
-                        os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-                        with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                        os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                        with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
                             f.write(json.dumps({
                                 "sessionId": "debug-session",
                                 "runId": "run1",
@@ -884,8 +884,8 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                             }) + "\n")
                 except Exception as e:
                     try:
-                        os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-                        with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                        os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                        with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
                             f.write(json.dumps({
                                 "sessionId": "debug-session",
                                 "runId": "run1",
@@ -900,8 +900,8 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
             except Exception as e:
                 # #region agent log - Annotation exception
                 try:
-                    os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-                    with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                    os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                    with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
                         f.write(json.dumps({
                             "sessionId": "debug-session",
                             "runId": "run1",
@@ -918,7 +918,7 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
             # #region agent log - Check prefetched data after all filtering
             try:
                 import json, time, os
-                os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
+                os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
                 # Get first few products and check their prefetched units
                 # Use values() to avoid full object evaluation
                 sample_products_data = list(queryset.values('id', 'product_name', 'product_type')[:5])
@@ -938,7 +938,7 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                             "product_id": p.get('id'),
                             "error": str(e)
                         })
-                with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
                     f.write(json.dumps({
                         "sessionId": "debug-session",
                         "runId": "run1",
@@ -953,8 +953,8 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                     }) + "\n")
             except Exception as e:
                 try:
-                    os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-                    with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                    os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                    with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
                         f.write(json.dumps({
                             "sessionId": "debug-session",
                             "runId": "run1",
@@ -970,8 +970,8 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
             # #region agent log - Before brand filtering
             try:
                 before_brand_exists = queryset.exists()
-                os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-                with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
                     f.write(json.dumps({
                         "sessionId": "debug-session",
                         "runId": "run1",
@@ -1007,8 +1007,8 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
             # #region agent log - After brand filtering
             try:
                 after_brand_exists = queryset.exists()
-                os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-                with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
                     f.write(json.dumps({
                         "sessionId": "debug-session",
                         "runId": "run1",
@@ -1052,8 +1052,8 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
             if promotion_id:
                 # #region agent log - Before promotion filtering
                 try:
-                    os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-                    with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                    os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                    with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
                         f.write(json.dumps({
                             "sessionId": "debug-session",
                             "runId": "run1",
@@ -1074,8 +1074,8 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                     if brand is None:
                         # #region agent log - Promotion with None brand
                         try:
-                            os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-                            with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                            os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                            with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
                                 f.write(json.dumps({
                                     "sessionId": "debug-session",
                                     "runId": "run1",
@@ -1110,8 +1110,8 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                 except (Promotion.DoesNotExist, ValueError, TypeError) as e:
                     # #region agent log - Promotion exception
                     try:
-                        os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-                        with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                        os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                        with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
                             f.write(json.dumps({
                                 "sessionId": "debug-session",
                                 "runId": "run1",
@@ -1133,8 +1133,8 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                 except Exception as e:
                     # #region agent log - Unexpected promotion exception
                     try:
-                        os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-                        with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                        os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                        with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
                             f.write(json.dumps({
                                 "sessionId": "debug-session",
                                 "runId": "run1",
@@ -1191,7 +1191,7 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                 # #region agent log - Test queryset evaluation before count
                 try:
                     import json, time, os
-                    os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
+                    os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
                     # Try to evaluate queryset to see if it fails in PostgreSQL
                     try:
                         test_eval = list(queryset.values('id', 'product_name')[:3])
@@ -1201,7 +1201,7 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                         test_eval = []
                         eval_success = False
                         eval_error = str(eval_err)
-                    with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                    with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
                         f.write(json.dumps({
                             "sessionId": "debug-session",
                             "runId": "run1",
@@ -1275,8 +1275,8 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                             })
                     except Exception as e:
                         sample_products = [{"error": str(e), "traceback": traceback.format_exc()}]
-                os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-                with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
                     f.write(json.dumps({
                         "sessionId": "debug-session",
                         "runId": "run1",
@@ -1293,8 +1293,8 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                     }) + "\n")
             except Exception as e:
                 try:
-                    os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-                    with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                    os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                    with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
                         f.write(json.dumps({
                             "sessionId": "debug-session",
                             "runId": "run1",
@@ -1311,8 +1311,8 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
         except Exception as e:
             # #region agent log - Top level exception
             try:
-                os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-                with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
+                os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
                     f.write(json.dumps({
                         "sessionId": "debug-session",
                         "runId": "run1",
