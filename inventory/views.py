@@ -4875,6 +4875,16 @@ class BundleItemViewSet(viewsets.ModelViewSet):
     serializer_class = BundleItemSerializer
     permission_classes = [IsBundleManagerOrReadOnly]
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        bundle_id = self.request.query_params.get('bundle')
+        if bundle_id:
+            try:
+                queryset = queryset.filter(bundle_id=int(bundle_id))
+            except (TypeError, ValueError):
+                return BundleItem.objects.none()
+        return queryset
+
 
 class PesapalIPNView(APIView):
     """Handle Pesapal IPN (Instant Payment Notification) callbacks."""
