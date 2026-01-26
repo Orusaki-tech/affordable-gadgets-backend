@@ -2031,6 +2031,7 @@ class OrderViewSet(viewsets.ModelViewSet):
             serializer.validated_data['order_source'] = order_source
 
         # Ensure staff orders are associated with a brand
+        # Exception: ONLINE orders created by staff don't require brand (they're customer-facing)
         brand_id = self.request.data.get('brand') or self.request.data.get('brand_id')
         brand = None
         if brand_id:
@@ -2050,10 +2051,19 @@ class OrderViewSet(viewsets.ModelViewSet):
         elif self.request.user.is_authenticated and self.request.user.is_staff:
             if not admin:
                 raise exceptions.PermissionDenied("Staff account is missing an admin profile.")
-            if admin.brands.count() == 1:
-                brand = admin.brands.first()
-            else:
-                raise exceptions.ValidationError({'brand': 'Brand is required for staff orders.'})
+            # Only require brand for WALK_IN orders; ONLINE orders can proceed without brand
+            if order_source == Order.OrderSourceChoices.WALK_IN:
+                if admin.brands.count() == 1:
+                    brand = admin.brands.first()
+                else:
+                    raise exceptions.ValidationError({'brand': 'Brand is required for walk-in orders created by staff.'})
+            # For ONLINE orders, allow proceeding without brand (similar to guest orders)
+            # If salesperson has exactly one brand, auto-assign it for convenience
+            elif order_source == Order.OrderSourceChoices.ONLINE:
+                if admin.brands.count() == 1:
+                    brand = admin.brands.first()
+                # If 0 or 2+ brands, allow order to proceed without brand (ONLINE orders don't require brand)
+                # brand will remain None, which is acceptable for ONLINE orders
         
         logger.info("About to save order", extra={
             'has_idempotency_key': bool(idempotency_key),

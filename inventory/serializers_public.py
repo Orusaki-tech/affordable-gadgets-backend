@@ -391,8 +391,11 @@ class PublicBundleItemSerializer(serializers.ModelSerializer):
         ]
 
     def _get_price_range(self, product: Product):
-        if product.min_price is not None and product.max_price is not None:
-            return product.min_price, product.max_price
+        # Check if min_price and max_price annotations exist (from queryset annotations)
+        if hasattr(product, 'min_price') and hasattr(product, 'max_price'):
+            if product.min_price is not None and product.max_price is not None:
+                return product.min_price, product.max_price
+        # Fallback: query units directly to calculate price range
         units = InventoryUnit.objects.filter(product_template=product, sale_status='AV', available_online=True)
         if not units.exists():
             return None, None
@@ -447,8 +450,13 @@ class PublicBundleSerializer(serializers.ModelSerializer):
                 min_total += price * item.quantity
                 max_total += price * item.quantity
                 continue
-            min_price = item.product.min_price
-            max_price = item.product.max_price
+            # Check if min_price and max_price annotations exist (from queryset annotations)
+            min_price = None
+            max_price = None
+            if hasattr(item.product, 'min_price') and hasattr(item.product, 'max_price'):
+                min_price = item.product.min_price
+                max_price = item.product.max_price
+            # If annotations don't exist or are None, query units directly
             if min_price is None or max_price is None:
                 units = InventoryUnit.objects.filter(product_template=item.product, sale_status='AV', available_online=True)
                 if units.exists():
