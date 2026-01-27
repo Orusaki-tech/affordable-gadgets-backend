@@ -80,23 +80,28 @@ class ReceiptService:
         if order.user:
             served_by = order.user.get_full_name() or order.user.username
         
-        # Get payment method from Pesapal payment if available
-        payment_method = 'MPESA'  # Default
-        payment_methods_checked = []
+        # Get payment method from Pesapal payment if available, otherwise default to CASH
+        payment_method = 'CASH'
+        payment_methods_checked = ['cash']
         try:
             pesapal_payment = order.pesapal_payments.filter(status='COMPLETED').first()
             if pesapal_payment and pesapal_payment.payment_method:
-                payment_method = pesapal_payment.payment_method.upper()
-                # Map payment method to checkboxes
-                if 'MPESA' in payment_method or 'M-PESA' in payment_method:
-                    payment_methods_checked.append('mpesa')
-                elif 'BANK' in payment_method:
-                    payment_methods_checked.append('bank')
+                raw_method = pesapal_payment.payment_method.upper()
+                payment_method = raw_method
+                mapped_methods = set()
+                if any(token in raw_method for token in ['MPESA', 'M-PESA', 'MOBILE_MONEY', 'MOBILE MONEY']):
+                    mapped_methods.add('mpesa')
+                if any(token in raw_method for token in ['BANK', 'VISA', 'MASTERCARD', 'AMEX', 'CARD', 'BANK_TRANSFER']):
+                    mapped_methods.add('bank')
+                if 'CASH' in raw_method:
+                    mapped_methods.add('cash')
+                if mapped_methods:
+                    payment_methods_checked = sorted(mapped_methods)
                 else:
-                    payment_methods_checked.append('cash')
+                    # Default to bank for unknown card-like methods
+                    payment_methods_checked = ['bank']
         except Exception as e:
             logger.warning(f"Could not determine payment method: {e}")
-            payment_methods_checked.append('mpesa')  # Default to MPESA
         
         # Build bundle groups (if any)
         bundle_groups = {}
