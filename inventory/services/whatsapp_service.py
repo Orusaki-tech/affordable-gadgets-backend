@@ -106,8 +106,19 @@ class WhatsAppService:
                 return False
 
             timeout = int(getattr(settings, 'TWILIO_TIMEOUT', 10))
-            http_client = HttpClient(logger=logger, is_async=False, timeout=timeout)
-            client = Client(account_sid, auth_token, http_client=http_client)
+            try:
+                from twilio.http.http_client import TwilioHttpClient as TwilioClientClass
+            except ImportError:
+                from twilio.http.http_client import HttpClient as TwilioClientClass
+            http_client = None
+            try:
+                http_client = TwilioClientClass(logger=logger, is_async=False, timeout=timeout)
+            except Exception:
+                try:
+                    http_client = TwilioClientClass(timeout=timeout)
+                except Exception:
+                    http_client = None
+            client = Client(account_sid, auth_token, http_client=http_client) if http_client else Client(account_sid, auth_token)
 
             message = client.messages.create(
                 body=message_body,
@@ -141,8 +152,19 @@ class WhatsAppService:
             
             # Initialize Twilio client with timeout to avoid blocking workers
             timeout = int(getattr(settings, 'TWILIO_TIMEOUT', 10))
-            http_client = HttpClient(logger=logger, is_async=False, timeout=timeout)
-            client = Client(account_sid, auth_token, http_client=http_client)
+            try:
+                from twilio.http.http_client import TwilioHttpClient as TwilioClientClass
+            except ImportError:
+                from twilio.http.http_client import HttpClient as TwilioClientClass
+            http_client = None
+            try:
+                http_client = TwilioClientClass(logger=logger, is_async=False, timeout=timeout)
+            except Exception:
+                try:
+                    http_client = TwilioClientClass(timeout=timeout)
+                except Exception:
+                    http_client = None
+            client = Client(account_sid, auth_token, http_client=http_client) if http_client else Client(account_sid, auth_token)
             
             # Prepare message
             receipt_line = f"\n📄 Receipt: {pdf_url}\n" if pdf_url else "\n"
@@ -230,8 +252,19 @@ Affordable Gadgets Team
             
             # Initialize Twilio client with timeout to avoid blocking workers
             timeout = int(getattr(settings, 'TWILIO_TIMEOUT', 10))
-            http_client = HttpClient(logger=logger, is_async=False, timeout=timeout)
-            client = Client(account_sid, auth_token, http_client=http_client)
+            try:
+                from twilio.http.http_client import TwilioHttpClient as TwilioClientClass
+            except ImportError:
+                from twilio.http.http_client import HttpClient as TwilioClientClass
+            http_client = None
+            try:
+                http_client = TwilioClientClass(logger=logger, is_async=False, timeout=timeout)
+            except Exception:
+                try:
+                    http_client = TwilioClientClass(timeout=timeout)
+                except Exception:
+                    http_client = None
+            client = Client(account_sid, auth_token, http_client=http_client) if http_client else Client(account_sid, auth_token)
             
             # Prepare message
             message_body = f"""🎉 *Payment Confirmed!*
