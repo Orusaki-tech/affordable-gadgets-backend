@@ -79,6 +79,49 @@ class WhatsAppService:
         except ImportError:
             logger.error("Twilio library not installed. Install with: pip install twilio")
             return False
+
+    @staticmethod
+    def send_message(phone_number: str, message_body: str) -> bool:
+        """Send a plain WhatsApp message via Twilio."""
+        try:
+            from twilio.rest import Client
+            from twilio.base.exceptions import TwilioRestException
+            from twilio.http.http_client import HttpClient
+        except ImportError:
+            logger.error("Twilio library not installed. Install with: pip install twilio")
+            return False
+
+        try:
+            account_sid = getattr(settings, 'TWILIO_ACCOUNT_SID', None)
+            auth_token = getattr(settings, 'TWILIO_AUTH_TOKEN', None)
+            whatsapp_from = getattr(settings, 'TWILIO_WHATSAPP_FROM', None)
+
+            if not all([account_sid, auth_token, whatsapp_from]):
+                logger.warning("Twilio WhatsApp not configured. Skipping WhatsApp delivery.")
+                return False
+
+            formatted_phone = WhatsAppService.format_phone_number(phone_number)
+            if not formatted_phone:
+                logger.warning(f"Invalid phone number format: {phone_number}")
+                return False
+
+            timeout = int(getattr(settings, 'TWILIO_TIMEOUT', 10))
+            http_client = HttpClient(timeout=timeout)
+            client = Client(account_sid, auth_token, http_client=http_client)
+
+            message = client.messages.create(
+                body=message_body,
+                from_=whatsapp_from,
+                to=f"whatsapp:{formatted_phone}"
+            )
+            logger.info(f"WhatsApp message sent to {formatted_phone}. Message SID: {message.sid}")
+            return True
+        except TwilioRestException as e:
+            logger.error(f"Twilio error sending WhatsApp to {phone_number}: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Error sending WhatsApp message to {phone_number}: {e}")
+            return False
         
         try:
             # Check if Twilio is configured

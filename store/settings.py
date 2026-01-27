@@ -355,7 +355,8 @@ PESAPAL_RETRY_DELAY = int(os.environ.get('PESAPAL_RETRY_DELAY', '2'))
 PESAPAL_LOG_PATH = os.environ.get('PESAPAL_LOG_PATH', '/tmp/pesapal_debug.log')
 
 # --- Email Configuration ---
-EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
+# Use custom backend to improve TLS cert handling; override via EMAIL_BACKEND if needed.
+EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'store.email_backend.EmailBackend')
 EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
 EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
 EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True').lower() == 'true'
@@ -363,6 +364,8 @@ EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
 EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', '10'))
+EMAIL_SSL_CA_FILE = os.environ.get('EMAIL_SSL_CA_FILE', '')
+EMAIL_TLS_ALLOW_INVALID_CERTS = os.environ.get('EMAIL_TLS_ALLOW_INVALID_CERTS', 'False').lower() == 'true'
 
 # --- Twilio WhatsApp Configuration ---
 TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID', '')

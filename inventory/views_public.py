@@ -1,5 +1,7 @@
 """Public API ViewSets for e-commerce frontend."""
 from rest_framework import viewsets, permissions, status, filters, generics, exceptions
+from rest_framework.views import APIView
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -10,16 +12,21 @@ from django.core.cache import cache
 from urllib.parse import urlencode
 from decimal import Decimal
 from django.conf import settings
-from inventory.models import Product, InventoryUnit, Cart, Lead, Brand, Promotion, ProductImage, Bundle, BundleItem
+from inventory.models import (
+    Product, InventoryUnit, Cart, Lead, Brand, Promotion, ProductImage, Bundle, BundleItem,
+    Order, OrderItem, Review, Customer
+)
 from inventory.serializers_public import (
     PublicProductSerializer, PublicProductListSerializer, PublicInventoryUnitSerializer,
     CartSerializer, CartItemSerializer, CheckoutSerializer, PublicPromotionSerializer,
     CartCreateSerializer, CartItemCreateSerializer, CartBundleCreateSerializer, CheckoutResponseSerializer,
-    PublicBundleSerializer
+    PublicBundleSerializer, ReviewOtpRequestSerializer, ReviewEligibilityRequestSerializer,
+    ReviewEligibilityItemSerializer, PublicReviewSubmitSerializer
 )
-from inventory.serializers import LeadSerializer
+from inventory.serializers import LeadSerializer, ReviewSerializer
 from inventory.services.cart_service import CartService
 from inventory.services.customer_service import CustomerService
+from inventory.services.otp_service import OtpService
 
 
 @extend_schema_view(
@@ -53,6 +60,41 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
         if getattr(self, 'action', None) == 'list' and not self.request.query_params.get('slug'):
             return PublicProductListSerializer
         return PublicProductSerializer
+
+    @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
+    def brands(self, request):
+        """Return distinct brand names grouped by product type for menu use."""
+        product_type = request.query_params.get('type')
+        available_types = {code for code, _ in Product.ProductType.choices}
+
+        if product_type and product_type not in available_types:
+            raise exceptions.ValidationError({"type": "Invalid product type."})
+
+        queryset = (
+            self.get_queryset()
+            .exclude(brand__isnull=True)
+            .exclude(brand__exact='')
+        )
+
+        if product_type:
+            brands = (
+                queryset.filter(product_type=product_type)
+                .values_list('brand', flat=True)
+                .distinct()
+                .order_by('brand')
+            )
+            return Response({"type": product_type, "results": list(brands)})
+
+        brand_map = {code: [] for code, _ in Product.ProductType.choices}
+        brand_rows = (
+            queryset.values_list('product_type', 'brand')
+            .distinct()
+            .order_by('product_type', 'brand')
+        )
+        for product_type_value, brand in brand_rows:
+            brand_map.setdefault(product_type_value, []).append(brand)
+
+        return Response({"results": brand_map})
     
     # #region agent log - Check ALL products in database (before any filtering)
     def _log_all_products_debug(self, debug_enabled=False):
@@ -1682,6 +1724,153 @@ class CartViewSet(viewsets.ModelViewSet):
                 'is_returning': False,
                 'message': None
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@extend_schema(request=ReviewOtpRequestSerializer, responses=OpenApiTypes.OBJECT)
+class ReviewOtpView(APIView):
+    """Send OTP for review verification."""
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        serializer = ReviewOtpRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        phone = serializer.validated_data['phone']
+
+        result = OtpService.send_review_otp(phone)
+        if not result.get("sent"):
+            status_code = status.HTTP_429_TOO_MANY_REQUESTS
+            if result.get("error") and "Unable to send" in result.get("error", ""):
+                status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+            return Response(result, status=status_code)
+        return Response(result)
+
+
+@extend_schema(request=ReviewEligibilityRequestSerializer, responses=OpenApiTypes.OBJECT)
+class ReviewEligibilityView(APIView):
+    """Return eligible purchased items for review."""
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        serializer = ReviewEligibilityRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        phone = serializer.validated_data['phone']
+        otp = serializer.validated_data['otp']
+
+        if not OtpService.verify_review_otp(phone, otp):
+            return Response({'error': 'Invalid or expired OTP.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        customer = Customer.objects.filter(phone=phone).first()
+        if not customer:
+            return Response({'customer': None, 'eligible_items': []})
+
+        brand = getattr(request, 'brand', None)
+        order_items = (
+            OrderItem.objects
+            .filter(
+                order__customer=customer,
+                order__status__in=[Order.StatusChoices.PAID, Order.StatusChoices.DELIVERED],
+                inventory_unit__product_template__isnull=False
+            )
+            .select_related('order', 'inventory_unit__product_template')
+            .order_by('-order__created_at')
+        )
+        if brand:
+            order_items = order_items.filter(order__brand=brand)
+
+        eligible_items = []
+        seen_products = set()
+        for item in order_items:
+            product = item.inventory_unit.product_template
+            if not product or product.id in seen_products:
+                continue
+            if Review.objects.filter(customer=customer, product=product).exists():
+                continue
+            eligible_items.append({
+                'product_id': product.id,
+                'product_name': product.product_name,
+                'product_slug': product.slug or '',
+                'order_id': item.order.order_id,
+                'order_item_id': item.id,
+                'purchase_date': item.order.created_at.date() if item.order.created_at else None
+            })
+            seen_products.add(product.id)
+
+        items_serializer = ReviewEligibilityItemSerializer(eligible_items, many=True)
+        return Response({
+            'customer': {
+                'name': customer.name or '',
+                'phone': customer.phone or '',
+                'email': customer.email or '',
+                'delivery_address': customer.delivery_address or ''
+            },
+            'eligible_items': items_serializer.data
+        })
+
+
+@extend_schema(request=PublicReviewSubmitSerializer, responses=ReviewSerializer)
+class PublicReviewSubmitView(APIView):
+    """Create a verified review for a purchased product."""
+    permission_classes = [permissions.AllowAny]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def post(self, request):
+        serializer = PublicReviewSubmitSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        phone = data['phone']
+        otp = data['otp']
+        if not OtpService.verify_review_otp(phone, otp):
+            return Response({'error': 'Invalid or expired OTP.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        customer = Customer.objects.filter(phone=phone).first()
+        if not customer:
+            return Response({'error': 'Customer not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        order_item = (
+            OrderItem.objects
+            .filter(
+                id=data['order_item_id'],
+                order__customer=customer,
+                order__status__in=[Order.StatusChoices.PAID, Order.StatusChoices.DELIVERED]
+            )
+            .select_related('order', 'inventory_unit__product_template')
+            .first()
+        )
+        if not order_item or not order_item.inventory_unit:
+            return Response({'error': 'Order item not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        product = order_item.inventory_unit.product_template
+        if not product or product.id != data['product_id']:
+            return Response({'error': 'Order item does not match product.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if Review.objects.filter(customer=customer, product=product).exists():
+            return Response({'error': 'You have already reviewed this product.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        review_payload = {
+            'product': product.id,
+            'rating': data['rating'],
+            'comment': data['comment'],
+            'review_image': data.get('review_image'),
+            'video_url': data.get('video_url')
+        }
+
+        review_serializer = ReviewSerializer(data=review_payload, context={'request': request})
+        review_serializer.is_valid(raise_exception=True)
+        review = review_serializer.save(customer=customer)
+
+        if not review.purchase_date or not review.product_condition:
+            update_fields = []
+            if not review.purchase_date and order_item.order.created_at:
+                review.purchase_date = order_item.order.created_at.date()
+                update_fields.append('purchase_date')
+            if not review.product_condition and order_item.inventory_unit:
+                review.product_condition = order_item.inventory_unit.get_condition_display()
+                update_fields.append('product_condition')
+            if update_fields:
+                review.save(update_fields=update_fields)
+
+        return Response(ReviewSerializer(review, context={'request': request}).data, status=status.HTTP_201_CREATED)
 
 
 @extend_schema(

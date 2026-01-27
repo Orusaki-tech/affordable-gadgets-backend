@@ -1,7 +1,8 @@
 """
 Signal handlers for inventory management system.
 """
-from django.db.models.signals import post_save
+import logging
+from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
@@ -11,6 +12,46 @@ from .models import (
     InventoryUnit, Admin, User, Order, AuditLog, AdminRole
 )
 
+logger = logging.getLogger(__name__)
+
+
+@receiver(pre_save, sender=Order)
+def capture_order_previous_status(sender, instance, **kwargs):
+    """Capture previous status before saving to detect PAID transitions."""
+    if instance.pk:
+        instance._previous_status = Order.objects.filter(pk=instance.pk).values_list('status', flat=True).first()
+
+
+@receiver(post_save, sender=Order)
+def send_receipt_on_order_paid(sender, instance, created, **kwargs):
+    """
+    Ensure receipt email/WhatsApp is sent when an order transitions to PAID,
+    regardless of whether it came from IPN, cash confirmation, or manual update.
+    """
+    if created:
+        return
+
+    previous_status = getattr(instance, "_previous_status", None)
+    if previous_status == Order.StatusChoices.PAID or instance.status != Order.StatusChoices.PAID:
+        return
+
+    try:
+        from inventory.services.receipt_service import ReceiptService
+        receipt, email_sent, whatsapp_sent = ReceiptService.generate_and_send_receipt(instance)
+        logger.info(
+            "Receipt generated after order paid",
+            extra={
+                'order_id': str(instance.order_id),
+                'receipt_number': receipt.receipt_number,
+                'email_sent': email_sent,
+                'whatsapp_sent': whatsapp_sent,
+            },
+        )
+    except Exception as e:
+        logger.error(
+            f"Failed to generate receipt after order paid for order {instance.order_id}: {e}",
+            exc_info=True,
+        )
 
 @receiver(post_save, sender=ReservationRequest)
 def handle_reservation_approval(sender, instance, created, **kwargs):
