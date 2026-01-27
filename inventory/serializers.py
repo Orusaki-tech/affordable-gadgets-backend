@@ -2375,6 +2375,12 @@ class ReturnRequestSerializer(serializers.ModelSerializer):
         except Admin.DoesNotExist:
             raise serializers.ValidationError("Admin profile required.")
         
+        # Require at least one unit when unit_ids is provided
+        if not value or len(value) == 0:
+            raise serializers.ValidationError(
+                "At least one unit must be specified for return request."
+            )
+        
         for unit in value:
             # Explicitly check if unit is sold - cannot return sold items
             if unit.sale_status == InventoryUnit.SaleStatusChoices.SOLD:
@@ -2392,6 +2398,35 @@ class ReturnRequestSerializer(serializers.ModelSerializer):
         
         return value
     
+    def validate(self, attrs):
+        """Validate return request data."""
+        # For create operations, ensure unit_ids is provided or user has reserved units
+        if self.instance is None:  # Creating new return request
+            request = self.context.get('request')
+            if not request or not request.user.is_authenticated:
+                raise serializers.ValidationError("Authentication required.")
+            
+            try:
+                admin = Admin.objects.get(user=request.user)
+            except Admin.DoesNotExist:
+                raise serializers.ValidationError("Admin profile required.")
+            
+            # Check if unit_ids (mapped to inventory_units) is provided
+            inventory_units = attrs.get('inventory_units', [])
+            
+            # If no units specified, check if user has any reserved units
+            if not inventory_units:
+                reserved_count = InventoryUnit.objects.filter(
+                    reserved_by=admin,
+                    sale_status=InventoryUnit.SaleStatusChoices.RESERVED
+                ).count()
+                if reserved_count == 0:
+                    raise serializers.ValidationError({
+                        'unit_ids': 'No reserved units found. Please specify unit_ids or reserve units first.'
+                    })
+        
+        return attrs
+    
     def create(self, validated_data):
         """Auto-set requesting_salesperson and handle bulk return creation."""
         request = self.context.get('request')
@@ -2401,15 +2436,27 @@ class ReturnRequestSerializer(serializers.ModelSerializer):
         except Admin.DoesNotExist:
             raise serializers.ValidationError("Admin profile required.")
         
-        # If no units specified, get all reserved units for this admin
-        units_data = validated_data.pop('inventory_units', [])
-        if not units_data:
-            # Bulk return all reserved units
+        # Get units from validated_data (mapped from unit_ids field)
+        # If unit_ids was provided, it will be in validated_data as 'inventory_units'
+        # If not provided, it will be missing and we'll get all reserved units
+        units_data = validated_data.pop('inventory_units', None)
+        
+        if units_data is None:
+            # No unit_ids provided - get all reserved units for this admin (bulk return)
             reserved_units = InventoryUnit.objects.filter(
                 reserved_by=admin,
                 sale_status=InventoryUnit.SaleStatusChoices.RESERVED
             )
             units_data = list(reserved_units)
+            if not units_data:
+                raise serializers.ValidationError(
+                    "No reserved units found to return. Please specify unit_ids or reserve units first."
+                )
+        elif len(units_data) == 0:
+            # Empty list was provided - this should have been caught by validate_unit_ids
+            raise serializers.ValidationError(
+                "At least one unit must be specified for return request."
+            )
         
         return_request = super().create(validated_data)
         return_request.inventory_units.set(units_data)

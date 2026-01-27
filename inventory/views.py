@@ -2224,12 +2224,42 @@ class OrderViewSet(viewsets.ModelViewSet):
                     continue
                 
                 if unit.product_template.product_type == Product.ProductType.ACCESSORY:
-                    # Accessory: Decrement quantity and mark as SOLD if quantity reaches 0
-                    unit.quantity -= order_item.quantity
+                    # Accessory: consume reserved quantities first (if any), then decrement remaining
+                    reserved_consumed = 0
+                    try:
+                        admin = Admin.objects.get(user=order.user) if order.user else None
+                    except Admin.DoesNotExist:
+                        admin = None
+                    if admin:
+                        remaining_to_consume = order_item.quantity
+                        reservation_requests = ReservationRequest.objects.filter(
+                            requesting_salesperson=admin,
+                            status=ReservationRequest.StatusChoices.APPROVED,
+                            inventory_units=unit
+                        ).order_by('approved_at', 'requested_at')
+                        for req in reservation_requests:
+                            unit_quantities = req.inventory_unit_quantities or {}
+                            qty = unit_quantities.get(str(unit.id)) or unit_quantities.get(unit.id) or 0
+                            if qty <= 0:
+                                continue
+                            consume = min(remaining_to_consume, qty)
+                            unit_quantities[str(unit.id)] = qty - consume
+                            req.inventory_unit_quantities = unit_quantities
+                            if all(v == 0 for v in unit_quantities.values()):
+                                req.status = ReservationRequest.StatusChoices.RETURNED
+                                req.expires_at = timezone.now()
+                            req.save(update_fields=['inventory_unit_quantities', 'status', 'expires_at'])
+                            reserved_consumed += consume
+                            remaining_to_consume -= consume
+                            if remaining_to_consume == 0:
+                                break
+
+                    decrement_qty = max(0, order_item.quantity - reserved_consumed)
+                    if decrement_qty > 0:
+                        unit.quantity = max(0, unit.quantity - decrement_qty)
                     if unit.quantity == 0:
                         unit.sale_status = InventoryUnit.SaleStatusChoices.SOLD
                     else:
-                        # Quantity > 0, keep as AVAILABLE
                         unit.sale_status = InventoryUnit.SaleStatusChoices.AVAILABLE
                     unit.save(update_fields=['quantity', 'sale_status'])
                     units_updated.append(unit.id)
@@ -3060,6 +3090,14 @@ class ReservationRequestViewSet(viewsets.ModelViewSet):
                     # Fallback to old single unit during migration
                     units = [request_obj.inventory_unit]
                 
+                # Log if no units found
+                if not units.exists() and not request_obj.inventory_unit:
+                    logger.warning(
+                        f"Reservation request {request_obj.id} approved but has no inventory units associated. "
+                        f"inventory_units.count()={request_obj.inventory_units.count()}, "
+                        f"inventory_unit={request_obj.inventory_unit}"
+                    )
+                
                 unit_names = []
                 updated_units = []
                 updated_quantities = {}
@@ -3068,47 +3106,23 @@ class ReservationRequestViewSet(viewsets.ModelViewSet):
                     requested_qty = unit_quantities.get(str(unit.id)) or unit_quantities.get(unit.id) or 1
                     if requested_qty > unit.quantity:
                         requested_qty = unit.quantity
-                    if unit.product_template.product_type == Product.ProductType.ACCESSORY:
-                        if requested_qty < unit.quantity:
-                            remaining_qty = unit.quantity - requested_qty
-                            unit.quantity = remaining_qty
-                            unit.save(update_fields=['quantity'])
 
-                            reserved_unit = InventoryUnit.objects.create(
-                                product_template=unit.product_template,
-                                product_color=unit.product_color,
-                                acquisition_source_details=unit.acquisition_source_details,
-                                quantity=requested_qty,
-                                condition=unit.condition,
-                                source=unit.source,
-                                sale_status=InventoryUnit.SaleStatusChoices.RESERVED,
-                                grade=unit.grade,
-                                cost_of_unit=unit.cost_of_unit,
-                                selling_price=unit.selling_price,
-                                serial_number=None,
-                                imei=None,
-                                storage_gb=unit.storage_gb,
-                                ram_gb=unit.ram_gb,
-                                battery_mah=unit.battery_mah,
-                                is_sim_enabled=unit.is_sim_enabled,
-                                processor_details=unit.processor_details,
-                                date_sourced=unit.date_sourced,
-                                reserved_by=request_obj.requesting_salesperson,
-                                reserved_until=timezone.now() + timedelta(days=2),
-                                available_online=unit.available_online,
-                            )
-                            reserved_unit.brands.set(unit.brands.all())
-                            updated_units.append(reserved_unit)
-                            updated_quantities[reserved_unit.id] = requested_qty
-                            unit_names.append(reserved_unit.product_template.product_name)
-                        else:
+                    if unit.product_template.product_type == Product.ProductType.ACCESSORY:
+                        # Accessories: reserve only the requested quantity.
+                        # Decrement available quantity and keep the same inventory unit.
+                        unit.quantity = max(0, unit.quantity - requested_qty)
+                        if unit.quantity == 0:
                             unit.sale_status = InventoryUnit.SaleStatusChoices.RESERVED
                             unit.reserved_by = request_obj.requesting_salesperson
                             unit.reserved_until = timezone.now() + timedelta(days=2)
-                            unit.save()
-                            updated_units.append(unit)
-                            updated_quantities[unit.id] = requested_qty
-                            unit_names.append(unit.product_template.product_name)
+                        else:
+                            unit.sale_status = InventoryUnit.SaleStatusChoices.AVAILABLE
+                            unit.reserved_by = None
+                            unit.reserved_until = None
+                        unit.save(update_fields=['quantity', 'sale_status', 'reserved_by', 'reserved_until'])
+                        updated_units.append(unit)
+                        updated_quantities[unit.id] = requested_qty
+                        unit_names.append(unit.product_template.product_name)
                     else:
                         unit.sale_status = InventoryUnit.SaleStatusChoices.RESERVED
                         unit.reserved_by = request_obj.requesting_salesperson
@@ -3295,6 +3309,47 @@ class ReturnRequestViewSet(viewsets.ModelViewSet):
             return [CanApproveRequests()]
         return [IsAdminUser()]
     
+    def create(self, request, *args, **kwargs):
+        """Override create to provide better error handling."""
+        from rest_framework import serializers as drf_serializers
+        
+        try:
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            self.perform_create(serializer)
+            headers = self.get_success_headers(serializer.data)
+            return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        except drf_serializers.ValidationError as e:
+            # Return validation errors in a clear format
+            logger.error(f"Return request creation validation error: {e.detail}")
+            error_message = "Validation failed"
+            if isinstance(e.detail, dict):
+                # Format field-specific errors
+                error_parts = []
+                for field, messages in e.detail.items():
+                    if isinstance(messages, list):
+                        error_parts.append(f"{field}: {', '.join(str(m) for m in messages)}")
+                    else:
+                        error_parts.append(f"{field}: {messages}")
+                if error_parts:
+                    error_message = "; ".join(error_parts)
+            elif isinstance(e.detail, list):
+                error_message = "; ".join(str(m) for m in e.detail)
+            else:
+                error_message = str(e.detail)
+            
+            return Response(
+                {"error": error_message, "details": e.detail},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as e:
+            # Catch any other exceptions and return a proper error message
+            logger.error(f"Return request creation error: {str(e)}", exc_info=True)
+            return Response(
+                {"error": f"Failed to create return request: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+    
     def perform_update(self, serializer):
         """Handle approval/rejection of return requests."""
         request_obj = self.get_object()
@@ -3316,21 +3371,41 @@ class ReturnRequestViewSet(viewsets.ModelViewSet):
             # Handle both salesperson returns (RESERVED → AVAILABLE) and buyback approvals (RETURNED → AVAILABLE)
             units = request_obj.inventory_units.all()
             for unit in units:
-                if unit.sale_status == InventoryUnit.SaleStatusChoices.RESERVED:
-                    # Salesperson return: clear reservation and make available
+                if unit.product_template.product_type == Product.ProductType.ACCESSORY:
+                    # Restore reserved quantities for accessories based on approved reservation requests
+                    reservation_requests = ReservationRequest.objects.filter(
+                        requesting_salesperson=request_obj.requesting_salesperson,
+                        status=ReservationRequest.StatusChoices.APPROVED,
+                        inventory_units=unit
+                    )
+                    restore_qty = 0
+                    for req in reservation_requests:
+                        unit_quantities = req.inventory_unit_quantities or {}
+                        qty = unit_quantities.get(str(unit.id)) or unit_quantities.get(unit.id) or 0
+                        restore_qty += qty
+                    if restore_qty > 0:
+                        unit.quantity += restore_qty
                     unit.sale_status = InventoryUnit.SaleStatusChoices.AVAILABLE
                     unit.reserved_by = None
                     unit.reserved_until = None
-                elif unit.sale_status == InventoryUnit.SaleStatusChoices.RETURNED:
-                    # Buyback approval: just change status to available
-                    unit.sale_status = InventoryUnit.SaleStatusChoices.AVAILABLE
-                unit.save()
+                    unit.save(update_fields=['quantity', 'sale_status', 'reserved_by', 'reserved_until'])
+                else:
+                    if unit.sale_status == InventoryUnit.SaleStatusChoices.RESERVED:
+                        # Salesperson return: clear reservation and make available
+                        unit.sale_status = InventoryUnit.SaleStatusChoices.AVAILABLE
+                        unit.reserved_by = None
+                        unit.reserved_until = None
+                    elif unit.sale_status == InventoryUnit.SaleStatusChoices.RETURNED:
+                        # Buyback approval: just change status to available
+                        unit.sale_status = InventoryUnit.SaleStatusChoices.AVAILABLE
+                    unit.save()
 
             # Mark any related approved reservation requests as returned
             ReservationRequest.objects.filter(
-                inventory_unit__in=units,
                 requesting_salesperson=request_obj.requesting_salesperson,
                 status=ReservationRequest.StatusChoices.APPROVED
+            ).filter(
+                Q(inventory_units__in=units) | Q(inventory_unit__in=units)
             ).update(
                 status=ReservationRequest.StatusChoices.RETURNED,
                 expires_at=timezone.now()

@@ -409,16 +409,47 @@ class PesapalPaymentService:
                                 continue
                             
                             if unit.product_template.product_type == Product.ProductType.ACCESSORY:
-                                # Accessory: Decrement quantity and mark as SOLD if quantity reaches 0
-                                unit.quantity -= order_item.quantity
+                                # Accessory: consume reserved quantities first (if any), then decrement remaining
+                                from inventory.models import ReservationRequest, Admin
+                                reserved_consumed = 0
+                                try:
+                                    admin = Admin.objects.get(user=payment.order.user) if payment.order.user else None
+                                except Admin.DoesNotExist:
+                                    admin = None
+                                if admin:
+                                    remaining_to_consume = order_item.quantity
+                                    reservation_requests = ReservationRequest.objects.filter(
+                                        requesting_salesperson=admin,
+                                        status=ReservationRequest.StatusChoices.APPROVED,
+                                        inventory_units=unit
+                                    ).order_by('approved_at', 'requested_at')
+                                    for req in reservation_requests:
+                                        unit_quantities = req.inventory_unit_quantities or {}
+                                        qty = unit_quantities.get(str(unit.id)) or unit_quantities.get(unit.id) or 0
+                                        if qty <= 0:
+                                            continue
+                                        consume = min(remaining_to_consume, qty)
+                                        unit_quantities[str(unit.id)] = qty - consume
+                                        req.inventory_unit_quantities = unit_quantities
+                                        if all(v == 0 for v in unit_quantities.values()):
+                                            req.status = ReservationRequest.StatusChoices.RETURNED
+                                            req.expires_at = timezone.now()
+                                        req.save(update_fields=['inventory_unit_quantities', 'status', 'expires_at'])
+                                        reserved_consumed += consume
+                                        remaining_to_consume -= consume
+                                        if remaining_to_consume == 0:
+                                            break
+
+                                decrement_qty = max(0, order_item.quantity - reserved_consumed)
+                                if decrement_qty > 0:
+                                    unit.quantity = max(0, unit.quantity - decrement_qty)
                                 if unit.quantity == 0:
                                     unit.sale_status = InventoryUnit.SaleStatusChoices.SOLD
                                 else:
-                                    # Quantity > 0, keep as AVAILABLE
                                     unit.sale_status = InventoryUnit.SaleStatusChoices.AVAILABLE
                                 unit.save(update_fields=['quantity', 'sale_status'])
                                 units_updated.append(unit.id)
-                                print(f"[PESAPAL] ✓ Accessory unit {unit.id} quantity decremented by {order_item.quantity}, new quantity: {unit.quantity}, status: {unit.get_sale_status_display()}")
+                                print(f"[PESAPAL] ✓ Accessory unit {unit.id} reserved_consumed={reserved_consumed}, decremented={decrement_qty}, new quantity: {unit.quantity}, status: {unit.get_sale_status_display()}")
                             else:
                                 # Unique item (Phone/Laptop/Tablet): Mark as SOLD
                                 if unit.sale_status == InventoryUnit.SaleStatusChoices.PENDING_PAYMENT:
