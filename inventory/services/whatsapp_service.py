@@ -106,7 +106,7 @@ class WhatsAppService:
                 return False
 
             timeout = int(getattr(settings, 'TWILIO_TIMEOUT', 10))
-            http_client = HttpClient(timeout=timeout)
+            http_client = HttpClient(logger=logger, is_async=False, timeout=timeout)
             client = Client(account_sid, auth_token, http_client=http_client)
 
             message = client.messages.create(
@@ -141,7 +141,7 @@ class WhatsAppService:
             
             # Initialize Twilio client with timeout to avoid blocking workers
             timeout = int(getattr(settings, 'TWILIO_TIMEOUT', 10))
-            http_client = HttpClient(timeout=timeout)
+            http_client = HttpClient(logger=logger, is_async=False, timeout=timeout)
             client = Client(account_sid, auth_token, http_client=http_client)
             
             # Prepare message
@@ -230,7 +230,7 @@ Affordable Gadgets Team
             
             # Initialize Twilio client with timeout to avoid blocking workers
             timeout = int(getattr(settings, 'TWILIO_TIMEOUT', 10))
-            http_client = HttpClient(timeout=timeout)
+            http_client = HttpClient(logger=logger, is_async=False, timeout=timeout)
             client = Client(account_sid, auth_token, http_client=http_client)
             
             # Prepare message
