@@ -3529,10 +3529,7 @@ paths:
           description: ''
     post:
       operationId: return_requests_create
-      description: |-
-        ViewSet for managing return requests (bulk returns of reserved units).
-        - Salespersons can create return requests for their reserved units
-        - Inventory Managers can approve/reject return requests
+      description: Override create to provide better error handling.
       tags:
       - return-requests
       requestBody:
@@ -5166,18 +5163,6 @@ paths:
         description: A page number within the paginated result set.
         schema:
           type: integer
-      - name: page_size
-        required: false
-        in: query
-        description: Number of results to return per page.
-        schema:
-          type: integer
-      - name: display_location
-        required: false
-        in: query
-        description: Comma-separated display locations to include.
-        schema:
-          type: string
       tags:
       - api
       security:
@@ -5883,10 +5868,16 @@ paths:
     get:
       operationId: api_v1_public_promotions_list
       parameters:
-      - name: page
-        required: false
-        in: query
-        description: A page number within the paginated result set.
+      - in: query
+        name: display_location
+        schema:
+          type: string
+      - in: query
+        name: page
+        schema:
+          type: integer
+      - in: query
+        name: page_size
         schema:
           type: integer
       tags:
