@@ -5,13 +5,47 @@ import logging
 import re
 from typing import Optional
 from django.conf import settings
-from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
 
 class WhatsAppService:
     """Service for sending WhatsApp messages via Twilio."""
+
+    @staticmethod
+    def _get_twilio_client():
+        """Return (client, whatsapp_from) if configured, otherwise (None, None)."""
+        try:
+            from twilio.rest import Client
+            from twilio.http.http_client import HttpClient
+        except ImportError:
+            logger.error("Twilio library not installed. Install with: pip install twilio")
+            return None, None
+
+        account_sid = getattr(settings, 'TWILIO_ACCOUNT_SID', None)
+        auth_token = getattr(settings, 'TWILIO_AUTH_TOKEN', None)
+        whatsapp_from = getattr(settings, 'TWILIO_WHATSAPP_FROM', None)
+
+        if not all([account_sid, auth_token, whatsapp_from]):
+            logger.warning("Twilio WhatsApp not configured. Skipping WhatsApp delivery.")
+            return None, None
+
+        timeout = int(getattr(settings, 'TWILIO_TIMEOUT', 10))
+        try:
+            from twilio.http.http_client import TwilioHttpClient as TwilioClientClass
+        except ImportError:
+            from twilio.http.http_client import HttpClient as TwilioClientClass
+        http_client = None
+        try:
+            http_client = TwilioClientClass(logger=logger, is_async=False, timeout=timeout)
+        except Exception:
+            try:
+                http_client = TwilioClientClass(timeout=timeout)
+            except Exception:
+                http_client = None
+
+        client = Client(account_sid, auth_token, http_client=http_client) if http_client else Client(account_sid, auth_token)
+        return client, whatsapp_from
     
     @staticmethod
     def format_phone_number(phone: str) -> Optional[str]:
@@ -73,31 +107,14 @@ class WhatsAppService:
             bool: True if sent successfully, False otherwise
         """
         try:
-            from twilio.rest import Client
             from twilio.base.exceptions import TwilioRestException
-            from twilio.http.http_client import HttpClient
-        except ImportError:
-            logger.error("Twilio library not installed. Install with: pip install twilio")
-            return False
-
-    @staticmethod
-    def send_message(phone_number: str, message_body: str) -> bool:
-        """Send a plain WhatsApp message via Twilio."""
-        try:
-            from twilio.rest import Client
-            from twilio.base.exceptions import TwilioRestException
-            from twilio.http.http_client import HttpClient
         except ImportError:
             logger.error("Twilio library not installed. Install with: pip install twilio")
             return False
 
         try:
-            account_sid = getattr(settings, 'TWILIO_ACCOUNT_SID', None)
-            auth_token = getattr(settings, 'TWILIO_AUTH_TOKEN', None)
-            whatsapp_from = getattr(settings, 'TWILIO_WHATSAPP_FROM', None)
-
-            if not all([account_sid, auth_token, whatsapp_from]):
-                logger.warning("Twilio WhatsApp not configured. Skipping WhatsApp delivery.")
+            client, whatsapp_from = WhatsAppService._get_twilio_client()
+            if not client or not whatsapp_from:
                 return False
 
             formatted_phone = WhatsAppService.format_phone_number(phone_number)
@@ -105,68 +122,6 @@ class WhatsAppService:
                 logger.warning(f"Invalid phone number format: {phone_number}")
                 return False
 
-            timeout = int(getattr(settings, 'TWILIO_TIMEOUT', 10))
-            try:
-                from twilio.http.http_client import TwilioHttpClient as TwilioClientClass
-            except ImportError:
-                from twilio.http.http_client import HttpClient as TwilioClientClass
-            http_client = None
-            try:
-                http_client = TwilioClientClass(logger=logger, is_async=False, timeout=timeout)
-            except Exception:
-                try:
-                    http_client = TwilioClientClass(timeout=timeout)
-                except Exception:
-                    http_client = None
-            client = Client(account_sid, auth_token, http_client=http_client) if http_client else Client(account_sid, auth_token)
-
-            message = client.messages.create(
-                body=message_body,
-                from_=whatsapp_from,
-                to=f"whatsapp:{formatted_phone}"
-            )
-            logger.info(f"WhatsApp message sent to {formatted_phone}. Message SID: {message.sid}")
-            return True
-        except TwilioRestException as e:
-            logger.error(f"Twilio error sending WhatsApp to {phone_number}: {e}")
-            return False
-        except Exception as e:
-            logger.error(f"Error sending WhatsApp message to {phone_number}: {e}")
-            return False
-        
-        try:
-            # Check if Twilio is configured
-            account_sid = getattr(settings, 'TWILIO_ACCOUNT_SID', None)
-            auth_token = getattr(settings, 'TWILIO_AUTH_TOKEN', None)
-            whatsapp_from = getattr(settings, 'TWILIO_WHATSAPP_FROM', None)
-            
-            if not all([account_sid, auth_token, whatsapp_from]):
-                logger.warning("Twilio WhatsApp not configured. Skipping WhatsApp delivery.")
-                return False
-            
-            # Format phone number
-            formatted_phone = WhatsAppService.format_phone_number(phone_number)
-            if not formatted_phone:
-                logger.warning(f"Invalid phone number format: {phone_number}")
-                return False
-            
-            # Initialize Twilio client with timeout to avoid blocking workers
-            timeout = int(getattr(settings, 'TWILIO_TIMEOUT', 10))
-            try:
-                from twilio.http.http_client import TwilioHttpClient as TwilioClientClass
-            except ImportError:
-                from twilio.http.http_client import HttpClient as TwilioClientClass
-            http_client = None
-            try:
-                http_client = TwilioClientClass(logger=logger, is_async=False, timeout=timeout)
-            except Exception:
-                try:
-                    http_client = TwilioClientClass(timeout=timeout)
-                except Exception:
-                    http_client = None
-            client = Client(account_sid, auth_token, http_client=http_client) if http_client else Client(account_sid, auth_token)
-            
-            # Prepare message
             receipt_line = f"\n📄 Receipt: {pdf_url}\n" if pdf_url else "\n"
             message_body = f"""🎉 *Payment Confirmed!*
 
@@ -184,22 +139,52 @@ Your receipt has been sent to your email. If you have any questions, please cont
 Best regards,
 Affordable Gadgets Team
 📍 Kimathi House, Fourth Floor, Room 409"""
-            
-            # Send WhatsApp message
+
             message = client.messages.create(
                 body=message_body,
-                from_=whatsapp_from,  # Twilio WhatsApp number (format: whatsapp:+14155238886)
+                from_=whatsapp_from,
                 to=f"whatsapp:{formatted_phone}"
             )
-            
             logger.info(f"WhatsApp receipt sent to {formatted_phone} for order {order_id}. Message SID: {message.sid}")
             return True
-            
         except TwilioRestException as e:
             logger.error(f"Twilio error sending WhatsApp to {phone_number}: {e}")
             return False
         except Exception as e:
             logger.error(f"Error sending WhatsApp receipt to {phone_number}: {e}")
+            return False
+
+    @staticmethod
+    def send_message(phone_number: str, message_body: str) -> bool:
+        """Send a plain WhatsApp message via Twilio."""
+        try:
+            from twilio.base.exceptions import TwilioRestException
+        except ImportError:
+            logger.error("Twilio library not installed. Install with: pip install twilio")
+            return False
+
+        try:
+            client, whatsapp_from = WhatsAppService._get_twilio_client()
+            if not client or not whatsapp_from:
+                return False
+
+            formatted_phone = WhatsAppService.format_phone_number(phone_number)
+            if not formatted_phone:
+                logger.warning(f"Invalid phone number format: {phone_number}")
+                return False
+
+            message = client.messages.create(
+                body=message_body,
+                from_=whatsapp_from,
+                to=f"whatsapp:{formatted_phone}"
+            )
+            logger.info(f"WhatsApp message sent to {formatted_phone}. Message SID: {message.sid}")
+            return True
+        except TwilioRestException as e:
+            logger.error(f"Twilio error sending WhatsApp to {phone_number}: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Error sending WhatsApp message to {phone_number}: {e}")
             return False
     
     @staticmethod
@@ -227,44 +212,21 @@ Affordable Gadgets Team
             bool: True if sent successfully, False otherwise
         """
         try:
-            from twilio.rest import Client
             from twilio.base.exceptions import TwilioRestException
-            from twilio.http.http_client import HttpClient
         except ImportError:
             logger.error("Twilio library not installed. Install with: pip install twilio")
             return False
         
         try:
-            # Check if Twilio is configured
-            account_sid = getattr(settings, 'TWILIO_ACCOUNT_SID', None)
-            auth_token = getattr(settings, 'TWILIO_AUTH_TOKEN', None)
-            whatsapp_from = getattr(settings, 'TWILIO_WHATSAPP_FROM', None)
-            
-            if not all([account_sid, auth_token, whatsapp_from]):
-                logger.warning("Twilio WhatsApp not configured. Skipping WhatsApp delivery.")
+            client, whatsapp_from = WhatsAppService._get_twilio_client()
+            if not client or not whatsapp_from:
                 return False
-            
+
             # Format phone number
             formatted_phone = WhatsAppService.format_phone_number(phone_number)
             if not formatted_phone:
                 logger.warning(f"Invalid phone number format: {phone_number}")
                 return False
-            
-            # Initialize Twilio client with timeout to avoid blocking workers
-            timeout = int(getattr(settings, 'TWILIO_TIMEOUT', 10))
-            try:
-                from twilio.http.http_client import TwilioHttpClient as TwilioClientClass
-            except ImportError:
-                from twilio.http.http_client import HttpClient as TwilioClientClass
-            http_client = None
-            try:
-                http_client = TwilioClientClass(logger=logger, is_async=False, timeout=timeout)
-            except Exception:
-                try:
-                    http_client = TwilioClientClass(timeout=timeout)
-                except Exception:
-                    http_client = None
-            client = Client(account_sid, auth_token, http_client=http_client) if http_client else Client(account_sid, auth_token)
             
             # Prepare message
             message_body = f"""🎉 *Payment Confirmed!*
