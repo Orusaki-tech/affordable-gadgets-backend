@@ -371,6 +371,8 @@ EMAIL_TLS_ALLOW_INVALID_CERTS = os.environ.get('EMAIL_TLS_ALLOW_INVALID_CERTS', 
 TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID', '')
 TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN', '')
 TWILIO_WHATSAPP_FROM = os.environ.get('TWILIO_WHATSAPP_FROM', '')  # Format: whatsapp:+14155238886
+TWILIO_SMS_FROM = os.environ.get('TWILIO_SMS_FROM', '')  # Format: +15551234567
+TWILIO_TIMEOUT = int(os.environ.get('TWILIO_TIMEOUT', '10'))
 
 # --- CORS Configuration (Development) ---
 # Configure allowed origins for your frontend applications

@@ -376,6 +376,47 @@ Affordable Gadgets Team
         except Exception as e:
             logger.error(f"Error sending receipt WhatsApp for order {order.order_id}: {e}", exc_info=True)
             return False
+
+    @staticmethod
+    def send_receipt_sms(order: Order, receipt: Optional[Receipt] = None) -> bool:
+        """Send receipt via SMS to customer (Twilio)."""
+        try:
+            if receipt is None:
+                receipt, _ = Receipt.objects.get_or_create(order=order)
+
+            # Ensure receipt has receipt_number
+            if not receipt.receipt_number:
+                receipt.receipt_number = ReceiptService.generate_receipt_number(order)
+                receipt.save(update_fields=['receipt_number'])
+
+            # Get customer phone number
+            customer = order.customer
+            customer_phone = customer.phone or getattr(customer, 'phone_number', '') or ''
+
+            # Try to get phone from source_lead for online orders
+            if not customer_phone and hasattr(order, 'source_lead') and order.source_lead:
+                customer_phone = getattr(order.source_lead, 'customer_phone', '') or ''
+
+            if not customer_phone:
+                logger.warning(f"No phone number found for order {order.order_id}, cannot send SMS receipt")
+                return False
+
+            from inventory.services.sms_service import SmsService
+
+            receipt_url = ReceiptService.get_receipt_url(order, format_type='pdf')
+            message_body = (
+                f"Payment confirmed! Receipt {receipt.receipt_number} for Order {order.order_id}. "
+                f"Total Ksh {order.total_amount:,.2f}. Download: {receipt_url}"
+            )
+
+            sms_sent = SmsService.send_message(customer_phone, message_body)
+            if sms_sent:
+                logger.info(f"Receipt SMS sent for order {order.order_id} to {customer_phone}")
+            return sms_sent
+
+        except Exception as e:
+            logger.error(f"Error sending receipt SMS for order {order.order_id}: {e}", exc_info=True)
+            return False
     
     @staticmethod
     def generate_and_send_receipt(order: Order) -> Tuple[Receipt, bool, bool]:
@@ -396,6 +437,10 @@ Affordable Gadgets Team
             whatsapp_sent = receipt.whatsapp_sent
             if not whatsapp_sent:
                 whatsapp_sent = ReceiptService.send_receipt_whatsapp(order, receipt)
+
+            # Fallback to SMS if WhatsApp is not sent
+            if not whatsapp_sent:
+                ReceiptService.send_receipt_sms(order, receipt)
             
             return receipt, email_sent, whatsapp_sent
             
