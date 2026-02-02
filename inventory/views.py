@@ -2935,6 +2935,44 @@ class ReservationRequestViewSet(viewsets.ModelViewSet):
             # For approval/rejection, require CanApproveRequests
             return [CanApproveRequests()]
         return [IsAdminUser()]
+
+    def create(self, request, *args, **kwargs):
+        """Override create to provide clearer validation errors."""
+        from rest_framework import serializers as drf_serializers
+
+        try:
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            self.perform_create(serializer)
+            headers = self.get_success_headers(serializer.data)
+            return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        except drf_serializers.ValidationError as e:
+            logger.error(f"Reservation request creation validation error: {e.detail}")
+            error_message = "Validation failed"
+            if isinstance(e.detail, dict):
+                error_parts = []
+                for field, messages in e.detail.items():
+                    if isinstance(messages, list):
+                        error_parts.append(f"{field}: {', '.join(str(m) for m in messages)}")
+                    else:
+                        error_parts.append(f"{field}: {messages}")
+                if error_parts:
+                    error_message = "; ".join(error_parts)
+            elif isinstance(e.detail, list):
+                error_message = "; ".join(str(m) for m in e.detail)
+            else:
+                error_message = str(e.detail)
+
+            return Response(
+                {"error": error_message, "details": e.detail},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as e:
+            logger.error(f"Reservation request creation error: {str(e)}", exc_info=True)
+            return Response(
+                {"error": f"Failed to create reservation request: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
     
     def update(self, request, *args, **kwargs):
         """Override update to ensure we return the refreshed object after approval/rejection."""

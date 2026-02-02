@@ -790,6 +790,22 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
             )
             
             if is_list:
+                # Use prefetched available units for accurate brand-aware counts/prices.
+                # Avoid annotations with ManyToMany brand filters that can yield zero counts on PostgreSQL.
+                available_units_filter = Q(
+                    sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+                    available_online=True,
+                    quantity__gt=0,
+                )
+                if brand:
+                    available_units_filter &= (Q(brands=brand) | Q(brands__isnull=True))
+
+                available_units_prefetch = Prefetch(
+                    'inventory_units',
+                    queryset=InventoryUnit.objects.filter(available_units_filter).select_related('product_color'),
+                    to_attr='available_units_list'
+                )
+
                 queryset = queryset.only(
                     'id',
                     'product_name',
@@ -800,42 +816,18 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                     'product_video_url',
                     'is_published',
                     'is_discontinued',
-                ).prefetch_related(primary_images_prefetch)
+                ).prefetch_related(primary_images_prefetch, available_units_prefetch)
 
-                unit_base = InventoryUnit.objects.filter(
-                    product_template=OuterRef('pk'),
-                    sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
-                    available_online=True
+                # Filter to products with at least one available unit (quantity > 0).
+                product_units_filter = Q(
+                    inventory_units__sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+                    inventory_units__available_online=True,
+                    inventory_units__quantity__gt=0,
                 )
                 if brand:
-                    unit_base = unit_base.filter(Q(brands=brand) | Q(brands__isnull=True))
+                    product_units_filter &= (Q(inventory_units__brands=brand) | Q(inventory_units__brands__isnull=True))
 
-                unit_count_sub = unit_base.values('product_template').annotate(
-                    total=Count('id')
-                ).values('total')[:1]
-                unit_qty_sub = unit_base.values('product_template').annotate(
-                    total=Coalesce(Sum('quantity'), Value(0))
-                ).values('total')[:1]
-                min_price_sub = unit_base.order_by('selling_price').values('selling_price')[:1]
-                max_price_sub = unit_base.order_by('-selling_price').values('selling_price')[:1]
-
-                queryset = queryset.annotate(
-                    available_units_count=Case(
-                        When(
-                            product_type=Product.ProductType.ACCESSORY,
-                            then=Coalesce(Subquery(unit_qty_sub), Value(0)),
-                        ),
-                        default=Coalesce(Subquery(unit_count_sub), Value(0)),
-                        output_field=IntegerField(),
-                    ),
-                    min_price=Coalesce(Subquery(min_price_sub), Value(None), output_field=DecimalField(max_digits=10, decimal_places=2)),
-                    max_price=Coalesce(Subquery(max_price_sub), Value(None), output_field=DecimalField(max_digits=10, decimal_places=2)),
-                    compare_at_min_price=Coalesce(Subquery(compare_min_sub), Value(None), output_field=DecimalField(max_digits=10, decimal_places=2)),
-                    compare_at_max_price=Coalesce(Subquery(compare_max_sub), Value(None), output_field=DecimalField(max_digits=10, decimal_places=2)),
-                    review_count=Coalesce(Subquery(review_count_sub), Value(0), output_field=IntegerField()),
-                    average_rating=Coalesce(Subquery(average_rating_sub), Value(None), output_field=DecimalField(max_digits=4, decimal_places=2)),
-                )
-                queryset = queryset.filter(available_units_count__gt=0)
+                queryset = queryset.filter(product_units_filter).distinct()
                 return apply_public_ordering(queryset)
 
             if is_detail:
