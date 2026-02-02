@@ -61,7 +61,7 @@ The platform consists of three separate applications:
 
 ### 1.1 Prerequisites
 
-- PostgreSQL database (Railway/Heroku PostgreSQL addon)
+- PostgreSQL database (Supabase Session Pooler recommended for Render/IPv4)
 - Cloudinary account for media storage
 - Railway or Heroku account
 
@@ -83,7 +83,9 @@ The platform consists of three separate applications:
    DEBUG=False
    ALLOWED_HOSTS=your-api-domain.railway.app,yourdomain.com
    
-   # Database (from PostgreSQL service)
+   # Database (Supabase Session Pooler recommended)
+   DATABASE_URL=postgresql://postgres.<project>:<password>@aws-1-eu-central-1.pooler.supabase.com:5432/postgres?sslmode=require
+   # Optional: if DATABASE_URL is not set
    DB_NAME=<from-postgres-service>
    DB_USER=<from-postgres-service>
    DB_PASSWORD=<from-postgres-service>

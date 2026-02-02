@@ -4,7 +4,7 @@ This guide covers deploying the Affordable Gadgets application to production.
 
 ## Prerequisites
 
-- PostgreSQL database (production-ready)
+- PostgreSQL database (Supabase recommended)
 - Cloudinary account for media storage
 - Railway/Heroku account for backend hosting
 - Vercel account for frontend hosting
@@ -23,7 +23,7 @@ cp .env.example .env
 **Critical variables:**
 - `SECRET_KEY` - Generate using: `python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"`
 - `ALLOWED_HOSTS` - Your production domains
-- `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT` - PostgreSQL credentials
+- `DATABASE_URL` - PostgreSQL connection string (Supabase Session Pooler recommended for Render/IPv4)
 - `CORS_ALLOWED_ORIGINS` - Your frontend domain(s)
 - `CLOUDINARY_*` - Cloudinary credentials
 - `PESAPAL_*` - Pesapal payment gateway credentials
@@ -65,6 +65,8 @@ DJANGO_ENV=production
 SECRET_KEY=<generate-strong-key>
 DEBUG=False
 ALLOWED_HOSTS=your-api-domain.railway.app,yourdomain.com
+DATABASE_URL=postgresql://postgres.<project>:<password>@aws-1-eu-central-1.pooler.supabase.com:5432/postgres?sslmode=require
+# Optional: if DATABASE_URL is not set
 DB_NAME=<from-postgres-service>
 DB_USER=<from-postgres-service>
 DB_PASSWORD=<from-postgres-service>
