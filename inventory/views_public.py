@@ -875,7 +875,8 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                     review_count=Coalesce(Subquery(review_count_sub), Value(0), output_field=IntegerField()),
                     average_rating=Coalesce(Subquery(average_rating_sub), Value(None), output_field=DecimalField(max_digits=4, decimal_places=2)),
                 )
-                return queryset.filter(available_units_count__gt=0)
+                # Do not enforce available_units_count on detail view to match slug behavior.
+                return queryset
 
             # Prefetch available units with brand filtering
             available_units_prefetch = Prefetch(
