@@ -1135,7 +1135,7 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
             # Brand filtering
             # When a specific brand is requested, show products for that brand, global products, or products with no brand
             # When no brand is specified, show all published products (not just global ones)
-            if brand:
+            if brand and not is_detail:
                 # PostgreSQL vs SQLite: ManyToMany annotations and NULL checks work differently
                 # Use direct relationship checks that work in both databases
                 # Show products that:
