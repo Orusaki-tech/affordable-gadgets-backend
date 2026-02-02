@@ -2,9 +2,9 @@
 from rest_framework import serializers
 from drf_spectacular.utils import extend_schema_field, extend_schema_serializer, OpenApiTypes
 from decimal import Decimal
-from django.db.models import Q, Sum
+from django.db.models import Q, Sum, Avg
 from django.utils import timezone
-from inventory.models import Product, InventoryUnit, Cart, CartItem, Lead, LeadItem, Promotion, Bundle, BundleItem, ProductImage
+from inventory.models import Product, InventoryUnit, Cart, CartItem, Lead, LeadItem, Promotion, Bundle, BundleItem, ProductImage, Review, WishlistItem
 from inventory.services.interest_service import InterestService
 import logging
 
@@ -24,8 +24,8 @@ class PublicInventoryUnitSerializer(serializers.ModelSerializer):
     class Meta:
         model = InventoryUnit
         fields = [
-            'id', 'product_id', 'product_name', 'product_slug', 'selling_price', 
-            'condition', 'grade', 'storage_gb', 'ram_gb', 'battery_mah', 'product_color', 
+            'id', 'product_id', 'product_name', 'product_slug', 'selling_price', 'compare_at_price',
+            'condition', 'grade', 'storage_gb', 'ram_gb', 'battery_mah', 'product_color',
             'color_name', 'interest_count', 'images'
         ]
     
@@ -104,6 +104,11 @@ class PublicProductSerializer(serializers.ModelSerializer):
     interest_count = serializers.SerializerMethodField()
     min_price = serializers.SerializerMethodField()
     max_price = serializers.SerializerMethodField()
+    compare_at_min_price = serializers.SerializerMethodField()
+    compare_at_max_price = serializers.SerializerMethodField()
+    discount_percent = serializers.SerializerMethodField()
+    review_count = serializers.SerializerMethodField()
+    average_rating = serializers.SerializerMethodField()
     primary_image = serializers.SerializerMethodField()
     tags = serializers.SerializerMethodField()
     has_active_bundle = serializers.SerializerMethodField()
@@ -120,7 +125,9 @@ class PublicProductSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'product_name', 'brand', 'model_series', 'product_type',
             'product_description', 'long_description', 'product_highlights',
-            'available_units_count', 'interest_count', 'min_price', 'max_price', 
+            'available_units_count', 'interest_count', 'min_price', 'max_price',
+            'compare_at_min_price', 'compare_at_max_price', 'discount_percent',
+            'review_count', 'average_rating',
             'primary_image', 'slug', 'product_video_url', 'tags', 'has_active_bundle', 'bundle_price_preview',
             'meta_title', 'meta_description'  # SEO fields
         ]
@@ -319,6 +326,70 @@ class PublicProductSerializer(serializers.ModelSerializer):
             units = units.filter(Q(brands=brand) | Q(brands__isnull=True))
         prices = units.values_list('selling_price', flat=True)
         return float(max(prices)) if prices else None
+
+    @extend_schema_field(OpenApiTypes.NUMBER)
+    def get_compare_at_min_price(self, obj):
+        """Get min compare-at price for available units."""
+        if hasattr(obj, 'available_units_list'):
+            units = obj.available_units_list
+            prices = [float(unit.compare_at_price) for unit in units if unit.compare_at_price is not None]
+            return min(prices) if prices else None
+        if hasattr(obj, 'compare_at_min_price') and obj.compare_at_min_price is not None:
+            return float(obj.compare_at_min_price)
+        brand = self.context.get('brand')
+        units = obj.inventory_units.filter(
+            sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+            available_online=True,
+            compare_at_price__isnull=False
+        )
+        if brand:
+            units = units.filter(Q(brands=brand) | Q(brands__isnull=True))
+        prices = units.values_list('compare_at_price', flat=True)
+        return float(min(prices)) if prices else None
+
+    @extend_schema_field(OpenApiTypes.NUMBER)
+    def get_compare_at_max_price(self, obj):
+        """Get max compare-at price for available units."""
+        if hasattr(obj, 'available_units_list'):
+            units = obj.available_units_list
+            prices = [float(unit.compare_at_price) for unit in units if unit.compare_at_price is not None]
+            return max(prices) if prices else None
+        if hasattr(obj, 'compare_at_max_price') and obj.compare_at_max_price is not None:
+            return float(obj.compare_at_max_price)
+        brand = self.context.get('brand')
+        units = obj.inventory_units.filter(
+            sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+            available_online=True,
+            compare_at_price__isnull=False
+        )
+        if brand:
+            units = units.filter(Q(brands=brand) | Q(brands__isnull=True))
+        prices = units.values_list('compare_at_price', flat=True)
+        return float(max(prices)) if prices else None
+
+    @extend_schema_field(OpenApiTypes.INT)
+    def get_discount_percent(self, obj):
+        compare_min = self.get_compare_at_min_price(obj)
+        min_price = self.get_min_price(obj)
+        if compare_min is None or min_price is None:
+            return None
+        if compare_min <= 0 or compare_min <= min_price:
+            return None
+        return int(round(((compare_min - min_price) / compare_min) * 100))
+
+    @extend_schema_field(OpenApiTypes.INT)
+    def get_review_count(self, obj):
+        if hasattr(obj, 'review_count') and obj.review_count is not None:
+            return int(obj.review_count)
+        return Review.objects.filter(product=obj).count()
+
+    @extend_schema_field(OpenApiTypes.NUMBER)
+    def get_average_rating(self, obj):
+        if hasattr(obj, 'average_rating') and obj.average_rating is not None:
+            return float(obj.average_rating)
+        aggregate = Review.objects.filter(product=obj).aggregate(avg=Avg('rating'))
+        value = aggregate.get('avg')
+        return float(value) if value is not None else None
     
     @extend_schema_field(serializers.URLField(allow_null=True))
     def get_primary_image(self, obj):
@@ -359,8 +430,20 @@ class PublicProductListSerializer(PublicProductSerializer):
         fields = [
             'id', 'product_name', 'brand', 'model_series', 'product_type',
             'available_units_count', 'min_price', 'max_price',
+            'compare_at_min_price', 'compare_at_max_price', 'discount_percent',
+            'review_count', 'average_rating',
             'primary_image', 'slug', 'product_video_url', 'has_active_bundle', 'bundle_price_preview'
         ]
+
+
+class PublicWishlistItemSerializer(serializers.ModelSerializer):
+    """Public wishlist item serializer."""
+    product = PublicProductListSerializer(read_only=True)
+    product_id = serializers.IntegerField(write_only=True)
+
+    class Meta:
+        model = WishlistItem
+        fields = ['id', 'product', 'product_id', 'created_at']
 
 
 class CartItemSerializer(serializers.ModelSerializer):

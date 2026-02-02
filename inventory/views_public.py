@@ -6,7 +6,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiTypes, OpenApiParameter
-from django.db.models import Q, Count, Min, Max, Prefetch, Sum, Case, When, IntegerField, Value, DecimalField, OuterRef, Subquery
+from django.db.models import Q, Count, Min, Max, Prefetch, Sum, Case, When, IntegerField, Value, DecimalField, OuterRef, Subquery, Avg
 from django.db.models.functions import Coalesce
 from django.core.cache import cache
 from urllib.parse import urlencode
@@ -14,14 +14,14 @@ from decimal import Decimal
 from django.conf import settings
 from inventory.models import (
     Product, InventoryUnit, Cart, Lead, Brand, Promotion, ProductImage, Bundle, BundleItem,
-    Order, OrderItem, Review, Customer
+    Order, OrderItem, Review, Customer, WishlistItem
 )
 from inventory.serializers_public import (
     PublicProductSerializer, PublicProductListSerializer, PublicInventoryUnitSerializer,
     CartSerializer, CartItemSerializer, CheckoutSerializer, PublicPromotionSerializer,
     CartCreateSerializer, CartItemCreateSerializer, CartBundleCreateSerializer, CheckoutResponseSerializer,
     PublicBundleSerializer, ReviewOtpRequestSerializer, ReviewEligibilityRequestSerializer,
-    ReviewEligibilityItemSerializer, PublicReviewSubmitSerializer
+    ReviewEligibilityItemSerializer, PublicReviewSubmitSerializer, PublicWishlistItemSerializer
 )
 from inventory.serializers import LeadSerializer, ReviewSerializer
 from inventory.services.cart_service import CartService
@@ -95,6 +95,54 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
             brand_map.setdefault(product_type_value, []).append(brand)
 
         return Response({"results": brand_map})
+
+    @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny], url_path='review-summary')
+    def review_summary(self, request):
+        """Return review summary (count + average) for a list of product IDs."""
+        raw_ids = request.query_params.getlist('id')
+        ids_param = request.query_params.get('ids')
+        if not raw_ids and ids_param:
+            raw_ids = [item.strip() for item in ids_param.split(',') if item.strip()]
+        product_ids = []
+        for raw_id in raw_ids:
+            try:
+                product_ids.append(int(raw_id))
+            except (TypeError, ValueError):
+                continue
+
+        if not product_ids:
+            return Response({"results": []})
+
+        brand = getattr(request, 'brand', None)
+        review_qs = Review.objects.filter(product_id__in=product_ids)
+        if brand:
+            review_qs = review_qs.filter(
+                Q(product__brands=brand) |
+                Q(product__brands__isnull=True) |
+                Q(product__is_global=True)
+            ).distinct()
+
+        summary_rows = review_qs.values('product_id').annotate(
+            review_count=Count('id'),
+            average_rating=Avg('rating')
+        )
+        summary_map = {
+            row['product_id']: {
+                'review_count': row['review_count'],
+                'average_rating': float(row['average_rating']) if row['average_rating'] is not None else None,
+            }
+            for row in summary_rows
+        }
+
+        results = [
+            {
+                'product_id': product_id,
+                'review_count': summary_map.get(product_id, {}).get('review_count', 0),
+                'average_rating': summary_map.get(product_id, {}).get('average_rating', None),
+            }
+            for product_id in product_ids
+        ]
+        return Response({"results": results})
     
     # #region agent log - Check ALL products in database (before any filtering)
     def _log_all_products_debug(self, debug_enabled=False):
@@ -521,6 +569,24 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                 ).values('total')[:1]
                 min_price_sub = unit_base.order_by('selling_price').values('selling_price')[:1]
                 max_price_sub = unit_base.order_by('-selling_price').values('selling_price')[:1]
+                compare_unit_base = unit_base.filter(compare_at_price__isnull=False)
+                compare_min_sub = compare_unit_base.order_by('compare_at_price').values('compare_at_price')[:1]
+                compare_max_sub = compare_unit_base.order_by('-compare_at_price').values('compare_at_price')[:1]
+                review_base = Review.objects.filter(product=OuterRef('pk'))
+                review_count_sub = review_base.values('product').annotate(total=Count('id')).values('total')[:1]
+                average_rating_sub = review_base.values('product').annotate(avg=Avg('rating')).values('avg')[:1]
+                compare_unit_base = unit_base.filter(compare_at_price__isnull=False)
+                compare_min_sub = compare_unit_base.order_by('compare_at_price').values('compare_at_price')[:1]
+                compare_max_sub = compare_unit_base.order_by('-compare_at_price').values('compare_at_price')[:1]
+                review_base = Review.objects.filter(product=OuterRef('pk'))
+                review_count_sub = review_base.values('product').annotate(total=Count('id')).values('total')[:1]
+                average_rating_sub = review_base.values('product').annotate(avg=Avg('rating')).values('avg')[:1]
+                compare_unit_base = unit_base.filter(compare_at_price__isnull=False)
+                compare_min_sub = compare_unit_base.order_by('compare_at_price').values('compare_at_price')[:1]
+                compare_max_sub = compare_unit_base.order_by('-compare_at_price').values('compare_at_price')[:1]
+                review_base = Review.objects.filter(product=OuterRef('pk'))
+                review_count_sub = review_base.values('product').annotate(total=Count('id')).values('total')[:1]
+                average_rating_sub = review_base.values('product').annotate(avg=Avg('rating')).values('avg')[:1]
 
                 queryset = queryset.annotate(
                     available_units_count=Case(
@@ -533,6 +599,10 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                     ),
                     min_price=Coalesce(Subquery(min_price_sub), Value(None), output_field=DecimalField(max_digits=10, decimal_places=2)),
                     max_price=Coalesce(Subquery(max_price_sub), Value(None), output_field=DecimalField(max_digits=10, decimal_places=2)),
+                    compare_at_min_price=Coalesce(Subquery(compare_min_sub), Value(None), output_field=DecimalField(max_digits=10, decimal_places=2)),
+                    compare_at_max_price=Coalesce(Subquery(compare_max_sub), Value(None), output_field=DecimalField(max_digits=10, decimal_places=2)),
+                    review_count=Coalesce(Subquery(review_count_sub), Value(0), output_field=IntegerField()),
+                    average_rating=Coalesce(Subquery(average_rating_sub), Value(None), output_field=DecimalField(max_digits=4, decimal_places=2)),
                 )
                 
                 # #region agent log
@@ -760,6 +830,10 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                     ),
                     min_price=Coalesce(Subquery(min_price_sub), Value(None), output_field=DecimalField(max_digits=10, decimal_places=2)),
                     max_price=Coalesce(Subquery(max_price_sub), Value(None), output_field=DecimalField(max_digits=10, decimal_places=2)),
+                    compare_at_min_price=Coalesce(Subquery(compare_min_sub), Value(None), output_field=DecimalField(max_digits=10, decimal_places=2)),
+                    compare_at_max_price=Coalesce(Subquery(compare_max_sub), Value(None), output_field=DecimalField(max_digits=10, decimal_places=2)),
+                    review_count=Coalesce(Subquery(review_count_sub), Value(0), output_field=IntegerField()),
+                    average_rating=Coalesce(Subquery(average_rating_sub), Value(None), output_field=DecimalField(max_digits=4, decimal_places=2)),
                 )
                 queryset = queryset.filter(available_units_count__gt=0)
                 return apply_public_ordering(queryset)
@@ -804,6 +878,10 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                     ),
                     min_price=Coalesce(Subquery(min_price_sub), Value(None), output_field=DecimalField(max_digits=10, decimal_places=2)),
                     max_price=Coalesce(Subquery(max_price_sub), Value(None), output_field=DecimalField(max_digits=10, decimal_places=2)),
+                    compare_at_min_price=Coalesce(Subquery(compare_min_sub), Value(None), output_field=DecimalField(max_digits=10, decimal_places=2)),
+                    compare_at_max_price=Coalesce(Subquery(compare_max_sub), Value(None), output_field=DecimalField(max_digits=10, decimal_places=2)),
+                    review_count=Coalesce(Subquery(review_count_sub), Value(0), output_field=IntegerField()),
+                    average_rating=Coalesce(Subquery(average_rating_sub), Value(None), output_field=DecimalField(max_digits=4, decimal_places=2)),
                 )
                 return queryset.filter(available_units_count__gt=0)
 
@@ -1990,6 +2068,102 @@ class PhoneSearchByBudgetView(generics.ListAPIView):
         context = super().get_serializer_context()
         context['brand'] = getattr(self.request, 'brand', None)
         return context
+
+
+class PublicWishlistViewSet(viewsets.ModelViewSet):
+    """Public wishlist API (session or customer-phone based)."""
+    serializer_class = PublicWishlistItemSerializer
+    permission_classes = [permissions.AllowAny]
+    http_method_names = ['get', 'post', 'delete']
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        context['brand'] = getattr(self.request, 'brand', None)
+        return context
+
+    def _get_customer_and_session(self, request):
+        customer_phone = request.data.get('customer_phone') or request.query_params.get('customer_phone')
+        session_key = (
+            request.data.get('session_key')
+            or request.query_params.get('session_key')
+            or request.headers.get('X-Session-Key')
+        )
+        customer = None
+        if customer_phone:
+            customer = Customer.objects.filter(phone=customer_phone).first()
+        return customer, session_key
+
+    def get_queryset(self):
+        customer, session_key = self._get_customer_and_session(self.request)
+        brand = getattr(self.request, 'brand', None)
+        queryset = WishlistItem.objects.select_related('product').order_by('-created_at')
+        if brand:
+            queryset = queryset.filter(Q(brand=brand) | Q(brand__isnull=True))
+        if customer:
+            queryset = queryset.filter(customer=customer)
+        elif session_key:
+            queryset = queryset.filter(session_key=session_key)
+        else:
+            return WishlistItem.objects.none()
+        return queryset.prefetch_related(
+            Prefetch(
+                'product__images',
+                queryset=ProductImage.objects.filter(is_primary=True),
+                to_attr='primary_images_list'
+            )
+        )
+
+    def create(self, request, *args, **kwargs):
+        product_id = request.data.get('product_id')
+        if not product_id:
+            return Response({'detail': 'product_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            product = Product.objects.get(pk=int(product_id))
+        except (Product.DoesNotExist, ValueError, TypeError):
+            return Response({'detail': 'Invalid product_id.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        customer_phone = request.data.get('customer_phone') or request.query_params.get('customer_phone')
+        session_key = (
+            request.data.get('session_key')
+            or request.query_params.get('session_key')
+            or request.headers.get('X-Session-Key')
+        )
+        if not customer_phone and not session_key:
+            return Response({'detail': 'customer_phone or session_key is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        customer = None
+        if customer_phone:
+            customer, _ = CustomerService.get_or_create_customer(
+                name='',
+                phone=customer_phone,
+                email=None,
+                delivery_address=None
+            )
+
+        brand = getattr(self.request, 'brand', None)
+        item, created = WishlistItem.objects.get_or_create(
+            customer=customer,
+            session_key=None if customer else session_key,
+            product=product,
+            brand=brand
+        )
+        serializer = self.get_serializer(item)
+        return Response(serializer.data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+    @action(detail=False, methods=['delete'], url_path='by-product')
+    def delete_by_product(self, request):
+        product_id = request.data.get('product_id') or request.query_params.get('product_id')
+        if not product_id:
+            return Response({'detail': 'product_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            product_id = int(product_id)
+        except (TypeError, ValueError):
+            return Response({'detail': 'Invalid product_id.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        queryset = self.get_queryset().filter(product_id=product_id)
+        queryset.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class PublicPromotionPagination(PageNumberPagination):

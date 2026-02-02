@@ -420,6 +420,14 @@ class InventoryUnit(models.Model):
     
     cost_of_unit = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Internal Cost")
     selling_price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Current Selling Price")
+    compare_at_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name="Compare-at Price",
+        help_text="Original/list price used to show discounts (optional)"
+    )
     
     # --- Physical Identifiers & Specs (NULL for Accessories/Laptops/Apple) ---
     serial_number = models.CharField(
@@ -838,6 +846,63 @@ class Review(models.Model):
     def is_admin_review(self):
         """Returns True if review was created by an admin (customer is None)."""
         return self.customer is None
+
+
+# -------------------------------------------------------------------------
+# 6. WISHLIST MODEL
+# -------------------------------------------------------------------------
+
+class WishlistItem(models.Model):
+    """Stores customer wishlisted products."""
+    customer = models.ForeignKey(
+        Customer,
+        on_delete=models.CASCADE,
+        related_name='wishlist_items',
+        null=True,
+        blank=True
+    )
+    session_key = models.CharField(
+        max_length=100,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Anonymous session key (used when customer is not identified)."
+    )
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name='wishlist_items'
+    )
+    brand = models.ForeignKey(
+        Brand,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='wishlist_items'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['customer', 'product', 'brand'],
+                name='uniq_wishlist_customer_product_brand'
+            ),
+            models.UniqueConstraint(
+                fields=['session_key', 'product', 'brand'],
+                name='uniq_wishlist_session_product_brand'
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['session_key']),
+            models.Index(fields=['customer', 'product']),
+            models.Index(fields=['product']),
+        ]
+
+    def __str__(self):
+        owner = self.customer or self.session_key or 'unknown'
+        return f"WishlistItem({owner}) - {self.product.product_name}"
         
     def __str__(self):
         creator = self.customer.user.username if self.customer else "Admin"

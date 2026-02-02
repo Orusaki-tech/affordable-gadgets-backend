@@ -9,6 +9,7 @@ router.register(r'products', views_public.PublicProductViewSet, basename='public
 router.register(r'cart', views_public.CartViewSet, basename='public-cart')
 router.register(r'promotions', views_public.PublicPromotionViewSet, basename='public-promotion')
 router.register(r'bundles', views_public.PublicBundleViewSet, basename='public-bundle')
+router.register(r'wishlist', views_public.PublicWishlistViewSet, basename='public-wishlist')
 # Add accessories endpoint (read-only for public)
 router.register(r'accessories-link', views.ProductAccessoryViewSet, basename='public-accessory')
 # Add reviews endpoint (read-only for public)

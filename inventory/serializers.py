@@ -1198,7 +1198,7 @@ class InventoryUnitSerializer(serializers.ModelSerializer):
             'product_color_id', 'product_color', 'color_name', 'acquisition_source_details_id', 'acquisition_source_details',
             # Core attributes
             'condition', 'source', 'sale_status', 'available_online', 'grade', 'date_sourced',
-            'cost_of_unit', 'selling_price', 'quantity', 'serial_number', 'imei', 
+            'cost_of_unit', 'selling_price', 'compare_at_price', 'quantity', 'serial_number', 'imei',
             # Specs
             'storage_gb', 'ram_gb', 'battery_mah', 'is_sim_enabled', 'processor_details',
             # Images
