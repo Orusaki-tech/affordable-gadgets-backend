@@ -761,6 +761,7 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                     min_price=Coalesce(Subquery(min_price_sub), Value(None), output_field=DecimalField(max_digits=10, decimal_places=2)),
                     max_price=Coalesce(Subquery(max_price_sub), Value(None), output_field=DecimalField(max_digits=10, decimal_places=2)),
                 )
+                queryset = queryset.filter(available_units_count__gt=0)
                 return apply_public_ordering(queryset)
 
             if is_detail:
@@ -792,7 +793,7 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                 min_price_sub = unit_base.order_by('selling_price').values('selling_price')[:1]
                 max_price_sub = unit_base.order_by('-selling_price').values('selling_price')[:1]
 
-                return queryset.annotate(
+                queryset = queryset.annotate(
                     available_units_count=Case(
                         When(
                             product_type=Product.ProductType.ACCESSORY,
@@ -804,6 +805,7 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                     min_price=Coalesce(Subquery(min_price_sub), Value(None), output_field=DecimalField(max_digits=10, decimal_places=2)),
                     max_price=Coalesce(Subquery(max_price_sub), Value(None), output_field=DecimalField(max_digits=10, decimal_places=2)),
                 )
+                return queryset.filter(available_units_count__gt=0)
 
             # Prefetch available units with brand filtering
             available_units_prefetch = Prefetch(
