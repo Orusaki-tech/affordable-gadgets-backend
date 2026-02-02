@@ -10022,6 +10022,12 @@ components:
           format: decimal
           pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
           title: Current Selling Price
+        compare_at_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          title: Compare-at Price
+          nullable: true
         condition:
           $ref: '#/components/schemas/ConditionEnum'
         grade:
@@ -10151,6 +10157,26 @@ components:
           description: Get max price for available units - use prefetched list for
             accurate brand filtering.
           readOnly: true
+        compare_at_min_price:
+          type: number
+          description: Get min compare-at price for available units.
+          readOnly: true
+        compare_at_max_price:
+          type: number
+          description: Get max compare-at price for available units.
+          readOnly: true
+        discount_percent:
+          type: integer
+          description: Discount percent based on compare-at price.
+          readOnly: true
+        review_count:
+          type: integer
+          description: Total review count for product.
+          readOnly: true
+        average_rating:
+          type: number
+          description: Average rating for product.
+          readOnly: true
         primary_image:
           type: string
           format: uri
@@ -10224,6 +10250,26 @@ components:
           type: number
           description: Get max price for available units - use prefetched list for
             accurate brand filtering.
+          readOnly: true
+        compare_at_min_price:
+          type: number
+          description: Get min compare-at price for available units.
+          readOnly: true
+        compare_at_max_price:
+          type: number
+          description: Get max compare-at price for available units.
+          readOnly: true
+        discount_percent:
+          type: integer
+          description: Discount percent based on compare-at price.
+          readOnly: true
+        review_count:
+          type: integer
+          description: Total review count for product.
+          readOnly: true
+        average_rating:
+          type: number
+          description: Average rating for product.
           readOnly: true
         primary_image:
           type: string
