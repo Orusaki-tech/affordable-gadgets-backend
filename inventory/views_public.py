@@ -12,6 +12,7 @@ from django.core.cache import cache
 from urllib.parse import urlencode
 from decimal import Decimal
 from django.conf import settings
+from django.shortcuts import get_object_or_404
 from inventory.models import (
     Product, InventoryUnit, Cart, Lead, Brand, Promotion, ProductImage, Bundle, BundleItem,
     Order, OrderItem, Review, Customer, WishlistItem
@@ -441,8 +442,12 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
             if cached is not None:
                 return Response(cached)
 
-        response = super().retrieve(request, *args, **kwargs)
-        if cache_enabled and hasattr(response, 'data'):
+        pk = kwargs.get('pk')
+        base_queryset = Product.objects.filter(is_discontinued=False, is_published=True)
+        product = get_object_or_404(base_queryset, pk=pk)
+        serializer = self.get_serializer(product)
+        response = Response(serializer.data)
+        if cache_enabled:
             cache.set(cache_key, response.data, 120)
         return response
     
