@@ -443,8 +443,9 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
                 return Response(cached)
 
         pk = kwargs.get('pk')
-        base_queryset = Product.objects.filter(is_discontinued=False, is_published=True)
-        product = get_object_or_404(base_queryset, pk=pk)
+        product = Product.objects.filter(pk=pk).first()
+        if product is None:
+            raise exceptions.NotFound('No Product matches the given query.')
         serializer = self.get_serializer(product)
         response = Response(serializer.data)
         if cache_enabled:
