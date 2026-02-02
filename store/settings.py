@@ -54,6 +54,10 @@ INSTALLED_APPS = [
     'inventory',
 ]
 
+# Reviews OTP settings
+# Keep review OTPs valid for one hour (default), configurable via env.
+REVIEW_OTP_TTL_SECONDS = int(os.getenv("REVIEW_OTP_TTL_SECONDS", 60 * 60))
+
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',  # <--- ADDED: Must be near top, before CommonMiddleware
     'django.middleware.security.SecurityMiddleware',
