@@ -4,7 +4,7 @@ from drf_spectacular.utils import extend_schema_field, extend_schema_serializer,
 from decimal import Decimal
 from django.db.models import Q, Sum, Avg
 from django.utils import timezone
-from inventory.models import Product, InventoryUnit, Cart, CartItem, Lead, LeadItem, Promotion, Bundle, BundleItem, ProductImage, Review, WishlistItem
+from inventory.models import Product, InventoryUnit, Cart, CartItem, Lead, LeadItem, Promotion, Bundle, BundleItem, ProductImage, Review, WishlistItem, DeliveryRate
 from inventory.services.interest_service import InterestService
 import logging
 
@@ -464,12 +464,21 @@ class CartSerializer(serializers.ModelSerializer):
     """Cart serializer."""
     items = CartItemSerializer(many=True, read_only=True)
     total_value = serializers.SerializerMethodField()
+    total_with_delivery = serializers.SerializerMethodField()
+    delivery_fee = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    delivery_county = serializers.CharField(read_only=True)
+    delivery_ward = serializers.CharField(read_only=True)
+    delivery_window_start = serializers.DateTimeField(read_only=True)
+    delivery_window_end = serializers.DateTimeField(read_only=True)
+    delivery_notes = serializers.CharField(read_only=True)
     
     class Meta:
         model = Cart
         fields = [
             'id', 'items', 'customer_name', 'customer_phone', 'customer_email',
-            'delivery_address', 'total_value', 'expires_at', 'is_submitted'
+            'delivery_address', 'delivery_county', 'delivery_ward', 'delivery_fee',
+            'delivery_window_start', 'delivery_window_end', 'delivery_notes',
+            'total_value', 'total_with_delivery', 'expires_at', 'is_submitted'
         ]
     
     @extend_schema_field(OpenApiTypes.NUMBER)
@@ -479,6 +488,11 @@ class CartSerializer(serializers.ModelSerializer):
             unit_price = item.get_unit_price()  # Use stored promotion price
             total += unit_price * item.quantity
         return float(total)
+
+    @extend_schema_field(OpenApiTypes.NUMBER)
+    def get_total_with_delivery(self, obj):
+        items_total = Decimal(str(self.get_total_value(obj)))
+        return float(items_total + (obj.delivery_fee or Decimal('0.00')))
 
 
 # -------------------------------------------------------------------------
@@ -619,6 +633,11 @@ class CheckoutSerializer(serializers.Serializer):
     customer_phone = serializers.CharField(max_length=20)
     customer_email = serializers.EmailField(required=False, allow_blank=True, allow_null=True)
     delivery_address = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    delivery_county = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    delivery_ward = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    delivery_window_start = serializers.DateTimeField(required=False, allow_null=True)
+    delivery_window_end = serializers.DateTimeField(required=False, allow_null=True)
+    delivery_notes = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
 
 class CartCreateSerializer(serializers.Serializer):
@@ -651,6 +670,12 @@ class CheckoutResponseSerializer(serializers.Serializer):
     message = serializers.CharField()
     lead_reference = serializers.CharField()
     lead = LeadSerializer()
+
+
+class PublicDeliveryRateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DeliveryRate
+        fields = ['id', 'county', 'ward', 'price']
 
 
 class PublicPromotionSerializer(serializers.ModelSerializer):

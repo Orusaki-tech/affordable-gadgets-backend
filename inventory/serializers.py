@@ -8,7 +8,8 @@ from .models import (
     Product, Order, OrderItem, Customer, ProductImage, Review, ProductAccessory,
     Admin, Color, User, InventoryUnit, UnitAcquisitionSource, InventoryUnitImage,
     AdminRole, ReservationRequest, ReturnRequest, UnitTransfer, Notification, AuditLog, Tag,
-    Brand, Lead, LeadItem, Cart, CartItem, Promotion, PromotionType, Bundle, BundleItem
+    Brand, Lead, LeadItem, Cart, CartItem, Promotion, PromotionType, Bundle, BundleItem,
+    DeliveryRate
 )
 from decimal import Decimal
 from django.db import transaction
@@ -1640,6 +1641,23 @@ class OrderItemSerializer(serializers.ModelSerializer):
     # but since the field is read-only, DRF will use the value stored in the database.
 
 
+class DeliveryRateSerializer(serializers.ModelSerializer):
+    """Serializer for DeliveryRate model (admin)."""
+    class Meta:
+        model = DeliveryRate
+        fields = ['id', 'county', 'ward', 'price', 'is_active', 'created_at', 'updated_at']
+
+    def validate(self, attrs):
+        county = attrs.get('county') or getattr(self.instance, 'county', None)
+        ward = attrs.get('ward')
+
+        if ward and county and county.strip().lower() not in ['nairobi', 'kiambu']:
+            raise serializers.ValidationError(
+                {'ward': 'Ward-specific pricing is only allowed for Nairobi and Kiambu.'}
+            )
+        return attrs
+
+
 class OrderSerializer(serializers.ModelSerializer):
     """
     Serializer for the Order model. Handles nested creation of OrderItems, 
@@ -1654,6 +1672,12 @@ class OrderSerializer(serializers.ModelSerializer):
     customer_phone = serializers.SerializerMethodField(read_only=True)
     customer_email = serializers.SerializerMethodField(read_only=True)
     delivery_address = serializers.SerializerMethodField(read_only=True)
+    delivery_county = serializers.CharField(required=False, allow_blank=True)
+    delivery_ward = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    delivery_fee = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    delivery_window_start = serializers.DateTimeField(required=False, allow_null=True)
+    delivery_window_end = serializers.DateTimeField(required=False, allow_null=True)
+    delivery_notes = serializers.CharField(required=False, allow_blank=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     order_source = serializers.CharField(required=False)  # Writable for creation, set by view
     order_source_display = serializers.CharField(source='get_order_source_display', read_only=True)
@@ -1693,6 +1717,8 @@ class OrderSerializer(serializers.ModelSerializer):
     @extend_schema_field(serializers.CharField())
     def get_delivery_address(self, obj):
         """Get delivery address - prefer from source_lead for online orders, otherwise from customer."""
+        if getattr(obj, 'delivery_address', None):
+            return obj.delivery_address or ''
         # For online orders, get address from the lead
         if hasattr(obj, 'source_lead') and obj.source_lead:
             return obj.source_lead.delivery_address or ''
@@ -1710,7 +1736,8 @@ class OrderSerializer(serializers.ModelSerializer):
         model = Order
         fields = (
             'order_id', 'user', 'customer', 'customer_username', 'customer_phone', 'customer_email', 'delivery_address',
-            'created_at', 'status', 'status_display', 'order_source', 'order_source_display',
+            'delivery_county', 'delivery_ward', 'delivery_fee', 'delivery_window_start', 'delivery_window_end',
+            'delivery_notes', 'created_at', 'status', 'status_display', 'order_source', 'order_source_display',
             'total_amount', 'order_items', 'brand', 'brand_name'
         )
         read_only_fields = ('order_id', 'created_at', 'total_amount', 'customer', 'user')
@@ -1728,6 +1755,8 @@ class OrderSerializer(serializers.ModelSerializer):
                 self.fields['order_items'].required = False
 
     def create(self, validated_data):
+        from inventory.services.delivery_service import get_delivery_fee
+
         # 1. Pop nested items and FKs set by the view
         # We pop the field mapped to the source: 'order_items'
         order_items_data = validated_data.pop('order_items')
@@ -1739,6 +1768,11 @@ class OrderSerializer(serializers.ModelSerializer):
             # Create the main Order object
             order = Order.objects.create(customer=customer, user=user, status=Order.StatusChoices.PENDING, **validated_data)
             
+            delivery_fee, _ = get_delivery_fee(
+                validated_data.get('delivery_county'),
+                validated_data.get('delivery_ward')
+            )
+            order.delivery_fee = delivery_fee
             final_total = Decimal('0.00')
 
             for item_data in order_items_data:
@@ -1825,7 +1859,8 @@ class OrderSerializer(serializers.ModelSerializer):
                 
                 final_total += sub_total
                 
-            # Update the order total and save it
+            # Update the order total and save it (include delivery fee)
+            final_total += delivery_fee
             order.total_amount = final_total
             order.save()
             
@@ -2663,7 +2698,9 @@ class LeadSerializer(serializers.ModelSerializer):
         model = Lead
         fields = (
             'id', 'lead_reference', 'customer_name', 'customer_phone', 'customer_email',
-            'delivery_address', 'customer', 'brand', 'brand_name', 'submitted_at',
+            'delivery_address', 'delivery_county', 'delivery_ward', 'delivery_fee',
+            'delivery_window_start', 'delivery_window_end', 'delivery_notes',
+            'customer', 'brand', 'brand_name', 'submitted_at',
             'status', 'status_display', 'assigned_salesperson', 'assigned_salesperson_name',
             'contacted_at', 'converted_at', 'order', 'order_id', 'salesperson_notes',
             'customer_notes', 'total_value', 'expires_at', 'items', 'customer_name_display'
@@ -2701,6 +2738,8 @@ class CartSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'session_key', 'customer', 'brand', 'brand_name',
             'customer_name', 'customer_phone', 'customer_email', 'delivery_address',
+            'delivery_county', 'delivery_ward', 'delivery_fee',
+            'delivery_window_start', 'delivery_window_end', 'delivery_notes',
             'is_submitted', 'lead', 'created_at', 'updated_at', 'expires_at',
             'items', 'total_value'
         )

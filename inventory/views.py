@@ -42,7 +42,7 @@ from .models import (
     InventoryUnit, Order, OrderItem, Customer, Admin, User,  ProductImage, InventoryUnitImage,
     AdminRole, ReservationRequest, ReturnRequest, UnitTransfer, Notification, AuditLog, Tag,
     Brand, Lead, LeadItem, Cart, CartItem, Promotion, PromotionType, Receipt,
-    Bundle, BundleItem
+    Bundle, BundleItem, DeliveryRate
 )
 
 # Assume these serializers are defined in your app's serializers.py
@@ -67,7 +67,7 @@ from .serializers import (
     ReservationRequestSerializer, ReturnRequestSerializer, UnitTransferSerializer, NotificationSerializer,
     AuditLogSerializer, TagSerializer, BrandSerializer, LeadSerializer, CartSerializer, PromotionSerializer,
     PromotionTypeSerializer, InitiatePaymentRequestSerializer,
-    BundleSerializer, BundleItemSerializer
+    BundleSerializer, BundleItemSerializer, DeliveryRateSerializer
 )
 from .services.lead_service import LeadService
 
@@ -2523,6 +2523,13 @@ class OrderItemViewSet(viewsets.ModelViewSet):
     queryset = OrderItem.objects.all().select_related('order', 'inventory_unit')
     serializer_class = OrderItemSerializer
     permission_classes = [IsAdminUser]
+
+
+class DeliveryRateViewSet(viewsets.ModelViewSet):
+    """Manage delivery rates (order manager only)."""
+    queryset = DeliveryRate.objects.all().order_by('county', 'ward')
+    serializer_class = DeliveryRateSerializer
+    permission_classes = [IsOrderManager]
 
 # --- LOOKUP TABLES VIEWSETS ---
 

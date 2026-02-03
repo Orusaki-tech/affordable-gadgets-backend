@@ -535,6 +535,30 @@ class InventoryUnitImage(models.Model):
 # 4. ORDER MANAGEMENT MODELS
 # -------------------------------------------------------------------------
 
+class DeliveryRate(models.Model):
+    """Delivery pricing by county and (optional) ward."""
+    county = models.CharField(max_length=100)
+    ward = models.CharField(max_length=100, blank=True, null=True)
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['county', 'ward']
+        constraints = [
+            models.UniqueConstraint(fields=['county', 'ward'], name='uniq_delivery_rate_county_ward')
+        ]
+        indexes = [
+            models.Index(fields=['county', 'ward']),
+            models.Index(fields=['is_active']),
+        ]
+
+    def __str__(self):
+        location = f"{self.county}" + (f" - {self.ward}" if self.ward else "")
+        return f"{location}: KES {self.price}"
+
+
 class Order(models.Model):
     """Represents a customer's order for specific InventoryUnits."""
     class StatusChoices(models.TextChoices):
@@ -580,6 +604,13 @@ class Order(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     status = models.CharField(max_length=50, choices=StatusChoices.choices, default=StatusChoices.PENDING)
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    delivery_address = models.TextField(blank=True, null=True)
+    delivery_county = models.CharField(max_length=100, blank=True)
+    delivery_ward = models.CharField(max_length=100, blank=True)
+    delivery_fee = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    delivery_window_start = models.DateTimeField(null=True, blank=True)
+    delivery_window_end = models.DateTimeField(null=True, blank=True)
+    delivery_notes = models.TextField(blank=True)
     
     def __str__(self):
         # Using order_id for __str__ is better since it's the primary key
@@ -1147,6 +1178,12 @@ class Lead(models.Model):
     customer_phone = models.CharField(max_length=20, db_index=True)
     customer_email = models.EmailField(blank=True, null=True)
     delivery_address = models.TextField(blank=True)
+    delivery_county = models.CharField(max_length=100, blank=True)
+    delivery_ward = models.CharField(max_length=100, blank=True)
+    delivery_fee = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    delivery_window_start = models.DateTimeField(null=True, blank=True)
+    delivery_window_end = models.DateTimeField(null=True, blank=True)
+    delivery_notes = models.TextField(blank=True)
     
     # Link to Customer (if exists or created)
     customer = models.ForeignKey(
@@ -1266,6 +1303,12 @@ class Cart(models.Model):
     customer_phone = models.CharField(max_length=20, blank=True, db_index=True)
     customer_email = models.EmailField(blank=True, null=True)
     delivery_address = models.TextField(blank=True, null=True)
+    delivery_county = models.CharField(max_length=100, blank=True)
+    delivery_ward = models.CharField(max_length=100, blank=True)
+    delivery_fee = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    delivery_window_start = models.DateTimeField(null=True, blank=True)
+    delivery_window_end = models.DateTimeField(null=True, blank=True)
+    delivery_notes = models.TextField(blank=True)
     
     # Status
     is_submitted = models.BooleanField(default=False)  # Becomes Lead when True

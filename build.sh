@@ -12,6 +12,8 @@ pip install -r requirements.txt
 
 # Run database migrations
 echo "🗄️  Running database migrations..."
+# Generate migrations for inventory changes (delivery rates, scheduling fields)
+python manage.py makemigrations inventory
 # Try to run migrations, but continue if there are duplicate index errors
 python manage.py migrate --noinput || {
     echo "⚠️  Migration encountered an error. Attempting to fix duplicate index issue..."
@@ -22,6 +24,14 @@ python manage.py migrate --noinput || {
         # Check if we can at least run other migrations
         python manage.py migrate --noinput --run-syncdb || true
     }
+}
+
+# Seed delivery rates (counties + optional wards file)
+echo "🚚 Seeding delivery rates..."
+python manage.py seed_delivery_rates \
+    --county-price ${DELIVERY_COUNTY_PRICE_DEFAULT:-0} \
+    --ward-price ${DELIVERY_WARD_PRICE_DEFAULT:-0} || {
+    echo "⚠️  Delivery rate seeding encountered an error. Continuing build..."
 }
 
 # Specifically ensure migration 0027 is applied (idempotency_key column)

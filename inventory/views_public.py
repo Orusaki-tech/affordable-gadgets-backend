@@ -15,18 +15,20 @@ from django.conf import settings
 from django.shortcuts import get_object_or_404
 from inventory.models import (
     Product, InventoryUnit, Cart, Lead, Brand, Promotion, ProductImage, Bundle, BundleItem,
-    Order, OrderItem, Review, Customer, WishlistItem
+    Order, OrderItem, Review, Customer, WishlistItem, DeliveryRate
 )
 from inventory.serializers_public import (
     PublicProductSerializer, PublicProductListSerializer, PublicInventoryUnitSerializer,
     CartSerializer, CartItemSerializer, CheckoutSerializer, PublicPromotionSerializer,
     CartCreateSerializer, CartItemCreateSerializer, CartBundleCreateSerializer, CheckoutResponseSerializer,
     PublicBundleSerializer, ReviewOtpRequestSerializer, ReviewEligibilityRequestSerializer,
-    ReviewEligibilityItemSerializer, PublicReviewSubmitSerializer, PublicWishlistItemSerializer
+    ReviewEligibilityItemSerializer, PublicReviewSubmitSerializer, PublicWishlistItemSerializer,
+    PublicDeliveryRateSerializer
 )
 from inventory.serializers import LeadSerializer, ReviewSerializer
 from inventory.services.cart_service import CartService
 from inventory.services.customer_service import CustomerService
+from inventory.services.delivery_service import get_delivery_fee
 from inventory.services.otp_service import OtpService
 
 
@@ -1712,6 +1714,14 @@ class CartViewSet(viewsets.ModelViewSet):
             address_value = data['delivery_address']
             if address_value is None or (isinstance(address_value, str) and not address_value.strip()):
                 data['delivery_address'] = None
+        if 'delivery_county' in data:
+            county_value = data['delivery_county']
+            if county_value is None or (isinstance(county_value, str) and not county_value.strip()):
+                data['delivery_county'] = None
+        if 'delivery_ward' in data:
+            ward_value = data['delivery_ward']
+            if ward_value is None or (isinstance(ward_value, str) and not ward_value.strip()):
+                data['delivery_ward'] = None
         
         # Ensure required fields are present
         if 'customer_name' not in data or not data.get('customer_name'):
@@ -1737,13 +1747,24 @@ class CartViewSet(viewsets.ModelViewSet):
                 'data_received': data
             }, status=status.HTTP_400_BAD_REQUEST)
         
+        delivery_fee, _ = get_delivery_fee(
+            serializer.validated_data.get('delivery_county'),
+            serializer.validated_data.get('delivery_ward')
+        )
+
         try:
             lead = CartService.checkout_cart(
                 cart,
                 serializer.validated_data['customer_name'],
                 serializer.validated_data['customer_phone'],
                 serializer.validated_data.get('customer_email') or None,
-                serializer.validated_data.get('delivery_address') or None
+                serializer.validated_data.get('delivery_address') or None,
+                serializer.validated_data.get('delivery_county'),
+                serializer.validated_data.get('delivery_ward'),
+                delivery_fee,
+                serializer.validated_data.get('delivery_window_start'),
+                serializer.validated_data.get('delivery_window_end'),
+                serializer.validated_data.get('delivery_notes')
             )
             
             logger.info(f"Lead created successfully: {lead.lead_reference}")
@@ -2163,6 +2184,22 @@ class PublicWishlistViewSet(viewsets.ModelViewSet):
         queryset = self.get_queryset().filter(product_id=product_id)
         queryset.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class PublicDeliveryRateViewSet(viewsets.ReadOnlyModelViewSet):
+    """Public delivery rates lookup."""
+    serializer_class = PublicDeliveryRateSerializer
+    permission_classes = [permissions.AllowAny]
+
+    def get_queryset(self):
+        queryset = DeliveryRate.objects.filter(is_active=True)
+        county = self.request.query_params.get('county')
+        ward = self.request.query_params.get('ward')
+        if county:
+            queryset = queryset.filter(county__iexact=county)
+        if ward:
+            queryset = queryset.filter(ward__iexact=ward)
+        return queryset.order_by('county', 'ward')
 
 
 class PublicPromotionPagination(PageNumberPagination):

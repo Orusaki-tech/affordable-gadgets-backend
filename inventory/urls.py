@@ -18,6 +18,7 @@ router.register(r'units', views.InventoryUnitViewSet, basename='inventory-unit')
 router.register(r'reviews', views.ReviewViewSet, basename='review')
 router.register(r'orders', views.OrderViewSet, basename='order') # Customer-filtered
 router.register(r'order-items', views.OrderItemViewSet, basename='order-item') # Admin-only
+router.register(r'delivery-rates', views.DeliveryRateViewSet, basename='delivery-rate')
 
 # Lookup Tables Endpoints (Read-Only/Admin)
 router.register(r'colors', views.ColorViewSet, basename='color')

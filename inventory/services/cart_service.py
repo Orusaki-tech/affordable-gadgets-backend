@@ -236,7 +236,19 @@ class CartService:
         return created_items, group_id
     
     @staticmethod
-    def checkout_cart(cart, customer_name, customer_phone, customer_email=None, delivery_address=None):
+    def checkout_cart(
+        cart,
+        customer_name,
+        customer_phone,
+        customer_email=None,
+        delivery_address=None,
+        delivery_county=None,
+        delivery_ward=None,
+        delivery_fee=None,
+        delivery_window_start=None,
+        delivery_window_end=None,
+        delivery_notes=None
+    ):
         """Convert cart to Lead."""
         from inventory.models import Lead, LeadItem
         from django.db import transaction
@@ -260,6 +272,12 @@ class CartService:
             cart.customer_email = customer_email if customer_email and customer_email.strip() else None
             cart.delivery_address = delivery_address if delivery_address and delivery_address.strip() else None
             cart.customer = customer
+            cart.delivery_county = delivery_county or ''
+            cart.delivery_ward = delivery_ward or ''
+            cart.delivery_fee = delivery_fee or Decimal('0.00')
+            cart.delivery_window_start = delivery_window_start
+            cart.delivery_window_end = delivery_window_end
+            cart.delivery_notes = delivery_notes or ''
             cart.is_submitted = True
             
             # Calculate total value using stored promotion prices
@@ -274,9 +292,15 @@ class CartService:
                 customer_phone=customer_phone,
                 customer_email=customer_email,
                 delivery_address=delivery_address,
+                delivery_county=delivery_county or '',
+                delivery_ward=delivery_ward or '',
+                delivery_fee=cart.delivery_fee,
+                delivery_window_start=delivery_window_start,
+                delivery_window_end=delivery_window_end,
+                delivery_notes=delivery_notes or '',
                 customer=customer,
                 brand=cart.brand,
-                total_value=total_value,
+                total_value=total_value + (cart.delivery_fee or Decimal('0.00')),
                 status=Lead.StatusChoices.NEW
             )
             
