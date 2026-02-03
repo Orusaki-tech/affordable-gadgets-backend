@@ -181,7 +181,7 @@ class PublicProductSerializer(serializers.ModelSerializer):
                 if item.override_price is not None:
                     price = Decimal(str(item.override_price))
                 else:
-                    min_price = item.product.min_price
+                    min_price = getattr(item.product, 'min_price', None)
                     if min_price is None:
                         units = InventoryUnit.objects.filter(
                             product_template=item.product,
