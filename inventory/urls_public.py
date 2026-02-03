@@ -20,6 +20,8 @@ urlpatterns = [
     path('reviews/otp/', views_public.ReviewOtpView.as_view(), name='public-review-otp'),
     path('reviews/eligibility/', views_public.ReviewEligibilityView.as_view(), name='public-review-eligibility'),
     path('reviews/submit/', views_public.PublicReviewSubmitView.as_view(), name='public-review-submit'),
+    path('orders/otp/', views_public.OrderOtpView.as_view(), name='public-order-otp'),
+    path('orders/history/', views_public.PublicOrderHistoryView.as_view(), name='public-order-history'),
     path('', include(router.urls)),
     # Budget search endpoint
     path('phone-search/', views_public.PhoneSearchByBudgetView.as_view(), name='public-phone-search-budget'),

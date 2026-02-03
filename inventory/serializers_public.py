@@ -4,7 +4,7 @@ from drf_spectacular.utils import extend_schema_field, extend_schema_serializer,
 from decimal import Decimal
 from django.db.models import Q, Sum, Avg
 from django.utils import timezone
-from inventory.models import Product, InventoryUnit, Cart, CartItem, Lead, LeadItem, Promotion, Bundle, BundleItem, ProductImage, Review, WishlistItem, DeliveryRate
+from inventory.models import Product, InventoryUnit, Cart, CartItem, Lead, LeadItem, Promotion, Bundle, BundleItem, ProductImage, Review, WishlistItem, DeliveryRate, Order, OrderItem
 from inventory.services.interest_service import InterestService
 import logging
 
@@ -78,6 +78,15 @@ class ReviewEligibilityRequestSerializer(serializers.Serializer):
     otp = serializers.CharField(max_length=6)
 
 
+class OrderOtpRequestSerializer(serializers.Serializer):
+    phone = serializers.CharField(max_length=20)
+
+
+class OrderHistoryRequestSerializer(serializers.Serializer):
+    phone = serializers.CharField(max_length=20)
+    otp = serializers.CharField(max_length=6)
+
+
 class ReviewEligibilityItemSerializer(serializers.Serializer):
     product_id = serializers.IntegerField()
     product_name = serializers.CharField()
@@ -85,6 +94,31 @@ class ReviewEligibilityItemSerializer(serializers.Serializer):
     order_id = serializers.UUIDField()
     order_item_id = serializers.IntegerField()
     purchase_date = serializers.DateField(allow_null=True, required=False)
+
+
+class PublicOrderItemSerializer(serializers.ModelSerializer):
+    product_name = serializers.CharField(source='inventory_unit.product_template.product_name', read_only=True)
+    sub_total = serializers.SerializerMethodField()
+
+    class Meta:
+        model = OrderItem
+        fields = ['id', 'product_name', 'quantity', 'unit_price_at_purchase', 'sub_total']
+
+    def get_sub_total(self, obj):
+        return obj.unit_price_at_purchase * obj.quantity
+
+
+class PublicOrderSerializer(serializers.ModelSerializer):
+    order_items = PublicOrderItemSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Order
+        fields = [
+            'order_id', 'created_at', 'status', 'total_amount',
+            'delivery_address', 'delivery_county', 'delivery_ward', 'delivery_fee',
+            'delivery_window_start', 'delivery_window_end', 'delivery_notes',
+            'order_items'
+        ]
 
 
 class PublicReviewSubmitSerializer(serializers.Serializer):

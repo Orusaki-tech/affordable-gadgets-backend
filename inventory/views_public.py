@@ -23,7 +23,8 @@ from inventory.serializers_public import (
     CartCreateSerializer, CartItemCreateSerializer, CartBundleCreateSerializer, CheckoutResponseSerializer,
     PublicBundleSerializer, ReviewOtpRequestSerializer, ReviewEligibilityRequestSerializer,
     ReviewEligibilityItemSerializer, PublicReviewSubmitSerializer, PublicWishlistItemSerializer,
-    PublicDeliveryRateSerializer
+    PublicDeliveryRateSerializer, OrderOtpRequestSerializer, OrderHistoryRequestSerializer,
+    PublicOrderSerializer
 )
 from inventory.serializers import LeadSerializer, ReviewSerializer
 from inventory.services.cart_service import CartService
@@ -1843,6 +1844,57 @@ class ReviewOtpView(APIView):
                 status_code = status.HTTP_503_SERVICE_UNAVAILABLE
             return Response(result, status=status_code)
         return Response(result)
+
+
+@extend_schema(request=OrderOtpRequestSerializer, responses=OpenApiTypes.OBJECT)
+class OrderOtpView(APIView):
+    """Send OTP for order history verification."""
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        serializer = OrderOtpRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        phone = serializer.validated_data['phone']
+
+        result = OtpService.send_order_otp(phone)
+        if not result.get("sent"):
+            status_code = status.HTTP_429_TOO_MANY_REQUESTS
+            if result.get("error") and "Unable to send" in result.get("error", ""):
+                status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+            return Response(result, status=status_code)
+        return Response(result)
+
+
+@extend_schema(request=OrderHistoryRequestSerializer, responses=OpenApiTypes.OBJECT)
+class PublicOrderHistoryView(APIView):
+    """Return orders for a customer after OTP verification."""
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        serializer = OrderHistoryRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        phone = serializer.validated_data['phone']
+        otp = serializer.validated_data['otp']
+
+        if not OtpService.verify_order_otp(phone, otp):
+            return Response({'error': 'Invalid or expired OTP.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        customer = Customer.objects.filter(phone=phone).first()
+        if not customer:
+            return Response({'orders': []})
+
+        brand = getattr(request, 'brand', None)
+        orders = (
+            Order.objects
+            .filter(customer=customer)
+            .prefetch_related('order_items', 'order_items__inventory_unit__product_template')
+            .order_by('-created_at')
+        )
+        if brand:
+            orders = orders.filter(brand=brand)
+
+        orders_serializer = PublicOrderSerializer(orders, many=True)
+        return Response({'orders': orders_serializer.data})
 
 
 @extend_schema(request=ReviewEligibilityRequestSerializer, responses=OpenApiTypes.OBJECT)
