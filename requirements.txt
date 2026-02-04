@@ -12,6 +12,9 @@ pydot==4.0.1
 pyparsing==3.2.5
 sqlparse==0.5.3
 requests==2.31.0
+google-api-python-client==2.139.0
+google-auth==2.33.0
+google-auth-httplib2==0.2.0
 cloudinary==1.40.0
 django-cloudinary-storage==0.3.0
 python-dotenv==1.0.0

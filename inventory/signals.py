@@ -68,6 +68,17 @@ def handle_reservation_approval(sender, instance, created, **kwargs):
 def handle_order_creation(sender, instance, created, **kwargs):
     """Create notification when order is created."""
     if created:
+        try:
+            from inventory.services.order_email_service import OrderEmailService
+            OrderEmailService.send_order_confirmation_email(instance)
+        except Exception as e:
+            logger.error(
+                "Failed to send order confirmation for order %s: %s",
+                instance.order_id,
+                e,
+                exc_info=True,
+            )
+
         # Convert order_id (UUID) to string for object_id field (PositiveIntegerField)
         # Since Order uses UUID as primary key, we can't store it in PositiveIntegerField
         # Store None for object_id and include order_id in the message instead

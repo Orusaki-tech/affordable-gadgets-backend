@@ -359,8 +359,8 @@ PESAPAL_RETRY_DELAY = int(os.environ.get('PESAPAL_RETRY_DELAY', '2'))
 PESAPAL_LOG_PATH = os.environ.get('PESAPAL_LOG_PATH', '/tmp/pesapal_debug.log')
 
 # --- Email Configuration ---
-# Use custom backend to improve TLS cert handling; override via EMAIL_BACKEND if needed.
-EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'store.email_backend.EmailBackend')
+# Gmail API backend by default; override via EMAIL_BACKEND if needed.
+EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'store.gmail_backend.GmailApiEmailBackend')
 EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
 EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
 EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True').lower() == 'true'
@@ -371,11 +371,19 @@ EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', '10'))
 EMAIL_SSL_CA_FILE = os.environ.get('EMAIL_SSL_CA_FILE', '')
 EMAIL_TLS_ALLOW_INVALID_CERTS = os.environ.get('EMAIL_TLS_ALLOW_INVALID_CERTS', 'False').lower() == 'true'
 
+# Gmail API configuration
+GMAIL_CLIENT_ID = os.environ.get('GMAIL_CLIENT_ID', '')
+GMAIL_CLIENT_SECRET = os.environ.get('GMAIL_CLIENT_SECRET', '')
+GMAIL_REFRESH_TOKEN = os.environ.get('GMAIL_REFRESH_TOKEN', '')
+GMAIL_SENDER = os.environ.get('GMAIL_SENDER', DEFAULT_FROM_EMAIL)
+GMAIL_API_TIMEOUT = int(os.environ.get('GMAIL_API_TIMEOUT', '10'))
+GMAIL_MAX_RETRIES = int(os.environ.get('GMAIL_MAX_RETRIES', '3'))
+GMAIL_RETRY_BASE_DELAY = float(os.environ.get('GMAIL_RETRY_BASE_DELAY', '1.0'))
+
 # --- Twilio WhatsApp Configuration ---
 TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID', '')
 TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN', '')
 TWILIO_WHATSAPP_FROM = os.environ.get('TWILIO_WHATSAPP_FROM', '')  # Format: whatsapp:+14155238886
-TWILIO_SMS_FROM = os.environ.get('TWILIO_SMS_FROM', '')  # Format: +15551234567
 TWILIO_TIMEOUT = int(os.environ.get('TWILIO_TIMEOUT', '10'))
 
 # --- CORS Configuration (Development) ---
