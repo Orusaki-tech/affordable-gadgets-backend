@@ -311,6 +311,7 @@ if SILKY_ENABLED:
     SILKY_AUTHORIZATION = True
     SILKY_PERMISSIONS = lambda user: user.is_staff
     SILKY_INTERCEPT_PERCENT = float(os.environ.get('SILKY_INTERCEPT_PERCENT', '10'))
+    SILKY_LOGIN_URL = '/admin/login/'
 
 # --- drf-spectacular Configuration (OpenAPI 3 Schema Generation) ---
 SPECTACULAR_SETTINGS = {
