@@ -75,6 +75,7 @@ urlpatterns = [
     path('register/', views.CustomerRegistrationView.as_view(), name='customer-register'),
     path('login/', views.CustomerLoginView.as_view(), name='customer-login'),
     path('logout/', views.CustomerLogoutView.as_view(), name='customer-logout'),
+    path('verify-email/', views.CustomerEmailVerificationView.as_view(), name='customer-verify-email'),
 
     # Profile Endpoints (Read/Update authenticated user's profile)
     path('profiles/customer/', views.CustomerProfileView.as_view(), name='customer-profile'),

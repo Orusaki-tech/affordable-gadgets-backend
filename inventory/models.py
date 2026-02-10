@@ -1,4 +1,6 @@
 from django.db import models
+from django.utils import timezone
+import uuid
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils.translation import gettext_lazy as _
 from django.contrib.auth.models import AbstractUser
@@ -114,6 +116,11 @@ class Customer(models.Model):
     email = models.EmailField(blank=True, null=True)  # Optional
     address = models.TextField(blank=True, default='')  # Keep for backward compatibility
     delivery_address = models.TextField(blank=True)  # Simple text field for delivery
+
+    # Email verification
+    email_verified = models.BooleanField(default=False)
+    email_verification_token = models.UUIDField(null=True, blank=True, unique=True)
+    email_verification_sent_at = models.DateTimeField(null=True, blank=True)
     
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)  # Allow null for existing records
@@ -130,6 +137,12 @@ class Customer(models.Model):
         if self.user:
             return self.user.username
         return f"{self.name or 'Unknown'} ({self.phone or 'No phone'})"
+
+    def issue_email_verification(self):
+        """Generate a new email verification token and timestamp."""
+        self.email_verification_token = uuid.uuid4()
+        self.email_verification_sent_at = timezone.now()
+        self.save(update_fields=['email_verification_token', 'email_verification_sent_at'])
 
 
 # -------------------------------------------------------------------------

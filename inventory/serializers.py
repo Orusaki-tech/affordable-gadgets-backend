@@ -308,6 +308,8 @@ class CustomerRegistrationSerializer(serializers.Serializer):
         """
         Creates the User and Customer instances atomically.
         """
+        from inventory.services.email_verification_service import send_verification_email
+
         # 1. Pop fields intended for the User model
         username = validated_data.pop('username')
         email = validated_data.pop('email')
@@ -324,11 +326,13 @@ class CustomerRegistrationSerializer(serializers.Serializer):
         # 3. Create the Customer instance, linking it to the new User
         customer = Customer.objects.create(
             user=user,
+            email=email,
             **validated_data # This includes phone_number, address
         )
 
-        # 4. Create an authentication token for immediate login
-        token = Token.objects.create(user=user)
+        # 4. Generate email verification token + send email
+        customer.issue_email_verification()
+        send_verification_email(customer)
 
         # Return the Customer instance
         return customer
@@ -337,16 +341,13 @@ class CustomerRegistrationSerializer(serializers.Serializer):
         """
         Custom representation to include the authentication token upon successful registration.
         """
-        # Get the token created in the .create() method
-        token = Token.objects.get(user=instance.user).key
-        
         # Return the Customer data plus the token
         return {
             'username': instance.user.username,
             'email': instance.user.email,
             'phone_number': instance.phone_number,
-            'token': token,
-            'message': 'Registration successful. Token generated for immediate use.'
+            'message': 'Registration successful. Please verify your email before logging in.',
+            'email_verification_required': True
         }
 class AdminAuthTokenSerializer(serializers.Serializer):
     """
@@ -444,6 +445,14 @@ class CustomerLoginSerializer(serializers.Serializer):
 
 
         if user and user.is_active:
+            # Block login if email is not verified (customers only)
+            if not user.is_staff:
+                try:
+                    customer = Customer.objects.get(user=user)
+                    if not customer.email_verified:
+                        raise serializers.ValidationError("Please verify your email before logging in.")
+                except Customer.DoesNotExist:
+                    raise serializers.ValidationError("Cannot login without a customer profile.")
             # Update last_login timestamp
             from django.utils import timezone
             user.last_login = timezone.now()

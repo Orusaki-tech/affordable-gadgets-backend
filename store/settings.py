@@ -359,6 +359,8 @@ PESAPAL_RETRY_DELAY = int(os.environ.get('PESAPAL_RETRY_DELAY', '2'))
 PESAPAL_LOG_PATH = os.environ.get('PESAPAL_LOG_PATH', '/tmp/pesapal_debug.log')
 
 # --- Email Configuration ---
+# Frontend base URL for email verification links
+FRONTEND_BASE_URL = os.environ.get('FRONTEND_BASE_URL', 'http://localhost:3000')
 # Gmail API backend by default; override via EMAIL_BACKEND if needed.
 EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'store.gmail_backend.GmailApiEmailBackend')
 EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')

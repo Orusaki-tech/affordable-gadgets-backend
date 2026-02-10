@@ -19,6 +19,7 @@ from rest_framework import filters
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 from datetime import timedelta
+from datetime import timedelta
 from django.contrib.contenttypes.models import ContentType
 from django.conf import settings 
 from django.http import HttpResponse, FileResponse
@@ -2636,6 +2637,42 @@ class CustomerLoginView(generics.GenericAPIView):
         # 2. If valid, return the data populated by the serializer's validate method 
         # (token, user_id, email).
         return Response(serializer.validated_data, status=status.HTTP_200_OK)
+
+
+class CustomerEmailVerificationView(generics.GenericAPIView):
+    """
+    POST: Verifies a customer's email using uid and token.
+    """
+    permission_classes = (permissions.AllowAny,)
+
+    def post(self, request, *args, **kwargs):
+        uid = request.data.get('uid')
+        token = request.data.get('token')
+
+        if not uid or not token:
+            return Response({'error': 'uid and token are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            customer = Customer.objects.select_related('user').get(user__id=uid)
+        except Customer.DoesNotExist:
+            return Response({'error': 'Customer not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if customer.email_verified:
+            return Response({'message': 'Email is already verified.'}, status=status.HTTP_200_OK)
+
+        if not customer.email_verification_token or str(customer.email_verification_token) != str(token):
+            return Response({'error': 'Invalid verification token.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if customer.email_verification_sent_at:
+            expiry = customer.email_verification_sent_at + timedelta(hours=48)
+            if timezone.now() > expiry:
+                return Response({'error': 'Verification link has expired.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        customer.email_verified = True
+        customer.email_verification_token = None
+        customer.save(update_fields=['email_verified', 'email_verification_token'])
+
+        return Response({'message': 'Email verified successfully.'}, status=status.HTTP_200_OK)
     
 class CustomerLogoutView(generics.GenericAPIView):
     """
