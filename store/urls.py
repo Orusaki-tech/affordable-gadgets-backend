@@ -64,3 +64,8 @@ urlpatterns = [
 # Serve media files in development (Cloudinary handles in production)
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+if getattr(settings, 'SILKY_ENABLED', False):
+    urlpatterns += [
+        path('silk/', include('silk.urls', namespace='silk')),
+    ]

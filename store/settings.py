@@ -35,10 +35,12 @@ AUTH_USER_MODEL = 'inventory.User'
 
 
 # Application definition
+SILKY_ENABLED = os.environ.get('SILKY_ENABLED', 'false').lower() == 'true'
 
 INSTALLED_APPS = [
     'django_extensions',
     'corsheaders',  # <--- ADDED: For CORS support (must be before django apps)
+    *(['silk'] if SILKY_ENABLED else []),
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -59,6 +61,7 @@ INSTALLED_APPS = [
 REVIEW_OTP_TTL_SECONDS = int(os.getenv("REVIEW_OTP_TTL_SECONDS", 60 * 60))
 
 MIDDLEWARE = [
+    *(['silk.middleware.SilkyMiddleware'] if SILKY_ENABLED else []),
     'corsheaders.middleware.CorsMiddleware',  # <--- ADDED: Must be near top, before CommonMiddleware
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -300,6 +303,14 @@ else:
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# --- Django Silk (profiling) ---
+# Enable with SILKY_ENABLED=true. In production, keep access restricted.
+if SILKY_ENABLED:
+    SILKY_AUTHENTICATION = True
+    SILKY_AUTHORIZATION = True
+    SILKY_PERMISSIONS = lambda user: user.is_staff
+    SILKY_INTERCEPT_PERCENT = float(os.environ.get('SILKY_INTERCEPT_PERCENT', '10'))
 
 # --- drf-spectacular Configuration (OpenAPI 3 Schema Generation) ---
 SPECTACULAR_SETTINGS = {
