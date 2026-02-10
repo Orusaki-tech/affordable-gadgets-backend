@@ -40,6 +40,7 @@ urlpatterns = [
     # 2. Authentication Endpoints (Placeholder for user login, registration, etc.)
     # In a real-world scenario, you would use a library like Djoser or built-in DRF Auth views.
     path('api/auth/', include('rest_framework.urls')), 
+    path('accounts/', include('django.contrib.auth.urls')),
 
     # 3. Primary Inventory API Module
     # All inventory-related endpoints start with 'api/inventory/'
