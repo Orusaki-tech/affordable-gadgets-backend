@@ -2673,6 +2673,34 @@ class CustomerEmailVerificationView(generics.GenericAPIView):
         customer.save(update_fields=['email_verified', 'email_verification_token'])
 
         return Response({'message': 'Email verified successfully.'}, status=status.HTTP_200_OK)
+
+
+class CustomerResendVerificationView(generics.GenericAPIView):
+    """
+    POST: Re-send verification email for a customer.
+    """
+    permission_classes = (permissions.AllowAny,)
+
+    def post(self, request, *args, **kwargs):
+        from inventory.services.email_verification_service import send_verification_email
+
+        email = request.data.get('email')
+        if not email:
+            return Response({'error': 'email is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            customer = Customer.objects.select_related('user').get(user__email__iexact=email)
+        except Customer.DoesNotExist:
+            # Avoid leaking which emails exist
+            return Response({'message': 'If the email exists, a verification link has been sent.'}, status=status.HTTP_200_OK)
+
+        if customer.email_verified:
+            return Response({'message': 'Email is already verified.'}, status=status.HTTP_200_OK)
+
+        customer.issue_email_verification()
+        send_verification_email(customer)
+
+        return Response({'message': 'Verification email sent.'}, status=status.HTTP_200_OK)
     
 class CustomerLogoutView(generics.GenericAPIView):
     """
