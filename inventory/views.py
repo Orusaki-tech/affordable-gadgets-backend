@@ -406,6 +406,17 @@ class ProductViewSet(viewsets.ModelViewSet):
         # ProductImage (CASCADE - will be deleted automatically)
         # Review (CASCADE - will be deleted automatically)
         # created_by/updated_by (PROTECT - but these are users, not products)
+
+        # Clear protected relations that can block deletion when no available units exist
+        try:
+            if instance.bundle_items.exists():
+                instance.bundle_items.all().delete()
+            if instance.inventory_units.exists():
+                instance.inventory_units.all().delete()
+        except Exception as e:
+            logger.error(f"Error cleaning related data for product {instance.id}: {str(e)}", exc_info=True)
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError(f'Failed to delete product: {str(e)}')
         
         # Attempt deletion
         try:
