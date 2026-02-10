@@ -706,6 +706,7 @@ class ProductSerializer(serializers.ModelSerializer):
     seo_score = serializers.SerializerMethodField(read_only=True)
     og_image_url = serializers.SerializerMethodField(read_only=True)
     product_video_file_url = serializers.SerializerMethodField(read_only=True)
+    available_stock = serializers.IntegerField(read_only=True)
     
     class Meta:
         model = Product
@@ -726,7 +727,7 @@ class ProductSerializer(serializers.ModelSerializer):
             # Brand Assignment
             'brands', 'brand_ids', 'is_global',
             # Computed Fields
-            'seo_score'
+            'seo_score', 'available_stock'
         )
         read_only_fields = ('id', 'created_at', 'updated_at', 'images', 'created_by', 'updated_by', 'seo_score', 'og_image_url', 'product_video_file_url', 'brands')
     

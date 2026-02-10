@@ -7,7 +7,22 @@ from django.db import transaction
 from django.core.cache import cache
 from urllib.parse import urlencode
 from decimal import Decimal
-from django.db.models import F, Count, Min, Max, Q, Sum, Case, When, IntegerField, Value # Added Count, Min, Max, Q for aggregation/filtering
+from django.db.models import (
+    F,
+    Count,
+    Min,
+    Max,
+    Q,
+    Sum,
+    Case,
+    When,
+    IntegerField,
+    Value,
+    Exists,
+    OuterRef,
+    ExpressionWrapper,
+    FloatField,
+) # Added Count, Min, Max, Q for aggregation/filtering
 from django.db.models.functions import Coalesce
 from rest_framework.decorators import action # Required for potential custom actions
 from rest_framework import generics, permissions
@@ -131,61 +146,168 @@ class ProductViewSet(viewsets.ModelViewSet):
     """
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['product_name', 'brand', 'model_series', 'product_description']
+    ordering_fields = ['product_name', 'available_stock', 'created_at', 'updated_at']
     
     def get_queryset(self):
         """Filter products by admin's assigned brands."""
         queryset = super().get_queryset()
         user = self.request.user
         
+        skip_brand_filter = False
+
         # Superuser sees all products
         if user.is_superuser:
-            return queryset
+            skip_brand_filter = True
         
         # For staff users (admins), filter by their assigned brands
-        if user.is_staff:
+        elif user.is_staff:
             try:
                 admin = Admin.objects.get(user=user)
                 if admin.is_global_admin:
-                    return queryset
+                    skip_brand_filter = True
                 
                 # Salespersons need to see all products to make reservations
                 # They should see all products regardless of brand assignment
                 if admin.is_salesperson:
-                    return queryset
+                    skip_brand_filter = True
                 
                 # Inventory Managers need to see all products to manage inventory
                 # They should see all products regardless of brand assignment
                 if admin.is_inventory_manager:
-                    return queryset
+                    skip_brand_filter = True
                 
                 # Marketing Managers need to see all products to view and attach promotions
                 # They should see all products regardless of brand assignment
                 if admin.is_marketing_manager:
-                    return queryset
+                    skip_brand_filter = True
                 
                 # Content Creators need to see all products to select them for reviews
                 # They should see all products regardless of brand assignment
                 if admin.is_content_creator:
-                    return queryset
+                    skip_brand_filter = True
                 
                 # Filter products by admin's assigned brands (for other roles)
-                if admin.brands.exists():
-                    # Products can be associated with multiple brands or be global
-                    # Show products that are either:
-                    # 1. Associated with one of admin's brands
-                    # 2. Global products (no brand association or is_global=True)
-                    queryset = queryset.filter(
-                        Q(brands__in=admin.brands.all()) | 
-                        Q(brands__isnull=True) | 
-                        Q(is_global=True)
-                    ).distinct()
-                else:
-                    # Admin with no brands sees nothing (except salespersons, inventory managers, and marketing managers who see all)
-                    return queryset.none()
+                if not skip_brand_filter:
+                    if admin.brands.exists():
+                        # Products can be associated with multiple brands or be global
+                        # Show products that are either:
+                        # 1. Associated with one of admin's brands
+                        # 2. Global products (no brand association or is_global=True)
+                        queryset = queryset.filter(
+                            Q(brands__in=admin.brands.all()) | 
+                            Q(brands__isnull=True) | 
+                            Q(is_global=True)
+                        ).distinct()
+                    else:
+                        # Admin with no brands sees nothing (except salespersons, inventory managers, and marketing managers who see all)
+                        queryset = queryset.none()
             except Admin.DoesNotExist:
                 # Staff user without admin profile sees nothing
-                return queryset.none()
+                queryset = queryset.none()
         
+        # Optional filtering for admin list views
+        available_units_filter = Q(inventory_units__sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE)
+        if self.action == 'list':
+            available_stock_expr = Case(
+                When(
+                    product_type=Product.ProductType.ACCESSORY,
+                    then=Coalesce(Sum('inventory_units__quantity', filter=available_units_filter), Value(0)),
+                ),
+                default=Coalesce(Count('inventory_units', filter=available_units_filter), Value(0)),
+                output_field=IntegerField(),
+            )
+            queryset = queryset.annotate(available_stock=available_stock_expr)
+
+        product_type = self.request.query_params.get('product_type')
+        if product_type:
+            queryset = queryset.filter(product_type=product_type)
+
+        brand = self.request.query_params.get('brand')
+        if brand:
+            queryset = queryset.filter(brand__icontains=brand)
+
+        stock_status = self.request.query_params.get('stock_status')
+        if stock_status:
+            if stock_status == 'discontinued':
+                queryset = queryset.filter(is_discontinued=True)
+            elif stock_status == 'out_of_stock':
+                queryset = queryset.filter(is_discontinued=False, available_stock=0)
+            elif stock_status == 'low_stock':
+                queryset = queryset.filter(is_discontinued=False, min_stock_threshold__isnull=False)
+                queryset = queryset.filter(available_stock__gt=0, available_stock__lt=F('min_stock_threshold'))
+            elif stock_status == 'in_stock':
+                queryset = queryset.filter(is_discontinued=False, available_stock__gt=0)
+                queryset = queryset.filter(Q(min_stock_threshold__isnull=True) | Q(available_stock__gte=F('min_stock_threshold')))
+
+        seo_status = self.request.query_params.get('seo_status')
+        if seo_status:
+            images_with_alt = ProductImage.objects.filter(
+                product=OuterRef('pk'),
+                alt_text__isnull=False,
+            ).exclude(alt_text='')
+
+            seo_score_points = (
+                Case(
+                    When(Q(meta_title__isnull=False) & ~Q(meta_title=''), then=Value(1)),
+                    default=Value(0),
+                    output_field=IntegerField(),
+                )
+                + Case(
+                    When(Q(meta_description__isnull=False) & ~Q(meta_description=''), then=Value(1)),
+                    default=Value(0),
+                    output_field=IntegerField(),
+                )
+                + Case(
+                    When(Q(slug__isnull=False) & ~Q(slug=''), then=Value(1)),
+                    default=Value(0),
+                    output_field=IntegerField(),
+                )
+                + Case(
+                    When(Q(og_image__isnull=False) & ~Q(og_image=''), then=Value(1)),
+                    default=Value(0),
+                    output_field=IntegerField(),
+                )
+                + Case(
+                    When(Q(product_description__isnull=False) & ~Q(product_description=''), then=Value(1)),
+                    default=Value(0),
+                    output_field=IntegerField(),
+                )
+                + Case(
+                    When(Exists(images_with_alt), then=Value(1)),
+                    default=Value(0),
+                    output_field=IntegerField(),
+                )
+                + Case(
+                    When(Q(product_highlights__isnull=False) & ~Q(product_highlights=[]), then=Value(1)),
+                    default=Value(0),
+                    output_field=IntegerField(),
+                )
+                + Case(
+                    When(Q(keywords__isnull=False) & ~Q(keywords=''), then=Value(1)),
+                    default=Value(0),
+                    output_field=IntegerField(),
+                )
+            )
+
+            queryset = queryset.annotate(
+                seo_score=ExpressionWrapper(seo_score_points * Value(100.0) / Value(8.0), output_field=FloatField())
+            )
+
+            if seo_status == 'missing-seo':
+                complete_q = (
+                    Q(meta_title__isnull=False) & ~Q(meta_title='') &
+                    Q(meta_description__isnull=False) & ~Q(meta_description='') &
+                    Q(slug__isnull=False) & ~Q(slug='') &
+                    Q(seo_score__gte=50)
+                )
+                queryset = queryset.exclude(complete_q)
+            elif seo_status == 'incomplete':
+                queryset = queryset.filter(seo_score__lt=50)
+            elif seo_status == 'complete':
+                queryset = queryset.filter(seo_score__gte=50)
+
         return queryset
     
     def get_permissions(self):
