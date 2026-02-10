@@ -383,13 +383,20 @@ class ProductViewSet(viewsets.ModelViewSet):
         Override destroy to check for related objects before deletion.
         Prevents deletion if product has inventory units (PROTECT constraint).
         """
-        # Check for inventory units - these have PROTECT constraint
-        inventory_units_count = instance.inventory_units.count()
-        if inventory_units_count > 0:
+        # Check for AVAILABLE inventory units only
+        available_units = instance.inventory_units.filter(
+            sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE
+        )
+        # For accessories, sum quantities; for unique units, count rows
+        available_units_count = available_units.aggregate(
+            total=Coalesce(Sum('quantity'), Value(0))
+        )['total'] or 0
+        if available_units_count > 0:
             from rest_framework.exceptions import ValidationError
             error_message = (
-                f'Cannot delete product "{instance.product_name}" because it has {inventory_units_count} '
-                f'inventory unit(s) associated with it. Please delete or reassign all inventory units first.'
+                f'Unable to delete product "{instance.product_name}" because it still has '
+                f'{available_units_count} available inventory unit(s) associated with it. '
+                f'Please delete or reassign all available inventory units first.'
             )
             # DRF ValidationError with a dict returns it as {"detail": "message"} which is easier to parse
             raise ValidationError({'detail': error_message})
