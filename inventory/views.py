@@ -839,7 +839,7 @@ class InventoryUnitViewSet(viewsets.ModelViewSet):
             io_string = io.StringIO(decoded_file)
             reader = csv.DictReader(io_string)
         except Exception as e:
-            return Response({"error": f"Encoding error: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": f"Encoding error 1 : {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
 
         created_count = 0
         errors = []
