@@ -831,9 +831,12 @@ class InventoryUnitViewSet(viewsets.ModelViewSet):
         if not file:
             return Response({"error": "No file uploaded"}, status=status.HTTP_400_BAD_REQUEST)
 
-        decoded_file = file.read().decode('utf-8')
-        io_string = io.StringIO(decoded_file)
-        reader = csv.DictReader(io_string)
+        try:
+            decoded_file = file.read().decode('utf-8')
+            io_string = io.StringIO(decoded_file)
+            reader = csv.DictReader(io_string)
+        except Exception as e:
+            return Response({"error": f"Encoding error: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
 
         created_count = 0
         errors = []
@@ -841,28 +844,33 @@ class InventoryUnitViewSet(viewsets.ModelViewSet):
         with transaction.atomic():
             for row_num, row in enumerate(reader, start=2):
                 try:
-                    # 1. Look up the Product Template
-                    # We try to find a product matching the "Model" column in your CSV
-                    model_name = row.get('Model')
+                    # Look up Product (strip spaces for safety)
+                    model_name = (row.get('Model') or '').strip()
+                    if not model_name:
+                        continue # Skip empty rows
+
                     product = Product.objects.filter(product_name__iexact=model_name).first()
                     
                     if not product:
                         errors.append(f"Row {row_num}: Product '{model_name}' not found.")
                         continue
 
-                    # 2. Create the Inventory Unit using your specific CSV headers
+                    # Clean Price
+                    raw_price = str(row.get('Selling Price', '0')).replace(',', '').strip()
+                    price = Decimal(raw_price) if raw_price and raw_price != 'None' else Decimal('0.00')
+
                     InventoryUnit.objects.create(
                         product_template=product,
                         serial_number=row.get('Serial Number'),
                         imei=row.get('IMEI'),
                         condition=row.get('Condition', 'N'),
                         grade=row.get('Grade'),
-                        storage_gb=int(row['Storage (GB)']) if row.get('Storage (GB)') and row['Storage (GB)'].isdigit() else None,
-                        ram_gb=int(row['RAM (GB)']) if row.get('RAM (GB)') and row['RAM (GB)'].isdigit() else None,
-                        selling_price=Decimal(str(row['Selling Price']).replace(',', '')),
+                        storage_gb=int(row['Storage (GB)']) if row.get('Storage (GB)') and str(row['Storage (GB)']).isdigit() else 0,
+                        ram_gb=int(row['RAM (GB)']) if row.get('RAM (GB)') and str(row['RAM (GB)']).isdigit() else 0,
+                        selling_price=price,
                         notes=row.get('Notes', ''),
                         created_by=request.user,
-                        # Set default status for imports
+                        updated_by=request.user,
                         sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE 
                     )
                     created_count += 1
@@ -875,8 +883,7 @@ class InventoryUnitViewSet(viewsets.ModelViewSet):
             "created": created_count,
             "failed": len(errors),
             "errors": errors
-        }, status=status.HTTP_200_OK if len(errors) == 0 else status.HTTP_207_MULTI_STATUS)
-
+        }, status=status.HTTP_201_CREATED if created_count > 0 else status.HTTP_400_BAD_REQUEST)
 
 
         # Read CSV
