@@ -593,6 +593,9 @@ class InventoryUnitViewSet(viewsets.ModelViewSet):
     
     NEW: Includes filtering and searching capabilities for efficient inventory management.
     """
+
+     parser_classes = [MultiPartParser, FormParser, JSONParser] 
+     
     # Optimized queryset for related field lookups
     queryset = InventoryUnit.objects.all().select_related('product_template', 'product_color', 'acquisition_source_details', 'reserved_by__user')
     serializer_class = InventoryUnitSerializer
@@ -819,7 +822,7 @@ class InventoryUnitViewSet(viewsets.ModelViewSet):
         return response
     
  # Add these to your InventoryUnitViewSet class
-    parser_classes = [MultiPartParser, FormParser, JSONParser]
+   
 
     @action(detail=False, methods=['post'], permission_classes=[IsInventoryManager | IsSuperuser])
     def import_csv(self, request):
