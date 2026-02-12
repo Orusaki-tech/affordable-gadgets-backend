@@ -1,5 +1,18 @@
 import logging
 
+import csv
+import io
+from decimal import Decimal
+from django.db import transaction
+
+from rest_framework import status
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+
+from .models import Product, InventoryUnit # ... and your other models
+
+
 from rest_framework import viewsets, generics, permissions, exceptions, serializers
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -805,25 +818,67 @@ class InventoryUnitViewSet(viewsets.ModelViewSet):
         
         return response
     
-    @action(detail=False, methods=['post'], permission_classes=[CanApproveRequests])
+ # Add these to your InventoryUnitViewSet class
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    @action(detail=False, methods=['post'], permission_classes=[IsInventoryManager | IsSuperuser])
     def import_csv(self, request):
-        """Import inventory units from CSV file."""
         import csv
         import io
-        
-        csv_file = request.FILES.get('file')
-        if not csv_file:
-            return Response(
-                {"error": "No file provided"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        if not csv_file.name.endswith('.csv'):
-            return Response(
-                {"error": "File must be a CSV"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
+        from decimal import Decimal
+
+        file = request.FILES.get('file')
+        if not file:
+            return Response({"error": "No file uploaded"}, status=status.HTTP_400_BAD_REQUEST)
+
+        decoded_file = file.read().decode('utf-8')
+        io_string = io.StringIO(decoded_file)
+        reader = csv.DictReader(io_string)
+
+        created_count = 0
+        errors = []
+
+        with transaction.atomic():
+            for row_num, row in enumerate(reader, start=2):
+                try:
+                    # 1. Look up the Product Template
+                    # We try to find a product matching the "Model" column in your CSV
+                    model_name = row.get('Model')
+                    product = Product.objects.filter(product_name__iexact=model_name).first()
+                    
+                    if not product:
+                        errors.append(f"Row {row_num}: Product '{model_name}' not found.")
+                        continue
+
+                    # 2. Create the Inventory Unit using your specific CSV headers
+                    InventoryUnit.objects.create(
+                        product_template=product,
+                        serial_number=row.get('Serial Number'),
+                        imei=row.get('IMEI'),
+                        condition=row.get('Condition', 'N'),
+                        grade=row.get('Grade'),
+                        storage_gb=int(row['Storage (GB)']) if row.get('Storage (GB)') and row['Storage (GB)'].isdigit() else None,
+                        ram_gb=int(row['RAM (GB)']) if row.get('RAM (GB)') and row['RAM (GB)'].isdigit() else None,
+                        selling_price=Decimal(str(row['Selling Price']).replace(',', '')),
+                        notes=row.get('Notes', ''),
+                        created_by=request.user,
+                        # Set default status for imports
+                        sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE 
+                    )
+                    created_count += 1
+
+                except Exception as e:
+                    errors.append(f"Row {row_num}: {str(e)}")
+
+        return Response({
+            "success": len(errors) == 0,
+            "created": created_count,
+            "failed": len(errors),
+            "errors": errors
+        }, status=status.HTTP_200_OK if len(errors) == 0 else status.HTTP_207_MULTI_STATUS)
+
+
+
         # Read CSV
         decoded_file = csv_file.read().decode('utf-8')
         io_string = io.StringIO(decoded_file)
