@@ -1483,10 +1483,13 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
         units = product.inventory_units.filter(
             sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
             available_online=True
-        )
+        ).select_related('product_color', 'product_template')
         
         if brand:
             units = units.filter(Q(brands=brand) | Q(brands__isnull=True))
+        
+        # Order by storage_gb to ensure consistent ordering
+        units = units.order_by('storage_gb', 'selling_price')
         
         serializer = PublicInventoryUnitSerializer(units, many=True, context={'request': request, 'brand': brand})
         return Response(serializer.data)

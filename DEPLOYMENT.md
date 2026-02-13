@@ -82,6 +82,10 @@ PESAPAL_CONSUMER_SECRET=<your-consumer-secret>
 PESAPAL_ENVIRONMENT=live
 PESAPAL_CALLBACK_URL=https://yourdomain.com/payment/callback/
 PESAPAL_IPN_URL=https://your-api-domain.railway.app/api/inventory/pesapal/ipn/
+# Django Silk (Performance Profiling) - Optional
+# Set to 'true' to enable profiling UI at /silk/ (requires staff user to access)
+SILKY_ENABLED=false
+SILKY_INTERCEPT_PERCENT=10
 ```
 
 ### 2.3 Post-Deployment Commands
@@ -92,6 +96,34 @@ After first deployment, run:
 python manage.py migrate
 python manage.py collectstatic --noinput
 ```
+
+**Note:** The `build.sh` script automatically runs `collectstatic --noinput` during deployment, so static files (including Silk's UI assets) are collected automatically.
+
+### 2.4 Django Silk Setup (Optional - Performance Profiling)
+
+If you want to enable Django Silk for performance profiling:
+
+1. **Set Environment Variable:**
+   ```
+   SILKY_ENABLED=true
+   SILKY_INTERCEPT_PERCENT=10
+   ```
+
+2. **Verify Setup:**
+   ```bash
+   ./verify_silk_setup.sh
+   ```
+
+3. **Access Silk UI:**
+   - URL: `https://your-api-domain.com/silk/`
+   - **Requires:** Staff user account (same as Django admin)
+   - Login at: `https://your-api-domain.com/admin/login/`
+
+4. **Important Notes:**
+   - Silk is automatically enabled when `SILKY_ENABLED=true`
+   - Static files for Silk are collected during `collectstatic`
+   - In production, Silk uses local filesystem storage for static files (ensures UI renders correctly)
+   - Access is restricted to staff users only
 
 ## Phase 3: Frontend Deployment (Vercel)
 

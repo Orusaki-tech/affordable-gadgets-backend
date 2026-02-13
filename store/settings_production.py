@@ -97,8 +97,18 @@ if not database_url:
 # Static files (use Cloudinary for production)
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-# Use Cloudinary for static files in production (serves from CDN)
-STATICFILES_STORAGE = 'cloudinary_storage.storage.StaticCloudinaryStorage'
+
+# For production with Silk enabled, use local filesystem for static files
+# This ensures Silk's UI renders correctly. Cloudinary CDN is still used for media files.
+# If Silk is not enabled, use Cloudinary for static files (CDN benefits)
+# Note: SILKY_ENABLED is imported from base settings via 'from .settings import *'
+if SILKY_ENABLED:
+    # Use local filesystem storage when Silk is enabled (ensures Silk UI works)
+    # Static files will be served directly via the URL pattern in urls.py
+    STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
+else:
+    # Use Cloudinary for all static files if Silk is not enabled (CDN benefits)
+    STATICFILES_STORAGE = 'cloudinary_storage.storage.StaticCloudinaryStorage'
 
 # Media files (use Cloudinary - explicitly ensure it's set)
 MEDIA_URL = '/media/'

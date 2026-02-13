@@ -65,6 +65,17 @@ urlpatterns = [
 # Serve media files in development (Cloudinary handles in production)
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    # Serve static files in development
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+
+# In production, serve static files directly as fallback (especially for admin tools like Silk)
+# Cloudinary CDN is primary, but direct serving ensures admin tools work
+if not settings.DEBUG and getattr(settings, 'STATIC_ROOT', None):
+    from django.contrib.staticfiles.views import serve
+    from django.views.static import serve as static_serve
+    urlpatterns += [
+        re_path(r'^static/(?P<path>.*)$', static_serve, {'document_root': settings.STATIC_ROOT}),
+    ]
 
 if getattr(settings, 'SILKY_ENABLED', False):
     urlpatterns += [
