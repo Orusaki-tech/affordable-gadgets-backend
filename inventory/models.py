@@ -265,6 +265,7 @@ class Product(models.Model):
     )
 
     class Meta:
+        ordering = ['id']
         indexes = [
             models.Index(fields=['is_published', 'is_discontinued']),
             models.Index(fields=['product_type']),
