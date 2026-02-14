@@ -61,22 +61,6 @@ class _SilkProfileMixin:
         return super().dispatch(request, *args, **kwargs)
 
 
-@extend_schema_view(
-    list=extend_schema(
-        parameters=[
-            OpenApiParameter('page', OpenApiTypes.INT, OpenApiParameter.QUERY),
-            OpenApiParameter('page_size', OpenApiTypes.INT, OpenApiParameter.QUERY),
-            OpenApiParameter('type', OpenApiTypes.STR, OpenApiParameter.QUERY),
-            OpenApiParameter('search', OpenApiTypes.STR, OpenApiParameter.QUERY),
-            OpenApiParameter('brand_filter', OpenApiTypes.STR, OpenApiParameter.QUERY),
-            OpenApiParameter('min_price', OpenApiTypes.NUMBER, OpenApiParameter.QUERY),
-            OpenApiParameter('max_price', OpenApiTypes.NUMBER, OpenApiParameter.QUERY),
-            OpenApiParameter('ordering', OpenApiTypes.STR, OpenApiParameter.QUERY),
-            OpenApiParameter('promotion', OpenApiTypes.INT, OpenApiParameter.QUERY),
-            OpenApiParameter('slug', OpenApiTypes.STR, OpenApiParameter.QUERY),
-        ]
-    )
-)
 class PublicProductListPagination(PageNumberPagination):
     """Pagination for public product list that avoids the expensive COUNT query.
     Fetches page_size+1 rows to detect next page; does not return total count.
@@ -130,6 +114,22 @@ class PublicProductListPagination(PageNumberPagination):
         })
 
 
+@extend_schema_view(
+    list=extend_schema(
+        parameters=[
+            OpenApiParameter('page', OpenApiTypes.INT, OpenApiParameter.QUERY),
+            OpenApiParameter('page_size', OpenApiTypes.INT, OpenApiParameter.QUERY),
+            OpenApiParameter('type', OpenApiTypes.STR, OpenApiParameter.QUERY),
+            OpenApiParameter('search', OpenApiTypes.STR, OpenApiParameter.QUERY),
+            OpenApiParameter('brand_filter', OpenApiTypes.STR, OpenApiParameter.QUERY),
+            OpenApiParameter('min_price', OpenApiTypes.NUMBER, OpenApiParameter.QUERY),
+            OpenApiParameter('max_price', OpenApiTypes.NUMBER, OpenApiParameter.QUERY),
+            OpenApiParameter('ordering', OpenApiTypes.STR, OpenApiParameter.QUERY),
+            OpenApiParameter('promotion', OpenApiTypes.INT, OpenApiParameter.QUERY),
+            OpenApiParameter('slug', OpenApiTypes.STR, OpenApiParameter.QUERY),
+        ]
+    )
+)
 class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
     """Public product browsing."""
     queryset = Product.objects.filter(is_discontinued=False, is_published=True)
