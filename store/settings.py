@@ -312,6 +312,9 @@ if SILKY_ENABLED:
     SILKY_PERMISSIONS = lambda user: user.is_staff
     SILKY_INTERCEPT_PERCENT = float(os.environ.get('SILKY_INTERCEPT_PERCENT', '10'))
     SILKY_LOGIN_URL = '/admin/login/'
+    # Required for the "Profiling" tab in Silk UI to show Python profiler data
+    SILKY_PYTHON_PROFILER = True
+    SILKY_PYTHON_PROFILER_RESULT_PATH = os.path.join(BASE_DIR, 'profiles')
 
 # --- drf-spectacular Configuration (OpenAPI 3 Schema Generation) ---
 SPECTACULAR_SETTINGS = {

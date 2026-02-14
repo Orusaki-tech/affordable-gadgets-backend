@@ -68,6 +68,13 @@ else
     echo -e "${YELLOW}⚠️  Silk migrations may not be applied. Run: python manage.py migrate${NC}"
 fi
 
+# Ensure profiles directory exists (for SILKY_PYTHON_PROFILER_RESULT_PATH)
+if [ "$SILKY_ENABLED" = "true" ]; then
+    echo "6. Ensuring profiles directory exists..."
+    mkdir -p profiles
+    echo -e "${GREEN}✅ profiles/ ready for Python profiler output${NC}"
+fi
+
 # Summary
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

@@ -102,6 +102,23 @@ from .services.lead_service import LeadService
 
 logger = logging.getLogger(__name__)
 
+# Optional Silk profiling: when SILKY_ENABLED, wrap views so the Silk "Profiling" tab has data
+try:
+    if getattr(settings, 'SILKY_ENABLED', False):
+        from silk.profiling.profiler import silk_profile as _silk_profile
+    else:
+        _silk_profile = None
+except ImportError:
+    _silk_profile = None
+
+class _SilkProfileMixin:
+    """When SILKY_ENABLED, wraps request in silk_profile() so the Silk Profiling tab shows Python profiler data."""
+    def dispatch(self, request, *args, **kwargs):
+        if _silk_profile is not None:
+            with _silk_profile():
+                return super().dispatch(request, *args, **kwargs)
+        return super().dispatch(request, *args, **kwargs)
+
 def resolve_staff_brand_or_raise(request, brand_id=None, *, require_brand=False):
     """
     Resolve a brand for staff actions and enforce role-based brand access.
@@ -148,7 +165,7 @@ def resolve_staff_brand_or_raise(request, brand_id=None, *, require_brand=False)
 
 # --- CORE INVENTORY AND CATALOG VIEWSETS ---
 
-class ProductViewSet(viewsets.ModelViewSet):
+class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     """
     CRUD for Product Templates.
     - Public: Read-only access
@@ -639,7 +656,7 @@ class ProductViewSet(viewsets.ModelViewSet):
         return self.get_paginated_response(serializer.data)
 
 
-class ProductImageViewSet(viewsets.ModelViewSet):
+class ProductImageViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     """
     CRUD for individual product images.
     Only Admins can add/manage images; everyone can view product images 
@@ -651,7 +668,7 @@ class ProductImageViewSet(viewsets.ModelViewSet):
     permission_classes = [IsContentCreatorOrInventoryManagerOrReadOnly]
     parser_classes = [MultiPartParser, FormParser]
 
-class InventoryUnitImageViewSet(viewsets.ModelViewSet):
+class InventoryUnitImageViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     """
     CRUD for individual inventory unit images.
     Only Admins can add/manage images; everyone can view unit images 
@@ -663,7 +680,7 @@ class InventoryUnitImageViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAdminOrReadOnly]
     parser_classes = [MultiPartParser, FormParser]
 
-class InventoryUnitViewSet(viewsets.ModelViewSet):
+class InventoryUnitViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     """
     CRUD for individual physical Inventory Units.
     - Inventory Manager: Full access (read/write)
@@ -1295,7 +1312,7 @@ class PublicAvailableUnitsView(generics.ListAPIView):
 
 # --- SALES AND REVIEWS VIEWSETS ---
 
-class ReviewViewSet(viewsets.ModelViewSet):
+class ReviewViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     """
     Handles customer and admin reviews.
     - Everyone can read (GET).
@@ -1428,7 +1445,7 @@ class ReviewViewSet(viewsets.ModelViewSet):
             )
 
 
-class AdminRoleViewSet(viewsets.ReadOnlyModelViewSet):
+class AdminRoleViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
     """
     ViewSet for listing available admin roles.
     Read-only access to see what roles can be assigned.
@@ -1439,7 +1456,7 @@ class AdminRoleViewSet(viewsets.ReadOnlyModelViewSet):
     pagination_class = None  # Return all roles without pagination
 
 
-class TagViewSet(viewsets.ModelViewSet):
+class TagViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     """
     ViewSet for managing product tags.
     - All authenticated staff users can read
@@ -1451,7 +1468,7 @@ class TagViewSet(viewsets.ModelViewSet):
     pagination_class = None  # Return all tags without pagination (reasonable assumption)
 
 
-class AdminViewSet(viewsets.ModelViewSet):
+class AdminViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     """
     Admin management ViewSet. Superuser-only access.
     - List all admins
@@ -1594,7 +1611,7 @@ class AdminViewSet(viewsets.ModelViewSet):
                 # Just log the error
 
 
-class OrderViewSet(viewsets.ModelViewSet):
+class OrderViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     """
     Handles Order creation and management.
     - Admins can view/manage all orders.
@@ -2800,7 +2817,7 @@ class OrderViewSet(viewsets.ModelViewSet):
             )
 
 
-class OrderItemViewSet(viewsets.ModelViewSet):
+class OrderItemViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     """
     CRUD for Order Items. Strictly Admin-only access.
     Generally used only for reporting and admin-level viewing of existing orders.
@@ -2811,7 +2828,7 @@ class OrderItemViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAdminUser]
 
 
-class DeliveryRateViewSet(viewsets.ModelViewSet):
+class DeliveryRateViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     """Manage delivery rates (order manager only)."""
     queryset = DeliveryRate.objects.all().order_by('county', 'ward')
     serializer_class = DeliveryRateSerializer
@@ -2819,7 +2836,7 @@ class DeliveryRateViewSet(viewsets.ModelViewSet):
 
 # --- LOOKUP TABLES VIEWSETS ---
 
-class ColorViewSet(viewsets.ModelViewSet):
+class ColorViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     """
     Color lookup table. Admin-only write, public read.
     Uses IsAdminOrReadOnly.
@@ -2828,7 +2845,7 @@ class ColorViewSet(viewsets.ModelViewSet):
     serializer_class = ColorSerializer
     permission_classes = [IsAdminOrReadOnly]
 
-class UnitAcquisitionSourceViewSet(viewsets.ModelViewSet):
+class UnitAcquisitionSourceViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     """
     Acquisition Source lookup table. Admin-only write, public read.
     Uses IsAdminOrReadOnly.
@@ -2837,7 +2854,7 @@ class UnitAcquisitionSourceViewSet(viewsets.ModelViewSet):
     serializer_class = UnitAcquisitionSourceSerializer
     permission_classes = [IsAdminOrReadOnly]
 
-class ProductAccessoryViewSet(viewsets.ModelViewSet):
+class ProductAccessoryViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     """
     Link model between products and accessories. Admin-only write, public read.
     Uses IsAdminOrReadOnly.
@@ -3224,7 +3241,7 @@ class DiscountCalculatorView(generics.GenericAPIView):
 # REQUEST MANAGEMENT VIEWSETS
 # -------------------------------------------------------------------------
 
-class ReservationRequestViewSet(viewsets.ModelViewSet):
+class ReservationRequestViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     """
     ViewSet for managing reservation requests.
     - Salespersons can create requests and view their own
@@ -3653,7 +3670,7 @@ class ReservationRequestViewSet(viewsets.ModelViewSet):
             raise exceptions.ValidationError(f"Failed to update reservation request: {str(e)}")
 
 
-class ReturnRequestViewSet(viewsets.ModelViewSet):
+class ReturnRequestViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     """
     ViewSet for managing return requests (bulk returns of reserved units).
     - Salespersons can create return requests for their reserved units
@@ -3902,7 +3919,7 @@ class ReturnRequestViewSet(viewsets.ModelViewSet):
         return Response({'message': f'{approved_count} return requests approved'}, status=status.HTTP_200_OK)
 
 
-class UnitTransferViewSet(viewsets.ModelViewSet):
+class UnitTransferViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     """
     ViewSet for managing unit transfers between salespersons.
     - Salespersons can request transfers
@@ -4067,7 +4084,7 @@ class UnitTransferViewSet(viewsets.ModelViewSet):
             serializer.save()
 
 
-class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
+class NotificationViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
     """
     ViewSet for notifications (read-only, with mark-as-read action).
     """
@@ -4097,7 +4114,7 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
         return Response({'unread_count': count}, status=status.HTTP_200_OK)
 
 
-class ReportsViewSet(viewsets.ViewSet):
+class ReportsViewSet(_SilkProfileMixin, viewsets.ViewSet):
     """
     ViewSet for inventory reports (Inventory Manager only).
     Provides various analytical reports for decision-making.
@@ -4158,7 +4175,7 @@ class ReportsViewSet(viewsets.ViewSet):
         return Response(report_data, status=status.HTTP_200_OK)
 
 
-class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
+class AuditLogViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
     """
     ViewSet for audit logs (Inventory Manager and Superuser only).
     Read-only access to view system audit trail.
@@ -4197,7 +4214,7 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         return queryset
 
 
-class StockAlertsViewSet(viewsets.ViewSet):
+class StockAlertsViewSet(_SilkProfileMixin, viewsets.ViewSet):
     """
     ViewSet for stock alerts (Inventory Manager only).
     Returns alerts for low stock, expiring reservations, and status issues.
@@ -4372,7 +4389,7 @@ class StockAlertsViewSet(viewsets.ViewSet):
 # BRAND & LEAD MANAGEMENT VIEWSETS
 # -------------------------------------------------------------------------
 
-class BrandViewSet(viewsets.ModelViewSet):
+class BrandViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     """Brand management ViewSet."""
     queryset = Brand.objects.all()
     serializer_class = BrandSerializer
@@ -4408,7 +4425,7 @@ class BrandViewSet(viewsets.ModelViewSet):
     destroy=extend_schema(parameters=[OpenApiParameter('id', OpenApiTypes.INT, OpenApiParameter.PATH)]),
     assign=extend_schema(parameters=[OpenApiParameter('id', OpenApiTypes.INT, OpenApiParameter.PATH)]),
 )
-class LeadViewSet(viewsets.ModelViewSet):
+class LeadViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     """Lead management for salespersons only."""
     queryset = Lead.objects.all()
     serializer_class = LeadSerializer
@@ -4763,7 +4780,7 @@ class LeadViewSet(viewsets.ModelViewSet):
             })
 
 
-class PromotionTypeViewSet(viewsets.ModelViewSet):
+class PromotionTypeViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     """PromotionType management ViewSet (admin and marketing managers)."""
     queryset = PromotionType.objects.filter(is_active=True)
     serializer_class = PromotionTypeSerializer
@@ -4781,7 +4798,7 @@ class PromotionTypeViewSet(viewsets.ModelViewSet):
         return queryset.order_by('display_order', 'name')
 
 
-class PromotionViewSet(viewsets.ModelViewSet):
+class PromotionViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     """Promotion management ViewSet (admin and marketing managers)."""
     queryset = Promotion.objects.all()
     serializer_class = PromotionSerializer
@@ -5309,7 +5326,7 @@ class FixProductVisibilityView(APIView):
             )
 
 
-class BundleViewSet(viewsets.ModelViewSet):
+class BundleViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     """Bundle management ViewSet (admin and marketing managers)."""
     queryset = Bundle.objects.all().select_related('brand', 'main_product').prefetch_related('items')
     serializer_class = BundleSerializer
@@ -5349,7 +5366,7 @@ class BundleViewSet(viewsets.ModelViewSet):
         serializer.save(created_by=admin)
 
 
-class BundleItemViewSet(viewsets.ModelViewSet):
+class BundleItemViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     """Bundle item management (admin and marketing managers)."""
     queryset = BundleItem.objects.all().select_related('bundle', 'product')
     serializer_class = BundleItemSerializer

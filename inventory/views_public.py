@@ -32,6 +32,23 @@ from inventory.services.customer_service import CustomerService
 from inventory.services.delivery_service import get_delivery_fee
 from inventory.services.otp_service import OtpService
 
+# Optional Silk profiling: when SILKY_ENABLED, wrap views so the Silk "Profiling" tab has data
+try:
+    if getattr(settings, 'SILKY_ENABLED', False):
+        from silk.profiling.profiler import silk_profile as _silk_profile
+    else:
+        _silk_profile = None
+except ImportError:
+    _silk_profile = None
+
+class _SilkProfileMixin:
+    """When SILKY_ENABLED, wraps request in silk_profile() so the Silk Profiling tab shows Python profiler data."""
+    def dispatch(self, request, *args, **kwargs):
+        if _silk_profile is not None:
+            with _silk_profile():
+                return super().dispatch(request, *args, **kwargs)
+        return super().dispatch(request, *args, **kwargs)
+
 
 @extend_schema_view(
     list=extend_schema(
@@ -49,7 +66,7 @@ from inventory.services.otp_service import OtpService
         ]
     )
 )
-class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
+class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
     """Public product browsing."""
     queryset = Product.objects.filter(is_discontinued=False, is_published=True)
     serializer_class = PublicProductSerializer
@@ -1509,7 +1526,7 @@ class PublicProductViewSet(viewsets.ReadOnlyModelViewSet):
         responses=OpenApiTypes.OBJECT,
     ),
 )
-class CartViewSet(viewsets.ModelViewSet):
+class CartViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     """Cart management."""
     serializer_class = CartSerializer
     permission_classes = [permissions.AllowAny]
@@ -2145,7 +2162,7 @@ class PhoneSearchByBudgetView(generics.ListAPIView):
         return context
 
 
-class PublicWishlistViewSet(viewsets.ModelViewSet):
+class PublicWishlistViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     """Public wishlist API (session or customer-phone based)."""
     serializer_class = PublicWishlistItemSerializer
     permission_classes = [permissions.AllowAny]
@@ -2241,7 +2258,7 @@ class PublicWishlistViewSet(viewsets.ModelViewSet):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class PublicDeliveryRateViewSet(viewsets.ReadOnlyModelViewSet):
+class PublicDeliveryRateViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
     """Public delivery rates lookup."""
     serializer_class = PublicDeliveryRateSerializer
     permission_classes = [permissions.AllowAny]
@@ -2271,7 +2288,7 @@ class PublicPromotionPagination(PageNumberPagination):
         ]
     )
 )
-class PublicPromotionViewSet(viewsets.ReadOnlyModelViewSet):
+class PublicPromotionViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
     def get_serializer_context(self):
         """Add request to serializer context for absolute URL building."""
         context = super().get_serializer_context()
@@ -2322,7 +2339,7 @@ class PublicPromotionViewSet(viewsets.ReadOnlyModelViewSet):
         ]
     )
 )
-class PublicBundleViewSet(viewsets.ReadOnlyModelViewSet):
+class PublicBundleViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
     """Public bundle ViewSet."""
     serializer_class = PublicBundleSerializer
     permission_classes = [permissions.AllowAny]
