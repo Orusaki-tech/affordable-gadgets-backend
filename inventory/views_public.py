@@ -77,11 +77,65 @@ class _SilkProfileMixin:
         ]
     )
 )
+class PublicProductListPagination(PageNumberPagination):
+    """Pagination for public product list that avoids the expensive COUNT query.
+    Fetches page_size+1 rows to detect next page; does not return total count.
+    """
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+    page_size = 24
+
+    def paginate_queryset(self, queryset, request, view=None):
+        self.request = request
+        page_number = request.query_params.get(self.page_query_param, 1)
+        try:
+            page_number = int(page_number)
+        except (TypeError, ValueError):
+            page_number = 1
+        page_size = self.get_page_size(request)
+        if page_number < 1:
+            page_number = 1
+        offset = (page_number - 1) * page_size
+        # Fetch one extra to know if there is a next page (avoids COUNT query).
+        chunk = list(queryset[offset : offset + page_size + 1])
+        self._has_next = len(chunk) > page_size
+        self._current_page = page_number
+        self._page_size = page_size
+        return chunk[:page_size]
+
+    def get_paginated_response(self, data):
+        from rest_framework.response import Response
+        from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+        request = getattr(self, 'request', None)
+        if not request:
+            return Response({'next': None, 'previous': None, 'results': data, 'count': None})
+        base_url = request.build_absolute_uri(request.get_full_path())
+        next_url = None
+        if getattr(self, '_has_next', False):
+            parsed = urlparse(base_url)
+            qs = parse_qs(parsed.query, keep_blank_values=True)
+            qs[self.page_query_param] = [str(self._current_page + 1)]
+            next_url = urlunparse(parsed._replace(query=urlencode(qs, doseq=True)))
+        previous_url = None
+        if self._current_page > 1:
+            parsed = urlparse(base_url)
+            qs = parse_qs(parsed.query, keep_blank_values=True)
+            qs[self.page_query_param] = [str(self._current_page - 1)]
+            previous_url = urlunparse(parsed._replace(query=urlencode(qs, doseq=True)))
+        return Response({
+            'next': next_url,
+            'previous': previous_url,
+            'results': data,
+            'count': None,  # Omitted to avoid expensive COUNT on complex queryset
+        })
+
+
 class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
     """Public product browsing."""
     queryset = Product.objects.filter(is_discontinued=False, is_published=True)
     serializer_class = PublicProductSerializer
     permission_classes = [permissions.AllowAny]
+    pagination_class = PublicProductListPagination
     filter_backends = [filters.OrderingFilter, filters.SearchFilter]
     search_fields = ['product_name', 'brand', 'product_description']
     ordering_fields = ['product_name']  # Only order by real fields, not calculated ones
