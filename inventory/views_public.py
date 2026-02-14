@@ -36,20 +36,27 @@ from inventory.services.otp_service import OtpService
 try:
     if getattr(settings, 'SILKY_ENABLED', False):
         from silk.profiling.profiler import silk_profile as _silk_profile
+        from silk.collector import DataCollector as _silk_data_collector
     else:
         _silk_profile = None
+        _silk_data_collector = None
 except ImportError:
     _silk_profile = None
+    _silk_data_collector = None
 
 class _SilkProfileMixin:
-    """When SILKY_ENABLED, wraps request in silk_profile() so the Silk Profiling tab shows Python profiler data."""
+    """When SILKY_ENABLED, wraps request in silk_profile() so the Silk Profiling tab shows Python profiler data.
+    Only runs when DataCollector().request is set: Silk sets that only for intercepted requests
+    (see SILKY_INTERCEPT_PERCENT in settings; default 10%). Use SILKY_INTERCEPT_PERCENT=100 to profile every request."""
     def dispatch(self, request, *args, **kwargs):
-        if _silk_profile is not None:
-            try:
-                with _silk_profile(self.__class__.__name__):
-                    return super().dispatch(request, *args, **kwargs)
-            except (ValueError, Exception):
-                return super().dispatch(request, *args, **kwargs)
+        if _silk_profile is not None and _silk_data_collector is not None:
+            # Only use silk_profile when this request was intercepted (avoids "not installed correctly" warning)
+            if _silk_data_collector().request is not None:
+                try:
+                    with _silk_profile(self.__class__.__name__):
+                        return super().dispatch(request, *args, **kwargs)
+                except (ValueError, Exception):
+                    pass
         return super().dispatch(request, *args, **kwargs)
 
 
@@ -87,36 +94,44 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
     def brands(self, request):
-        """Return distinct brand names grouped by product type for menu use."""
+        """Return distinct brand names grouped by product type for menu use.
+        Uses a minimal queryset (values_list) to avoid N+1 and heavy get_queryset pipeline.
+        """
         product_type = request.query_params.get('type')
         available_types = {code for code, _ in Product.ProductType.choices}
 
         if product_type and product_type not in available_types:
             raise exceptions.ValidationError({"type": "Invalid product type."})
 
-        queryset = (
-            self.get_queryset()
-            .exclude(brand__isnull=True)
-            .exclude(brand__exact='')
-        )
+        # Minimal queryset: no prefetch/annotate, single query for distinct product_type + brand
+        qs = Product.objects.filter(
+            is_discontinued=False,
+            is_published=True
+        ).exclude(brand__isnull=True).exclude(brand__exact='')
+
+        brand = getattr(request, 'brand', None)
+        if brand:
+            qs = qs.filter(
+                Q(brands=brand) | Q(is_global=True) | Q(brands__isnull=True)
+            ).distinct()
 
         if product_type:
-            brands = (
-                queryset.filter(product_type=product_type)
+            brands_list = (
+                qs.filter(product_type=product_type)
                 .values_list('brand', flat=True)
                 .distinct()
                 .order_by('brand')
             )
-            return Response({"type": product_type, "results": list(brands)})
+            return Response({"type": product_type, "results": list(brands_list)})
 
         brand_map = {code: [] for code, _ in Product.ProductType.choices}
         brand_rows = (
-            queryset.values_list('product_type', 'brand')
+            qs.values_list('product_type', 'brand')
             .distinct()
             .order_by('product_type', 'brand')
         )
-        for product_type_value, brand in brand_rows:
-            brand_map.setdefault(product_type_value, []).append(brand)
+        for product_type_value, brand_name in brand_rows:
+            brand_map.setdefault(product_type_value, []).append(brand_name)
 
         return Response({"results": brand_map})
 
@@ -1503,7 +1518,7 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
         units = product.inventory_units.filter(
             sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
             available_online=True
-        ).select_related('product_color', 'product_template')
+        ).select_related('product_color', 'product_template').prefetch_related('images')
         
         if brand:
             units = units.filter(Q(brands=brand) | Q(brands__isnull=True))

@@ -106,20 +106,27 @@ logger = logging.getLogger(__name__)
 try:
     if getattr(settings, 'SILKY_ENABLED', False):
         from silk.profiling.profiler import silk_profile as _silk_profile
+        from silk.collector import DataCollector as _silk_data_collector
     else:
         _silk_profile = None
+        _silk_data_collector = None
 except ImportError:
     _silk_profile = None
+    _silk_data_collector = None
 
 class _SilkProfileMixin:
-    """When SILKY_ENABLED, wraps request in silk_profile() so the Silk Profiling tab shows Python profiler data."""
+    """When SILKY_ENABLED, wraps request in silk_profile() so the Silk Profiling tab shows Python profiler data.
+    Only runs when DataCollector().request is set: Silk sets that only for intercepted requests
+    (see SILKY_INTERCEPT_PERCENT in settings; default 10%). Use SILKY_INTERCEPT_PERCENT=100 to profile every request."""
     def dispatch(self, request, *args, **kwargs):
-        if _silk_profile is not None:
-            try:
-                with _silk_profile(self.__class__.__name__):
-                    return super().dispatch(request, *args, **kwargs)
-            except (ValueError, Exception):
-                return super().dispatch(request, *args, **kwargs)
+        if _silk_profile is not None and _silk_data_collector is not None:
+            # Only use silk_profile when this request was intercepted (avoids "not installed correctly" warning)
+            if _silk_data_collector().request is not None:
+                try:
+                    with _silk_profile(self.__class__.__name__):
+                        return super().dispatch(request, *args, **kwargs)
+                except (ValueError, Exception):
+                    pass
         return super().dispatch(request, *args, **kwargs)
 
 def resolve_staff_brand_or_raise(request, brand_id=None, *, require_brand=False):
@@ -341,6 +348,8 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
             elif seo_status == 'complete':
                 queryset = queryset.filter(seo_score__gte=50)
 
+        # Reduce N+1: prefetch relations used by ProductSerializer (images, brands, tags)
+        queryset = queryset.prefetch_related('images', 'brands', 'tags')
         return queryset
     
     def get_permissions(self):
@@ -696,8 +705,10 @@ class InventoryUnitViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
 
     parser_classes = [MultiPartParser, FormParser, JSONParser] 
 
-    # Optimized queryset for related field lookups
-    queryset = InventoryUnit.objects.all().select_related('product_template', 'product_color', 'acquisition_source_details', 'reserved_by__user')
+    # Optimized queryset for related field lookups (prefetch images to avoid N+1 in serializers)
+    queryset = InventoryUnit.objects.all().select_related(
+        'product_template', 'product_color', 'acquisition_source_details', 'reserved_by__user'
+    ).prefetch_related('images')
     serializer_class = InventoryUnitSerializer
     permission_classes = [IsInventoryManagerOrMarketingManagerReadOnly]
     
