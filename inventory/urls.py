@@ -62,12 +62,19 @@ receipt_pattern = re_path(
     name='order-receipt'
 )
 
+# Bulk-destroy must be registered before router so it isn't matched as detail pk="bulk-destroy"
+product_bulk_destroy = path(
+    'products/bulk-destroy/',
+    views.ProductViewSet.as_view({'post': 'bulk_destroy'}),
+    name='product-bulk-destroy',
+)
+
 urlpatterns = [
     # IMPORTANT: Explicit routes for custom actions must come BEFORE router.urls
     # to ensure they match before the router's generic routes
     # --- Order Receipt Endpoint (Clean implementation) ---
     receipt_pattern,
-    
+    product_bulk_destroy,
     # Include all generated routes from the DefaultRouter
     path('', include(router.urls)),
     

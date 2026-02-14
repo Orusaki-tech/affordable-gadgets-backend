@@ -71,7 +71,7 @@ from .models import (
     InventoryUnit, Order, OrderItem, Customer, Admin, User,  ProductImage, InventoryUnitImage,
     AdminRole, ReservationRequest, ReturnRequest, UnitTransfer, Notification, AuditLog, Tag,
     Brand, Lead, LeadItem, Cart, CartItem, Promotion, PromotionType, Receipt,
-    Bundle, BundleItem, DeliveryRate
+    Bundle, BundleItem, DeliveryRate, WishlistItem
 )
 
 # Assume these serializers are defined in your app's serializers.py
@@ -440,7 +440,87 @@ class ProductViewSet(viewsets.ModelViewSet):
             # Re-raise with a user-friendly message
             from rest_framework.exceptions import ValidationError
             raise ValidationError(f'Failed to delete product: {str(e)}')
-    
+
+    def _force_delete_product(self, product):
+        """Delete a single product and its protected relations (bundle_items, inventory_units). Used by bulk_destroy."""
+        if product.bundle_items.exists():
+            product.bundle_items.all().delete()
+        if product.inventory_units.exists():
+            product.inventory_units.all().delete()
+        product.delete()
+
+    @action(detail=False, methods=['post'], url_path='bulk-destroy')
+    def bulk_destroy(self, request):
+        """
+        Delete products by ID list or delete all product-related data (full reset).
+
+        - To delete specific products (and their units/bundle items): POST with body
+          {"product_ids": [1, 2, 3]}. Same permission as single-product delete.
+
+        - To delete every product and all dependent data (orders, carts, units, etc.): POST with
+          {"delete_all": true}. Use only in dev/staging. Requires Inventory Manager or Superuser.
+        """
+        from .permissions import IsInventoryManagerOrSuperuser
+        if not IsInventoryManagerOrSuperuser().has_permission(request, self):
+            return Response({'detail': 'Only Inventory Managers and Superusers can bulk-delete products.'}, status=status.HTTP_403_FORBIDDEN)
+
+        delete_all = request.data.get('delete_all') is True
+        product_ids = request.data.get('product_ids')
+
+        if delete_all:
+            # Same order as reset_products management command
+            with transaction.atomic():
+                AuditLog.objects.all().delete()
+                Notification.objects.all().delete()
+                CartItem.objects.all().delete()
+                Cart.objects.all().delete()
+                LeadItem.objects.all().delete()
+                Lead.objects.all().delete()
+                OrderItem.objects.all().delete()
+                Order.objects.all().delete()
+                UnitTransfer.objects.all().delete()
+                ReturnRequest.objects.all().delete()
+                ReservationRequest.objects.all().delete()
+                Review.objects.all().delete()
+                Promotion.objects.all().delete()
+                BundleItem.objects.all().delete()
+                Bundle.objects.all().delete()
+                ProductAccessory.objects.all().delete()
+                InventoryUnitImage.objects.all().delete()
+                InventoryUnit.objects.all().delete()
+                ProductImage.objects.all().delete()
+                WishlistItem.objects.all().delete()
+                deleted_count, _ = Product.objects.all().delete()
+            return Response({
+                'deleted_count': deleted_count,
+                'message': f'All product-related data deleted. {deleted_count} product(s) removed.',
+            }, status=status.HTTP_200_OK)
+
+        if not product_ids or not isinstance(product_ids, list):
+            return Response(
+                {'detail': 'Provide "product_ids" (list of IDs) or "delete_all": true in the request body.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        deleted = []
+        errors = []
+        with transaction.atomic():
+            for pk in product_ids:
+                try:
+                    product = Product.objects.get(pk=pk)
+                    self._force_delete_product(product)
+                    deleted.append(pk)
+                except Product.DoesNotExist:
+                    errors.append({'id': pk, 'error': 'Product not found.'})
+                except Exception as e:
+                    errors.append({'id': pk, 'error': str(e)})
+
+        return Response({
+            'deleted_ids': deleted,
+            'deleted_count': len(deleted),
+            'errors': errors,
+        }, status=status.HTTP_200_OK)
+
     @action(detail=True, methods=['patch'], permission_classes=[IsContentCreator])
     def update_content(self, request, pk=None):
         """
@@ -847,8 +927,8 @@ class InventoryUnitViewSet(viewsets.ModelViewSet):
         with transaction.atomic():
             for row_num, row in enumerate(reader, start=2):
                 try:
-                    # Look up Product (strip spaces for safety)
-                    model_name = (row.get('Model') or '').strip()
+                    # Look up Product: prefer product_name (normalized), else Model (strip spaces for safety)
+                    model_name = (row.get('product_name') or row.get('Model') or '').strip()
                     if not model_name:
                         continue # Skip empty rows
 

@@ -89,3 +89,4 @@ else
     echo "3. Run this verification script again"
 fi
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+

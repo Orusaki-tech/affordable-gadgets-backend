@@ -145,3 +145,4 @@ class Command(BaseCommand):
             self.stdout.write(json.dumps(sample, indent=2))
         
         self.stdout.write(self.style.SUCCESS('\n' + '=' * 80))
+

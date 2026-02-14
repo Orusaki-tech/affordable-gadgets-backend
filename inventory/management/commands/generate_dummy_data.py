@@ -28,7 +28,8 @@ from inventory.models import (
     Product, InventoryUnit, Review, ReservationRequest, ReturnRequest, UnitTransfer,
     Admin, AdminRole, Customer, Brand, Color, Tag, ProductImage, InventoryUnitImage,
     UnitAcquisitionSource, Order, OrderItem, Lead, LeadItem, Cart, CartItem,
-    Promotion, PromotionType, Notification, AuditLog, ProductAccessory
+    Promotion, PromotionType, Notification, AuditLog, ProductAccessory,
+    Bundle, BundleItem, WishlistItem,
 )
 
 User = get_user_model()
@@ -170,7 +171,10 @@ class Command(BaseCommand):
         ReservationRequest.objects.all().delete()
         Review.objects.all().delete()
         Promotion.objects.all().delete()
+        BundleItem.objects.all().delete()
+        Bundle.objects.all().delete()
         ProductAccessory.objects.all().delete()
+        WishlistItem.objects.all().delete()
         InventoryUnitImage.objects.all().delete()
         InventoryUnit.objects.all().delete()
         ProductImage.objects.all().delete()
