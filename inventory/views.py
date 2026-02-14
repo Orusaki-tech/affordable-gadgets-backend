@@ -115,7 +115,10 @@ class _SilkProfileMixin:
     """When SILKY_ENABLED, wraps request in silk_profile() so the Silk Profiling tab shows Python profiler data."""
     def dispatch(self, request, *args, **kwargs):
         if _silk_profile is not None:
-            with _silk_profile():
+            try:
+                with _silk_profile(self.__class__.__name__):
+                    return super().dispatch(request, *args, **kwargs)
+            except (ValueError, Exception):
                 return super().dispatch(request, *args, **kwargs)
         return super().dispatch(request, *args, **kwargs)
 
