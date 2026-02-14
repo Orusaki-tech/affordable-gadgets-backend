@@ -6,7 +6,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiTypes, OpenApiParameter
-from django.db.models import Q, Count, Min, Max, Prefetch, Sum, Case, When, IntegerField, Value, DecimalField, OuterRef, Subquery, Avg
+from django.db.models import Q, Count, Min, Max, Prefetch, Sum, Case, When, IntegerField, Value, DecimalField, OuterRef, Subquery, Avg, Exists
 from django.db.models.functions import Coalesce
 from django.core.cache import cache
 from urllib.parse import urlencode
@@ -945,15 +945,16 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
                 )
 
                 # Filter to products with at least one available unit (quantity > 0).
-                product_units_filter = Q(
-                    inventory_units__sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
-                    inventory_units__available_online=True,
-                    inventory_units__quantity__gt=0,
+                # Use Exists() instead of JOIN + DISTINCT so the DB can short-circuit and avoid a heavy join.
+                available_unit_sub = InventoryUnit.objects.filter(
+                    product_template=OuterRef('pk'),
+                    sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+                    available_online=True,
+                    quantity__gt=0,
                 )
                 if brand:
-                    product_units_filter &= (Q(inventory_units__brands=brand) | Q(inventory_units__brands__isnull=True))
-
-                queryset = queryset.filter(product_units_filter).distinct()
+                    available_unit_sub = available_unit_sub.filter(Q(brands=brand) | Q(brands__isnull=True))
+                queryset = queryset.filter(Exists(available_unit_sub))
                 return apply_public_ordering(queryset)
 
             if is_detail:
