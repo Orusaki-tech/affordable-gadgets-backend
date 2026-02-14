@@ -176,6 +176,10 @@ class PublicProductSerializer(serializers.ModelSerializer):
         value = getattr(obj, 'has_active_bundle', None)
         if value is not None:
             return bool(value)
+        # Use prefetched list from view when available (avoids N+1).
+        active = getattr(obj, 'active_bundles_list', None)
+        if active is not None:
+            return len(active) > 0
         from inventory.models import Bundle
         from django.utils import timezone
         brand = self.context.get('brand')
@@ -195,19 +199,24 @@ class PublicProductSerializer(serializers.ModelSerializer):
     @extend_schema_field(OpenApiTypes.NUMBER)
     def get_bundle_price_preview(self, obj):
         """Return minimum effective bundle price for listings (if available)."""
-        brand = self.context.get('brand')
-        now = timezone.now()
-        bundles = Bundle.objects.filter(
-            main_product=obj,
-            is_active=True,
-            show_in_listings=True
-        ).filter(
-            Q(start_date__isnull=True) | Q(start_date__lte=now),
-            Q(end_date__isnull=True) | Q(end_date__gte=now)
-        )
-        if brand:
-            bundles = bundles.filter(brand=brand)
-        bundles = bundles.prefetch_related('items__product')
+        # Use prefetched list from view when available (avoids N+1).
+        bundles_prefetched = getattr(obj, 'active_bundles_list', None)
+        if bundles_prefetched is not None:
+            bundles = list(bundles_prefetched)
+        else:
+            brand = self.context.get('brand')
+            now = timezone.now()
+            bundles = Bundle.objects.filter(
+                main_product=obj,
+                is_active=True,
+                show_in_listings=True
+            ).filter(
+                Q(start_date__isnull=True) | Q(start_date__lte=now),
+                Q(end_date__isnull=True) | Q(end_date__gte=now)
+            )
+            if brand:
+                bundles = bundles.filter(brand=brand)
+            bundles = bundles.prefetch_related('items__product')
 
         def items_min_total(bundle):
             total = Decimal('0.00')

@@ -13,6 +13,7 @@ from urllib.parse import urlencode
 from decimal import Decimal
 from django.conf import settings
 from django.shortcuts import get_object_or_404
+from django.utils import timezone as django_timezone
 from inventory.models import (
     Product, InventoryUnit, Cart, Lead, Brand, Promotion, ProductImage, Bundle, BundleItem,
     Order, OrderItem, Review, Customer, WishlistItem, DeliveryRate
@@ -834,6 +835,15 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
             )
             
             if is_list:
+                # Annotate review aggregates once to avoid N+1 in serializer (get_review_count, get_average_rating).
+                now = django_timezone.now()
+                review_count_sub = Review.objects.filter(product=OuterRef('pk')).values('product').annotate(total=Count('id')).values('total')[:1]
+                average_rating_sub = Review.objects.filter(product=OuterRef('pk')).values('product').annotate(avg=Avg('rating')).values('avg')[:1]
+                queryset = queryset.annotate(
+                    review_count=Coalesce(Subquery(review_count_sub), Value(0), output_field=IntegerField()),
+                    average_rating=Coalesce(Subquery(average_rating_sub), Value(None), output_field=DecimalField(max_digits=4, decimal_places=2)),
+                )
+
                 # Use prefetched available units for accurate brand-aware counts/prices.
                 # Avoid annotations with ManyToMany brand filters that can yield zero counts on PostgreSQL.
                 available_units_filter = Q(
@@ -850,6 +860,19 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
                     to_attr='available_units_list'
                 )
 
+                # Prefetch bundles for list (has_active_bundle, bundle_price_preview) to avoid N+1.
+                bundle_date_filter = (
+                    Q(start_date__isnull=True) | Q(start_date__lte=now),
+                    Q(end_date__isnull=True) | Q(end_date__gte=now),
+                )
+                bundles_qs = Bundle.objects.filter(
+                    is_active=True,
+                    show_in_listings=True
+                ).filter(*bundle_date_filter).prefetch_related('items__product')
+                if brand:
+                    bundles_qs = bundles_qs.filter(brand=brand)
+                bundles_prefetch = Prefetch('bundles', queryset=bundles_qs, to_attr='active_bundles_list')
+
                 queryset = queryset.only(
                     'id',
                     'product_name',
@@ -860,7 +883,12 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
                     'product_video_url',
                     'is_published',
                     'is_discontinued',
-                ).prefetch_related(primary_images_prefetch, available_units_prefetch)
+                ).prefetch_related(
+                    primary_images_prefetch,
+                    available_units_prefetch,
+                    'tags',
+                    bundles_prefetch,
+                )
 
                 # Filter to products with at least one available unit (quantity > 0).
                 product_units_filter = Q(
