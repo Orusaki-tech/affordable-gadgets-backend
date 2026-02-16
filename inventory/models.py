@@ -838,8 +838,11 @@ class Review(models.Model):
     ) 
     
     product = models.ForeignKey(
-        Product, on_delete=models.CASCADE, related_name='reviews', 
-        verbose_name="Reviewed Product Template"
+        Product,
+        on_delete=models.CASCADE,
+        related_name='reviews',
+        verbose_name="Reviewed Product Template",
+        db_index=True,
     )
     rating = models.IntegerField(choices=[(i, str(i)) for i in range(1, 6)])
     comment = models.TextField()

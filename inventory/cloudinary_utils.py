@@ -170,7 +170,7 @@ def _get_cloudinary_url_from_field(image_field):
 def get_optimized_image_url(image_field, width=None, height=None, quality='auto', format='auto', crop='fill'):
     """
     Get optimized image URL from Cloudinary with transformations.
-    
+
     Args:
         image_field: Django ImageField instance
         width: Target width in pixels (optional)
@@ -178,13 +178,13 @@ def get_optimized_image_url(image_field, width=None, height=None, quality='auto'
         quality: Image quality ('auto', 'best', 'good', 'eco', 'low', or number 1-100)
         format: Image format ('auto', 'jpg', 'png', 'webp', etc.)
         crop: Crop mode ('fill', 'fit', 'scale', 'thumb', etc.)
-    
+
     Returns:
         Optimized Cloudinary URL string
     """
     if not image_field:
         return None
-    
+
     # CRITICAL: Always use image_field.name FIRST - it contains the actual public_id
     # django-cloudinary-storage stores files with 'media/' prefix, so name will be 'media/promotions/...'
     # The URL from storage might not include 'media/', but the actual public_id does

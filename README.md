@@ -8,6 +8,8 @@ This is an inventory management, order management and e commerce webapp.
 
 Django REST API backend for the Affordable Gadgets e-commerce platform.
 
+**Running locally?** See [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md) for the recommended setup (`.env` + `.env.local`).
+
 ## Features
 
 - Inven

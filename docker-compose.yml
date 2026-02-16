@@ -1,0 +1,29 @@
+# Local PostgreSQL for development and testing.
+# Start:  docker compose up -d
+# Stop:   docker compose down
+# Logs:   docker compose logs -f postgres
+#
+# Then set in .env (or leave unset to use SQLite):
+#   DATABASE_URL=postgresql://affordable:affordable@localhost:5432/affordable_gadgets
+# Run migrations: python manage.py migrate
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: affordable-gadgets-postgres
+    environment:
+      POSTGRES_USER: affordable
+      POSTGRES_PASSWORD: affordable
+      POSTGRES_DB: affordable_gadgets
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U affordable -d affordable_gadgets"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

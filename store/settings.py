@@ -14,11 +14,12 @@ from pathlib import Path
 import os
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
-
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
+# Load environment variables from project root (same folder as manage.py), so cwd doesn't matter
 BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR / '.env')
+_env_local = BASE_DIR / '.env.local'
+if _env_local.exists():
+    load_dotenv(_env_local, override=True)
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
@@ -30,7 +31,15 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-z&id8l&gleealb7*wwh))
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
 
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1,192.168.1.6,192.168.1.28,192.168.1.77').split(',')
+_env_hosts = os.environ.get('ALLOWED_HOSTS', '').strip()
+_default_hosts = 'localhost,127.0.0.1,192.168.1.6,192.168.1.28,192.168.1.77'
+_allowed = [h.strip() for h in (_env_hosts or _default_hosts).split(',') if h.strip()]
+# Always allow localhost/127.0.0.1 so runserver works even when DEBUG=False or ALLOWED_HOSTS is overridden
+# Include host:8000 so Host header "127.0.0.1:8000" is accepted
+for host in ('localhost', '127.0.0.1', 'localhost:8000', '127.0.0.1:8000'):
+    if host not in _allowed:
+        _allowed.append(host)
+ALLOWED_HOSTS = _allowed
 AUTH_USER_MODEL = 'inventory.User'
 
 
@@ -95,13 +104,41 @@ WSGI_APPLICATION = 'store.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
+# Use PostgreSQL when DATABASE_URL is set (e.g. Supabase, Render); otherwise SQLite.
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+DATABASE_URL = os.environ.get('DATABASE_URL', '').strip()
+
+if DATABASE_URL:
+    from urllib.parse import urlparse
+    try:
+        parsed = urlparse(DATABASE_URL)
+        host = (parsed.hostname or '').lower()
+        # Local Docker / localhost Postgres usually has no SSL; use disable. Remote (e.g. Supabase) use require.
+        ssl_mode = 'disable' if host in ('localhost', '127.0.0.1') else 'require'
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.postgresql',
+                'NAME': parsed.path.lstrip('/').split('?')[0],
+                'USER': parsed.username,
+                'PASSWORD': parsed.password,
+                'HOST': parsed.hostname,
+                'PORT': parsed.port or '5432',
+                'OPTIONS': {
+                    'connect_timeout': 10,
+                    'sslmode': ssl_mode,
+                },
+            }
+        }
+    except Exception:
+        DATABASE_URL = None
+
+if not DATABASE_URL:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
     }
-}
 
 
 # Password validation
@@ -310,6 +347,9 @@ if SILKY_ENABLED:
     SILKY_AUTHENTICATION = True
     SILKY_AUTHORIZATION = True
     SILKY_PERMISSIONS = lambda user: user.is_staff
+    # Silk's login-required redirect uses Django's LOGIN_URL.
+    # Point it to admin login to avoid missing registration/login.html.
+    LOGIN_URL = '/admin/login/'
     # Only this percentage of requests are "intercepted": DataCollector().request is set only for them.
     # So silk_profile() in views only runs when request is intercepted. Use 100 to profile every request
     # (e.g. in dev); lower values reduce overhead and DB usage (e.g. in production).

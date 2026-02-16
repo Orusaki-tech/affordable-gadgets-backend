@@ -61,7 +61,7 @@ def fix_product_visibility_on_startup():
     try:
         from django.core.management import call_command
         logger.info("🔍 Running product visibility fix on startup...")
-        call_command('fix_product_visibility', '--fix-brands', '--silent', verbosity=0)
+        call_command('fix_product_visibility', '--fix', verbosity=0)
         logger.info("✅ Product visibility fix completed")
         return True
     except Exception as e:
