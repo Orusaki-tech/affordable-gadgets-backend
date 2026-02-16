@@ -2,7 +2,7 @@
 from rest_framework import serializers
 from drf_spectacular.utils import extend_schema_field, extend_schema_serializer, OpenApiTypes
 from decimal import Decimal
-from django.db.models import Q, Sum, Avg
+from django.db.models import Q, Sum, Avg, Min
 from django.utils import timezone
 from inventory.models import Product, InventoryUnit, Cart, CartItem, Lead, LeadItem, Promotion, Bundle, BundleItem, ProductImage, Review, WishlistItem, DeliveryRate, Order, OrderItem
 from inventory.services.interest_service import InterestService
@@ -222,6 +222,29 @@ class PublicProductSerializer(serializers.ModelSerializer):
                 bundles = bundles.filter(brand=brand)
             bundles = bundles.prefetch_related('items__product')
 
+        # Collect product ids that need min_price from DB (bundle item products not in main list)
+        product_ids_needing_min = set()
+        for bundle in bundles:
+            for item in bundle.items.all():
+                if item.override_price is not None:
+                    continue
+                p = item.product
+                if getattr(p, 'min_price', None) is None and p is not None:
+                    product_ids_needing_min.add(p.id)
+        # Single query for min selling_price per product (avoids N+1)
+        min_price_by_product = {}
+        if product_ids_needing_min:
+            rows = (
+                InventoryUnit.objects.filter(
+                    product_template_id__in=product_ids_needing_min,
+                    sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+                    available_online=True,
+                )
+                .values('product_template_id')
+                .annotate(min_p=Min('selling_price'))
+            )
+            min_price_by_product = {r['product_template_id']: r['min_p'] for r in rows}
+
         def items_min_total(bundle):
             total = Decimal('0.00')
             for item in bundle.items.all():
@@ -229,15 +252,10 @@ class PublicProductSerializer(serializers.ModelSerializer):
                     price = Decimal(str(item.override_price))
                 else:
                     min_price = getattr(item.product, 'min_price', None)
+                    if min_price is None and item.product_id:
+                        min_price = min_price_by_product.get(item.product_id)
                     if min_price is None:
-                        units = InventoryUnit.objects.filter(
-                            product_template=item.product,
-                            sale_status='AV',
-                            available_online=True
-                        )
-                        if not units.exists():
-                            return None
-                        min_price = min(units.values_list('selling_price', flat=True))
+                        return None
                     price = Decimal(str(min_price))
                 total += price * item.quantity
             return total
@@ -264,20 +282,24 @@ class PublicProductSerializer(serializers.ModelSerializer):
     @extend_schema_field(OpenApiTypes.INT)
     def get_available_units_count(self, obj):
         """Count available units for current brand - use prefetched list for accurate brand filtering."""
-        # Use prefetched available_units_list if available (correctly filtered by brand)
-        if hasattr(obj, 'available_units_list'):
-            units = obj.available_units_list
-            # For accessories, sum quantities; for phones/laptops/tablets, count units
+        # List view: use only prefetched data to avoid N+1 (never hit DB)
+        if self.context.get('view_action') == 'list':
+            units = getattr(obj, 'available_units_list', None)
+            if units is None:
+                return 0
             if obj.product_type == Product.ProductType.ACCESSORY:
                 return sum(unit.quantity for unit in units)
-            else:
-                return len(units)
-        
+            return len(units)
+        # Use prefetched available_units_list if available (correctly filtered by brand)
+        if getattr(obj, 'available_units_list', None) is not None:
+            units = obj.available_units_list
+            if obj.product_type == Product.ProductType.ACCESSORY:
+                return sum(unit.quantity for unit in units)
+            return len(units)
         # Fallback to annotation (may not be brand-filtered correctly)
         if hasattr(obj, 'available_units_count'):
             return obj.available_units_count or 0
-        
-        # Final fallback: query directly
+        # Final fallback: query directly (detail/other only)
         brand = self.context.get('brand')
         units = obj.inventory_units.filter(
             sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
@@ -285,11 +307,9 @@ class PublicProductSerializer(serializers.ModelSerializer):
         )
         if brand:
             units = units.filter(Q(brands=brand) | Q(brands__isnull=True))
-        # For accessories, sum quantities; for phones/laptops/tablets, count units
         if obj.product_type == Product.ProductType.ACCESSORY:
             return units.aggregate(total_qty=Sum('quantity'))['total_qty'] or 0
-        else:
-            return units.count()
+        return units.count()
     
     @extend_schema_field(OpenApiTypes.INT)
     def get_interest_count(self, obj):
@@ -444,14 +464,17 @@ class PublicProductSerializer(serializers.ModelSerializer):
     def get_primary_image(self, obj):
         """Get primary product image URL - use prefetched data if available."""
         from inventory.cloudinary_utils import get_optimized_image_url
-        # Use prefetched primary images when available (avoids N+1)
-        pl = getattr(obj, 'primary_images_list', None)
-        if pl and len(pl) > 0:
-            primary_image = pl[0]
+        # List view: use only prefetched primary_images_list (no fallback to avoid extra query)
+        if self.context.get('view_action') == 'list':
+            pl = getattr(obj, 'primary_images_list', None)
+            primary_image = pl[0] if pl and len(pl) > 0 else None
         else:
-            # Fallback: use prefetched obj.images.all() (no .filter() so cache is used)
-            images = list(obj.images.all())
-            primary_image = next((img for img in images if img.is_primary), None) or (images[0] if images else None)
+            pl = getattr(obj, 'primary_images_list', None)
+            if pl and len(pl) > 0:
+                primary_image = pl[0]
+            else:
+                images = list(obj.images.all())
+                primary_image = next((img for img in images if img.is_primary), None) or (images[0] if images else None)
         
         if primary_image and primary_image.image:
             # Get request from context for absolute URL building

@@ -550,6 +550,7 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
         context = super().get_serializer_context()
         context['request'] = self.request
         context['brand'] = getattr(self.request, 'brand', None)
+        context['view_action'] = getattr(self, 'action', None)
         return context
     
     def get_queryset(self):
@@ -935,10 +936,9 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
                     bundles_qs = bundles_qs.filter(brand=brand)
                 bundles_prefetch = Prefetch('bundles', queryset=bundles_qs, to_attr='active_bundles_list')
 
-                # Avoid .only() so prefetch_related is not affected (can cause N+1 in some Django versions).
+                # List serializer uses only primary_images_list (no obj.images fallback) to avoid extra query.
                 queryset = queryset.prefetch_related(
                     primary_images_prefetch,
-                    'images',  # avoid N+1 when serializer fallback touches obj.images
                     available_units_prefetch,
                     'tags',
                     bundles_prefetch,
