@@ -354,11 +354,13 @@ class PublicProductSerializer(serializers.ModelSerializer):
                 prices = [float(unit.selling_price) for unit in units]
                 return min(prices) if prices else None
         
+        # List view: never query; use annotation or None
+        if self.context.get('view_action') == 'list':
+            return float(obj.min_price) if getattr(obj, 'min_price', None) is not None else None
         # Fallback to annotation (may not be brand-filtered correctly)
         if hasattr(obj, 'min_price') and obj.min_price is not None:
             return float(obj.min_price)
-        
-        # Final fallback: query directly
+        # Final fallback: query directly (detail only)
         brand = self.context.get('brand')
         units = obj.inventory_units.filter(
             sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
@@ -378,12 +380,13 @@ class PublicProductSerializer(serializers.ModelSerializer):
             if units:
                 prices = [float(unit.selling_price) for unit in units]
                 return max(prices) if prices else None
-        
+        # List view: never query; use annotation or None
+        if self.context.get('view_action') == 'list':
+            return float(obj.max_price) if getattr(obj, 'max_price', None) is not None else None
         # Fallback to annotation (may not be brand-filtered correctly)
         if hasattr(obj, 'max_price') and obj.max_price is not None:
             return float(obj.max_price)
-        
-        # Final fallback: query directly
+        # Final fallback: query directly (detail only)
         brand = self.context.get('brand')
         units = obj.inventory_units.filter(
             sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
@@ -401,6 +404,8 @@ class PublicProductSerializer(serializers.ModelSerializer):
             units = obj.available_units_list
             prices = [float(unit.compare_at_price) for unit in units if unit.compare_at_price is not None]
             return min(prices) if prices else None
+        if self.context.get('view_action') == 'list':
+            return float(obj.compare_at_min_price) if getattr(obj, 'compare_at_min_price', None) is not None else None
         if hasattr(obj, 'compare_at_min_price') and obj.compare_at_min_price is not None:
             return float(obj.compare_at_min_price)
         brand = self.context.get('brand')
@@ -421,6 +426,8 @@ class PublicProductSerializer(serializers.ModelSerializer):
             units = obj.available_units_list
             prices = [float(unit.compare_at_price) for unit in units if unit.compare_at_price is not None]
             return max(prices) if prices else None
+        if self.context.get('view_action') == 'list':
+            return float(obj.compare_at_max_price) if getattr(obj, 'compare_at_max_price', None) is not None else None
         if hasattr(obj, 'compare_at_max_price') and obj.compare_at_max_price is not None:
             return float(obj.compare_at_max_price)
         brand = self.context.get('brand')
@@ -446,16 +453,27 @@ class PublicProductSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(OpenApiTypes.INT)
     def get_review_count(self, obj):
-        # Use annotated value when present (avoids N+1 on list); 0 is valid
+        # Use annotated value when present (detail view)
         if hasattr(obj, 'review_count'):
             return int(obj.review_count) if obj.review_count is not None else 0
+        # Use prefetched reviews when present (list view; avoids N+1)
+        prefetched = getattr(obj, 'reviews_for_aggregates', None)
+        if prefetched is not None:
+            return len(prefetched)
         return Review.objects.filter(product=obj).count()
 
     @extend_schema_field(OpenApiTypes.NUMBER)
     def get_average_rating(self, obj):
-        # Use annotated value when present (avoids N+1 on list); None = no reviews
+        # Use annotated value when present (detail view)
         if hasattr(obj, 'average_rating'):
             return float(obj.average_rating) if obj.average_rating is not None else None
+        # Use prefetched reviews when present (list view; avoids N+1)
+        prefetched = getattr(obj, 'reviews_for_aggregates', None)
+        if prefetched is not None:
+            if not prefetched:
+                return None
+            total = sum(r.rating for r in prefetched)
+            return round(total / len(prefetched), 2)
         aggregate = Review.objects.filter(product=obj).aggregate(avg=Avg('rating'))
         value = aggregate.get('avg')
         return float(value) if value is not None else None
@@ -477,23 +495,30 @@ class PublicProductSerializer(serializers.ModelSerializer):
                 primary_image = next((img for img in images if img.is_primary), None) or (images[0] if images else None)
         
         if primary_image and primary_image.image:
-            # Get request from context for absolute URL building
             request = self.context.get('request')
+            url_cache = self.context.get('_image_url_cache')
+            # Cache key: avoid repeated get_optimized_image_url for same image in list views
+            cache_key = None
+            if url_cache is not None:
+                cache_key = getattr(primary_image.image, 'name', None) or getattr(primary_image.image, 'url', None)
+
+            def _optimized_url():
+                if cache_key is not None and cache_key in url_cache:
+                    return url_cache[cache_key]
+                u = get_optimized_image_url(primary_image.image)
+                if cache_key is not None:
+                    url_cache[cache_key] = u
+                return u
+
             if request:
-                # Store request temporarily for URL building
                 original_url = primary_image.image.url
-                # Build absolute URL if it's a local path
                 if original_url.startswith('/media/') or original_url.startswith('/static/'):
                     absolute_url = request.build_absolute_uri(original_url)
-                    # Return optimized URL if Cloudinary, otherwise absolute local URL
-                    cloudinary_url = get_optimized_image_url(primary_image.image)
-                    # If Cloudinary URL is different (Cloudinary was used), return it
-                    # Otherwise return absolute local URL
-                    if cloudinary_url and cloudinary_url != original_url and 'cloudinary.com' in cloudinary_url:
+                    cloudinary_url = _optimized_url()
+                    if cloudinary_url and cloudinary_url != original_url and 'cloudinary.com' in (cloudinary_url or ''):
                         return cloudinary_url
                     return absolute_url
-            # Return optimized image URL from Cloudinary or local URL
-            return get_optimized_image_url(primary_image.image)
+            return _optimized_url()
         return None
 
 

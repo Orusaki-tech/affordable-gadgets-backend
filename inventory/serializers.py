@@ -800,10 +800,10 @@ class ProductSerializer(serializers.ModelSerializer):
             score += 1
         if obj.product_description:
             score += 1
-        if obj.images.exists():
-            # Check if at least one image has alt text
-            if obj.images.filter(alt_text__isnull=False).exclude(alt_text='').exists():
-                score += 1
+        # Use prefetched images to avoid 2 extra queries per product (exists + filter().exists())
+        images_list = list(obj.images.all())
+        if images_list and any(getattr(img, 'alt_text', None) and str(img.alt_text).strip() for img in images_list):
+            score += 1
         if obj.product_highlights and len(obj.product_highlights) > 0:
             score += 1
         if obj.keywords:
@@ -891,18 +891,42 @@ class ProductAccessorySerializer(serializers.ModelSerializer):
     accessory_video_url = serializers.CharField(source='accessory.product_video_url', read_only=True)
     accessory_price_range = serializers.SerializerMethodField()
     
+    def _pending_qty_for_unit(self, unit):
+        """Use prefetched order_items to compute pending quantity (no extra query)."""
+        from inventory.models import Order
+        if not hasattr(unit, '_prefetched_objects_cache') or 'order_items' not in unit._prefetched_objects_cache:
+            from django.db.models import Sum
+            return OrderItem.objects.filter(
+                inventory_unit=unit,
+                order__status__in=[Order.StatusChoices.PENDING, Order.StatusChoices.PAID],
+            ).aggregate(total=Sum('quantity'))['total'] or 0
+        return sum(item.quantity for item in unit.order_items.all())
+
     @extend_schema_field(serializers.URLField(allow_null=True))
     def get_accessory_primary_image(self, obj):
-        """Get the primary image URL for the accessory product."""
-        from inventory.models import ProductImage
+        """Get the primary image URL for the accessory product (uses prefetched images when available)."""
         from inventory.cloudinary_utils import get_optimized_image_url
-        
-        primary_image = ProductImage.objects.filter(
-            product=obj.accessory,
-            is_primary=True
-        ).first()
-        
-        if primary_image and primary_image.image:
+
+        primary_image = None
+        if hasattr(obj.accessory, '_prefetched_objects_cache') and 'images' in obj.accessory._prefetched_objects_cache:
+            for img in obj.accessory.images.all():
+                if getattr(img, 'is_primary', False):
+                    primary_image = img
+                    break
+            if not primary_image:
+                for img in obj.accessory.images.all():
+                    if getattr(img, 'image', None):
+                        primary_image = img
+                        break
+        else:
+            primary_image = ProductImage.objects.filter(
+                product=obj.accessory,
+                is_primary=True
+            ).first()
+            if not primary_image:
+                primary_image = ProductImage.objects.filter(product=obj.accessory).first()
+
+        if primary_image and getattr(primary_image, 'image', None):
             request = self.context.get('request')
             original_url = primary_image.image.url
             cloudinary_url = get_optimized_image_url(primary_image.image)
@@ -934,42 +958,15 @@ class ProductAccessorySerializer(serializers.ModelSerializer):
     
     @extend_schema_field(serializers.DictField(child=serializers.FloatField(allow_null=True)))
     def get_accessory_price_range(self, obj):
-        """Get price range for available accessory units."""
-        from inventory.models import InventoryUnit
-        from django.db.models import Min, Max
-        
-        # For accessories, calculate available quantity accounting for pending orders
-        from django.db.models import Sum, Min, Max
-        from inventory.models import Order
-        
-        # Get all units for this accessory
-        all_units = obj.accessory.inventory_units.filter(
-            sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
-            available_online=True
-        )
-        
-        # Filter to only units with available quantity > 0 (accounting for pending orders)
+        """Get price range for available accessory units (uses prefetched inventory_units when available)."""
         available_units = []
-        for unit in all_units:
-            pending_orders_qty = OrderItem.objects.filter(
-                inventory_unit=unit,
-                order__status__in=[Order.StatusChoices.PENDING, Order.StatusChoices.PAID]
-            ).aggregate(total=Sum('quantity'))['total'] or 0
-            available_qty = unit.quantity - pending_orders_qty
-            if available_qty > 0:
+        for unit in obj.accessory.inventory_units.all():
+            pending_orders_qty = self._pending_qty_for_unit(unit)
+            if unit.quantity - pending_orders_qty > 0:
                 available_units.append(unit)
-        
         if available_units:
-            prices = InventoryUnit.objects.filter(
-                id__in=[u.id for u in available_units]
-            ).aggregate(
-                min_price=Min('selling_price'),
-                max_price=Max('selling_price')
-            )
-            return {
-                'min': float(prices['min_price']) if prices['min_price'] else None,
-                'max': float(prices['max_price']) if prices['max_price'] else None,
-            }
+            prices = [float(u.selling_price) for u in available_units]
+            return {'min': min(prices), 'max': max(prices)}
         return {'min': None, 'max': None}
     
     accessory_color_variants = serializers.SerializerMethodField()
@@ -977,68 +974,25 @@ class ProductAccessorySerializer(serializers.ModelSerializer):
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_accessory_color_variants(self, obj):
         """
-        Get all available color variants for this accessory.
+        Get all available color variants for this accessory (uses prefetched inventory_units when available).
         Groups units by color and shows all available options.
         """
-        from inventory.models import InventoryUnit
         from inventory.cloudinary_utils import get_optimized_image_url
-        import logging
-        
-        logger = logging.getLogger(__name__)
-        
-        # #region agent log
-        # Debug: Check all units for this accessory (before filtering)
-        all_units = InventoryUnit.objects.filter(product_template=obj.accessory)
-        logger.info(f"DEBUG[ACCESSORY] Accessory ID={obj.accessory.id} name={obj.accessory.product_name} - Total units: {all_units.count()}")
-        for unit in all_units:
-            logger.info(f"DEBUG[ACCESSORY] Unit ID={unit.id} quantity={unit.quantity} sale_status={unit.sale_status} available_online={unit.available_online}")
-        # #endregion
-        
-        # For accessories, calculate available quantity accounting for pending orders
-        from django.db.models import Sum
-        from inventory.models import Order
-        
-        # Get all units for this accessory
-        all_units = InventoryUnit.objects.filter(
-            product_template=obj.accessory,
-            available_online=True
-        ).select_related('product_color').prefetch_related(
-            'images'  # Prefetch all unit images
-        )
-        
-        # Filter to only units with available quantity > 0 (accounting for pending orders)
+
         available_units = []
-        for unit in all_units:
-            # Calculate pending order quantities for this unit
-            pending_orders_qty = OrderItem.objects.filter(
-                inventory_unit=unit,
-                order__status__in=[Order.StatusChoices.PENDING, Order.StatusChoices.PAID]
-            ).aggregate(total=Sum('quantity'))['total'] or 0
-            
+        for unit in obj.accessory.inventory_units.all():
+            pending_orders_qty = self._pending_qty_for_unit(unit)
             available_qty = unit.quantity - pending_orders_qty
-            
-            # Only include units with available quantity > 0 and status AVAILABLE
-            if available_qty > 0 and unit.sale_status == InventoryUnit.SaleStatusChoices.AVAILABLE:
-                available_units.append(unit)
-                # #region agent log
-                logger.info(f"DEBUG[ACCESSORY] Unit ID={unit.id} total_qty={unit.quantity} pending={pending_orders_qty} available={available_qty}")
-                # #endregion
-        
-        # #region agent log
-        logger.info(f"DEBUG[ACCESSORY] After filtering - Available units count: {len(available_units)}")
-        total_qty = sum(unit.quantity - (OrderItem.objects.filter(
-            inventory_unit=unit,
-            order__status__in=[Order.StatusChoices.PENDING, Order.StatusChoices.PAID]
-        ).aggregate(total=Sum('quantity'))['total'] or 0) for unit in available_units)
-        logger.info(f"DEBUG[ACCESSORY] Total available quantity: {total_qty}")
-        # #endregion
-        
-        # Group by color
+            if available_qty > 0:
+                available_units.append((unit, available_qty))
+
         color_variants = {}
-        for unit in available_units:
+        accessory_images = list(obj.accessory.images.all()) if hasattr(obj.accessory, '_prefetched_objects_cache') and 'images' in obj.accessory._prefetched_objects_cache else []
+
+        for unit, available_qty in available_units:
             color_id = unit.product_color.id if unit.product_color else None
             color_name = unit.product_color.name if unit.product_color else 'Universal'
-            
+
             if color_id not in color_variants:
                 color_variants[color_id] = {
                     'color_id': color_id,
@@ -1049,84 +1003,60 @@ class ProductAccessorySerializer(serializers.ModelSerializer):
                     'max_price': 0,
                     'total_quantity': 0,
                 }
-            
-            # Get image for this color variant (primary first, then any image, then product image)
-            # Use the same pattern as PublicInventoryUnitSerializer
-            # Access prefetched images
-            unit_images_list = list(unit.images.all()) if hasattr(unit, 'images') else []
+
+            unit_images_list = list(unit.images.all()) if hasattr(unit, '_prefetched_objects_cache') and 'images' in unit._prefetched_objects_cache else []
             unit_image_obj = None
-            
-            # Try primary image first
             for img in unit_images_list:
-                if img.is_primary and img.image:
+                if getattr(img, 'is_primary', False) and getattr(img, 'image', None):
                     unit_image_obj = img
                     break
-            
-            # If no primary, use any image
             if not unit_image_obj:
                 for img in unit_images_list:
-                    if img.image:
+                    if getattr(img, 'image', None):
                         unit_image_obj = img
                         break
-            
-            # If no unit image, try product primary image
-            if not unit_image_obj or not unit_image_obj.image:
-                from inventory.models import ProductImage
-                product_image = ProductImage.objects.filter(
-                    product=unit.product_template,
-                    is_primary=True
-                ).first()
-                if product_image and product_image.image:
-                    # Create a mock object with the image field
+            if not unit_image_obj or not getattr(unit_image_obj, 'image', None):
+                for img in accessory_images:
+                    if getattr(img, 'is_primary', False) and getattr(img, 'image', None):
+                        class MockImage:
+                            def __init__(self, img):
+                                self.image = img.image
+                        unit_image_obj = MockImage(img)
+                        break
+                if not unit_image_obj and accessory_images and getattr(accessory_images[0], 'image', None):
                     class MockImage:
                         def __init__(self, img):
                             self.image = img.image
-                    unit_image_obj = MockImage(product_image)
-            
+                    unit_image_obj = MockImage(accessory_images[0])
+
             image_url = None
-            if unit_image_obj and hasattr(unit_image_obj, 'image') and unit_image_obj.image:
+            if unit_image_obj and getattr(unit_image_obj, 'image', None):
                 request = self.context.get('request')
                 original_url = unit_image_obj.image.url
                 cloudinary_url = get_optimized_image_url(unit_image_obj.image)
-                
-                # Build absolute URLs for local files (same pattern as PublicInventoryUnitSerializer)
                 if (original_url.startswith('/media/') or original_url.startswith('/static/')) and request:
                     absolute_url = request.build_absolute_uri(original_url)
-                    # Use Cloudinary if available, otherwise absolute local URL
                     image_url = cloudinary_url if (cloudinary_url and cloudinary_url != original_url and 'cloudinary.com' in cloudinary_url) else absolute_url
                 elif original_url.startswith('/media/') or original_url.startswith('/static/'):
-                    # Fallback if no request context
                     import os
                     host = os.environ.get('DJANGO_HOST', 'localhost:8000')
                     protocol = 'https' if os.environ.get('DJANGO_USE_HTTPS', '').lower() == 'true' else 'http'
                     image_url = f"{protocol}://{host}{original_url}"
                 else:
                     image_url = cloudinary_url
-            
-            # Calculate available quantity for this unit (accounting for pending orders)
-            from django.db.models import Sum
-            from inventory.models import Order
-            pending_orders_qty = OrderItem.objects.filter(
-                inventory_unit=unit,
-                order__status__in=[Order.StatusChoices.PENDING, Order.StatusChoices.PAID]
-            ).aggregate(total=Sum('quantity'))['total'] or 0
-            available_qty = unit.quantity - pending_orders_qty
-            
+
+            price = float(unit.selling_price)
             color_variants[color_id]['units'].append({
                 'unit_id': unit.id,
-                'price': float(unit.selling_price),
-                'quantity': available_qty,  # Show available quantity, not total
+                'price': price,
+                'quantity': available_qty,
                 'condition': unit.condition,
                 'image_url': image_url,
             })
-            
-            # Update price range
-            price = float(unit.selling_price)
             color_variants[color_id]['min_price'] = min(color_variants[color_id]['min_price'], price)
             color_variants[color_id]['max_price'] = max(color_variants[color_id]['max_price'], price)
             color_variants[color_id]['total_quantity'] += available_qty
-        
-        # Convert to list and format
+
         result = []
         for color_id, variant_data in color_variants.items():
             result.append({
@@ -1139,10 +1069,7 @@ class ProductAccessorySerializer(serializers.ModelSerializer):
                 'available_units': len(variant_data['units']),
                 'units': variant_data['units'],
             })
-        
-        # Sort by color name for consistent display
         result.sort(key=lambda x: x['color_name'])
-        
         return result
 
     class Meta:
@@ -2331,8 +2258,8 @@ class ReturnRequestSerializer(serializers.ModelSerializer):
     
     @extend_schema_field(OpenApiTypes.INT)
     def get_inventory_units_count(self, obj):
-        """Return count of units in this return request."""
-        return obj.inventory_units.count()
+        """Return count of units in this return request (uses prefetch cache when available)."""
+        return len(obj.inventory_units.all())
     
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_inventory_units_detail(self, obj):
@@ -2348,66 +2275,55 @@ class ReturnRequestSerializer(serializers.ModelSerializer):
     
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_transfer_history(self, obj):
-        """Get transfer history for units in this return request."""
-        from .models import UnitTransfer
-        salesperson = obj.requesting_salesperson
-        
-        # Get all transfers involving this salesperson and the units in this return request
-        unit_ids = list(obj.inventory_units.values_list('id', flat=True))
-        
-        transfers = UnitTransfer.objects.filter(
-            inventory_unit__in=unit_ids
-        ).select_related(
-            'from_salesperson__user', 'to_salesperson__user', 'inventory_unit__product_template'
-        ).order_by('-requested_at')
-        
+        """Get transfer history for units in this return request (uses prefetched transfers when available)."""
+        # Build from prefetched inventory_units and their transfers (0 extra queries when viewset prefetches)
+        all_transfers = []
+        for unit in obj.inventory_units.all():
+            all_transfers.extend(unit.transfers.all())
+        all_transfers.sort(key=lambda t: t.requested_at, reverse=True)
         return [
             {
-                'id': transfer.id,
-                'unit_id': transfer.inventory_unit.id,
-                'unit_name': transfer.inventory_unit.product_template.product_name,
-                'from_salesperson': transfer.from_salesperson.user.username,
-                'to_salesperson': transfer.to_salesperson.user.username,
-                'status': transfer.status,
-                'status_display': transfer.get_status_display(),
-                'requested_at': transfer.requested_at,
-                'approved_at': transfer.approved_at,
+                'id': t.id,
+                'unit_id': t.inventory_unit.id,
+                'unit_name': t.inventory_unit.product_template.product_name,
+                'from_salesperson': t.from_salesperson.user.username if t.from_salesperson else '',
+                'to_salesperson': t.to_salesperson.user.username if t.to_salesperson else '',
+                'status': t.status,
+                'status_display': t.get_status_display(),
+                'requested_at': t.requested_at,
+                'approved_at': t.approved_at,
             }
-            for transfer in transfers
+            for t in all_transfers
         ]
     
     @extend_schema_field(serializers.DictField(child=serializers.IntegerField()))
     def get_net_holdings_info(self, obj):
-        """Calculate net holdings for the requesting salesperson."""
+        """Calculate net holdings for the requesting salesperson. Uses batched context in list to avoid 3N queries."""
+        net_holdings_by_admin_id = self.context.get('net_holdings_by_admin_id') or {}
+        if obj.requesting_salesperson_id and obj.requesting_salesperson_id in net_holdings_by_admin_id:
+            return net_holdings_by_admin_id[obj.requesting_salesperson_id]
+        # Fallback for retrieve/detail or when no batch context
         from .models import UnitTransfer
         salesperson = obj.requesting_salesperson
-        
-        # Units directly reserved (via reservation requests)
+        if not salesperson:
+            return {'directly_reserved': 0, 'received_via_transfer': 0, 'transferred_out': 0, 'net_holdings': 0}
         directly_reserved = InventoryUnit.objects.filter(
             reserved_by=salesperson,
             sale_status=InventoryUnit.SaleStatusChoices.RESERVED
         ).count()
-        
-        # Units received via approved transfers
         received_via_transfer = UnitTransfer.objects.filter(
             to_salesperson=salesperson,
             status=UnitTransfer.StatusChoices.APPROVED
         ).count()
-        
-        # Units transferred out (approved transfers)
         transferred_out = UnitTransfer.objects.filter(
             from_salesperson=salesperson,
             status=UnitTransfer.StatusChoices.APPROVED
         ).count()
-        
-        # Net holdings
-        net_holdings = directly_reserved + received_via_transfer - transferred_out
-        
         return {
             'directly_reserved': directly_reserved,
             'received_via_transfer': received_via_transfer,
             'transferred_out': transferred_out,
-            'net_holdings': net_holdings,
+            'net_holdings': directly_reserved + received_via_transfer - transferred_out,
         }
     
     def validate_unit_ids(self, value):

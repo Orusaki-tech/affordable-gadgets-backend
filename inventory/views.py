@@ -1641,8 +1641,8 @@ class OrderViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
         - Customers: See only their own orders
         Includes extensive prefetching for N+1 query optimization.
         """
-        # Base query for all users
-        queryset = Order.objects.all().order_by('-created_at').select_related('customer__user', 'brand')
+        # Base query for all users (select order.user to avoid N+1 when OrderSerializer renders user field)
+        queryset = Order.objects.all().order_by('-created_at').select_related('customer__user', 'user', 'brand')
         
         # Prefetch related data to optimize nested serializer lookups:
         queryset = queryset.prefetch_related(
@@ -2850,13 +2850,36 @@ class UnitAcquisitionSourceViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     serializer_class = UnitAcquisitionSourceSerializer
     permission_classes = [IsAdminOrReadOnly]
 
+def _product_accessory_queryset():
+    """Queryset with prefetches to avoid N+1 on list (accessory images, units, pending order qty)."""
+    pending_statuses = [Order.StatusChoices.PENDING, Order.StatusChoices.PAID]
+    pending_order_items = OrderItem.objects.filter(
+        order__status__in=pending_statuses
+    ).only('inventory_unit_id', 'quantity')
+    accessory_units = InventoryUnit.objects.filter(
+        sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+        available_online=True,
+    ).select_related('product_color').prefetch_related(
+        'images',
+        Prefetch('order_items', queryset=pending_order_items),
+    )
+    return (
+        ProductAccessory.objects.all()
+        .select_related('main_product', 'accessory')
+        .prefetch_related(
+            'accessory__images',
+            Prefetch('accessory__inventory_units', queryset=accessory_units),
+        )
+    )
+
+
 class ProductAccessoryViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     """
     Link model between products and accessories. Admin-only write, public read.
     Uses IsAdminOrReadOnly.
     Allows all product types to have accessories (including accessories having accessories).
     """
-    queryset = ProductAccessory.objects.all().select_related('main_product', 'accessory')
+    queryset = _product_accessory_queryset()
     serializer_class = ProductAccessorySerializer
     permission_classes = [IsAdminOrReadOnly]
     filter_backends = [DjangoFilterBackend]
@@ -3705,9 +3728,72 @@ class ReturnRequestViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
         if status_param and status_param in dict(ReturnRequest.StatusChoices.choices):
             queryset = queryset.filter(status=status_param)
         
+        # Prefetch units with product_template and their transfers to avoid N+1 in list (130+ queries → ~5)
+        _transfers_prefetch = Prefetch(
+            'transfers',
+            queryset=UnitTransfer.objects.select_related(
+                'from_salesperson__user', 'to_salesperson__user', 'inventory_unit__product_template'
+            ).order_by('-requested_at'),
+        )
+        _units_prefetch = Prefetch(
+            'inventory_units',
+            queryset=InventoryUnit.objects.select_related('product_template').prefetch_related(_transfers_prefetch),
+        )
         return queryset.select_related(
             'requesting_salesperson__user', 'approved_by__user'
-        ).prefetch_related('inventory_units__product_template')
+        ).prefetch_related(_units_prefetch)
+    
+    def _get_net_holdings_for_admins(self, admin_ids):
+        """Batch-compute net holdings for given admin IDs (3 queries total). Used by list to avoid N×3 queries."""
+        if not admin_ids:
+            return {}
+        from django.db.models import Count
+        directly_reserved = {
+            row['reserved_by_id']: row['cnt']
+            for row in InventoryUnit.objects.filter(
+                reserved_by_id__in=admin_ids,
+                sale_status=InventoryUnit.SaleStatusChoices.RESERVED,
+            ).values('reserved_by_id').annotate(cnt=Count('id'))
+        }
+        received = {
+            row['to_salesperson_id']: row['cnt']
+            for row in UnitTransfer.objects.filter(
+                to_salesperson_id__in=admin_ids,
+                status=UnitTransfer.StatusChoices.APPROVED,
+            ).values('to_salesperson_id').annotate(cnt=Count('id'))
+        }
+        transferred = {
+            row['from_salesperson_id']: row['cnt']
+            for row in UnitTransfer.objects.filter(
+                from_salesperson_id__in=admin_ids,
+                status=UnitTransfer.StatusChoices.APPROVED,
+            ).values('from_salesperson_id').annotate(cnt=Count('id'))
+        }
+        return {
+            aid: {
+                'directly_reserved': directly_reserved.get(aid, 0),
+                'received_via_transfer': received.get(aid, 0),
+                'transferred_out': transferred.get(aid, 0),
+                'net_holdings': directly_reserved.get(aid, 0) + received.get(aid, 0) - transferred.get(aid, 0),
+            }
+            for aid in admin_ids
+        }
+    
+    def list(self, request, *args, **kwargs):
+        """Override to inject batched net_holdings into context and avoid 3N queries in serializer."""
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            admin_ids = list({r.requesting_salesperson_id for r in page if r.requesting_salesperson_id})
+            context = self.get_serializer_context()
+            context['net_holdings_by_admin_id'] = self._get_net_holdings_for_admins(admin_ids) if admin_ids else {}
+            serializer = self.get_serializer(page, many=True, context=context)
+            return self.get_paginated_response(serializer.data)
+        admin_ids = list({r.requesting_salesperson_id for r in queryset if r.requesting_salesperson_id})
+        context = self.get_serializer_context()
+        context['net_holdings_by_admin_id'] = self._get_net_holdings_for_admins(admin_ids) if admin_ids else {}
+        serializer = self.get_serializer(queryset, many=True, context=context)
+        return Response(serializer.data)
     
     def get_permissions(self):
         """Apply role-based permissions."""

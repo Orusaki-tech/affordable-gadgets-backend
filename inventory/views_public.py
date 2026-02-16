@@ -525,6 +525,53 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+    def _get_public_product_detail_queryset(self, pk):
+        """Queryset for single product with prefetches to avoid N+1 in PublicProductSerializer."""
+        from django.utils import timezone as tz
+        brand = getattr(self.request, 'brand', None)
+        available_units_filter = Q(
+            sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+            available_online=True,
+        )
+        if brand:
+            available_units_filter &= (Q(brands=brand) | Q(brands__isnull=True))
+        available_units_prefetch = Prefetch(
+            'inventory_units',
+            queryset=InventoryUnit.objects.filter(available_units_filter).select_related('product_color'),
+            to_attr='available_units_list',
+        )
+        primary_images_prefetch = Prefetch(
+            'images',
+            queryset=ProductImage.objects.filter(is_primary=True),
+            to_attr='primary_images_list',
+        )
+        now = tz.now()
+        active_bundles_qs = Bundle.objects.filter(
+            is_active=True,
+            show_in_listings=True,
+        ).filter(
+            Q(start_date__isnull=True) | Q(start_date__lte=now),
+            Q(end_date__isnull=True) | Q(end_date__gte=now),
+        )
+        if brand:
+            active_bundles_qs = active_bundles_qs.filter(brand=brand)
+        active_bundles_prefetch = Prefetch(
+            'bundles',
+            queryset=active_bundles_qs.prefetch_related('items__product'),
+            to_attr='active_bundles_list',
+        )
+        return (
+            Product.objects.filter(pk=pk)
+            .prefetch_related(
+                'tags',
+                'images',
+                available_units_prefetch,
+                primary_images_prefetch,
+                Prefetch('reviews', queryset=Review.objects.all(), to_attr='reviews_for_aggregates'),
+                active_bundles_prefetch,
+            )
+        )
+
     def retrieve(self, request, *args, **kwargs):
         """Cache public product detail responses."""
         debug_enabled = settings.DEBUG or request.query_params.get('debug') == '1'
@@ -536,7 +583,7 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
                 return Response(cached)
 
         pk = kwargs.get('pk')
-        product = Product.objects.filter(pk=pk).first()
+        product = self._get_public_product_detail_queryset(pk).first()
         if product is None:
             raise exceptions.NotFound('No Product matches the given query.')
         serializer = self.get_serializer(product)
@@ -551,6 +598,10 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
         context['request'] = self.request
         context['brand'] = getattr(self.request, 'brand', None)
         context['view_action'] = getattr(self, 'action', None)
+        # Request-scoped cache for get_optimized_image_url to avoid repeated Cloudinary work in list views
+        if not hasattr(self.request, '_public_product_image_url_cache'):
+            self.request._public_product_image_url_cache = {}
+        context['_image_url_cache'] = self.request._public_product_image_url_cache
         return context
     
     def get_queryset(self):
@@ -561,6 +612,8 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
             or self.request.query_params.get('debug') == '1'
             or os.getenv("PUBLIC_PRODUCT_DEBUG") == "1"
         )
+        # Heavy debug (per-product DB checks) only when explicitly enabled to avoid 100+ extra queries.
+        run_heavy_debug = getattr(settings, 'RUN_PUBLIC_PRODUCT_DEBUG_CHECKS', False)
         
         def apply_public_ordering(queryset):
             """Apply safe ordering for public list endpoints."""
@@ -578,30 +631,31 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
             # Default ordering for stable pagination
             return queryset.order_by('product_name')
         
-        # #region agent log - Entry
-        try:
-            os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
-            with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
-                f.write(json.dumps({
-                    "sessionId": "debug-session",
-                    "runId": "run1",
-                    "hypothesisId": "H1,H2,H3,H4,H5",
-                    "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(entry)",
-                    "message": "get_queryset entry",
-                    "data": {
-                        "query_params": dict(self.request.query_params),
-                        "brand_code": self.request.headers.get('X-Brand-Code', 'NOT_PROVIDED'),
-                        "brand": str(getattr(self.request, 'brand', None))
-                    },
-                    "timestamp": int(time.time() * 1000)
-                }) + "\n")
-        except: pass
+        # #region agent log - Entry (only when RUN_PUBLIC_PRODUCT_DEBUG_CHECKS to avoid I/O every request)
+        if run_heavy_debug:
+            try:
+                os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
+                    f.write(json.dumps({
+                        "sessionId": "debug-session",
+                        "runId": "run1",
+                        "hypothesisId": "H1,H2,H3,H4,H5",
+                        "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(entry)",
+                        "message": "get_queryset entry",
+                        "data": {
+                            "query_params": dict(self.request.query_params),
+                            "brand_code": self.request.headers.get('X-Brand-Code', 'NOT_PROVIDED'),
+                            "brand": str(getattr(self.request, 'brand', None))
+                        },
+                        "timestamp": int(time.time() * 1000)
+                    }) + "\n")
+            except: pass
         # #endregion
         
-        # #region agent log - Comprehensive product check
-        if debug_enabled:
+        # #region agent log - Comprehensive product check (only when RUN_PUBLIC_PRODUCT_DEBUG_CHECKS=True)
+        if run_heavy_debug:
             try:
-                self._log_all_products_debug(debug_enabled=debug_enabled)
+                self._log_all_products_debug(debug_enabled=True)
             except Exception as e:
                 try:
                     os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
@@ -762,68 +816,69 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
             brand = getattr(self.request, 'brand', None)
             is_list = getattr(self, 'action', None) == 'list' and not self.request.query_params.get('slug')
             is_detail = getattr(self, 'action', None) == 'retrieve'
+            # Disable debug/sample DB checks by default to avoid 100+ extra queries on list (set RUN_PUBLIC_PRODUCT_DEBUG_CHECKS=True to enable)
+            _run_debug_checks = getattr(settings, 'RUN_PUBLIC_PRODUCT_DEBUG_CHECKS', False)
             
-            # #region agent log - After initial queryset
-            try:
-                # Use exists() instead of count() to avoid evaluating queryset
-                initial_exists = queryset.exists()
-                # Get a sample of product IDs and their published status for debugging
-                sample_products = []
+            # #region agent log - After initial queryset (only when RUN_PUBLIC_PRODUCT_DEBUG_CHECKS to avoid exists()/query on every request)
+            if _run_debug_checks:
                 try:
-                    sample_products = list(queryset.values('id', 'product_name', 'is_published', 'is_discontinued')[:5])
-                except Exception:
-                    sample_products = [{"error": "could_not_fetch"}]
-                os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
-                with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
-                    f.write(json.dumps({
-                        "sessionId": "debug-session",
-                        "runId": "run1",
-                        "hypothesisId": "H2",
-                        "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(after_initial)",
-                        "message": "After initial queryset",
-                        "data": {
-                            "initial_exists": initial_exists,
-                            "brand": str(brand),
-                            "brand_id": brand.id if brand else None,
-                            "sample_products": sample_products
-                        },
-                        "timestamp": int(time.time() * 1000)
-                    }) + "\n")
-            except Exception as e:
-                try:
+                    initial_exists = queryset.exists()
+                    sample_products = []
+                    try:
+                        sample_products = list(queryset.values('id', 'product_name', 'is_published', 'is_discontinued')[:5])
+                    except Exception:
+                        sample_products = [{"error": "could_not_fetch"}]
                     os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
                     with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
                         f.write(json.dumps({
                             "sessionId": "debug-session",
                             "runId": "run1",
-                            "hypothesisId": "H1,H4",
+                            "hypothesisId": "H2",
                             "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(after_initial)",
-                            "message": "Exception checking initial queryset",
-                            "data": {"error": str(e), "traceback": traceback.format_exc()},
+                            "message": "After initial queryset",
+                            "data": {
+                                "initial_exists": initial_exists,
+                                "brand": str(brand),
+                                "brand_id": brand.id if brand else None,
+                                "sample_products": sample_products
+                            },
                             "timestamp": int(time.time() * 1000)
                         }) + "\n")
-                except: pass
+                except Exception as e:
+                    try:
+                        os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                        with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
+                            f.write(json.dumps({
+                                "sessionId": "debug-session",
+                                "runId": "run1",
+                                "hypothesisId": "H1,H4",
+                                "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(after_initial)",
+                                "message": "Exception checking initial queryset",
+                                "data": {"error": str(e), "traceback": traceback.format_exc()},
+                                "timestamp": int(time.time() * 1000)
+                            }) + "\n")
+                    except: pass
             # #endregion
             
-            # Log for debugging (remove in production)
-            import logging
-            logger = logging.getLogger(__name__)
-            try:
-                logger.info(f"PublicProductViewSet: brand={brand}, initial queryset exists={queryset.exists()}")
-                # Check a sample product's inventory units
-                sample = queryset.first()
-                if sample:
-                    total_units = sample.inventory_units.count()
-                    available_units = sample.inventory_units.filter(
-                        sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE
-                    ).count()
-                    available_online_units = sample.inventory_units.filter(
-                        sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
-                        available_online=True
-                    ).count()
-                    logger.info(f"Sample product {sample.id} ({sample.product_name}): total_units={total_units}, available={available_units}, available_online={available_online_units}")
-            except Exception as e:
-                logger.warning(f"PublicProductViewSet: brand={brand}, could not check queryset: {e}")
+            # Log for debugging (only when RUN_PUBLIC_PRODUCT_DEBUG_CHECKS=True to avoid N+1)
+            if _run_debug_checks:
+                import logging
+                logger = logging.getLogger(__name__)
+                try:
+                    logger.info(f"PublicProductViewSet: brand={brand}, initial queryset exists={queryset.exists()}")
+                    sample = queryset.first()
+                    if sample:
+                        total_units = sample.inventory_units.count()
+                        available_units = sample.inventory_units.filter(
+                            sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE
+                        ).count()
+                        available_online_units = sample.inventory_units.filter(
+                            sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+                            available_online=True
+                        ).count()
+                        logger.info(f"Sample product {sample.id} ({sample.product_name}): total_units={total_units}, available={available_units}, available_online={available_online_units}")
+                except Exception as e:
+                    logger.warning(f"PublicProductViewSet: brand={brand}, could not check queryset: {e}")
             
             # Base filter for available units
             available_units_filter = Q(
@@ -835,51 +890,52 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
             if brand:
                 available_units_filter &= (Q(brands=brand) | Q(brands__isnull=True))
             
-            # #region agent log - Check inventory units
-            try:
-                # Check if products have any inventory units at all (regardless of status)
-                sample_product = queryset.first()
-                if sample_product:
-                    total_units = sample_product.inventory_units.count()
-                    available_units = sample_product.inventory_units.filter(
-                        sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE
-                    ).count()
-                    available_online_units = sample_product.inventory_units.filter(
-                        sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
-                        available_online=True
-                    ).count()
-                    os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
-                    with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
-                        f.write(json.dumps({
-                            "sessionId": "debug-session",
-                            "runId": "run1",
-                            "hypothesisId": "H5",
-                            "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(units_check)",
-                            "message": "Inventory units check for sample product",
-                            "data": {
-                                "product_id": sample_product.id,
-                                "product_name": sample_product.product_name,
-                                "total_units": total_units,
-                                "available_units": available_units,
-                                "available_online_units": available_online_units,
-                                "brand_filter_applied": brand is not None
-                            },
-                            "timestamp": int(time.time() * 1000)
-                        }) + "\n")
-            except Exception as e:
+            # #region agent log - Check inventory units (only when RUN_PUBLIC_PRODUCT_DEBUG_CHECKS=True)
+            if _run_debug_checks:
                 try:
-                    os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
-                    with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
-                        f.write(json.dumps({
-                            "sessionId": "debug-session",
-                            "runId": "run1",
-                            "hypothesisId": "H5",
-                            "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(units_check_exception)",
-                            "message": "Exception checking inventory units",
-                            "data": {"error": str(e)},
-                            "timestamp": int(time.time() * 1000)
-                        }) + "\n")
-                except: pass
+                    # Check if products have any inventory units at all (regardless of status)
+                    sample_product = queryset.first()
+                    if sample_product:
+                        total_units = sample_product.inventory_units.count()
+                        available_units = sample_product.inventory_units.filter(
+                            sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE
+                        ).count()
+                        available_online_units = sample_product.inventory_units.filter(
+                            sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+                            available_online=True
+                        ).count()
+                        os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                        with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
+                            f.write(json.dumps({
+                                "sessionId": "debug-session",
+                                "runId": "run1",
+                                "hypothesisId": "H5",
+                                "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(units_check)",
+                                "message": "Inventory units check for sample product",
+                                "data": {
+                                    "product_id": sample_product.id,
+                                    "product_name": sample_product.product_name,
+                                    "total_units": total_units,
+                                    "available_units": available_units,
+                                    "available_online_units": available_online_units,
+                                    "brand_filter_applied": brand is not None
+                                },
+                                "timestamp": int(time.time() * 1000)
+                            }) + "\n")
+                except Exception as e:
+                    try:
+                        os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                        with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
+                            f.write(json.dumps({
+                                "sessionId": "debug-session",
+                                "runId": "run1",
+                                "hypothesisId": "H5",
+                                "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(units_check_exception)",
+                                "message": "Exception checking inventory units",
+                                "data": {"error": str(e)},
+                                "timestamp": int(time.time() * 1000)
+                            }) + "\n")
+                    except: pass
             # #endregion
             
             # Prefetch primary images
@@ -890,25 +946,12 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
             )
             
             if is_list:
-                # Annotate review aggregates once to avoid N+1 in serializer (get_review_count, get_average_rating).
+                # List path: no correlated annotations (review_count, average_rating, has_active_bundle).
+                # Use prefetch for reviews and active_bundles_list; serializer uses them to avoid N+1.
                 now = django_timezone.now()
-                review_count_sub = Review.objects.filter(product=OuterRef('pk')).values('product').annotate(total=Count('id')).values('total')[:1]
-                average_rating_sub = Review.objects.filter(product=OuterRef('pk')).values('product').annotate(avg=Avg('rating')).values('avg')[:1]
                 bundle_date_filter = (
                     Q(start_date__isnull=True) | Q(start_date__lte=now),
                     Q(end_date__isnull=True) | Q(end_date__gte=now),
-                )
-                bundle_exists_qs = Bundle.objects.filter(
-                    main_product=OuterRef('pk'),
-                    is_active=True,
-                    show_in_listings=True,
-                ).filter(*bundle_date_filter)
-                if brand:
-                    bundle_exists_qs = bundle_exists_qs.filter(brand=brand)
-                queryset = queryset.annotate(
-                    review_count=Coalesce(Subquery(review_count_sub), Value(0), output_field=IntegerField()),
-                    average_rating=Coalesce(Subquery(average_rating_sub), Value(None), output_field=DecimalField(max_digits=4, decimal_places=2)),
-                    has_active_bundle=Exists(bundle_exists_qs),
                 )
 
                 # Use prefetched available units for accurate brand-aware counts/prices.
@@ -935,74 +978,72 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
                 if brand:
                     bundles_qs = bundles_qs.filter(brand=brand)
                 bundles_prefetch = Prefetch('bundles', queryset=bundles_qs, to_attr='active_bundles_list')
+                reviews_prefetch = Prefetch(
+                    'reviews',
+                    queryset=Review.objects.only('product_id', 'rating'),
+                    to_attr='reviews_for_aggregates',
+                )
 
                 # List serializer uses only primary_images_list (no obj.images fallback) to avoid extra query.
                 queryset = queryset.prefetch_related(
                     primary_images_prefetch,
                     available_units_prefetch,
                     'tags',
+                    'brands',
                     bundles_prefetch,
+                    reviews_prefetch,
                 )
 
                 # Filter to products with at least one available unit (quantity > 0).
-                # Use Exists() instead of JOIN + DISTINCT so the DB can short-circuit and avoid a heavy join.
-                available_unit_sub = InventoryUnit.objects.filter(
-                    product_template=OuterRef('pk'),
+                # Single subquery for product IDs with available units (avoids N correlated Exists).
+                unit_filter = Q(
                     sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
                     available_online=True,
                     quantity__gt=0,
                 )
                 if brand:
-                    available_unit_sub = available_unit_sub.filter(Q(brands=brand) | Q(brands__isnull=True))
-                queryset = queryset.filter(Exists(available_unit_sub))
+                    unit_filter &= (Q(brands=brand) | Q(brands__isnull=True))
+                product_ids_subquery = (
+                    InventoryUnit.objects.filter(unit_filter)
+                    .values('product_template_id')
+                    .distinct()[:5000]
+                )
+                queryset = queryset.filter(id__in=Subquery(product_ids_subquery))
                 return apply_public_ordering(queryset)
 
             if is_detail:
-                # Detail path: prefetch filtered units and primary images and annotate aggregates
+                # Detail path: prefetch only (no correlated subqueries). Serializer uses prefetched
+                # available_units_list, reviews_for_aggregates, active_bundles_list for counts/prices/ratings.
                 available_units_prefetch = Prefetch(
                     'inventory_units',
                     queryset=InventoryUnit.objects.filter(available_units_filter).select_related('product_color'),
                     to_attr='available_units_list'
                 )
+                reviews_prefetch = Prefetch(
+                    'reviews',
+                    queryset=Review.objects.only('product_id', 'rating'),
+                    to_attr='reviews_for_aggregates',
+                )
+                now = django_timezone.now()
+                bundle_date_filter = (
+                    Q(start_date__isnull=True) | Q(start_date__lte=now),
+                    Q(end_date__isnull=True) | Q(end_date__gte=now),
+                )
+                bundles_qs = Bundle.objects.filter(
+                    is_active=True,
+                    show_in_listings=True
+                ).filter(*bundle_date_filter).prefetch_related('items__product')
+                if brand:
+                    bundles_qs = bundles_qs.filter(brand=brand)
+                bundles_prefetch = Prefetch('bundles', queryset=bundles_qs, to_attr='active_bundles_list')
                 queryset = queryset.prefetch_related(
                     available_units_prefetch,
-                    primary_images_prefetch
+                    primary_images_prefetch,
+                    reviews_prefetch,
+                    'tags',
+                    'brands',
+                    bundles_prefetch,
                 )
-
-                unit_base = InventoryUnit.objects.filter(
-                    product_template=OuterRef('pk'),
-                    sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
-                    available_online=True
-                )
-                if brand:
-                    unit_base = unit_base.filter(Q(brands=brand) | Q(brands__isnull=True))
-
-                unit_count_sub = unit_base.values('product_template').annotate(
-                    total=Count('id')
-                ).values('total')[:1]
-                unit_qty_sub = unit_base.values('product_template').annotate(
-                    total=Coalesce(Sum('quantity'), Value(0))
-                ).values('total')[:1]
-                min_price_sub = unit_base.order_by('selling_price').values('selling_price')[:1]
-                max_price_sub = unit_base.order_by('-selling_price').values('selling_price')[:1]
-
-                queryset = queryset.annotate(
-                    available_units_count=Case(
-                        When(
-                            product_type=Product.ProductType.ACCESSORY,
-                            then=Coalesce(Subquery(unit_qty_sub), Value(0)),
-                        ),
-                        default=Coalesce(Subquery(unit_count_sub), Value(0)),
-                        output_field=IntegerField(),
-                    ),
-                    min_price=Coalesce(Subquery(min_price_sub), Value(None), output_field=DecimalField(max_digits=10, decimal_places=2)),
-                    max_price=Coalesce(Subquery(max_price_sub), Value(None), output_field=DecimalField(max_digits=10, decimal_places=2)),
-                    compare_at_min_price=Coalesce(Subquery(compare_min_sub), Value(None), output_field=DecimalField(max_digits=10, decimal_places=2)),
-                    compare_at_max_price=Coalesce(Subquery(compare_max_sub), Value(None), output_field=DecimalField(max_digits=10, decimal_places=2)),
-                    review_count=Coalesce(Subquery(review_count_sub), Value(0), output_field=IntegerField()),
-                    average_rating=Coalesce(Subquery(average_rating_sub), Value(None), output_field=DecimalField(max_digits=4, decimal_places=2)),
-                )
-                # Do not enforce available_units_count on detail view to match slug behavior.
                 return queryset
 
             # Prefetch available units with brand filtering
@@ -1053,56 +1094,57 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
             
             # For accessories, sum quantities; for phones/laptops/tablets, count units
             try:
-                # #region agent log - Before annotation calculation
-                try:
-                    # Check a sample product's units before annotation
-                    sample_before = queryset.first()
-                    if sample_before:
-                        total_units_all = sample_before.inventory_units.count()
-                        matching_units = sample_before.inventory_units.filter(
-                            sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
-                            available_online=True
-                        )
-                        if brand:
-                            matching_units = matching_units.filter(Q(brands=brand) | Q(brands__isnull=True))
-                        matching_count = matching_units.count()
-                        if sample_before.product_type == Product.ProductType.ACCESSORY:
-                            matching_qty = matching_units.aggregate(total=Sum('quantity'))['total'] or 0
-                        else:
-                            matching_qty = matching_count
-                        os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
-                        with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
-                            f.write(json.dumps({
-                                "sessionId": "debug-session",
-                                "runId": "run1",
-                                "hypothesisId": "H4",
-                                "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(before_annotation_calc)",
-                                "message": "Before annotation calculation - manual check",
-                                "data": {
-                                    "product_id": sample_before.id,
-                                    "product_name": sample_before.product_name,
-                                    "product_type": sample_before.product_type,
-                                    "total_units_all": total_units_all,
-                                    "matching_units_count": matching_count,
-                                    "expected_available_units_count": matching_qty,
-                                    "brand_filter": str(brand) if brand else None
-                                },
-                                "timestamp": int(time.time() * 1000)
-                            }) + "\n")
-                except Exception as e:
+                # #region agent log - Before annotation calculation (only when RUN_PUBLIC_PRODUCT_DEBUG_CHECKS=True)
+                if _run_debug_checks:
                     try:
-                        os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
-                        with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
-                            f.write(json.dumps({
-                                "sessionId": "debug-session",
-                                "runId": "run1",
-                                "hypothesisId": "H4",
-                                "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(before_annotation_calc_error)",
-                                "message": "Error in before annotation check",
-                                "data": {"error": str(e)},
-                                "timestamp": int(time.time() * 1000)
-                            }) + "\n")
-                    except: pass
+                        # Check a sample product's units before annotation
+                        sample_before = queryset.first()
+                        if sample_before:
+                            total_units_all = sample_before.inventory_units.count()
+                            matching_units = sample_before.inventory_units.filter(
+                                sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+                                available_online=True
+                            )
+                            if brand:
+                                matching_units = matching_units.filter(Q(brands=brand) | Q(brands__isnull=True))
+                            matching_count = matching_units.count()
+                            if sample_before.product_type == Product.ProductType.ACCESSORY:
+                                matching_qty = matching_units.aggregate(total=Sum('quantity'))['total'] or 0
+                            else:
+                                matching_qty = matching_count
+                            os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                            with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
+                                f.write(json.dumps({
+                                    "sessionId": "debug-session",
+                                    "runId": "run1",
+                                    "hypothesisId": "H4",
+                                    "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(before_annotation_calc)",
+                                    "message": "Before annotation calculation - manual check",
+                                    "data": {
+                                        "product_id": sample_before.id,
+                                        "product_name": sample_before.product_name,
+                                        "product_type": sample_before.product_type,
+                                        "total_units_all": total_units_all,
+                                        "matching_units_count": matching_count,
+                                        "expected_available_units_count": matching_qty,
+                                        "brand_filter": str(brand) if brand else None
+                                    },
+                                    "timestamp": int(time.time() * 1000)
+                                }) + "\n")
+                    except Exception as e:
+                        try:
+                            os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                            with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
+                                f.write(json.dumps({
+                                    "sessionId": "debug-session",
+                                    "runId": "run1",
+                                    "hypothesisId": "H4",
+                                    "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(before_annotation_calc_error)",
+                                    "message": "Error in before annotation check",
+                                    "data": {"error": str(e)},
+                                    "timestamp": int(time.time() * 1000)
+                                }) + "\n")
+                        except: pass
                 # #endregion
                 
                 # Calculate annotation - but note: this may not count correctly due to ManyToMany complexity
@@ -1118,8 +1160,8 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
                 # The serializer calculates everything from prefetched data, which is more reliable
                 # This avoids PostgreSQL-specific annotation issues that work fine in SQLite
                 
-                # Log queryset count only in DEBUG to avoid extra DB queries in production
-                if settings.DEBUG:
+                # Log queryset count only when RUN_PUBLIC_PRODUCT_DEBUG_CHECKS to avoid extra DB queries
+                if _run_debug_checks and settings.DEBUG:
                     import logging
                     logger = logging.getLogger(__name__)
                     try:
@@ -1133,8 +1175,8 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
                     except Exception as e:
                         logger.error(f"QUERYSET_COUNT_ERROR: {str(e)}", exc_info=True)
                 
-                # #region agent log - After prefetch - verify queryset (DEBUG only to avoid extra queries)
-                if settings.DEBUG:
+                # #region agent log - After prefetch - verify queryset (only when RUN_PUBLIC_PRODUCT_DEBUG_CHECKS)
+                if _run_debug_checks and settings.DEBUG:
                     try:
                         sample_after = queryset.first()
                         if sample_after:
@@ -1188,8 +1230,8 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
                 # #endregion
                 raise
             
-            # #region agent log - Check prefetched data after all filtering (DEBUG only to avoid extra queries)
-            if settings.DEBUG:
+            # #region agent log - Check prefetched data after all filtering (only when RUN_PUBLIC_PRODUCT_DEBUG_CHECKS)
+            if _run_debug_checks and settings.DEBUG:
                 try:
                     import json, time, os
                     os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
@@ -1501,8 +1543,8 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
                 except Exception as e:
                     logger.error(f"FINAL_COUNT_ERROR: {str(e)}", exc_info=True)
             
-            # #region agent log - Final queryset before return (DEBUG only to avoid extra queries)
-            if settings.DEBUG:
+            # #region agent log - Final queryset before return (only when RUN_PUBLIC_PRODUCT_DEBUG_CHECKS to avoid count()/exists() on every request)
+            if _run_debug_checks:
                 try:
                     final_exists = queryset.exists()
                     final_count = queryset.count()
