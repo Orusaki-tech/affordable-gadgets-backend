@@ -422,14 +422,16 @@ class PublicProductSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(OpenApiTypes.INT)
     def get_review_count(self, obj):
-        if hasattr(obj, 'review_count') and obj.review_count is not None:
-            return int(obj.review_count)
+        # Use annotated value when present (avoids N+1 on list); 0 is valid
+        if hasattr(obj, 'review_count'):
+            return int(obj.review_count) if obj.review_count is not None else 0
         return Review.objects.filter(product=obj).count()
 
     @extend_schema_field(OpenApiTypes.NUMBER)
     def get_average_rating(self, obj):
-        if hasattr(obj, 'average_rating') and obj.average_rating is not None:
-            return float(obj.average_rating)
+        # Use annotated value when present (avoids N+1 on list); None = no reviews
+        if hasattr(obj, 'average_rating'):
+            return float(obj.average_rating) if obj.average_rating is not None else None
         aggregate = Review.objects.filter(product=obj).aggregate(avg=Avg('rating'))
         value = aggregate.get('avg')
         return float(value) if value is not None else None
@@ -438,11 +440,11 @@ class PublicProductSerializer(serializers.ModelSerializer):
     def get_primary_image(self, obj):
         """Get primary product image URL - use prefetched data if available."""
         from inventory.cloudinary_utils import get_optimized_image_url
-        # Use prefetched primary images if available
-        if hasattr(obj, 'primary_images_list') and obj.primary_images_list:
+        # Use prefetched primary images when available (avoids N+1)
+        if getattr(obj, 'primary_images_list', None):
             primary_image = obj.primary_images_list[0]
         else:
-            # Fallback to query (shouldn't happen with optimized queryset)
+            # Fallback uses obj.images; view must prefetch_related('images') for list to avoid N+1
             primary_image = obj.images.filter(is_primary=True).first()
         
         if primary_image and primary_image.image:

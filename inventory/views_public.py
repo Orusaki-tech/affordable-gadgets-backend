@@ -939,6 +939,7 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
                     'is_discontinued',
                 ).prefetch_related(
                     primary_images_prefetch,
+                    'images',  # avoid N+1 when serializer fallback touches obj.images
                     available_units_prefetch,
                     'tags',
                     bundles_prefetch,
