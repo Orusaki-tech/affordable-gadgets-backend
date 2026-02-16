@@ -38,10 +38,11 @@ class PublicInventoryUnitSerializer(serializers.ModelSerializer):
     
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_images(self, obj):
-        """Return list of image URLs for this unit with color information."""
+        """Return list of image URLs for this unit with color information. Use prefetched images (order set by view)."""
         from inventory.cloudinary_utils import get_optimized_image_url
         request = self.context.get('request')
-        images = obj.images.all().order_by('-is_primary', 'id')
+        # Avoid .order_by() so the prefetched cache is used (order already applied in view's Prefetch)
+        images = obj.images.all()
         result = []
         for img in images:
             if img.image:

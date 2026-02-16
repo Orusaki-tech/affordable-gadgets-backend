@@ -1256,10 +1256,11 @@ class InventoryUnitSerializer(serializers.ModelSerializer):
     
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_images(self, obj):
-        """Return list of image URLs for this inventory unit"""
+        """Return list of image URLs for this inventory unit. Use prefetched images (order set by viewset Prefetch)."""
         if hasattr(obj, 'images'):
             from .cloudinary_utils import get_optimized_image_url
-            images = obj.images.all().order_by('-is_primary', 'id')
+            # Avoid .order_by() here so the prefetched cache is used (order already applied in viewset's Prefetch)
+            images = obj.images.all()
             return [
                 {
                     'id': img.id,
