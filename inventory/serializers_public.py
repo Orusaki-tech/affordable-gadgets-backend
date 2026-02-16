@@ -445,11 +445,13 @@ class PublicProductSerializer(serializers.ModelSerializer):
         """Get primary product image URL - use prefetched data if available."""
         from inventory.cloudinary_utils import get_optimized_image_url
         # Use prefetched primary images when available (avoids N+1)
-        if getattr(obj, 'primary_images_list', None):
-            primary_image = obj.primary_images_list[0]
+        pl = getattr(obj, 'primary_images_list', None)
+        if pl and len(pl) > 0:
+            primary_image = pl[0]
         else:
-            # Fallback uses obj.images; view must prefetch_related('images') for list to avoid N+1
-            primary_image = obj.images.filter(is_primary=True).first()
+            # Fallback: use prefetched obj.images.all() (no .filter() so cache is used)
+            images = list(obj.images.all())
+            primary_image = next((img for img in images if img.is_primary), None) or (images[0] if images else None)
         
         if primary_image and primary_image.image:
             # Get request from context for absolute URL building

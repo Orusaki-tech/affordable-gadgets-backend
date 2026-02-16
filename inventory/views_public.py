@@ -1118,55 +1118,57 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
                 # The serializer calculates everything from prefetched data, which is more reliable
                 # This avoids PostgreSQL-specific annotation issues that work fine in SQLite
                 
-                # Log queryset count (no annotations to log)
-                import logging
-                logger = logging.getLogger(__name__)
-                try:
-                    count = queryset.count()
-                    logger.info(f"QUERYSET_COUNT: Queryset has {count} products after prefetch (no annotations)")
-                    if count > 0:
-                        sample = queryset.values('id', 'product_name')[:1]
-                        if sample:
-                            p = list(sample)[0]
-                            logger.info(f"QUERYSET_SAMPLE: Product {p['id']} ({p['product_name']})")
-                except Exception as e:
-                    logger.error(f"QUERYSET_COUNT_ERROR: {str(e)}", exc_info=True)
-                
-                # #region agent log - After prefetch - verify queryset
-                try:
-                    sample_after = queryset.first()
-                    if sample_after:
-                        prefetched_count = len(sample_after.available_units_list) if hasattr(sample_after, 'available_units_list') else 0
-                        os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
-                        with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
-                            f.write(json.dumps({
-                                "sessionId": "debug-session",
-                                "runId": "run1",
-                                "hypothesisId": "H4",
-                                "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(after_prefetch)",
-                                "message": "After prefetch - verification",
-                                "data": {
-                                    "product_id": sample_after.id,
-                                    "product_name": sample_after.product_name,
-                                    "prefetched_units_count": prefetched_count,
-                                    "queryset_exists": queryset.exists()
-                                },
-                                "timestamp": int(time.time() * 1000)
-                            }) + "\n")
-                except Exception as e:
+                # Log queryset count only in DEBUG to avoid extra DB queries in production
+                if settings.DEBUG:
+                    import logging
+                    logger = logging.getLogger(__name__)
                     try:
-                        os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
-                        with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
-                            f.write(json.dumps({
-                                "sessionId": "debug-session",
-                                "runId": "run1",
-                                "hypothesisId": "H4",
-                                "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(after_prefetch_error)",
-                                "message": "Error verifying prefetch",
-                                "data": {"error": str(e)},
-                                "timestamp": int(time.time() * 1000)
-                            }) + "\n")
-                    except: pass
+                        count = queryset.count()
+                        logger.info(f"QUERYSET_COUNT: Queryset has {count} products after prefetch (no annotations)")
+                        if count > 0:
+                            sample = queryset.values('id', 'product_name')[:1]
+                            if sample:
+                                p = list(sample)[0]
+                                logger.info(f"QUERYSET_SAMPLE: Product {p['id']} ({p['product_name']})")
+                    except Exception as e:
+                        logger.error(f"QUERYSET_COUNT_ERROR: {str(e)}", exc_info=True)
+                
+                # #region agent log - After prefetch - verify queryset (DEBUG only to avoid extra queries)
+                if settings.DEBUG:
+                    try:
+                        sample_after = queryset.first()
+                        if sample_after:
+                            prefetched_count = len(sample_after.available_units_list) if hasattr(sample_after, 'available_units_list') else 0
+                            os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                            with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
+                                f.write(json.dumps({
+                                    "sessionId": "debug-session",
+                                    "runId": "run1",
+                                    "hypothesisId": "H4",
+                                    "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(after_prefetch)",
+                                    "message": "After prefetch - verification",
+                                    "data": {
+                                        "product_id": sample_after.id,
+                                        "product_name": sample_after.product_name,
+                                        "prefetched_units_count": prefetched_count,
+                                        "queryset_exists": queryset.exists()
+                                    },
+                                    "timestamp": int(time.time() * 1000)
+                                }) + "\n")
+                    except Exception as e:
+                        try:
+                            os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                            with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
+                                f.write(json.dumps({
+                                    "sessionId": "debug-session",
+                                    "runId": "run1",
+                                    "hypothesisId": "H4",
+                                    "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(after_prefetch_error)",
+                                    "message": "Error verifying prefetch",
+                                    "data": {"error": str(e)},
+                                    "timestamp": int(time.time() * 1000)
+                                }) + "\n")
+                        except: pass
                 # #endregion
             except Exception as e:
                 # #region agent log - Annotation exception
@@ -1186,77 +1188,79 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
                 # #endregion
                 raise
             
-            # #region agent log - Check prefetched data after all filtering
-            try:
-                import json, time, os
-                os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
-                # Get first few products and check their prefetched units
-                # Use values() to avoid full object evaluation
-                sample_products_data = list(queryset.values('id', 'product_name', 'product_type')[:5])
-                prefetch_data = []
-                for p in sample_products_data:
-                    try:
-                        product_obj = queryset.filter(id=p['id']).first()
-                        prefetched_count = len(product_obj.available_units_list) if (product_obj and hasattr(product_obj, 'available_units_list')) else 0
-                        prefetch_data.append({
-                            "product_id": p['id'],
-                            "product_name": p['product_name'],
-                            "product_type": p['product_type'],
-                            "prefetched_units_count": prefetched_count,
-                        })
-                    except Exception as e:
-                        prefetch_data.append({
-                            "product_id": p.get('id'),
-                            "error": str(e)
-                        })
-                with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
-                    f.write(json.dumps({
-                        "sessionId": "debug-session",
-                        "runId": "run1",
-                        "hypothesisId": "H4",
-                        "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(check_prefetch)",
-                        "message": "Check prefetched data after all filtering",
-                        "data": {
-                            "prefetch_data": prefetch_data,
-                            "queryset_count": queryset.count()
-                        },
-                        "timestamp": int(time.time() * 1000)
-                    }) + "\n")
-            except Exception as e:
+            # #region agent log - Check prefetched data after all filtering (DEBUG only to avoid extra queries)
+            if settings.DEBUG:
                 try:
+                    import json, time, os
                     os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                    # Get first few products and check their prefetched units
+                    # Use values() to avoid full object evaluation
+                    sample_products_data = list(queryset.values('id', 'product_name', 'product_type')[:5])
+                    prefetch_data = []
+                    for p in sample_products_data:
+                        try:
+                            product_obj = queryset.filter(id=p['id']).first()
+                            prefetched_count = len(product_obj.available_units_list) if (product_obj and hasattr(product_obj, 'available_units_list')) else 0
+                            prefetch_data.append({
+                                "product_id": p['id'],
+                                "product_name": p['product_name'],
+                                "product_type": p['product_type'],
+                                "prefetched_units_count": prefetched_count,
+                            })
+                        except Exception as e:
+                            prefetch_data.append({
+                                "product_id": p.get('id'),
+                                "error": str(e)
+                            })
                     with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
                         f.write(json.dumps({
                             "sessionId": "debug-session",
                             "runId": "run1",
                             "hypothesisId": "H4",
-                            "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(check_prefetch_error)",
-                            "message": "Error checking prefetch",
-                            "data": {"error": str(e)},
+                            "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(check_prefetch)",
+                            "message": "Check prefetched data after all filtering",
+                            "data": {
+                                "prefetch_data": prefetch_data,
+                                "queryset_count": queryset.count()
+                            },
+                            "timestamp": int(time.time() * 1000)
+                        }) + "\n")
+                except Exception as e:
+                    try:
+                        os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                        with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
+                            f.write(json.dumps({
+                                "sessionId": "debug-session",
+                                "runId": "run1",
+                                "hypothesisId": "H4",
+                                "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(check_prefetch_error)",
+                                "message": "Error checking prefetch",
+                                "data": {"error": str(e)},
+                                "timestamp": int(time.time() * 1000)
+                            }) + "\n")
+                    except: pass
+            # #endregion
+            
+            # #region agent log - Before brand filtering (DEBUG only to avoid extra queries)
+            if settings.DEBUG:
+                try:
+                    before_brand_exists = queryset.exists()
+                    os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                    with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
+                        f.write(json.dumps({
+                            "sessionId": "debug-session",
+                            "runId": "run1",
+                            "hypothesisId": "H2",
+                            "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(before_brand_filter)",
+                            "message": "Before brand filtering",
+                            "data": {
+                                "exists": before_brand_exists,
+                                "brand": str(brand),
+                                "will_filter": brand is not None
+                            },
                             "timestamp": int(time.time() * 1000)
                         }) + "\n")
                 except: pass
-            # #endregion
-            
-            # #region agent log - Before brand filtering
-            try:
-                before_brand_exists = queryset.exists()
-                os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
-                with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
-                    f.write(json.dumps({
-                        "sessionId": "debug-session",
-                        "runId": "run1",
-                        "hypothesisId": "H2",
-                        "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(before_brand_filter)",
-                        "message": "Before brand filtering",
-                        "data": {
-                            "exists": before_brand_exists,
-                            "brand": str(brand),
-                            "will_filter": brand is not None
-                        },
-                        "timestamp": int(time.time() * 1000)
-                    }) + "\n")
-            except: pass
             # #endregion
             
             # Brand filtering
@@ -1275,24 +1279,25 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
             # No brand filter - show all published products (including those with brands assigned)
             # This ensures accessories and other products are visible even when no brand is specified
             
-            # #region agent log - After brand filtering
-            try:
-                after_brand_exists = queryset.exists()
-                os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
-                with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
-                    f.write(json.dumps({
-                        "sessionId": "debug-session",
-                        "runId": "run1",
-                        "hypothesisId": "H2",
-                        "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(after_brand_filter)",
-                        "message": "After brand filtering",
-                        "data": {
-                            "exists": after_brand_exists,
-                            "brand": str(brand)
-                        },
-                        "timestamp": int(time.time() * 1000)
-                    }) + "\n")
-            except: pass
+            # #region agent log - After brand filtering (DEBUG only to avoid extra queries)
+            if settings.DEBUG:
+                try:
+                    after_brand_exists = queryset.exists()
+                    os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                    with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
+                        f.write(json.dumps({
+                            "sessionId": "debug-session",
+                            "runId": "run1",
+                            "hypothesisId": "H2",
+                            "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(after_brand_filter)",
+                            "message": "After brand filtering",
+                            "data": {
+                                "exists": after_brand_exists,
+                                "brand": str(brand)
+                            },
+                            "timestamp": int(time.time() * 1000)
+                        }) + "\n")
+                except: pass
             # #endregion
             
             # Additional filters
@@ -1321,25 +1326,26 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
             # Promotion filtering
             promotion_id = self.request.query_params.get('promotion')
             if promotion_id:
-                # #region agent log - Before promotion filtering
-                try:
-                    os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
-                    with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
-                        f.write(json.dumps({
-                            "sessionId": "debug-session",
-                            "runId": "run1",
-                            "hypothesisId": "H3",
-                            "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(before_promotion)",
-                            "message": "Before promotion filtering",
-                            "data": {
-                                "promotion_id": promotion_id,
-                                "brand": str(brand),
-                                "brand_is_none": brand is None,
-                                "queryset_exists": queryset.exists()
-                            },
-                            "timestamp": int(time.time() * 1000)
-                        }) + "\n")
-                except: pass
+                # #region agent log - Before promotion filtering (DEBUG only to avoid extra queries)
+                if settings.DEBUG:
+                    try:
+                        os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                        with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
+                            f.write(json.dumps({
+                                "sessionId": "debug-session",
+                                "runId": "run1",
+                                "hypothesisId": "H3",
+                                "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(before_promotion)",
+                                "message": "Before promotion filtering",
+                                "data": {
+                                    "promotion_id": promotion_id,
+                                    "brand": str(brand),
+                                    "brand_is_none": brand is None,
+                                    "queryset_exists": queryset.exists()
+                                },
+                                "timestamp": int(time.time() * 1000)
+                            }) + "\n")
+                    except: pass
                 # #endregion
                 try:
                     if brand is None:
@@ -1431,127 +1437,129 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
                 if hasattr(backend, 'filter_queryset') and backend != filters.OrderingFilter:
                     queryset = backend().filter_queryset(self.request, queryset, self)
             
-            # Log final queryset count
-            import logging
-            logger = logging.getLogger(__name__)
-            try:
-                # #region agent log - Test queryset evaluation before count
+            # Log final queryset count (DEBUG only to avoid extra queries in production)
+            if settings.DEBUG:
+                import logging
+                logger = logging.getLogger(__name__)
                 try:
-                    import json, time, os
-                    os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
-                    # Try to evaluate queryset to see if it fails in PostgreSQL
+                    # #region agent log - Test queryset evaluation before count
                     try:
-                        test_eval = list(queryset.values('id', 'product_name')[:3])
-                        eval_success = True
-                        eval_error = None
-                    except Exception as eval_err:
-                        test_eval = []
-                        eval_success = False
-                        eval_error = str(eval_err)
+                        import json, time, os
+                        os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                        # Try to evaluate queryset to see if it fails in PostgreSQL
+                        try:
+                            test_eval = list(queryset.values('id', 'product_name')[:3])
+                            eval_success = True
+                            eval_error = None
+                        except Exception as eval_err:
+                            test_eval = []
+                            eval_success = False
+                            eval_error = str(eval_err)
+                        with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
+                            f.write(json.dumps({
+                                "sessionId": "debug-session",
+                                "runId": "run1",
+                                "hypothesisId": "H1,H2,H3,H4,H5",
+                                "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(before_count)",
+                                "message": "Testing queryset evaluation before count()",
+                                "data": {
+                                    "eval_success": eval_success,
+                                    "eval_error": eval_error,
+                                    "test_products": test_eval,
+                                    "brand": str(brand) if brand else None
+                                },
+                                "timestamp": int(time.time() * 1000)
+                            }) + "\n")
+                    except: pass
+                    # #endregion
+                    
+                    final_count = queryset.count()
+                    logger.info(f"FINAL_COUNT: {final_count} products after all filtering")
+                    if final_count > 0:
+                        sample_data = list(queryset.values('id', 'product_name')[:1])
+                        if sample_data:
+                            p = sample_data[0]
+                            logger.info(f"FINAL_SAMPLE: Product {p['id']} ({p['product_name']})")
+                    else:
+                        logger.warning(f"FINAL_COUNT_ZERO: No products returned! Initial queryset existed but all were filtered out.")
+                        # #region agent log - Why products were filtered out
+                        try:
+                            # Check why products were filtered - get sample products that passed initial filter but failed later
+                            initial_queryset = Product.objects.filter(is_discontinued=False, is_published=True)
+                            sample_products = list(initial_queryset.values('id', 'product_name')[:5])
+                            for prod_data in sample_products:
+                                prod = Product.objects.get(id=prod_data['id'])
+                                all_units = prod.inventory_units.all()
+                                unit_statuses = {}
+                                for unit in all_units:
+                                    key = f"{unit.sale_status}_online_{unit.available_online}"
+                                    unit_statuses[key] = unit_statuses.get(key, 0) + 1
+                                logger.error(f"[PRODUCT_DEBUG] Product {prod.id} ({prod.product_name}): {len(all_units)} units, statuses={unit_statuses}")
+                        except Exception as e:
+                            logger.error(f"[PRODUCT_DEBUG] Error checking filtered products: {e}")
+                        # #endregion
+                except Exception as e:
+                    logger.error(f"FINAL_COUNT_ERROR: {str(e)}", exc_info=True)
+            
+            # #region agent log - Final queryset before return (DEBUG only to avoid extra queries)
+            if settings.DEBUG:
+                try:
+                    final_exists = queryset.exists()
+                    final_count = queryset.count()
+                    # Get sample products with their available_units_count to see why they might not be showing
+                    sample_products = []
+                    if final_exists:
+                        try:
+                            # Get first 5 products with their annotations and prefetched units
+                            products_data = list(queryset.values('id', 'product_name', 'available_units_count', 'min_price', 'max_price', 'product_type')[:5])
+                            for p in products_data:
+                                # Get the actual product object to check prefetched units
+                                product_obj = queryset.filter(id=p['id']).first()
+                                prefetched_count = 0
+                                if product_obj and hasattr(product_obj, 'available_units_list'):
+                                    prefetched_count = len(product_obj.available_units_list)
+                                
+                                sample_products.append({
+                                    'id': p['id'],
+                                    'product_name': p['product_name'],
+                                    'product_type': p['product_type'],
+                                    'annotated_available_units_count': p['available_units_count'],
+                                    'prefetched_units_count': prefetched_count,
+                                    'min_price': float(p['min_price']) if p['min_price'] is not None else None,
+                                    'max_price': float(p['max_price']) if p['max_price'] is not None else None,
+                                })
+                        except Exception as e:
+                            sample_products = [{"error": str(e), "traceback": traceback.format_exc()}]
+                    os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
                     with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
                         f.write(json.dumps({
                             "sessionId": "debug-session",
                             "runId": "run1",
-                            "hypothesisId": "H1,H2,H3,H4,H5",
-                            "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(before_count)",
-                            "message": "Testing queryset evaluation before count()",
+                            "hypothesisId": "H5",
+                            "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(final)",
+                            "message": "Final queryset before return",
                             "data": {
-                                "eval_success": eval_success,
-                                "eval_error": eval_error,
-                                "test_products": test_eval,
-                                "brand": str(brand) if brand else None
+                                "final_exists": final_exists,
+                                "final_count": final_count,
+                                "sample_products": sample_products,
+                                "ordering_param": self.request.query_params.get('ordering', 'none')
                             },
                             "timestamp": int(time.time() * 1000)
                         }) + "\n")
-                except: pass
-                # #endregion
-                
-                final_count = queryset.count()
-                logger.info(f"FINAL_COUNT: {final_count} products after all filtering")
-                if final_count > 0:
-                    sample_data = list(queryset.values('id', 'product_name')[:1])
-                    if sample_data:
-                        p = sample_data[0]
-                        logger.info(f"FINAL_SAMPLE: Product {p['id']} ({p['product_name']})")
-                else:
-                    logger.warning(f"FINAL_COUNT_ZERO: No products returned! Initial queryset existed but all were filtered out.")
-                    # #region agent log - Why products were filtered out
+                except Exception as e:
                     try:
-                        # Check why products were filtered - get sample products that passed initial filter but failed later
-                        initial_queryset = Product.objects.filter(is_discontinued=False, is_published=True)
-                        sample_products = list(initial_queryset.values('id', 'product_name')[:5])
-                        for prod_data in sample_products:
-                            prod = Product.objects.get(id=prod_data['id'])
-                            all_units = prod.inventory_units.all()
-                            unit_statuses = {}
-                            for unit in all_units:
-                                key = f"{unit.sale_status}_online_{unit.available_online}"
-                                unit_statuses[key] = unit_statuses.get(key, 0) + 1
-                            logger.error(f"[PRODUCT_DEBUG] Product {prod.id} ({prod.product_name}): {len(all_units)} units, statuses={unit_statuses}")
-                    except Exception as e:
-                        logger.error(f"[PRODUCT_DEBUG] Error checking filtered products: {e}")
-                    # #endregion
-            except Exception as e:
-                logger.error(f"FINAL_COUNT_ERROR: {str(e)}", exc_info=True)
-            
-            # #region agent log - Final queryset before return
-            try:
-                final_exists = queryset.exists()
-                final_count = queryset.count()
-                # Get sample products with their available_units_count to see why they might not be showing
-                sample_products = []
-                if final_exists:
-                    try:
-                        # Get first 5 products with their annotations and prefetched units
-                        products_data = list(queryset.values('id', 'product_name', 'available_units_count', 'min_price', 'max_price', 'product_type')[:5])
-                        for p in products_data:
-                            # Get the actual product object to check prefetched units
-                            product_obj = queryset.filter(id=p['id']).first()
-                            prefetched_count = 0
-                            if product_obj and hasattr(product_obj, 'available_units_list'):
-                                prefetched_count = len(product_obj.available_units_list)
-                            
-                            sample_products.append({
-                                'id': p['id'],
-                                'product_name': p['product_name'],
-                                'product_type': p['product_type'],
-                                'annotated_available_units_count': p['available_units_count'],
-                                'prefetched_units_count': prefetched_count,
-                                'min_price': float(p['min_price']) if p['min_price'] is not None else None,
-                                'max_price': float(p['max_price']) if p['max_price'] is not None else None,
-                            })
-                    except Exception as e:
-                        sample_products = [{"error": str(e), "traceback": traceback.format_exc()}]
-                os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
-                with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
-                    f.write(json.dumps({
-                        "sessionId": "debug-session",
-                        "runId": "run1",
-                        "hypothesisId": "H5",
-                        "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(final)",
-                        "message": "Final queryset before return",
-                        "data": {
-                            "final_exists": final_exists,
-                            "final_count": final_count,
-                            "sample_products": sample_products,
-                            "ordering_param": self.request.query_params.get('ordering', 'none')
-                        },
-                        "timestamp": int(time.time() * 1000)
-                    }) + "\n")
-            except Exception as e:
-                try:
-                    os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
-                    with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
-                        f.write(json.dumps({
-                            "sessionId": "debug-session",
-                            "runId": "run1",
-                            "hypothesisId": "H1",
-                            "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(final_exception)",
-                            "message": "Exception checking final queryset",
-                            "data": {"error": str(e), "traceback": traceback.format_exc()},
-                            "timestamp": int(time.time() * 1000)
-                        }) + "\n")
-                except: pass
+                        os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                        with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
+                            f.write(json.dumps({
+                                "sessionId": "debug-session",
+                                "runId": "run1",
+                                "hypothesisId": "H1",
+                                "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(final_exception)",
+                                "message": "Exception checking final queryset",
+                                "data": {"error": str(e), "traceback": traceback.format_exc()},
+                                "timestamp": int(time.time() * 1000)
+                            }) + "\n")
+                    except: pass
             # #endregion
             
             return queryset
