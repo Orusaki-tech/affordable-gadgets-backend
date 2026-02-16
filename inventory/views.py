@@ -350,7 +350,11 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                 queryset = queryset.filter(seo_score__gte=50)
 
         # Reduce N+1: prefetch relations used by ProductSerializer (images, brands, tags)
-        queryset = queryset.prefetch_related('images', 'brands', 'tags')
+        # Skip prefetch for stock_summary — only needs id, product_name, product_type; avoids 3 extra queries
+        if self.action != 'stock_summary':
+            queryset = queryset.prefetch_related('images', 'brands', 'tags')
+        elif self.action == 'stock_summary':
+            queryset = queryset.only('id', 'product_name', 'product_type')
         return queryset
     
     def get_permissions(self):
@@ -613,33 +617,6 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                 min_price=Min('selling_price'),
                 max_price=Max('selling_price')
             )
-        
-        # #region agent log
-        try:
-            import json, time
-            count_units = inventory_queryset.count()
-            sum_qty = inventory_queryset.aggregate(total_qty=Sum('quantity'))['total_qty'] or 0
-            import os
-            os.makedirs("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor", exist_ok=True)
-            with open("/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug.log", "a") as f:
-                f.write(json.dumps({
-                    "sessionId": "debug-session",
-                    "runId": "pre-fix",
-                    "hypothesisId": "H1",
-                    "location": "inventory/views.py:stock_summary",
-                    "message": "Stock summary count vs quantity",
-                    "data": {
-                        "product_id": product.pk,
-                        "product_type": product.product_type,
-                        "count_units": count_units,
-                        "sum_quantity": sum_qty,
-                        "available_stock": summary.get("total_available_stock")
-                    },
-                    "timestamp": int(time.time() * 1000)
-                }) + "\n")
-        except Exception:
-            pass
-        # #endregion
 
         # 4. Construct the response data
         response_data = {
