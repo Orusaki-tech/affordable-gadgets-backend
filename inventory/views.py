@@ -35,6 +35,7 @@ from django.db.models import (
     OuterRef,
     ExpressionWrapper,
     FloatField,
+    Prefetch,
 ) # Added Count, Min, Max, Q for aggregation/filtering
 from django.db.models.functions import Coalesce
 from rest_framework.decorators import action # Required for potential custom actions
@@ -705,10 +706,14 @@ class InventoryUnitViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
 
     parser_classes = [MultiPartParser, FormParser, JSONParser] 
 
-    # Optimized queryset for related field lookups (prefetch images to avoid N+1 in serializers)
+    # Optimized queryset for related field lookups (prefetch images with order to avoid N+1 in serializers)
+    _images_prefetch = Prefetch(
+        'images',
+        queryset=InventoryUnitImage.objects.select_related('color').order_by('-is_primary', 'id')
+    )
     queryset = InventoryUnit.objects.all().select_related(
         'product_template', 'product_color', 'acquisition_source_details', 'reserved_by__user'
-    ).prefetch_related('images')
+    ).prefetch_related(_images_prefetch)
     serializer_class = InventoryUnitSerializer
     permission_classes = [IsInventoryManagerOrMarketingManagerReadOnly]
     

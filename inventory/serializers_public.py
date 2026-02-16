@@ -31,6 +31,9 @@ class PublicInventoryUnitSerializer(serializers.ModelSerializer):
     
     @extend_schema_field(OpenApiTypes.INT)
     def get_interest_count(self, obj):
+        # Use annotated value when provided by the view (avoids N+1)
+        if hasattr(obj, 'interest_count'):
+            return obj.interest_count
         return InterestService.get_interest_count(obj)
     
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))
@@ -173,9 +176,9 @@ class PublicProductSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(OpenApiTypes.BOOL)
     def get_has_active_bundle(self, obj):
-        value = getattr(obj, 'has_active_bundle', None)
-        if value is not None:
-            return bool(value)
+        # Use annotated value from view when present (avoids N+1 on list).
+        if hasattr(obj, 'has_active_bundle'):
+            return bool(obj.has_active_bundle)
         # Use prefetched list from view when available (avoids N+1).
         active = getattr(obj, 'active_bundles_list', None)
         if active is not None:

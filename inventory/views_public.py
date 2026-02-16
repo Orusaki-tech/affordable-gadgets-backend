@@ -16,7 +16,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone as django_timezone
 from inventory.models import (
     Product, InventoryUnit, Cart, Lead, Brand, Promotion, ProductImage, Bundle, BundleItem,
-    Order, OrderItem, Review, Customer, WishlistItem, DeliveryRate
+    Order, OrderItem, Review, Customer, WishlistItem, DeliveryRate, InventoryUnitImage
 )
 from inventory.serializers_public import (
     PublicProductSerializer, PublicProductListSerializer, PublicInventoryUnitSerializer,
@@ -893,9 +893,21 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
                 now = django_timezone.now()
                 review_count_sub = Review.objects.filter(product=OuterRef('pk')).values('product').annotate(total=Count('id')).values('total')[:1]
                 average_rating_sub = Review.objects.filter(product=OuterRef('pk')).values('product').annotate(avg=Avg('rating')).values('avg')[:1]
+                bundle_date_filter = (
+                    Q(start_date__isnull=True) | Q(start_date__lte=now),
+                    Q(end_date__isnull=True) | Q(end_date__gte=now),
+                )
+                bundle_exists_qs = Bundle.objects.filter(
+                    main_product=OuterRef('pk'),
+                    is_active=True,
+                    show_in_listings=True,
+                ).filter(*bundle_date_filter)
+                if brand:
+                    bundle_exists_qs = bundle_exists_qs.filter(brand=brand)
                 queryset = queryset.annotate(
                     review_count=Coalesce(Subquery(review_count_sub), Value(0), output_field=IntegerField()),
                     average_rating=Coalesce(Subquery(average_rating_sub), Value(None), output_field=DecimalField(max_digits=4, decimal_places=2)),
+                    has_active_bundle=Exists(bundle_exists_qs),
                 )
 
                 # Use prefetched available units for accurate brand-aware counts/prices.
@@ -914,11 +926,7 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
                     to_attr='available_units_list'
                 )
 
-                # Prefetch bundles for list (has_active_bundle, bundle_price_preview) to avoid N+1.
-                bundle_date_filter = (
-                    Q(start_date__isnull=True) | Q(start_date__lte=now),
-                    Q(end_date__isnull=True) | Q(end_date__gte=now),
-                )
+                # Prefetch bundles for list (bundle_price_preview) to avoid N+1.
                 bundles_qs = Bundle.objects.filter(
                     is_active=True,
                     show_in_listings=True
@@ -927,17 +935,8 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
                     bundles_qs = bundles_qs.filter(brand=brand)
                 bundles_prefetch = Prefetch('bundles', queryset=bundles_qs, to_attr='active_bundles_list')
 
-                queryset = queryset.only(
-                    'id',
-                    'product_name',
-                    'brand',
-                    'model_series',
-                    'product_type',
-                    'slug',
-                    'product_video_url',
-                    'is_published',
-                    'is_discontinued',
-                ).prefetch_related(
+                # Avoid .only() so prefetch_related is not affected (can cause N+1 in some Django versions).
+                queryset = queryset.prefetch_related(
                     primary_images_prefetch,
                     'images',  # avoid N+1 when serializer fallback touches obj.images
                     available_units_prefetch,
@@ -1599,10 +1598,26 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
         
         brand = getattr(request, 'brand', None)
         
+        now = django_timezone.now()
+        active_lead_statuses = [Lead.StatusChoices.NEW, Lead.StatusChoices.CONTACTED]
+        images_prefetch = Prefetch(
+            'images',
+            queryset=InventoryUnitImage.objects.select_related('color').order_by('-is_primary', 'id')
+        )
+        
         units = product.inventory_units.filter(
             sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
             available_online=True
-        ).select_related('product_color', 'product_template').prefetch_related('images')
+        ).select_related('product_color', 'product_template').prefetch_related(images_prefetch).annotate(
+            interest_count=Count(
+                'lead_items__lead',
+                distinct=True,
+                filter=Q(
+                    lead_items__lead__status__in=active_lead_statuses,
+                    lead_items__lead__expires_at__gt=now,
+                )
+            )
+        )
         
         if brand:
             units = units.filter(Q(brands=brand) | Q(brands__isnull=True))
