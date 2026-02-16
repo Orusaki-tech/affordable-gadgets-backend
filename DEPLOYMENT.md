@@ -101,13 +101,28 @@ python manage.py collectstatic --noinput
 
 ### 2.4 Django Silk Setup (Optional - Performance Profiling)
 
-If you want to enable Django Silk for performance profiling:
+**All Silk-related environment variables:**
 
-1. **Set Environment Variable:**
+| Variable | Required | Default | Description |
+|----------|----------|--------|-------------|
+| `SILKY_ENABLED` | No | `false` | Set to `true` to enable Silk. Enables app, middleware, and UI at `/silk/`. |
+| `SILKY_INTERCEPT_PERCENT` | No | `10` | Percent of requests to profile (1–100). Only these get view-level profiling. Use `100` to profile every request. |
+
+**Where to set them on your deployed backend:**
+
+- **Railway:** Project → your backend service → **Variables** tab → Add variable / Edit.
+- **Render:** Dashboard → your Web Service → **Environment** → Add environment variable.
+- **Heroku:** Dashboard → your app → **Settings** → **Config Vars** → Reveal / Edit.
+- **Other:** Use that platform’s “Environment variables” or “Config” section for the backend service.
+
+**To enable Silk:**
+
+1. **Set environment variables** (in the dashboard above):
    ```
    SILKY_ENABLED=true
    SILKY_INTERCEPT_PERCENT=10
    ```
+   Use `SILKY_INTERCEPT_PERCENT=100` if you want every request profiled (e.g. for debugging).
 
 2. **Verify Setup:**
    ```bash

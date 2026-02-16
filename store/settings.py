@@ -310,6 +310,9 @@ if SILKY_ENABLED:
     SILKY_AUTHENTICATION = True
     SILKY_AUTHORIZATION = True
     SILKY_PERMISSIONS = lambda user: user.is_staff
+    # Only this percentage of requests are "intercepted": DataCollector().request is set only for them.
+    # So silk_profile() in views only runs when request is intercepted. Use 100 to profile every request
+    # (e.g. in dev); lower values reduce overhead and DB usage (e.g. in production).
     SILKY_INTERCEPT_PERCENT = float(os.environ.get('SILKY_INTERCEPT_PERCENT', '10'))
     SILKY_LOGIN_URL = '/admin/login/'
     # Required for the "Profiling" tab in Silk UI to show Python profiler data
