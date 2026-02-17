@@ -29,9 +29,16 @@ def api_root(request):
         }
     })
 
+
+def health(request):
+    """Lightweight endpoint for keep-warm pings and health checks. No DB or auth."""
+    return JsonResponse({'status': 'ok'})
+
+
 urlpatterns = [
-    # 0. Root endpoint
+    # 0. Root and health (keep-warm / monitoring)
     path('', api_root, name='api-root'),
+    path('health/', health, name='health'),
     
     # 1. Django Admin Interface
     path('admin/', admin.site.urls),

@@ -119,7 +119,13 @@ DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 # When behind a reverse proxy that terminates SSL (e.g. Railway, Render), trust X-Forwarded-Proto
 # so Django does not redirect HTTP->HTTPS on every request (avoids ERR_TOO_MANY_REDIRECTS).
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-SECURE_SSL_REDIRECT = os.environ.get('SECURE_SSL_REDIRECT', 'True').lower() == 'true'
+# Default to False on Railway: the edge already serves HTTPS; enabling redirect can cause
+# ERR_TOO_MANY_REDIRECTS if X-Forwarded-Proto is missing on some requests (e.g. from browser).
+_ssl_redirect = os.environ.get('SECURE_SSL_REDIRECT', '').lower()
+if _ssl_redirect == '' and os.environ.get('RAILWAY_ENVIRONMENT'):
+    SECURE_SSL_REDIRECT = False
+else:
+    SECURE_SSL_REDIRECT = _ssl_redirect != 'false' and _ssl_redirect != '0'
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
 SECURE_BROWSER_XSS_FILTER = True

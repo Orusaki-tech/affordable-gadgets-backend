@@ -1,0 +1,23 @@
+# Ping the production backend every 5 minutes to avoid Railway cold starts.
+# Cold starts can make the first request (e.g. login) take 30–60+ seconds or time out.
+# This workflow uses no secrets; optional: set BACKEND_URL in repo variables if your URL differs.
+
+name: Keep backend warm
+
+on:
+  schedule:
+    # Every 5 minutes
+    - cron: '*/5 * * * *'
+  workflow_dispatch: # Allow manual run
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping backend
+        run: |
+          url="${BACKEND_URL:-https://web-production-ffde2.up.railway.app}"
+          echo "Pinging $url/health/"
+          curl -sf --max-time 60 "$url/health/" || curl -sf --max-time 60 "$url/" || true
+        env:
+          BACKEND_URL: ${{ vars.BACKEND_URL }}

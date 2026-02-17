@@ -95,6 +95,15 @@ Use this checklist when deploying to production.
 - [ ] `CORS_ALLOWED_ORIGINS` updated with custom domain
 - [ ] `NEXT_PUBLIC_API_BASE_URL` updated if backend domain changed
 
+## Keep backend warm (Railway)
+
+Railway can put the backend to sleep when idle. The first request after idle (e.g. login) may take 30–60+ seconds or time out. To avoid this:
+
+- [ ] **GitHub Actions keep-warm** (in-repo): `.github/workflows/keep-warm.yml` pings the backend every 5 minutes. Ensure the workflow is enabled; optionally set repo variable `BACKEND_URL` if your production URL differs from the default.
+- [ ] **Alternative**: Use an external uptime monitor (e.g. [UptimeRobot](https://uptimerobot.com), [cron-job.org](https://cron-job.org)) to request `https://your-backend.railway.app/health/` or `https://your-backend.railway.app/` every 5–10 minutes.
+
+See [docs/RAILWAY_KEEP_WARM.md](docs/RAILWAY_KEEP_WARM.md) for details.
+
 ## Monitoring Setup
 
 - [ ] Error tracking configured (Sentry)
