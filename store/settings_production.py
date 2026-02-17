@@ -116,6 +116,9 @@ MEDIA_URL = '/media/'
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 # Security headers
+# When behind a reverse proxy that terminates SSL (e.g. Railway, Render), trust X-Forwarded-Proto
+# so Django does not redirect HTTP->HTTPS on every request (avoids ERR_TOO_MANY_REDIRECTS).
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 SECURE_SSL_REDIRECT = os.environ.get('SECURE_SSL_REDIRECT', 'True').lower() == 'true'
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
