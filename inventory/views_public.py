@@ -809,7 +809,8 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
                         }) + "\n")
                 # #endregion
                 
-                return queryset
+                # Stable ordering for pagination (avoids UnorderedObjectListWarning when slug returns 1 row).
+                return queryset.order_by('id')
             
             # Normal queryset filtering for list views
             queryset = super().get_queryset()

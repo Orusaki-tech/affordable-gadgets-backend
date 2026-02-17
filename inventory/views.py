@@ -185,11 +185,12 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     - Salesperson: Read-only access
     - Superuser: Full access
     """
-    queryset = Product.objects.all()
+    queryset = Product.objects.all().order_by('product_name')
     serializer_class = ProductSerializer
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['product_name', 'brand', 'model_series', 'product_description']
     ordering_fields = ['product_name', 'available_stock', 'created_at', 'updated_at']
+    ordering = ['product_name']
     
     def get_queryset(self):
         """Filter products by admin's assigned brands."""
@@ -690,7 +691,7 @@ class InventoryUnitViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     )
     queryset = InventoryUnit.objects.all().select_related(
         'product_template', 'product_color', 'acquisition_source_details', 'reserved_by__user'
-    ).prefetch_related(_images_prefetch)
+    ).prefetch_related(_images_prefetch).order_by('-id')
     serializer_class = InventoryUnitSerializer
     permission_classes = [IsInventoryManagerOrMarketingManagerReadOnly]
     
@@ -717,9 +718,10 @@ class InventoryUnitViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
         'product_template__model_series'  # Search within model series
     ]
     
-    # 4. Define fields for Ordering
+    # 4. Define fields for Ordering (default avoids UnorderedObjectListWarning)
     ordering_fields = ['selling_price', 'date_sourced', 'storage_gb']
-    
+    ordering = ['-id']
+
     @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
     def approve_buyback(self, request, pk=None):
         """
