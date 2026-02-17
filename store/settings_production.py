@@ -115,6 +115,13 @@ MEDIA_URL = '/media/'
 # Ensure Cloudinary is used for all media file uploads
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
+# CSRF: in production, trust only HTTPS origins (override dev list from base settings).
+# Set CSRF_TRUSTED_ORIGINS env to e.g. https://api.example.com,https://admin.example.com
+_csrf_origins = os.environ.get('CSRF_TRUSTED_ORIGINS', '').strip()
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_origins.split(',') if o.strip()]
+if not CSRF_TRUSTED_ORIGINS and render_hostname:
+    CSRF_TRUSTED_ORIGINS = [f'https://{render_hostname}']
+
 # Security headers
 # When behind a reverse proxy that terminates SSL (e.g. Railway, Render), trust X-Forwarded-Proto
 # so Django does not redirect HTTP->HTTPS on every request (avoids ERR_TOO_MANY_REDIRECTS).
@@ -172,6 +179,28 @@ CORS_ALLOW_HEADERS = [
 
 # Remove any wildcard CORS settings
 CORS_ALLOW_ALL_ORIGINS = False
+
+# Cache: use Redis in production when REDIS_URL is set (e.g. Railway Redis add-on).
+# This makes product list cache survive restarts and cold starts; first request after
+# cold start is still slow until the service is warm.
+_redis_url = os.environ.get('REDIS_URL', '').strip()
+if _redis_url:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': _redis_url,
+            'OPTIONS': {'socket_connect_timeout': 5},
+            'KEY_PREFIX': 'ag',
+            'TIMEOUT': 300,
+        }
+    }
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'ag-default',
+        }
+    }
 
 # Logging
 LOGGING = {

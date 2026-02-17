@@ -42,6 +42,14 @@ for host in ('localhost', '127.0.0.1', 'localhost:8000', '127.0.0.1:8000'):
 ALLOWED_HOSTS = _allowed
 AUTH_USER_MODEL = 'inventory.User'
 
+# CSRF: trust same-origin for admin/login and Silk when using runserver (127.0.0.1 or localhost).
+# Fixes "CSRF token from POST incorrect" on admin login, especially when next=/silk/.
+CSRF_TRUSTED_ORIGINS = [
+    'http://127.0.0.1:8000',
+    'http://localhost:8000',
+    'http://127.0.0.1',
+    'http://localhost',
+]
 
 # Application definition
 SILKY_ENABLED = os.environ.get('SILKY_ENABLED', 'false').lower() == 'true'
