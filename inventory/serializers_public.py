@@ -346,17 +346,17 @@ class PublicProductSerializer(serializers.ModelSerializer):
     
     @extend_schema_field(OpenApiTypes.NUMBER)
     def get_min_price(self, obj):
-        """Get min price for available units - use prefetched list for accurate brand filtering."""
-        # Use prefetched available_units_list if available (correctly filtered by brand)
+        """Get min price for available units - use annotation when present (list), else prefetched list or query."""
+        # List view: prefer annotation to avoid iterating available_units_list
+        if self.context.get('view_action') == 'list' and getattr(obj, 'min_price', None) is not None:
+            return float(obj.min_price)
         if hasattr(obj, 'available_units_list'):
             units = obj.available_units_list
             if units:
                 prices = [float(unit.selling_price) for unit in units]
                 return min(prices) if prices else None
-        
-        # List view: never query; use annotation or None
         if self.context.get('view_action') == 'list':
-            return float(obj.min_price) if getattr(obj, 'min_price', None) is not None else None
+            return None
         # Fallback to annotation (may not be brand-filtered correctly)
         if hasattr(obj, 'min_price') and obj.min_price is not None:
             return float(obj.min_price)
@@ -373,16 +373,16 @@ class PublicProductSerializer(serializers.ModelSerializer):
     
     @extend_schema_field(OpenApiTypes.NUMBER)
     def get_max_price(self, obj):
-        """Get max price for available units - use prefetched list for accurate brand filtering."""
-        # Use prefetched available_units_list if available (correctly filtered by brand)
+        """Get max price for available units - use annotation when present (list), else prefetched list or query."""
+        if self.context.get('view_action') == 'list' and getattr(obj, 'max_price', None) is not None:
+            return float(obj.max_price)
         if hasattr(obj, 'available_units_list'):
             units = obj.available_units_list
             if units:
                 prices = [float(unit.selling_price) for unit in units]
                 return max(prices) if prices else None
-        # List view: never query; use annotation or None
         if self.context.get('view_action') == 'list':
-            return float(obj.max_price) if getattr(obj, 'max_price', None) is not None else None
+            return None
         # Fallback to annotation (may not be brand-filtered correctly)
         if hasattr(obj, 'max_price') and obj.max_price is not None:
             return float(obj.max_price)

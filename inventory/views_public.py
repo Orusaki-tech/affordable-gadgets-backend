@@ -936,16 +936,14 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
             )
             
             if is_list:
-                # List path: no correlated annotations (review_count, average_rating, has_active_bundle).
-                # Use prefetch for reviews and active_bundles_list; serializer uses them to avoid N+1.
+                # List path: add annotations so serializer avoids Python iteration over prefetched rows.
                 now = django_timezone.now()
                 bundle_date_filter = (
                     Q(start_date__isnull=True) | Q(start_date__lte=now),
                     Q(end_date__isnull=True) | Q(end_date__gte=now),
                 )
 
-                # Use prefetched available units for accurate brand-aware counts/prices.
-                # Avoid annotations with ManyToMany brand filters that can yield zero counts on PostgreSQL.
+                # Use prefetched available units for accurate brand-aware counts (and fallback).
                 available_units_filter = Q(
                     sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
                     available_online=True,
@@ -954,13 +952,33 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
                 if brand:
                     available_units_filter &= (Q(brands=brand) | Q(brands__isnull=True))
 
+                # Annotations for list: reduce serializer work (use in serializer when present).
+                review_count_sub = Review.objects.filter(product=OuterRef('pk')).values('product').annotate(c=Count('id')).values('c')[:1]
+                average_rating_sub = Review.objects.filter(product=OuterRef('pk')).values('product').annotate(a=Avg('rating')).values('a')[:1]
+                unit_base = InventoryUnit.objects.filter(product_template=OuterRef('pk')).filter(available_units_filter)
+                min_price_sub = unit_base.order_by('selling_price').values('selling_price')[:1]
+                max_price_sub = unit_base.order_by('-selling_price').values('selling_price')[:1]
+                queryset = queryset.annotate(
+                    review_count=Coalesce(Subquery(review_count_sub), Value(0), output_field=IntegerField()),
+                    average_rating=Subquery(average_rating_sub),
+                    min_price=Subquery(min_price_sub),
+                    max_price=Subquery(max_price_sub),
+                )
+
                 available_units_prefetch = Prefetch(
                     'inventory_units',
                     queryset=InventoryUnit.objects.filter(available_units_filter).select_related('product_color'),
                     to_attr='available_units_list'
                 )
 
-                # Prefetch bundles for list (bundle_price_preview) to avoid N+1.
+                # Primary images: only fields needed for list (smaller payload).
+                primary_images_prefetch_list = Prefetch(
+                    'images',
+                    queryset=ProductImage.objects.filter(is_primary=True).only('id', 'image', 'is_primary', 'product_id'),
+                    to_attr='primary_images_list'
+                )
+
+                # Prefetch bundles for list (bundle_price_preview). Keep items__product for price fallback.
                 bundles_qs = Bundle.objects.filter(
                     is_active=True,
                     show_in_listings=True
@@ -968,20 +986,14 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
                 if brand:
                     bundles_qs = bundles_qs.filter(brand=brand)
                 bundles_prefetch = Prefetch('bundles', queryset=bundles_qs, to_attr='active_bundles_list')
-                reviews_prefetch = Prefetch(
-                    'reviews',
-                    queryset=Review.objects.only('product_id', 'rating'),
-                    to_attr='reviews_for_aggregates',
-                )
 
-                # List serializer uses only primary_images_list (no obj.images fallback) to avoid extra query.
+                # No reviews_prefetch for list; serializer uses annotated review_count / average_rating.
                 queryset = queryset.prefetch_related(
-                    primary_images_prefetch,
+                    primary_images_prefetch_list,
                     available_units_prefetch,
                     'tags',
                     'brands',
                     bundles_prefetch,
-                    reviews_prefetch,
                 )
 
                 # Filter to products with at least one available unit (quantity > 0).
