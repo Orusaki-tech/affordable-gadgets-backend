@@ -1,7 +1,11 @@
 """
-Startup migration check for migration 0027 (idempotency_key column).
-This module is imported by wsgi.py on startup to ensure the migration is applied.
-Also runs product visibility fixes on startup.
+Migration and product-visibility helpers for use in build scripts or cron only.
+
+Do NOT import or call these from wsgi.py or AppConfig.ready() — that causes
+"Accessing the database during app initialization" and "Apps aren't loaded yet".
+
+- Migration 0027 (idempotency_key): handled in build.sh during deploy.
+- Product visibility fix: run via build.sh or cron (see build.sh).
 """
 import logging
 from django.db import connection

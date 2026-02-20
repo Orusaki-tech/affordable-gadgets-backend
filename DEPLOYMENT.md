@@ -54,7 +54,9 @@ python manage.py collectstatic --noinput
 3. Add PostgreSQL service
 4. Configure environment variables in Railway dashboard
 5. Set build command: (auto-detected)
-6. Set start command: `gunicorn store.wsgi:application --bind 0.0.0.0:$PORT`
+6. Set start command: `gunicorn store.wsgi:application --bind 0.0.0.0:$PORT --timeout 120 --workers 2`
+   - `--timeout 120`: avoids worker timeout/SIGKILL on slow requests (e.g. cold cache).
+   - `--workers 2`: conservative for small instances; use 3–4 only if you have enough memory (reduce to 1 if you see OOM).
 
 ### 2.2 Required Environment Variables (Backend)
 
@@ -86,6 +88,8 @@ PESAPAL_IPN_URL=https://your-api-domain.railway.app/api/inventory/pesapal/ipn/
 # Set to 'true' to enable profiling UI at /silk/ (requires staff user to access)
 SILKY_ENABLED=false
 SILKY_INTERCEPT_PERCENT=10
+# Optional: Redis for cache (reduces repeat load; set REDIS_URL if you add Railway Redis plugin)
+# REDIS_URL=redis://default:xxx@host:port
 ```
 
 ### 2.3 Post-Deployment Commands
@@ -280,6 +284,14 @@ python manage.py migrate
 - Check `CORS_ALLOWED_ORIGINS` includes frontend domain
 - Verify frontend is using HTTPS
 - Check browser console for specific CORS error
+
+**Slow first request (2–3 minutes “Waiting for server response”):**
+- **Cause:** On Railway (and similar platforms), the service can **cold start** after idle: the container spins down and the first request after that pays the cost of starting the app and opening the DB connection. The products list endpoint also runs a heavy query; the first run is uncached.
+- **Fix 1 – Keep the service warm:** Hit a lightweight endpoint every 5–10 minutes so the service doesn’t spin down. Use a cron (e.g. [cron-job.org](https://cron-job.org) or Vercel Cron) to request:
+  `GET https://<your-railway-backend>/health/`
+  Example: every 5 minutes. No auth needed; the endpoint returns `{"status":"ok"}`.
+- **Fix 2 – Optional Redis cache:** In Railway, add the **Redis** plugin and set `REDIS_URL` in your service variables. The backend will use Redis for the product list cache so repeat requests (and other workers) stay fast. First request after a cold start is still slow until the app is warm; use Fix 1 for that.
+- **Fix 3 – Plan / always-on:** Some plans keep the service always on and avoid cold starts; consider upgrading if you need consistently fast first requests.
 
 ### Frontend Issues
 

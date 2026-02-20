@@ -33,6 +33,10 @@ from inventory.services.customer_service import CustomerService
 from inventory.services.delivery_service import get_delivery_fee
 from inventory.services.otp_service import OtpService
 
+# Cache TTLs (seconds) for public API responses. Longer list TTL reduces load and improves repeat request times.
+PUBLIC_PRODUCTS_LIST_CACHE_TTL = getattr(settings, 'PUBLIC_PRODUCTS_LIST_CACHE_TTL', 600)  # 10 min
+PUBLIC_PRODUCT_DETAIL_CACHE_TTL = getattr(settings, 'PUBLIC_PRODUCT_DETAIL_CACHE_TTL', 180)  # 3 min
+
 # Optional Silk profiling: when SILKY_ENABLED, wrap views so the Silk "Profiling" tab has data
 try:
     if getattr(settings, 'SILKY_ENABLED', False):
@@ -363,13 +367,12 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
                 return Response(cached)
         
         try:
-            # #region agent log - Before list call
-            if debug_enabled:
+            # Debug pre-check only when explicitly enabled to avoid double get_queryset() and heavy count() on every request.
+            run_heavy_debug = getattr(settings, 'RUN_PUBLIC_PRODUCT_DEBUG_CHECKS', False)
+            if debug_enabled and run_heavy_debug:
                 try:
                     queryset = self.get_queryset()
                     queryset_count = queryset.count()
-                    
-                    # Check if queryset can be evaluated (PostgreSQL might fail here)
                     try:
                         sample_products = list(queryset.values('id', 'product_name', 'is_global')[:3])
                         queryset_evaluates = True
@@ -377,7 +380,6 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
                         sample_products = []
                         queryset_evaluates = False
                         eval_error = str(eval_err)
-                    
                     os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
                     with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
                         f.write(json.dumps({
@@ -412,8 +414,7 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
                                 "timestamp": int(time.time() * 1000)
                             }) + "\n")
                     except: pass
-            # #endregion
-            
+
             response = super().list(request, *args, **kwargs)
             
             # #region agent log - After list call
@@ -495,7 +496,7 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
                 request.query_params.get('page_size', '24')
             )
             if cache_enabled and hasattr(response, 'data'):
-                cache.set(cache_key, response.data, 180)
+                cache.set(cache_key, response.data, PUBLIC_PRODUCTS_LIST_CACHE_TTL)
             return response
         except Exception as e:
             # #region agent log - List exception
@@ -589,7 +590,7 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
         serializer = self.get_serializer(product)
         response = Response(serializer.data)
         if cache_enabled:
-            cache.set(cache_key, response.data, 120)
+            cache.set(cache_key, response.data, PUBLIC_PRODUCT_DETAIL_CACHE_TTL)
         return response
     
     def get_serializer_context(self):
@@ -729,18 +730,6 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
                 review_base = Review.objects.filter(product=OuterRef('pk'))
                 review_count_sub = review_base.values('product').annotate(total=Count('id')).values('total')[:1]
                 average_rating_sub = review_base.values('product').annotate(avg=Avg('rating')).values('avg')[:1]
-                compare_unit_base = unit_base.filter(compare_at_price__isnull=False)
-                compare_min_sub = compare_unit_base.order_by('compare_at_price').values('compare_at_price')[:1]
-                compare_max_sub = compare_unit_base.order_by('-compare_at_price').values('compare_at_price')[:1]
-                review_base = Review.objects.filter(product=OuterRef('pk'))
-                review_count_sub = review_base.values('product').annotate(total=Count('id')).values('total')[:1]
-                average_rating_sub = review_base.values('product').annotate(avg=Avg('rating')).values('avg')[:1]
-                compare_unit_base = unit_base.filter(compare_at_price__isnull=False)
-                compare_min_sub = compare_unit_base.order_by('compare_at_price').values('compare_at_price')[:1]
-                compare_max_sub = compare_unit_base.order_by('-compare_at_price').values('compare_at_price')[:1]
-                review_base = Review.objects.filter(product=OuterRef('pk'))
-                review_count_sub = review_base.values('product').annotate(total=Count('id')).values('total')[:1]
-                average_rating_sub = review_base.values('product').annotate(avg=Avg('rating')).values('avg')[:1]
 
                 queryset = queryset.annotate(
                     available_units_count=Case(
@@ -765,7 +754,7 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
                     os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
                     accessory_sample = queryset.filter(product_type=Product.ProductType.ACCESSORY).first()
                     if accessory_sample:
-                        accessory_units = accessory_sample.inventory_units.filter(units_filter)
+                        accessory_units = accessory_sample.inventory_units.filter(available_units_filter)
                         sum_qty = accessory_units.aggregate(total_qty=Sum('quantity'))['total_qty'] or 0
                         count_units = accessory_units.count()
                         with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:

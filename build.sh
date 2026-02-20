@@ -110,5 +110,12 @@ else
     }
 fi
 
+# Fix product visibility (units AVAILABLE, available_online, etc.) at deploy time.
+# Do not run this from wsgi/app startup — run only from build or cron.
+echo "👁️  Fixing product visibility..."
+python manage.py fix_product_visibility --fix || {
+    echo "⚠️  Product visibility fix encountered an error. Continuing build..."
+}
+
 echo "✅ Build complete!"
 
