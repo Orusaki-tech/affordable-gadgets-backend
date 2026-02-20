@@ -16,8 +16,14 @@ logger = logging.getLogger(__name__)
 def check_and_apply_migration_0027():
     """
     Check if migration 0027 (idempotency_key column) exists, and apply it if needed.
-    This is called on startup in production to ensure the column exists.
+    Intended for build scripts. If called during app startup (apps not ready), does nothing.
     """
+    try:
+        from django.apps import apps
+        if not apps.ready:
+            return False
+    except Exception:
+        return False
     try:
         with connection.cursor() as cursor:
             # Check if column exists
@@ -56,20 +62,24 @@ def check_and_apply_migration_0027():
 
 def fix_product_visibility_on_startup():
     """
-    Fix product visibility issues on startup.
-    This ensures products are visible on the frontend by:
-    - Setting units to AVAILABLE and available_online=True
-    - Publishing products
-    - Fixing brand visibility (making products global if they have no brand assignment)
+    Fix product visibility issues. Intended for build scripts or cron only.
+    If called during app/worker startup (e.g. from a start script), does nothing
+    to avoid "Apps aren't loaded yet" and DB-at-init warnings.
     """
     try:
+        from django.apps import apps
+        if not apps.ready:
+            # Called during WSGI/gunicorn load; skip to avoid DB before apps ready.
+            return False
+    except Exception:
+        return False
+    try:
         from django.core.management import call_command
-        logger.info("🔍 Running product visibility fix on startup...")
+        logger.info("🔍 Running product visibility fix...")
         call_command('fix_product_visibility', '--fix', verbosity=0)
         logger.info("✅ Product visibility fix completed")
         return True
     except Exception as e:
-        logger.warning(f"⚠️  Could not fix product visibility on startup: {e}")
-        # Don't fail startup - just log the warning
+        logger.warning(f"⚠️  Could not fix product visibility: {e}")
         return False
 
