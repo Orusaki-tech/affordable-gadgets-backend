@@ -36,6 +36,9 @@ from inventory.services.otp_service import OtpService
 # Cache TTLs (seconds) for public API responses. Longer list TTL reduces load and improves repeat request times.
 PUBLIC_PRODUCTS_LIST_CACHE_TTL = getattr(settings, 'PUBLIC_PRODUCTS_LIST_CACHE_TTL', 600)  # 10 min
 PUBLIC_PRODUCT_DETAIL_CACHE_TTL = getattr(settings, 'PUBLIC_PRODUCT_DETAIL_CACHE_TTL', 180)  # 3 min
+PUBLIC_WISHLIST_CACHE_TTL = getattr(settings, 'PUBLIC_WISHLIST_CACHE_TTL', 60)  # 1 min (short so add/remove feels fresh)
+# Cache for "product IDs that have available stock" to avoid re-running the heavy subquery on every list request.
+PUBLIC_PRODUCT_IDS_WITH_STOCK_CACHE_TTL = getattr(settings, 'PUBLIC_PRODUCT_IDS_WITH_STOCK_CACHE_TTL', 120)  # 2 min
 
 # Optional Silk profiling: when SILKY_ENABLED, wrap views so the Silk "Profiling" tab has data
 try:
@@ -952,15 +955,32 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
                 if brand:
                     available_units_filter &= (Q(brands=brand) | Q(brands__isnull=True))
 
-                # Annotations for list: reduce serializer work (use in serializer when present).
-                review_count_sub = Review.objects.filter(product=OuterRef('pk')).values('product').annotate(c=Count('id')).values('c')[:1]
-                average_rating_sub = Review.objects.filter(product=OuterRef('pk')).values('product').annotate(a=Avg('rating')).values('a')[:1]
+                # Product IDs with stock: cache to avoid heavy subquery on every request (~2s -> much faster).
+                unit_filter = Q(
+                    sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+                    available_online=True,
+                    quantity__gt=0,
+                )
+                if brand:
+                    unit_filter &= (Q(brands=brand) | Q(brands__isnull=True))
+                stock_cache_key = f"public_product_ids_with_stock:{brand.id if brand else 'none'}"
+                product_ids = cache.get(stock_cache_key)
+                if product_ids is None:
+                    product_ids = list(
+                        InventoryUnit.objects.filter(unit_filter)
+                        .values_list('product_template_id', flat=True)
+                        .distinct()[:5000]
+                    )
+                    cache.set(stock_cache_key, product_ids, PUBLIC_PRODUCT_IDS_WITH_STOCK_CACHE_TTL)
+                if not product_ids:
+                    return Product.objects.none().order_by('product_name')
+                queryset = queryset.filter(id__in=product_ids)
+
+                # Annotations for list: only min/max price (for serializer + price filter). Review count/rating from prefetch.
                 unit_base = InventoryUnit.objects.filter(product_template=OuterRef('pk')).filter(available_units_filter)
                 min_price_sub = unit_base.order_by('selling_price').values('selling_price')[:1]
                 max_price_sub = unit_base.order_by('-selling_price').values('selling_price')[:1]
                 queryset = queryset.annotate(
-                    review_count=Coalesce(Subquery(review_count_sub), Value(0), output_field=IntegerField()),
-                    average_rating=Subquery(average_rating_sub),
                     min_price=Subquery(min_price_sub),
                     max_price=Subquery(max_price_sub),
                 )
@@ -987,30 +1007,19 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
                     bundles_qs = bundles_qs.filter(brand=brand)
                 bundles_prefetch = Prefetch('bundles', queryset=bundles_qs, to_attr='active_bundles_list')
 
-                # No reviews_prefetch for list; serializer uses annotated review_count / average_rating.
+                reviews_prefetch_list = Prefetch(
+                    'reviews',
+                    queryset=Review.objects.only('product_id', 'rating'),
+                    to_attr='reviews_for_aggregates',
+                )
                 queryset = queryset.prefetch_related(
                     primary_images_prefetch_list,
                     available_units_prefetch,
                     'tags',
                     'brands',
                     bundles_prefetch,
+                    reviews_prefetch_list,
                 )
-
-                # Filter to products with at least one available unit (quantity > 0).
-                # Single subquery for product IDs with available units (avoids N correlated Exists).
-                unit_filter = Q(
-                    sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
-                    available_online=True,
-                    quantity__gt=0,
-                )
-                if brand:
-                    unit_filter &= (Q(brands=brand) | Q(brands__isnull=True))
-                product_ids_subquery = (
-                    InventoryUnit.objects.filter(unit_filter)
-                    .values('product_template_id')
-                    .distinct()[:5000]
-                )
-                queryset = queryset.filter(id__in=Subquery(product_ids_subquery))
                 return apply_public_ordering(queryset)
 
             if is_detail:
@@ -2341,6 +2350,8 @@ class PublicWishlistViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
         context = super().get_serializer_context()
         context['request'] = self.request
         context['brand'] = getattr(self.request, 'brand', None)
+        context['view_action'] = 'list'  # Avoid N+1: nested PublicProductListSerializer returns None for unannotated fields
+        context['_image_url_cache'] = {}  # Reuse image URL building across wishlist items
         return context
 
     def _get_customer_and_session(self, request):
@@ -2355,6 +2366,19 @@ class PublicWishlistViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
             customer = Customer.objects.filter(phone=customer_phone).first()
         return customer, session_key
 
+    def _wishlist_cache_key(self, request):
+        """Build cache key for wishlist list response (GET)."""
+        customer, session_key = self._get_customer_and_session(request)
+        brand = getattr(request, 'brand', None)
+        brand_id = str(brand.id) if brand else 'none'
+        if customer:
+            ident = f'c{customer.id}'
+        elif session_key:
+            ident = f's{session_key}'
+        else:
+            return None
+        return f"public_wishlist:{brand_id}:{ident}"
+
     def get_queryset(self):
         customer, session_key = self._get_customer_and_session(self.request)
         brand = getattr(self.request, 'brand', None)
@@ -2367,13 +2391,65 @@ class PublicWishlistViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
             queryset = queryset.filter(session_key=session_key)
         else:
             return WishlistItem.objects.none()
+        # Prefetch everything needed so nested PublicProductListSerializer does not run N+1 queries
+        available_units_filter = Q(
+            sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+            available_online=True,
+        )
+        if brand:
+            available_units_filter &= (Q(brands=brand) | Q(brands__isnull=True))
+        available_units_prefetch = Prefetch(
+            'product__inventory_units',
+            queryset=InventoryUnit.objects.filter(available_units_filter).select_related('product_color'),
+            to_attr='available_units_list',
+        )
+        now = django_timezone.now()
+        bundle_date_filter = (
+            Q(start_date__isnull=True) | Q(start_date__lte=now),
+            Q(end_date__isnull=True) | Q(end_date__gte=now),
+        )
+        bundles_qs = Bundle.objects.filter(
+            is_active=True,
+            show_in_listings=True,
+        ).filter(*bundle_date_filter).prefetch_related('items__product')
+        if brand:
+            bundles_qs = bundles_qs.filter(brand=brand)
+        bundles_prefetch = Prefetch('product__bundles', queryset=bundles_qs, to_attr='active_bundles_list')
+        reviews_prefetch = Prefetch(
+            'product__reviews',
+            queryset=Review.objects.only('product_id', 'rating'),
+            to_attr='reviews_for_aggregates',
+        )
         return queryset.prefetch_related(
             Prefetch(
                 'product__images',
                 queryset=ProductImage.objects.filter(is_primary=True),
-                to_attr='primary_images_list'
-            )
+                to_attr='primary_images_list',
+            ),
+            'product__tags',
+            available_units_prefetch,
+            bundles_prefetch,
+            reviews_prefetch,
         )
+
+    def list(self, request, *args, **kwargs):
+        """Override to cache GET response and avoid repeated heavy serialization."""
+        if request.method != 'GET':
+            return super().list(request, *args, **kwargs)
+        cache_key = self._wishlist_cache_key(request)
+        if cache_key:
+            cached = cache.get(cache_key)
+            if cached is not None:
+                return Response(cached)
+        response = super().list(request, *args, **kwargs)
+        if cache_key and response.status_code == 200 and hasattr(response, 'data'):
+            cache.set(cache_key, response.data, PUBLIC_WISHLIST_CACHE_TTL)
+        return response
+
+    def _invalidate_wishlist_cache(self, request):
+        cache_key = self._wishlist_cache_key(request)
+        if cache_key:
+            cache.delete(cache_key)
 
     def create(self, request, *args, **kwargs):
         product_id = request.data.get('product_id')
@@ -2409,6 +2485,7 @@ class PublicWishlistViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
             product=product,
             brand=brand
         )
+        self._invalidate_wishlist_cache(request)
         serializer = self.get_serializer(item)
         return Response(serializer.data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
@@ -2424,6 +2501,7 @@ class PublicWishlistViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
 
         queryset = self.get_queryset().filter(product_id=product_id)
         queryset.delete()
+        self._invalidate_wishlist_cache(request)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
