@@ -12,9 +12,9 @@ router.register(r'bundles', views_public.PublicBundleViewSet, basename='public-b
 router.register(r'wishlist', views_public.PublicWishlistViewSet, basename='public-wishlist')
 router.register(r'delivery-rates', views_public.PublicDeliveryRateViewSet, basename='public-delivery-rate')
 # Add accessories endpoint (read-only for public)
-router.register(r'accessories-link', views.ProductAccessoryViewSet, basename='public-accessory')
+router.register(r'accessories-link', views_public.PublicProductAccessoryViewSet, basename='public-accessory')
 # Add reviews endpoint (read-only for public)
-router.register(r'reviews', views.ReviewViewSet, basename='public-review')
+router.register(r'reviews', views_public.PublicReviewViewSet, basename='public-review')
 
 urlpatterns = [
     path('reviews/otp/', views_public.ReviewOtpView.as_view(), name='public-review-otp'),

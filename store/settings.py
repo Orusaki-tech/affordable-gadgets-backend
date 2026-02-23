@@ -363,8 +363,9 @@ if SILKY_ENABLED:
     # (e.g. in dev); lower values reduce overhead and DB usage (e.g. in production).
     SILKY_INTERCEPT_PERCENT = float(os.environ.get('SILKY_INTERCEPT_PERCENT', '10'))
     SILKY_LOGIN_URL = '/admin/login/'
-    # Required for the "Profiling" tab in Silk UI to show Python profiler data
-    SILKY_PYTHON_PROFILER = True
+    # Python profiler can conflict with other tools (e.g. debugger). Disable to avoid "Another profiling tool is already active".
+    # Set SILKY_PYTHON_PROFILER=true in env if you need the Profiling tab and no other profiler is running.
+    SILKY_PYTHON_PROFILER = os.environ.get('SILKY_PYTHON_PROFILER', 'false').lower() == 'true'
     SILKY_PYTHON_PROFILER_RESULT_PATH = os.path.join(BASE_DIR, 'profiles')
 
 # --- drf-spectacular Configuration (OpenAPI 3 Schema Generation) ---

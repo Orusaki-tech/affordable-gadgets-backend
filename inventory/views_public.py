@@ -28,6 +28,7 @@ from inventory.serializers_public import (
     PublicOrderSerializer
 )
 from inventory.serializers import LeadSerializer, ReviewSerializer
+from . import views as inventory_views
 from inventory.services.cart_service import CartService
 from inventory.services.customer_service import CustomerService
 from inventory.services.delivery_service import get_delivery_fee
@@ -66,6 +67,12 @@ class _SilkProfileMixin:
                 except (ValueError, Exception):
                     pass
         return super().dispatch(request, *args, **kwargs)
+
+
+class _PublicAPIMixin:
+    """Skip DRF authentication for public endpoints so invalid/missing tokens don't cause 401.
+    Use with permission_classes = [AllowAny] so unauthenticated clients can access the API."""
+    authentication_classes = []
 
 
 class PublicProductListPagination(PageNumberPagination):
@@ -137,7 +144,7 @@ class PublicProductListPagination(PageNumberPagination):
         ]
     )
 )
-class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
+class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
     """Public product browsing."""
     queryset = Product.objects.filter(is_discontinued=False, is_published=True)
     serializer_class = PublicProductSerializer
@@ -1704,7 +1711,7 @@ class PublicProductViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
         responses=OpenApiTypes.OBJECT,
     ),
 )
-class CartViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
+class CartViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ModelViewSet):
     """Cart management."""
     serializer_class = CartSerializer
     permission_classes = [permissions.AllowAny]
@@ -2026,7 +2033,7 @@ class CartViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
 
 
 @extend_schema(request=ReviewOtpRequestSerializer, responses=OpenApiTypes.OBJECT)
-class ReviewOtpView(APIView):
+class ReviewOtpView(_PublicAPIMixin, APIView):
     """Send OTP for review verification."""
     permission_classes = [permissions.AllowAny]
 
@@ -2045,7 +2052,7 @@ class ReviewOtpView(APIView):
 
 
 @extend_schema(request=OrderOtpRequestSerializer, responses=OpenApiTypes.OBJECT)
-class OrderOtpView(APIView):
+class OrderOtpView(_PublicAPIMixin, APIView):
     """Send OTP for order history verification."""
     permission_classes = [permissions.AllowAny]
 
@@ -2064,7 +2071,7 @@ class OrderOtpView(APIView):
 
 
 @extend_schema(request=OrderHistoryRequestSerializer, responses=OpenApiTypes.OBJECT)
-class PublicOrderHistoryView(APIView):
+class PublicOrderHistoryView(_PublicAPIMixin, APIView):
     """Return orders for a customer after OTP verification."""
     permission_classes = [permissions.AllowAny]
 
@@ -2096,7 +2103,7 @@ class PublicOrderHistoryView(APIView):
 
 
 @extend_schema(request=ReviewEligibilityRequestSerializer, responses=OpenApiTypes.OBJECT)
-class ReviewEligibilityView(APIView):
+class ReviewEligibilityView(_PublicAPIMixin, APIView):
     """Return eligible purchased items for review."""
     permission_classes = [permissions.AllowAny]
 
@@ -2158,7 +2165,7 @@ class ReviewEligibilityView(APIView):
 
 
 @extend_schema(request=PublicReviewSubmitSerializer, responses=ReviewSerializer)
-class PublicReviewSubmitView(APIView):
+class PublicReviewSubmitView(_PublicAPIMixin, APIView):
     """Create a verified review for a purchased product."""
     permission_classes = [permissions.AllowAny]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
@@ -2232,7 +2239,7 @@ class PublicReviewSubmitView(APIView):
     ],
     responses=PublicProductSerializer(many=True),
 )
-class PhoneSearchByBudgetView(generics.ListAPIView):
+class PhoneSearchByBudgetView(_PublicAPIMixin, generics.ListAPIView):
     """
     GET: Allows customers to search for available phone Products 
     within a specified budget range.
@@ -2340,7 +2347,7 @@ class PhoneSearchByBudgetView(generics.ListAPIView):
         return context
 
 
-class PublicWishlistViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
+class PublicWishlistViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ModelViewSet):
     """Public wishlist API (session or customer-phone based)."""
     serializer_class = PublicWishlistItemSerializer
     permission_classes = [permissions.AllowAny]
@@ -2505,7 +2512,7 @@ class PublicWishlistViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class PublicDeliveryRateViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
+class PublicDeliveryRateViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
     """Public delivery rates lookup."""
     serializer_class = PublicDeliveryRateSerializer
     permission_classes = [permissions.AllowAny]
@@ -2535,7 +2542,7 @@ class PublicPromotionPagination(PageNumberPagination):
         ]
     )
 )
-class PublicPromotionViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
+class PublicPromotionViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
     def get_serializer_context(self):
         """Add request to serializer context for absolute URL building."""
         context = super().get_serializer_context()
@@ -2586,7 +2593,7 @@ class PublicPromotionViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
         ]
     )
 )
-class PublicBundleViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
+class PublicBundleViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
     """Public bundle ViewSet."""
     serializer_class = PublicBundleSerializer
     permission_classes = [permissions.AllowAny]
@@ -2621,3 +2628,12 @@ class PublicBundleViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
         
         return queryset
 
+
+class PublicReviewViewSet(_PublicAPIMixin, inventory_views.ReviewViewSet):
+    """ReviewViewSet for public API: no auth so unauthenticated clients get 200, not 401."""
+    pass
+
+
+class PublicProductAccessoryViewSet(_PublicAPIMixin, inventory_views.ProductAccessoryViewSet):
+    """ProductAccessoryViewSet for public API: no auth so unauthenticated clients get 200, not 401."""
+    pass
