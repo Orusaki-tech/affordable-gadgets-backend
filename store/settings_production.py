@@ -31,7 +31,7 @@ if not ALLOWED_HOSTS:
 
 # Database (use PostgreSQL in production)
 # Support both DATABASE_URL (Render/Heroku style) and individual DB_* variables
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qsl
 
 database_url = os.environ.get('DATABASE_URL', '').strip()
 if database_url:
@@ -39,6 +39,11 @@ if database_url:
     # or postgres://user:password@host:port/dbname
     try:
         parsed = urlparse(database_url)
+        # Carry URL query params (e.g. ?sslmode=require) into Django DB OPTIONS.
+        db_options = {'connect_timeout': 10}
+        for key, value in parse_qsl(parsed.query, keep_blank_values=False):
+            db_options[key] = value
+
         DATABASES = {
             'default': {
                 'ENGINE': 'django.db.backends.postgresql',
@@ -47,9 +52,7 @@ if database_url:
                 'PASSWORD': parsed.password,
                 'HOST': parsed.hostname,
                 'PORT': parsed.port or '5432',
-                'OPTIONS': {
-                    'connect_timeout': 10,
-                },
+                'OPTIONS': db_options,
             }
         }
     except Exception as e:
