@@ -54,9 +54,15 @@ python manage.py collectstatic --noinput
 3. Add PostgreSQL service
 4. Configure environment variables in Railway dashboard
 5. Set build command: (auto-detected)
-6. Set start command: `gunicorn store.wsgi:application --bind 0.0.0.0:$PORT --timeout 120 --workers 2`
-   - `--timeout 120`: avoids worker timeout/SIGKILL on slow requests (e.g. cold cache).
-   - `--workers 2`: conservative for small instances; use 3–4 only if you have enough memory (reduce to 1 if you see OOM).
+6. Set start command (Railway: Service → Settings → Deploy → Start Command):
+   `gunicorn store.wsgi:application --bind 0.0.0.0:$PORT --timeout 120 --workers 2`
+   - **Must include `--timeout 120`** or you will see `WORKER TIMEOUT` and `Worker was sent SIGKILL` when the product list or other slow requests run (gunicorn default is 30s).
+   - `--workers 2`: conservative for small instances; use 3–4 only if you have enough memory; **use `--workers 1` if you see "Perhaps out of memory?"**.
+
+**Docker / generic container:** If you run the app in a container (e.g. Docker, Cloud Run), use the same gunicorn args. Without `--timeout 120`, gunicorn defaults to 30s and you will see `WORKER TIMEOUT` and workers being killed when the product list takes 2–6s and traffic stacks up. Example:
+   ```bash
+   gunicorn store.wsgi:application --bind 0.0.0.0:8080 --workers 2 --timeout 120
+   ```
 
 ### 2.2 Required Environment Variables (Backend)
 

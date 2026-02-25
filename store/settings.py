@@ -80,6 +80,7 @@ REVIEW_OTP_TTL_SECONDS = int(os.getenv("REVIEW_OTP_TTL_SECONDS", 60 * 60))
 MIDDLEWARE = [
     *(['silk.middleware.SilkyMiddleware'] if SILKY_ENABLED else []),
     'corsheaders.middleware.CorsMiddleware',  # <--- ADDED: Must be near top, before CommonMiddleware
+    'inventory.middleware.RequestTimingMiddleware',  # Early: adds X-Processing-Ms to compare TTFB vs cold start
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',

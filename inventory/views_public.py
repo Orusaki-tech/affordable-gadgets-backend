@@ -141,6 +141,7 @@ class PublicProductListPagination(PageNumberPagination):
             OpenApiParameter('ordering', OpenApiTypes.STR, OpenApiParameter.QUERY),
             OpenApiParameter('promotion', OpenApiTypes.INT, OpenApiParameter.QUERY),
             OpenApiParameter('slug', OpenApiTypes.STR, OpenApiParameter.QUERY),
+            OpenApiParameter('featured', OpenApiTypes.BOOL, OpenApiParameter.QUERY, description='If true, return only products tagged as "Featured" (for homepage; use page_size=5 for fast load).'),
         ]
     )
 )
@@ -814,6 +815,12 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
             # Normal queryset filtering for list views
             queryset = super().get_queryset()
             brand = getattr(self.request, 'brand', None)
+            # Featured: prefer products with tag "Featured"; fallback to first N by name if none tagged (for homepage; use page_size=5)
+            if self.request.query_params.get('featured') in ('1', 'true', 'yes'):
+                featured_tagged = queryset.filter(tags__name__iexact='Featured').distinct()
+                # Use tagged set if any exist; otherwise leave queryset as-is (later filters + ordering will apply)
+                if featured_tagged.exists():
+                    queryset = featured_tagged
             is_list = getattr(self, 'action', None) == 'list' and not self.request.query_params.get('slug')
             is_detail = getattr(self, 'action', None) == 'retrieve'
             # Disable debug/sample DB checks by default to avoid 100+ extra queries on list (set RUN_PUBLIC_PRODUCT_DEBUG_CHECKS=True to enable)

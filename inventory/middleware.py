@@ -1,10 +1,30 @@
 """
-Middleware for brand context.
+Middleware for brand context and request timing (cold start vs in-app time).
 """
 import logging
+import time
 from django.utils.deprecation import MiddlewareMixin
 
 logger = logging.getLogger(__name__)
+
+
+class RequestTimingMiddleware(MiddlewareMixin):
+    """
+    Record when the request first hits Django and add X-Processing-Ms to the response.
+    Use this to tell cold start from slow query:
+    - Browser "Waiting for server response" = total TTFB (cold start + Django).
+    - X-Processing-Ms = time spent inside Django only.
+    - Cold start ≈ TTFB - X-Processing-Ms (time before Django received the request).
+    """
+    def process_request(self, request):
+        request._timing_start = time.perf_counter()
+        return None
+
+    def process_response(self, request, response):
+        if hasattr(request, '_timing_start'):
+            ms = int((time.perf_counter() - request._timing_start) * 1000)
+            response['X-Processing-Ms'] = str(ms)
+        return response
 
 
 class BrandContextMiddleware(MiddlewareMixin):
