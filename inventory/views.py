@@ -1505,12 +1505,12 @@ class AdminRoleViewSet(_SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
 class TagViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     """
     ViewSet for managing product tags.
-    - All authenticated staff users can read
-    - Content Creators and Inventory Managers can create/edit/delete
+    - Anyone can read (public read).
+    - Only Content Creators, Inventory Managers, and Superusers can create/edit/delete.
     """
     queryset = Tag.objects.all()
     serializer_class = TagSerializer
-    permission_classes = [IsAdminOrReadOnly]
+    permission_classes = [IsContentCreatorOrInventoryManagerOrReadOnly]
     pagination_class = None  # Return all tags without pagination (reasonable assumption)
 
 
