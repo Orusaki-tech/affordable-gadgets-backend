@@ -194,6 +194,25 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     
     def get_queryset(self):
         """Filter products by admin's assigned brands."""
+        # Fast path for single-product retrieve: avoid heavy list-style filters and brand JOINs.
+        if self.action == 'retrieve' and self.kwargs.get('pk'):
+            pk = self.kwargs['pk']
+            available_units_filter = Q(inventory_units__sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE)
+            available_stock_expr = Case(
+                When(
+                    product_type=Product.ProductType.ACCESSORY,
+                    then=Coalesce(Sum('inventory_units__quantity', filter=available_units_filter), Value(0)),
+                ),
+                default=Coalesce(Count('inventory_units', filter=available_units_filter), Value(0)),
+                output_field=IntegerField(),
+            )
+            return (
+                Product.objects.filter(pk=pk)
+                .order_by('product_name')
+                .annotate(available_stock=available_stock_expr)
+                .prefetch_related('images', 'brands', 'tags')
+            )
+
         queryset = super().get_queryset()
         user = self.request.user
         
@@ -374,7 +393,34 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
             return [IsContentCreatorOrInventoryManager()]
         # For read operations, allow Salespersons, Inventory Managers, and Marketing Managers (read-only for Salespersons and Marketing Managers)
         return [IsSalespersonOrInventoryManagerOrMarketingManagerReadOnly()]
-    
+
+    def retrieve(self, request, *args, **kwargs):
+        """Enforce brand access when using the fast-path queryset for single-product fetch."""
+        instance = self.get_object()
+        user = request.user
+        if user.is_staff and not user.is_superuser:
+            try:
+                admin = Admin.objects.get(user=user)
+                skip_brand_filter = (
+                    admin.is_global_admin
+                    or admin.is_salesperson
+                    or admin.is_inventory_manager
+                    or admin.is_marketing_manager
+                    or admin.is_content_creator
+                )
+                if not skip_brand_filter and admin.brands.exists():
+                    product_brand_ids = set(instance.brands.values_list('id', flat=True))
+                    admin_brand_ids = set(admin.brands.values_list('id', flat=True))
+                    if not product_brand_ids or instance.is_global:
+                        pass
+                    elif not (product_brand_ids & admin_brand_ids):
+                        from rest_framework.exceptions import NotFound
+                        raise NotFound()
+            except Admin.DoesNotExist:
+                from rest_framework.exceptions import NotFound
+                raise NotFound()
+        return super().retrieve(request, *args, **kwargs)
+
     def perform_create(self, serializer):
         """Set created_by and updated_by, and auto-assign to admin's brands if not specified."""
         # Get the admin profile
@@ -666,10 +712,12 @@ class InventoryUnitImageViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     (which are nested in InventoryUnitViewSet).
     Uses IsAdminOrReadOnly.
     """
-    queryset = InventoryUnitImage.objects.all().select_related('inventory_unit')
+    queryset = InventoryUnitImage.objects.all().select_related('inventory_unit', 'color')
     serializer_class = InventoryUnitImageSerializer
     permission_classes = [IsAdminOrReadOnly]
     parser_classes = [MultiPartParser, FormParser]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = {'inventory_unit': ['exact']}
 
 class InventoryUnitViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     """
@@ -2867,6 +2915,7 @@ def _product_accessory_queryset():
     )
     return (
         ProductAccessory.objects.all()
+        .order_by('id')
         .select_related('main_product', 'accessory')
         .prefetch_related(
             'accessory__images',
