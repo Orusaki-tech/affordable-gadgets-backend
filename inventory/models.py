@@ -329,7 +329,9 @@ class ProductAccessory(models.Model):
         verbose_name="Accessory Item Template"
     )
     required_quantity = models.PositiveIntegerField(default=1)
+
     class Meta:
+        ordering = ['id']
         unique_together = ('main_product', 'accessory')
     def __str__(self):
         return f"{self.accessory.product_name} for {self.main_product.product_name}"
