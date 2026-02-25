@@ -643,10 +643,12 @@ class InventoryUnitImageSerializer(serializers.ModelSerializer):
 
         if image:
             from .cloudinary_utils import upload_image_to_cloudinary
+            from django.core.files.base import File
             saved_name, _ = upload_image_to_cloudinary(image, 'unit_photos')
             if saved_name:
-                instance.image.name = saved_name
-                instance.save()
+                # Store Cloudinary path (file already uploaded); set field to path without re-uploading
+                instance.image = File(None, name=saved_name)
+                instance.save(update_fields=['image'])
 
         return instance
 

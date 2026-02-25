@@ -526,8 +526,8 @@ class InventoryUnitImage(models.Model):
         related_name='images', 
         on_delete=models.CASCADE
     )
-    # Use ImageField for storing the file upload path
-    image = models.ImageField(upload_to='unit_photos/%Y/%m/')
+    # Use ImageField for storing the file upload path (blank/null so serializer can create then set after Cloudinary upload)
+    image = models.ImageField(upload_to='unit_photos/%Y/%m/', blank=True, null=True)
     # Optional: Flag one image as the primary/display image
     is_primary = models.BooleanField(default=False)
     
