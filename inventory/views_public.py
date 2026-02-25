@@ -39,7 +39,7 @@ PUBLIC_PRODUCTS_LIST_CACHE_TTL = getattr(settings, 'PUBLIC_PRODUCTS_LIST_CACHE_T
 PUBLIC_PRODUCT_DETAIL_CACHE_TTL = getattr(settings, 'PUBLIC_PRODUCT_DETAIL_CACHE_TTL', 180)  # 3 min
 PUBLIC_WISHLIST_CACHE_TTL = getattr(settings, 'PUBLIC_WISHLIST_CACHE_TTL', 60)  # 1 min (short so add/remove feels fresh)
 # Cache for "product IDs that have available stock" to avoid re-running the heavy subquery on every list request.
-PUBLIC_PRODUCT_IDS_WITH_STOCK_CACHE_TTL = getattr(settings, 'PUBLIC_PRODUCT_IDS_WITH_STOCK_CACHE_TTL', 120)  # 2 min
+PUBLIC_PRODUCT_IDS_WITH_STOCK_CACHE_TTL = getattr(settings, 'PUBLIC_PRODUCT_IDS_WITH_STOCK_CACHE_TTL', 300)  # 5 min (was 2 min; reduces DB load)
 
 # Optional Silk profiling: when SILKY_ENABLED, wrap views so the Silk "Profiling" tab has data
 try:
@@ -990,14 +990,8 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
                     return Product.objects.none().order_by('product_name')
                 queryset = queryset.filter(id__in=product_ids)
 
-                # Annotations for list: only min/max price (for serializer + price filter). Review count/rating from prefetch.
-                unit_base = InventoryUnit.objects.filter(product_template=OuterRef('pk')).filter(available_units_filter)
-                min_price_sub = unit_base.order_by('selling_price').values('selling_price')[:1]
-                max_price_sub = unit_base.order_by('-selling_price').values('selling_price')[:1]
-                queryset = queryset.annotate(
-                    min_price=Subquery(min_price_sub),
-                    max_price=Subquery(max_price_sub),
-                )
+                # No min/max_price annotations for list: serializer uses prefetched available_units_list
+                # (avoids 2 correlated subqueries per row and speeds up the main list query).
 
                 available_units_prefetch = Prefetch(
                     'inventory_units',
@@ -1026,11 +1020,10 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
                     queryset=Review.objects.only('product_id', 'rating'),
                     to_attr='reviews_for_aggregates',
                 )
+                # Omit tags/brands prefetch for list; PublicProductListSerializer does not expose them.
                 queryset = queryset.prefetch_related(
                     primary_images_prefetch_list,
                     available_units_prefetch,
-                    'tags',
-                    'brands',
                     bundles_prefetch,
                     reviews_prefetch_list,
                 )
