@@ -13,7 +13,7 @@ run_migrations() {
   attempt=1
   while [ "$attempt" -le "$MAX_RETRIES" ]; do
     echo "🗄️  Running migrations (attempt ${attempt}/${MAX_RETRIES})..."
-    if python manage.py migrate --fake-initial --noinput; then
+    if python manage.py migrate --noinput; then
       echo "✅ Migrations complete."
       return 0
     fi
