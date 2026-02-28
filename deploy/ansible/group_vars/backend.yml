@@ -1,0 +1,34 @@
+# Backend VM - Django + PostgreSQL. Override secrets via ansible-vault or -e.
+
+# PostgreSQL (local on same VM)
+db_name: affordable_gadgets
+db_user: affordable
+db_password: "CHANGE_ME"   # use -e db_password=... or vault
+
+# Django production
+secret_key: "CHANGE_ME"   # use -e secret_key=... or vault; generate: python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+allowed_hosts: "localhost,127.0.0.1,YOUR_VM_IP"   # add your VM external IP or domain
+cors_allowed_origins: "http://localhost:3000"
+frontend_base_url: "http://localhost:3000"
+csrf_trusted_origins: "http://YOUR_VM_IP"   # or https://yourdomain.com
+
+# Optional: Cloudinary, Pesapal (set in vault or -e)
+cloudinary_cloud_name: ""
+cloudinary_api_key: ""
+cloudinary_api_secret: ""
+pesapal_consumer_key: ""
+pesapal_consumer_secret: ""
+pesapal_environment: "sandbox"
+pesapal_callback_url: ""
+pesapal_ipn_url: ""
+
+# Nginx
+server_name: "_"
+
+# Env passed to migrate/collectstatic
+django_env:
+  DJANGO_SETTINGS_MODULE: store.settings_production
+  DATABASE_URL: "postgresql://{{ db_user }}:{{ db_password }}@127.0.0.1:5432/{{ db_name }}"
+  SECRET_KEY: "{{ secret_key }}"
+  ALLOWED_HOSTS: "{{ allowed_hosts }}"
+  DEBUG: "False"

@@ -11,7 +11,7 @@ from inventory.models import Admin, AdminRole, Product
 
 class ProductImagePermissionTests(APITestCase):
     def setUp(self):
-        User = get_user_model()
+        user_model = get_user_model()
 
         self.content_role, _ = AdminRole.objects.get_or_create(
             name=AdminRole.RoleChoices.CONTENT_CREATOR,
@@ -28,7 +28,7 @@ class ProductImagePermissionTests(APITestCase):
             },
         )
 
-        self.creator_user = User.objects.create_user(
+        self.creator_user = user_model.objects.create_user(
             username="content_creator_images",
             email="content.images@example.com",
             password="test-pass-123",
@@ -40,7 +40,7 @@ class ProductImagePermissionTests(APITestCase):
         )
         self.creator_admin.roles.add(self.content_role)
 
-        self.sales_user = User.objects.create_user(
+        self.sales_user = user_model.objects.create_user(
             username="salesperson_images",
             email="sales.images@example.com",
             password="test-pass-123",

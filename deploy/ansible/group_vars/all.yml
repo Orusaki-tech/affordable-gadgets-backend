@@ -1,0 +1,5 @@
+# Shared vars for all hosts
+app_dir: /opt/affordable-gadgets
+app_user: django
+app_group: django
+venv_path: "{{ app_dir }}/venv"

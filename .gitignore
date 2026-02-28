@@ -32,8 +32,8 @@ db.sqlite3-journal
 /staticfiles
 /profiles
 
-# Environment variables
-
+# Environment variables (never commit secrets)
+.env
 .env.local
 .env.*.local
 

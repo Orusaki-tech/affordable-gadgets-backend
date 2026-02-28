@@ -2,7 +2,9 @@
 Custom SMTP email backend with improved TLS certificate handling.
 Uses certifi CA bundle when available and allows opt-in invalid certs for dev.
 """
+
 import ssl
+
 from django.conf import settings
 from django.core.mail.backends.smtp import EmailBackend as DjangoEmailBackend
 from django.utils.functional import cached_property
@@ -24,6 +26,7 @@ class EmailBackend(DjangoEmailBackend):
         if not ca_file:
             try:
                 import certifi
+
                 ca_file = certifi.where()
             except Exception:
                 ca_file = None

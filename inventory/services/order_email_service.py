@@ -1,6 +1,7 @@
 """
 Order-related email helpers (order confirmation, updates).
 """
+
 import logging
 
 from django.conf import settings
@@ -21,7 +22,9 @@ class OrderEmailService:
                 customer.user.email if customer.user and hasattr(customer.user, "email") else None
             )
             if not customer_email:
-                logger.warning("No email found for order %s; skipping confirmation.", order.order_id)
+                logger.warning(
+                    "No email found for order %s; skipping confirmation.", order.order_id
+                )
                 return False
 
             customer_name = customer.name or (
@@ -42,7 +45,9 @@ class OrderEmailService:
                     f"- {product_name} x{item.quantity} @ Ksh {item.unit_price_at_purchase:,.2f}"
                 )
 
-            items_text = "\n".join(item_lines) if item_lines else "Items will be listed on your receipt."
+            items_text = (
+                "\n".join(item_lines) if item_lines else "Items will be listed on your receipt."
+            )
 
             subject = f"Order Confirmation {order.order_id} - Affordable Gadgets"
             message = (

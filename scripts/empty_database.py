@@ -17,6 +17,7 @@ Usage (from project root, with venv activated):
     python scripts/empty_database.py
     python scripts/empty_database.py --yes
 """
+
 import argparse
 import os
 import sys
@@ -29,7 +30,9 @@ os.chdir(PROJECT_ROOT)
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Empty the database completely (all data removed).")
+    parser = argparse.ArgumentParser(
+        description="Empty the database completely (all data removed)."
+    )
     parser.add_argument(
         "--production",
         action="store_true",
@@ -50,6 +53,7 @@ def main():
         os.environ.setdefault("DJANGO_SETTINGS_MODULE", "store.settings")
 
     import django
+
     django.setup()
     from django.conf import settings
     from django.core.management import call_command
@@ -90,6 +94,7 @@ def main():
 
     # Verify: count rows in all Django-managed tables
     from django.apps import apps
+
     non_empty = []
     for model in apps.get_models(include_auto_created=True, include_swapped=True):
         try:

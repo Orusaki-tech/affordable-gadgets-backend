@@ -1,0 +1,36 @@
+# Affordable Gadgets Backend - Nginx reverse proxy
+# Gunicorn binds to 127.0.0.1:8000
+
+upstream gunicorn {
+    server 127.0.0.1:8000 fail_timeout=0;
+}
+
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name {{ server_name }};
+
+    client_max_body_size 20M;
+
+    # Static files (Django collectstatic)
+    location /static/ {
+        alias {{ app_dir }}/app/staticfiles/;
+    }
+
+    # Media (if served locally; else use Cloudinary in app)
+    location /media/ {
+        alias {{ app_dir }}/app/media/;
+    }
+
+    location / {
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_redirect off;
+        proxy_connect_timeout 120s;
+        proxy_send_timeout 120s;
+        proxy_read_timeout 120s;
+        proxy_pass http://gunicorn;
+    }
+}

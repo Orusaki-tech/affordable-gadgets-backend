@@ -1,0 +1,40 @@
+---
+# Install Nginx and proxy to Gunicorn; serve static files
+
+- name: Install Nginx
+  apt:
+    name: nginx
+    state: present
+    update_cache: true
+
+- name: Deploy Nginx site config
+  template:
+    src: affordable-gadgets.conf.j2
+    dest: /etc/nginx/sites-available/affordable-gadgets
+    mode: "0644"
+  notify: Reload Nginx
+
+- name: Enable site (symlink)
+  file:
+    src: /etc/nginx/sites-available/affordable-gadgets
+    dest: /etc/nginx/sites-enabled/affordable-gadgets
+    state: link
+  notify: Reload Nginx
+
+- name: Remove default site
+  file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: Reload Nginx
+
+- name: Reload Nginx
+  service:
+    name: nginx
+    state: reloaded
+  listen: Reload Nginx
+
+- name: Ensure Nginx is started
+  service:
+    name: nginx
+    state: started
+    enabled: true

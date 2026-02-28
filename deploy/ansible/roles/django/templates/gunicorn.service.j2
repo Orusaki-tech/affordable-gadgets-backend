@@ -1,0 +1,21 @@
+[Unit]
+Description=Gunicorn for Affordable Gadgets Django
+After=network.target postgresql.service
+
+[Service]
+User={{ app_user }}
+Group={{ app_group }}
+WorkingDirectory={{ app_dir }}/app
+EnvironmentFile={{ app_dir }}/app/.env
+Environment=PORT=8000
+ExecStart={{ venv_path }}/bin/gunicorn store.wsgi:application \
+  --bind {{ gunicorn_bind }} \
+  --workers {{ gunicorn_workers }} \
+  --timeout {{ gunicorn_timeout }} \
+  --access-logfile - \
+  --error-logfile -
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

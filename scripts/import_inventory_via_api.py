@@ -23,6 +23,7 @@ Gap-fill: only create units for products that have no available units (out of st
 If requests time out on Render (Read timed out), use longer timeouts and more retries:
   REQUEST_TIMEOUT=180 UNIT_CREATE_TIMEOUT=360 UNIT_CREATE_RETRIES=5 python scripts/import_inventory_via_api.py --units-only
 """
+
 from __future__ import annotations
 
 import argparse
@@ -32,7 +33,7 @@ import re
 import sys
 import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
 
 import requests
 
@@ -40,7 +41,7 @@ import requests
 # ---------------------------------------------------------------------------
 # Config (env with defaults)
 # ---------------------------------------------------------------------------
-def _env(key: str, default: Optional[str] = None) -> str:
+def _env(key: str, default: str | None = None) -> str:
     v = os.environ.get(key, default)
     return (v or "").strip()
 
@@ -83,7 +84,7 @@ def _request_with_retries(
     timeout: int = REQUEST_TIMEOUT,
     **kwargs: Any,
 ) -> requests.Response:
-    last_err: Optional[Exception] = None
+    last_err: Exception | None = None
     for attempt in range(retries):
         try:
             r = requests.request(method, url, timeout=timeout, **kwargs)
@@ -121,7 +122,7 @@ def fetch_token(api_base: str, username: str, password: str) -> str:
     return str(token).strip()
 
 
-def auth_headers(token: str) -> Dict[str, str]:
+def auth_headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Token {token}", "Content-Type": "application/json"}
 
 
@@ -134,11 +135,11 @@ def get_all_pages(
     url_path: str,
     page_size: int = 200,
     **extra_params: Any,
-) -> List[Dict[str, Any]]:
-    out: List[Dict[str, Any]] = []
+) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
     page = 1
     while True:
-        params: Dict[str, Any] = {"page": page, "page_size": page_size}
+        params: dict[str, Any] = {"page": page, "page_size": page_size}
         params.update(extra_params)
         r = _request_with_retries(
             "GET",
@@ -160,7 +161,7 @@ def get_all_pages(
 # ---------------------------------------------------------------------------
 # Products
 # ---------------------------------------------------------------------------
-def normalize_product_name(name: Optional[str]) -> str:
+def normalize_product_name(name: str | None) -> str:
     if not name:
         return ""
     return " ".join(re.split(r"\s+", str(name).strip()))
@@ -173,7 +174,7 @@ def infer_product_type(product_name: str) -> str:
     return "PH"
 
 
-def _normalize_csv_row_keys(row: Dict[str, Any]) -> Dict[str, Any]:
+def _normalize_csv_row_keys(row: dict[str, Any]) -> dict[str, Any]:
     """Map BOM or 'Product Name' style headers to expected keys (product_name, Brand, Model)."""
     out = {}
     for key, value in row.items():
@@ -196,15 +197,15 @@ def _normalize_csv_row_keys(row: Dict[str, Any]) -> Dict[str, Any]:
     return out
 
 
-def load_products_csv(path: str) -> List[Dict[str, Any]]:
+def load_products_csv(path: str) -> list[dict[str, Any]]:
     with open(path, newline="", encoding="utf-8-sig") as f:
         rows = list(csv.DictReader(f))
     return [_normalize_csv_row_keys(r) for r in rows]
 
 
-def dedupe_products(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    seen: Set[str] = set()
-    out: List[Dict[str, Any]] = []
+def dedupe_products(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    seen: set[str] = set()
+    out: list[dict[str, Any]] = []
     for row in rows:
         name = normalize_product_name(row.get("product_name"))
         if not name or name in seen:
@@ -215,32 +216,42 @@ def dedupe_products(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return out
 
 
-def fetch_existing_product_names(api_base: str, token: str) -> Set[str]:
+def fetch_existing_product_names(api_base: str, token: str) -> set[str]:
     items = get_all_pages(api_base, token, "/api/inventory/products/")
-    return {normalize_product_name(item.get("product_name")) for item in items if item.get("product_name")}
+    return {
+        normalize_product_name(item.get("product_name"))
+        for item in items
+        if item.get("product_name")
+    }
 
 
-def fetch_products_name_to_id(api_base: str, token: str) -> Dict[str, int]:
+def fetch_products_name_to_id(api_base: str, token: str) -> dict[str, int]:
     items = get_all_pages(api_base, token, "/api/inventory/products/")
-    return {normalize_product_name(item.get("product_name")): item["id"] for item in items if item.get("product_name") and item.get("id")}
+    return {
+        normalize_product_name(item.get("product_name")): item["id"]
+        for item in items
+        if item.get("product_name") and item.get("id")
+    }
 
 
-def fetch_product_id_to_brand(api_base: str, token: str) -> Dict[int, str]:
+def fetch_product_id_to_brand(api_base: str, token: str) -> dict[int, str]:
     """Product id -> brand string (for Apple vs non-Apple validation)."""
     items = get_all_pages(api_base, token, "/api/inventory/products/")
-    return {item["id"]: (item.get("brand") or "").strip() for item in items if item.get("id") is not None}
+    return {
+        item["id"]: (item.get("brand") or "").strip()
+        for item in items
+        if item.get("id") is not None
+    }
 
 
 def fetch_products_out_of_stock(
     api_base: str, token: str
-) -> Tuple[Set[str], Dict[str, int], Dict[int, str]]:
+) -> tuple[set[str], dict[str, int], dict[int, str]]:
     """Fetch products with no available units (out of stock). Returns (normalized_names_set, name_to_id, id_to_brand)."""
-    items = get_all_pages(
-        api_base, token, "/api/inventory/products/", stock_status="out_of_stock"
-    )
-    names: Set[str] = set()
-    name_to_id: Dict[str, int] = {}
-    id_to_brand: Dict[int, str] = {}
+    items = get_all_pages(api_base, token, "/api/inventory/products/", stock_status="out_of_stock")
+    names: set[str] = set()
+    name_to_id: dict[str, int] = {}
+    id_to_brand: dict[int, str] = {}
     for item in items:
         name = normalize_product_name(item.get("product_name"))
         if not name:
@@ -253,9 +264,9 @@ def fetch_products_out_of_stock(
     return names, name_to_id, id_to_brand
 
 
-def fetch_brands_name_to_id(api_base: str, token: str) -> Dict[str, int]:
+def fetch_brands_name_to_id(api_base: str, token: str) -> dict[str, int]:
     items = get_all_pages(api_base, token, "/api/inventory/brands/")
-    by_name: Dict[str, int] = {}
+    by_name: dict[str, int] = {}
     for b in items:
         bid = b.get("id")
         name = (b.get("name") or "").strip()
@@ -271,17 +282,17 @@ def fetch_brands_name_to_id(api_base: str, token: str) -> Dict[str, int]:
 def create_product(
     api_base: str,
     token: str,
-    row: Dict[str, Any],
-    brand_ids_map: Dict[str, int],
-    log: List[str],
-    token_refresh: Optional[Any] = None,
-) -> Tuple[bool, Optional[str], Optional[str]]:
+    row: dict[str, Any],
+    brand_ids_map: dict[str, int],
+    log: list[str],
+    token_refresh: Any | None = None,
+) -> tuple[bool, str | None, str | None]:
     """Returns (success, error_message, new_token_if_refreshed)."""
     product_name = normalize_product_name(row.get("product_name"))
     brand_str = (row.get("Brand") or "").strip()
     model_series = (row.get("Model") or "").strip() or "N/A"
     product_type = infer_product_type(product_name)
-    payload: Dict[str, Any] = {
+    payload: dict[str, Any] = {
         "product_type": product_type,
         "product_name": product_name,
         "brand": brand_str or "N/A",
@@ -309,18 +320,22 @@ def create_product(
 # ---------------------------------------------------------------------------
 # Sources (suppliers)
 # ---------------------------------------------------------------------------
-def fetch_sources_name_to_id(api_base: str, token: str) -> Dict[str, int]:
+def fetch_sources_name_to_id(api_base: str, token: str) -> dict[str, int]:
     items = get_all_pages(api_base, token, "/api/inventory/sources/")
-    return {(item.get("name") or "").strip(): item["id"] for item in items if item.get("name") and item.get("id")}
+    return {
+        (item.get("name") or "").strip(): item["id"]
+        for item in items
+        if item.get("name") and item.get("id")
+    }
 
 
 def create_source(
     api_base: str,
     token: str,
     name: str,
-    log: List[str],
-    token_refresh: Optional[Any] = None,
-) -> Tuple[bool, Optional[int], Optional[str]]:
+    log: list[str],
+    token_refresh: Any | None = None,
+) -> tuple[bool, int | None, str | None]:
     """Returns (success, source_id, new_token_if_refreshed)."""
     url = f"{api_base}/api/inventory/sources/"
     payload = {"source_type": "SU", "name": name, "phone_number": ""}
@@ -341,7 +356,7 @@ def create_source(
 # ---------------------------------------------------------------------------
 # Inventory units
 # ---------------------------------------------------------------------------
-def parse_date_dd_mm_yy(value: Optional[str]) -> Optional[str]:
+def parse_date_dd_mm_yy(value: str | None) -> str | None:
     if not value or not str(value).strip():
         return None
     s = str(value).strip()
@@ -356,7 +371,7 @@ def parse_date_dd_mm_yy(value: Optional[str]) -> Optional[str]:
             return None
 
 
-def load_units_csv(path: str) -> List[Dict[str, Any]]:
+def load_units_csv(path: str) -> list[dict[str, Any]]:
     with open(path, newline="", encoding="utf-8-sig") as f:
         return list(csv.DictReader(f))
 
@@ -364,13 +379,13 @@ def load_units_csv(path: str) -> List[Dict[str, Any]]:
 def create_unit(
     api_base: str,
     token: str,
-    row: Dict[str, Any],
+    row: dict[str, Any],
     product_id: int,
-    source_id: Optional[int],
-    log: List[str],
-    token_refresh: Optional[Any] = None,
-    product_id_to_brand: Optional[Dict[int, str]] = None,
-) -> Tuple[bool, Optional[str], Optional[str]]:
+    source_id: int | None,
+    log: list[str],
+    token_refresh: Any | None = None,
+    product_id_to_brand: dict[int, str] | None = None,
+) -> tuple[bool, str | None, str | None]:
     """Returns (success, error_message, new_token_if_refreshed)."""
     imei_raw = row.get("IMEI") or ""
     imei = str(imei_raw).strip()
@@ -411,7 +426,7 @@ def create_unit(
         grade = "B"
     else:
         grade = "B"
-    payload: Dict[str, Any] = {
+    payload: dict[str, Any] = {
         "product_template_id": product_id,
         "cost_of_unit": 0,
         "selling_price": selling_price,
@@ -467,14 +482,14 @@ def create_unit(
 # ---------------------------------------------------------------------------
 def run_units_only(
     token: str,
-    refresh_token: Optional[Any],
-    log: List[str],
+    refresh_token: Any | None,
+    log: list[str],
 ) -> None:
     """Load units CSV, fetch product name->id and sources, create inventory units."""
     print("Loading units CSV...")
     unit_rows = load_units_csv(UNITS_CSV)
     print(f"  Rows: {len(unit_rows)}")
-    source_names: Set[str] = set()
+    source_names: set[str] = set()
     for row in unit_rows:
         s = (row.get("Source") or "").strip()
         if s:
@@ -485,14 +500,14 @@ def run_units_only(
     print("Fetching product name -> id map...")
     product_name_to_id = fetch_products_name_to_id(API_BASE, token)
     print(f"  Products on API: {len(product_name_to_id)}")
-    product_id_to_brand = fetch_product_id_to_brand(API_BASE, token)
+    _ = fetch_product_id_to_brand(API_BASE, token)  # fetched for potential future use
 
     created_units = 0
     skipped_no_product = 0
     skipped_duplicate = 0
     failed_units = 0
-    seen_imei: Set[str] = set()
-    seen_serial: Set[str] = set()
+    seen_imei: set[str] = set()
+    seen_serial: set[str] = set()
     for row in unit_rows:
         product_name = normalize_product_name(row.get("product_name"))
         product_id = product_name_to_id.get(product_name)
@@ -525,17 +540,22 @@ def run_units_only(
             if serial:
                 seen_serial.add(serial)
         else:
-            if "unique" in (log[-1] if log else "").lower() or "already exists" in (log[-1] if log else "").lower():
+            if (
+                "unique" in (log[-1] if log else "").lower()
+                or "already exists" in (log[-1] if log else "").lower()
+            ):
                 skipped_duplicate += 1
             else:
                 failed_units += 1
-    print(f"Units: created={created_units} skipped_no_product={skipped_no_product} skipped_duplicate={skipped_duplicate} failed={failed_units}")
+    print(
+        f"Units: created={created_units} skipped_no_product={skipped_no_product} skipped_duplicate={skipped_duplicate} failed={failed_units}"
+    )
 
 
 def run_units_only_gap_fill(
     token: str,
-    refresh_token: Optional[Any],
-    log: List[str],
+    refresh_token: Any | None,
+    log: list[str],
 ) -> None:
     """Fetch products with no available units; filter units CSV to those products; create only those units."""
     print("Loading units CSV...")
@@ -547,15 +567,15 @@ def run_units_only_gap_fill(
     )
     print(f"  Out-of-stock products on API: {len(names_set)}")
     filtered_rows = [
-        row
-        for row in unit_rows
-        if normalize_product_name(row.get("product_name")) in names_set
+        row for row in unit_rows if normalize_product_name(row.get("product_name")) in names_set
     ]
-    print(f"  CSV rows matching those products: {len(filtered_rows)} (skipped {len(unit_rows) - len(filtered_rows)} others)")
+    print(
+        f"  CSV rows matching those products: {len(filtered_rows)} (skipped {len(unit_rows) - len(filtered_rows)} others)"
+    )
     if not filtered_rows:
         print("No units to create. Done.")
         return
-    source_names: Set[str] = set()
+    source_names: set[str] = set()
     for row in filtered_rows:
         s = (row.get("Source") or "").strip()
         if s:
@@ -568,8 +588,8 @@ def run_units_only_gap_fill(
     skipped_no_product = 0
     skipped_duplicate = 0
     failed_units = 0
-    seen_imei: Set[str] = set()
-    seen_serial: Set[str] = set()
+    seen_imei: set[str] = set()
+    seen_serial: set[str] = set()
     for row in filtered_rows:
         product_name = normalize_product_name(row.get("product_name"))
         product_id = product_name_to_id.get(product_name)
@@ -609,11 +629,16 @@ def run_units_only_gap_fill(
             if serial:
                 seen_serial.add(serial)
         else:
-            if "unique" in (log[-1] if log else "").lower() or "already exists" in (log[-1] if log else "").lower():
+            if (
+                "unique" in (log[-1] if log else "").lower()
+                or "already exists" in (log[-1] if log else "").lower()
+            ):
                 skipped_duplicate += 1
             else:
                 failed_units += 1
-    print(f"Units: created={created_units} skipped_no_product={skipped_no_product} skipped_duplicate={skipped_duplicate} failed={failed_units}")
+    print(
+        f"Units: created={created_units} skipped_no_product={skipped_no_product} skipped_duplicate={skipped_duplicate} failed={failed_units}"
+    )
 
 
 def main() -> None:
@@ -632,7 +657,7 @@ def main() -> None:
     units_only = args.units_only
     units_only_gap_fill = args.units_only_gap_fill
 
-    log: List[str] = []
+    log: list[str] = []
     if units_only_gap_fill:
         print("Mode: units only — gap-fill (out-of-stock products only)")
     elif units_only:
@@ -654,7 +679,7 @@ def main() -> None:
     if not token:
         print("Login returned an empty token. Check API_USERNAME and API_PASSWORD.")
         sys.exit(1)
-    print("Token OK (length %d)." % len(token))
+    print(f"Token OK (length {len(token)}).")
 
     def refresh_token() -> str:
         t = fetch_token(API_BASE, API_USERNAME, API_PASSWORD)
@@ -687,11 +712,16 @@ def main() -> None:
     print("Loading and deduping products CSV...")
     raw_product_rows = load_products_csv(PRODUCTS_CSV)
     product_rows = dedupe_products(raw_product_rows)
-    print(f"  Rows in file: {len(raw_product_rows)}, unique products to consider: {len(product_rows)}")
+    print(
+        f"  Rows in file: {len(raw_product_rows)}, unique products to consider: {len(product_rows)}"
+    )
     if len(product_rows) == 0 and len(raw_product_rows) > 0:
         first = raw_product_rows[0]
         print("  WARNING: 0 unique product names. First row keys:", list(first.keys())[:10])
-        print("  First row product_name value:", repr(first.get("product_name", first.get("Product Name", "(missing)"))))
+        print(
+            "  First row product_name value:",
+            repr(first.get("product_name", first.get("Product Name", "(missing)"))),
+        )
     existing_names = fetch_existing_product_names(API_BASE, token)
     created_products = 0
     skipped_products = 0
@@ -711,7 +741,9 @@ def main() -> None:
             existing_names.add(name)
         else:
             failed_products += 1
-    print(f"Products: created={created_products} skipped={skipped_products} failed={failed_products}")
+    print(
+        f"Products: created={created_products} skipped={skipped_products} failed={failed_products}"
+    )
 
     # 3) Sources from units CSV
     print("Loading units CSV for unique sources...")
@@ -767,7 +799,12 @@ def main() -> None:
         source_name = (row.get("Source") or "").strip()
         source_id = sources_map.get(source_name) if source_name else None
         ok, _, new_t = create_unit(
-            API_BASE, token, row, product_id, source_id, log,
+            API_BASE,
+            token,
+            row,
+            product_id,
+            source_id,
+            log,
             token_refresh=refresh_token,
             product_id_to_brand=product_id_to_brand,
         )
@@ -780,11 +817,16 @@ def main() -> None:
             if serial:
                 seen_serial.add(serial)
         else:
-            if "unique" in (log[-1] if log else "").lower() or "already exists" in (log[-1] if log else "").lower():
+            if (
+                "unique" in (log[-1] if log else "").lower()
+                or "already exists" in (log[-1] if log else "").lower()
+            ):
                 skipped_duplicate += 1
             else:
                 failed_units += 1
-    print(f"Units: created={created_units} skipped_no_product={skipped_no_product} skipped_duplicate={skipped_duplicate} failed={failed_units}")
+    print(
+        f"Units: created={created_units} skipped_no_product={skipped_no_product} skipped_duplicate={skipped_duplicate} failed={failed_units}"
+    )
 
     for line in log[-50:]:
         print("  ", line)

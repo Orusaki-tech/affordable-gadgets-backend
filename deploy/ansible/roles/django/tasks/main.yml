@@ -1,0 +1,128 @@
+---
+# Deploy Django app: user, code, venv, migrate, collectstatic, Gunicorn systemd
+
+- name: Create app user and group
+  user:
+    name: "{{ app_user }}"
+    group: "{{ app_group }}"
+    shell: /bin/bash
+    home: "{{ app_dir }}"
+    create_home: true
+    system: false
+
+- name: Create app directory
+  file:
+    path: "{{ app_dir }}"
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0755"
+
+- name: Install Python and build deps
+  apt:
+    name:
+      - python3
+      - python3-pip
+      - python3-venv
+      - python3-dev
+      - build-essential
+      - libpq-dev
+      - pkg-config
+    state: present
+    update_cache: true
+
+- name: Sync application code from controller
+  synchronize:
+    src: "{{ app_source_path }}/"
+    dest: "{{ app_dir }}/app/"
+    delete: true
+    rsync_opts:
+      - "--exclude=venv"
+      - "--exclude=.git"
+      - "--exclude=__pycache__"
+      - "--exclude=*.pyc"
+      - "--exclude=staticfiles"
+      - "--exclude=db.sqlite3"
+      - "--exclude=.env"
+    recursive: true
+  vars:
+    app_source_path: "{{ playbook_dir }}/../../.."   # backend repo root when run from deploy/ansible
+  register: sync_result
+
+- name: Set app deployed flag
+  set_fact:
+    django_app_deployed: true
+
+- name: Create virtualenv
+  command: python3 -m venv "{{ venv_path }}"
+  args:
+    creates: "{{ venv_path }}/bin/python"
+  become_user: "{{ app_user }}"
+
+- name: Install requirements in venv
+  pip:
+    requirements: "{{ app_dir }}/app/requirements.txt"
+    virtualenv: "{{ venv_path }}"
+    state: present
+  become_user: "{{ app_user }}"
+
+- name: Ensure .env directory and file
+  file:
+    path: "{{ app_dir }}/app"
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+
+- name: Deploy .env from template
+  template:
+    src: env.j2
+    dest: "{{ app_dir }}/app/.env"
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0640"
+  no_log: true
+
+- name: Run migrations (no makemigrations on server)
+  shell: "{{ venv_path }}/bin/python manage.py migrate --noinput"
+  args:
+    chdir: "{{ app_dir }}/app"
+  become_user: "{{ app_user }}"
+  environment: "{{ django_env }}"
+  register: migrate_result
+  changed_when: "'Applying' in migrate_result.stdout"
+
+- name: Collect static files
+  shell: "{{ venv_path }}/bin/python manage.py collectstatic --noinput"
+  args:
+    chdir: "{{ app_dir }}/app"
+  become_user: "{{ app_user }}"
+  environment: "{{ django_env }}"
+
+- name: Seed delivery rates (optional)
+  shell: "{{ venv_path }}/bin/python manage.py seed_delivery_rates --county-price {{ delivery_county_price | default(0) }} --ward-price {{ delivery_ward_price | default(0) }}"
+  args:
+    chdir: "{{ app_dir }}/app"
+  become_user: "{{ app_user }}"
+  environment: "{{ django_env }}"
+  ignore_errors: true
+
+- name: Create superuser from env (optional)
+  shell: "{{ venv_path }}/bin/python manage.py create_superuser_from_env"
+  args:
+    chdir: "{{ app_dir }}/app"
+  become_user: "{{ app_user }}"
+  environment: "{{ django_env }}"
+  ignore_errors: true
+
+- name: Install Gunicorn systemd unit
+  template:
+    src: gunicorn.service.j2
+    dest: /etc/systemd/system/gunicorn-affordable-gadgets.service
+    mode: "0644"
+
+- name: Reload systemd and start Gunicorn
+  systemd:
+    name: gunicorn-affordable-gadgets
+    state: started
+    enabled: true
+    daemon_reload: true

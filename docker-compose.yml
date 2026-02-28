@@ -1,11 +1,11 @@
-# Local PostgreSQL for development and testing.
-# Start:  docker compose up -d
-# Stop:   docker compose down
-# Logs:   docker compose logs -f postgres
+# Backend (Django) + PostgreSQL. Use for local dev and as image source for GCP.
 #
-# Then set in .env (or leave unset to use SQLite):
-#   DATABASE_URL=postgresql://affordable:affordable@localhost:5432/affordable_gadgets
-# Run migrations: python manage.py migrate
+# Start:    docker compose up -d
+# Stop:     docker compose down
+# Logs:     docker compose logs -f web
+#
+# Set .env with SECRET_KEY, ALLOWED_HOSTS, CORS_ALLOWED_ORIGINS, Cloudinary, etc.
+# DATABASE_URL is overridden for the web service to use host "postgres" (see below).
 
 services:
   postgres:
@@ -24,6 +24,22 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  web:
+    build: .
+    container_name: affordable-gadgets-web
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://affordable:affordable@postgres:5432/affordable_gadgets
+      PORT: "8000"
+      DJANGO_SETTINGS_MODULE: store.settings_production
+      DJANGO_ENV: production
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   postgres_data:

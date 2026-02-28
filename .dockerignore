@@ -1,0 +1,45 @@
+# Git and env
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv
+.venv
+env
+*.egg-info
+.eggs
+
+# Local / dev
+db.sqlite3
+*.log
+staticfiles
+media
+.pytest_cache
+.coverage
+htmlcov
+
+# IDE and OS
+.idea
+.vscode
+.DS_Store
+*.swp
+*.swo
+
+# Docs and scripts (optional: remove if you need them in image)
+docs/
+deploy/
+scripts/
+*.md
+!README.md
+
+# Tests (keep if you run tests in image; remove to shrink)
+# tests/
+# conftest.py

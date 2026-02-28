@@ -1,12 +1,12 @@
 import csv
 import json
 import os
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 import requests
 
 
-def parse_bool(value: Optional[str]) -> Optional[bool]:
+def parse_bool(value: str | None) -> bool | None:
     if value is None:
         return None
     s = str(value).strip().lower()
@@ -17,13 +17,13 @@ def parse_bool(value: Optional[str]) -> Optional[bool]:
     return None
 
 
-def parse_int(value: Optional[str]) -> Optional[int]:
+def parse_int(value: str | None) -> int | None:
     if value is None or str(value).strip() == "":
         return None
     return int(value)
 
 
-def parse_json_list(value: Optional[str]) -> Optional[list]:
+def parse_json_list(value: str | None) -> list | None:
     if value is None or str(value).strip() == "":
         return None
     try:
@@ -36,7 +36,7 @@ ALLOWED_PRODUCT_TYPES = {"PH", "LT", "TB", "AC"}
 PRODUCT_TYPE_MAP = {"LA": "LT", "TA": "TB"}
 
 
-def normalize_product_type(value: Optional[str]) -> Optional[str]:
+def normalize_product_type(value: str | None) -> str | None:
     if value is None:
         return None
     cleaned = str(value).strip().upper()
@@ -44,7 +44,7 @@ def normalize_product_type(value: Optional[str]) -> Optional[str]:
     return cleaned if cleaned in ALLOWED_PRODUCT_TYPES else None
 
 
-def normalize_meta_title(value: Optional[str]) -> Optional[str]:
+def normalize_meta_title(value: str | None) -> str | None:
     if value is None:
         return None
     cleaned = str(value).strip()
@@ -53,7 +53,7 @@ def normalize_meta_title(value: Optional[str]) -> Optional[str]:
     return cleaned[:60]
 
 
-def build_payload(row: Dict[str, Any]) -> Dict[str, Any]:
+def build_payload(row: dict[str, Any]) -> dict[str, Any]:
     payload = {
         "product_type": normalize_product_type(row.get("product_type")),
         "product_name": row.get("product_name"),
@@ -77,7 +77,7 @@ def build_payload(row: Dict[str, Any]) -> Dict[str, Any]:
     return {key: value for key, value in payload.items() if value not in (None, "", [])}
 
 
-def fetch_existing_names(api_base: str, token: str) -> Optional[set]:
+def fetch_existing_names(api_base: str, token: str) -> set | None:
     names = set()
     page = 1
     while True:

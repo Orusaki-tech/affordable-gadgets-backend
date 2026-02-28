@@ -1,0 +1,44 @@
+---
+# Affordable Gadgets Backend - GCP single VM (Django + PostgreSQL + Nginx)
+# Run from repo root: ansible-playbook -i deploy/ansible/inventory deploy/ansible/playbook.yml
+# Or with Terraform output: ansible-playbook -i "EXTERNAL_IP," deploy/ansible/playbook.yml
+
+- name: Backend server setup
+  hosts: backend
+  become: true
+  vars:
+    app_user: django
+    app_group: django
+    app_dir: /opt/affordable-gadgets
+    venv_path: "{{ app_dir }}/venv"
+    gunicorn_bind: "127.0.0.1:8000"
+    gunicorn_workers: 2
+    gunicorn_timeout: 120
+
+  pre_tasks:
+    - name: Wait for SSH to be ready
+      wait_for:
+        port: 22
+        host: "{{ inventory_hostname }}"
+        delay: 5
+        timeout: 120
+      delegate_to: localhost
+      run_once: true
+
+  roles:
+    - role: postgres
+      tags: postgres
+
+    - role: django
+      tags: django
+
+    - role: nginx
+      tags: nginx
+
+  post_tasks:
+    - name: Restart Gunicorn after full playbook
+      systemd:
+        name: gunicorn-affordable-gadgets
+        state: restarted
+        daemon_reload: true
+      when: django_app_deployed | default(false) | bool

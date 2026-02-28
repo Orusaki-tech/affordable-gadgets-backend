@@ -4,9 +4,9 @@ from django.utils import timezone
 
 
 def build_verification_link(customer):
-    base_url = getattr(settings, 'FRONTEND_BASE_URL', 'http://localhost:3000').rstrip('/')
+    base_url = getattr(settings, "FRONTEND_BASE_URL", "http://localhost:3000").rstrip("/")
     token = customer.email_verification_token
-    uid = customer.user.id if customer.user else ''
+    uid = customer.user.id if customer.user else ""
     return f"{base_url}/verify-email?token={token}&uid={uid}"
 
 
@@ -34,4 +34,4 @@ def send_verification_email(customer):
     )
 
     customer.email_verification_sent_at = timezone.now()
-    customer.save(update_fields=['email_verification_sent_at'])
+    customer.save(update_fields=["email_verification_sent_at"])

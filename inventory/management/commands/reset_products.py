@@ -3,6 +3,7 @@ Management command to delete every product and optionally recreate them with dum
 Deletes in dependency order: orders, carts, leads, reservations, returns, transfers,
 bundles, inventory units, product images/accessories, then products.
 """
+
 from django.core.management.base import BaseCommand
 
 from inventory.models import (
@@ -31,39 +32,39 @@ from inventory.models import (
 
 
 class Command(BaseCommand):
-    help = 'Delete every product (and dependent data) and optionally recreate with dummy data'
+    help = "Delete every product (and dependent data) and optionally recreate with dummy data"
 
     def add_arguments(self, parser):
         parser.add_argument(
-            '--recreate-dummy',
-            action='store_true',
-            help='After deleting, recreate products and inventory units using generate_dummy_data logic',
+            "--recreate-dummy",
+            action="store_true",
+            help="After deleting, recreate products and inventory units using generate_dummy_data logic",
         )
         parser.add_argument(
-            '--products',
+            "--products",
             type=int,
             default=30,
-            help='Number of products to create when using --recreate-dummy (default: 30)',
+            help="Number of products to create when using --recreate-dummy (default: 30)",
         )
         parser.add_argument(
-            '--units-per-product',
+            "--units-per-product",
             type=int,
             default=8,
-            help='Number of units per product when using --recreate-dummy (default: 8)',
+            help="Number of units per product when using --recreate-dummy (default: 8)",
         )
 
     def handle(self, *args, **options):
-        self.stdout.write(self.style.WARNING('Deleting all product-related data...'))
+        self.stdout.write(self.style.WARNING("Deleting all product-related data..."))
         self._delete_all_product_data()
-        self.stdout.write(self.style.SUCCESS('All products and related data deleted.'))
+        self.stdout.write(self.style.SUCCESS("All products and related data deleted."))
 
-        if options['recreate_dummy']:
-            self.stdout.write('Recreating products and units with dummy data...')
+        if options["recreate_dummy"]:
+            self.stdout.write("Recreating products and units with dummy data...")
             self._recreate_dummy(
-                num_products=options['products'],
-                units_per_product=options['units_per_product'],
+                num_products=options["products"],
+                units_per_product=options["units_per_product"],
             )
-            self.stdout.write(self.style.SUCCESS('Done. Products and units recreated.'))
+            self.stdout.write(self.style.SUCCESS("Done. Products and units recreated."))
 
     def _delete_all_product_data(self):
         """Delete all data that depends on Product or InventoryUnit, in safe order."""

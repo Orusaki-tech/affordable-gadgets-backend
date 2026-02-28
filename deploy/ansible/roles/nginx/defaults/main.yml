@@ -1,0 +1,2 @@
+---
+server_name: "_"   # default server; set to your domain in group_vars

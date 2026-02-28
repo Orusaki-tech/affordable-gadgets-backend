@@ -20,6 +20,7 @@ Usage:
   # Run twice (first = cold, second = warm) and compare
   python scripts/check_cold_start.py --twice
 """
+
 import argparse
 import os
 import sys
@@ -60,23 +61,37 @@ def print_result(label, elapsed_s, status_code, processing_ms):
         print(f"  Inferred cold start: {cold_start_s:.2f} s  ({cold_start_pct:.0f}% of total)")
         print()
         if cold_start_pct >= 70:
-            print(f"  Verdict: LIKELY COLD START — most time was before Django received the request.")
+            print(
+                "  Verdict: LIKELY COLD START — most time was before Django received the request."
+            )
         elif cold_start_pct <= 20 and elapsed_s > 5:
-            print(f"  Verdict: LIKELY SLOW BACKEND — most time was inside Django (query/serialization).")
+            print(
+                "  Verdict: LIKELY SLOW BACKEND — most time was inside Django (query/serialization)."
+            )
         else:
-            print(f"  Verdict: MIXED — check Django logs.")
+            print("  Verdict: MIXED — check Django logs.")
     else:
         print("  X-Processing-Ms:   (not present — ensure RequestTimingMiddleware is deployed)")
-        print("  Verdict: Add RequestTimingMiddleware and redeploy to get cold start vs backend breakdown.")
+        print(
+            "  Verdict: Add RequestTimingMiddleware and redeploy to get cold start vs backend breakdown."
+        )
     return processing_ms is not None
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Check cold start vs backend slowness via X-Processing-Ms.")
-    parser.add_argument("base_url", nargs="?", default=os.environ.get("BACKEND_URL", DEFAULT_BASE),
-                        help="Backend base URL (or set BACKEND_URL)")
+    parser = argparse.ArgumentParser(
+        description="Check cold start vs backend slowness via X-Processing-Ms."
+    )
+    parser.add_argument(
+        "base_url",
+        nargs="?",
+        default=os.environ.get("BACKEND_URL", DEFAULT_BASE),
+        help="Backend base URL (or set BACKEND_URL)",
+    )
     parser.add_argument("path", nargs="?", default=DEFAULT_PATH, help="API path")
-    parser.add_argument("--twice", action="store_true", help="Run request twice and compare (cold vs warm)")
+    parser.add_argument(
+        "--twice", action="store_true", help="Run request twice and compare (cold vs warm)"
+    )
     args = parser.parse_args()
 
     base = args.base_url.rstrip("/")
@@ -98,7 +113,9 @@ def main():
         elif elapsed1 > 5 and elapsed2 > 5 and (proc1 and proc2 and proc2 > proc1 * 0.8):
             print("  => Both slow with similar X-Processing-Ms → LIKELY SLOW BACKEND (query).")
         else:
-            print("  => Compare X-Processing-Ms: if first has large elapsed but small X-Processing-Ms, cold start.")
+            print(
+                "  => Compare X-Processing-Ms: if first has large elapsed but small X-Processing-Ms, cold start."
+            )
         return
 
     print(f"Requesting: {url}")

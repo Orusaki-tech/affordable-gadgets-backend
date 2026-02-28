@@ -2,20 +2,20 @@
 Gmail API email backend using OAuth2 refresh tokens.
 Sends Django EmailMessage objects via Gmail API.
 """
+
 import base64
 import logging
 import random
 import time
 
+import httplib2
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.core.mail.backends.base import BaseEmailBackend
-
 from google.oauth2.credentials import Credentials
+from google_auth_httplib2 import AuthorizedHttp
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from google_auth_httplib2 import AuthorizedHttp
-import httplib2
 
 logger = logging.getLogger(__name__)
 
@@ -47,9 +47,7 @@ class GmailApiEmailBackend(BaseEmailBackend):
             if not value
         ]
         if missing:
-            raise ImproperlyConfigured(
-                f"Missing Gmail API settings: {', '.join(missing)}"
-            )
+            raise ImproperlyConfigured(f"Missing Gmail API settings: {', '.join(missing)}")
 
         self._service = None
 
@@ -84,9 +82,7 @@ class GmailApiEmailBackend(BaseEmailBackend):
                 message.from_email = self.sender
 
             try:
-                raw_message = base64.urlsafe_b64encode(
-                    message.message().as_bytes()
-                ).decode("utf-8")
+                raw_message = base64.urlsafe_b64encode(message.message().as_bytes()).decode("utf-8")
                 body = {"raw": raw_message}
                 if self._send_with_retry(body):
                     sent_count += 1
@@ -101,9 +97,7 @@ class GmailApiEmailBackend(BaseEmailBackend):
         attempt = 0
         while True:
             try:
-                self.service.users().messages().send(userId="me", body=body).execute(
-                    num_retries=0
-                )
+                self.service.users().messages().send(userId="me", body=body).execute(num_retries=0)
                 return True
             except HttpError as exc:
                 status = getattr(exc.resp, "status", None)

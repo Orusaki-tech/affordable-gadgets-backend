@@ -1,6 +1,8 @@
 """OTP utilities for public review verification."""
+
 import hashlib
 import secrets
+
 from django.conf import settings
 from django.core.cache import cache
 
@@ -73,9 +75,21 @@ class OtpService:
     @classmethod
     def send_order_otp(cls, phone: str) -> dict:
         """Generate and send OTP for order history verification."""
-        ttl_seconds = int(getattr(settings, "ORDER_OTP_TTL_SECONDS", getattr(settings, "REVIEW_OTP_TTL_SECONDS", 600)))
-        max_sends = int(getattr(settings, "ORDER_OTP_MAX_SENDS", getattr(settings, "REVIEW_OTP_MAX_SENDS", 3)))
-        rate_window = int(getattr(settings, "ORDER_OTP_RATE_WINDOW_SECONDS", getattr(settings, "REVIEW_OTP_RATE_WINDOW_SECONDS", 900)))
+        ttl_seconds = int(
+            getattr(
+                settings, "ORDER_OTP_TTL_SECONDS", getattr(settings, "REVIEW_OTP_TTL_SECONDS", 600)
+            )
+        )
+        max_sends = int(
+            getattr(settings, "ORDER_OTP_MAX_SENDS", getattr(settings, "REVIEW_OTP_MAX_SENDS", 3))
+        )
+        rate_window = int(
+            getattr(
+                settings,
+                "ORDER_OTP_RATE_WINDOW_SECONDS",
+                getattr(settings, "REVIEW_OTP_RATE_WINDOW_SECONDS", 900),
+            )
+        )
 
         rate_key = cls._otp_rate_key(phone, cls.PURPOSE_ORDER)
         sends = cache.get(rate_key, 0)

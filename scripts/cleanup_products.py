@@ -1,7 +1,6 @@
 import os
-from typing import Dict, List, Optional, Tuple
-
 import time
+
 import requests
 
 
@@ -17,10 +16,10 @@ def fetch_token(api_base: str, username: str, password: str) -> str:
 
 def get_with_retry(
     api_base: str,
-    token_ref: Dict[str, str],
-    username: Optional[str],
-    password: Optional[str],
-    params: Dict[str, int],
+    token_ref: dict[str, str],
+    username: str | None,
+    password: str | None,
+    params: dict[str, int],
 ) -> requests.Response:
     for attempt in range(4):
         try:
@@ -33,7 +32,7 @@ def get_with_retry(
         except requests.RequestException:
             if attempt == 3:
                 raise
-            time.sleep(2 ** attempt)
+            time.sleep(2**attempt)
             continue
         if response.status_code == 401 and username and password:
             token_ref["token"] = fetch_token(api_base, username, password)
@@ -46,7 +45,7 @@ def get_with_retry(
         if response.status_code in {502, 503, 504}:
             if attempt == 3:
                 response.raise_for_status()
-            time.sleep(2 ** attempt)
+            time.sleep(2**attempt)
             continue
         response.raise_for_status()
         return response
@@ -55,9 +54,9 @@ def get_with_retry(
 
 def delete_with_retry(
     api_base: str,
-    token_ref: Dict[str, str],
-    username: Optional[str],
-    password: Optional[str],
+    token_ref: dict[str, str],
+    username: str | None,
+    password: str | None,
     product_id: int,
 ) -> bool:
     for attempt in range(4):
@@ -70,7 +69,7 @@ def delete_with_retry(
         except requests.RequestException:
             if attempt == 3:
                 raise
-            time.sleep(2 ** attempt)
+            time.sleep(2**attempt)
             continue
         if response.status_code == 401 and username and password:
             token_ref["token"] = fetch_token(api_base, username, password)
@@ -82,7 +81,7 @@ def delete_with_retry(
         if response.status_code in {502, 503, 504}:
             if attempt == 3:
                 response.raise_for_status()
-            time.sleep(2 ** attempt)
+            time.sleep(2**attempt)
             continue
         if response.status_code == 400:
             return False
@@ -93,11 +92,11 @@ def delete_with_retry(
 
 def fetch_all_products(
     api_base: str,
-    token_ref: Dict[str, str],
-    username: Optional[str],
-    password: Optional[str],
-) -> List[Dict]:
-    products: List[Dict] = []
+    token_ref: dict[str, str],
+    username: str | None,
+    password: str | None,
+) -> list[dict]:
+    products: list[dict] = []
     page = 1
     while True:
         response = get_with_retry(
@@ -116,14 +115,14 @@ def fetch_all_products(
     return products
 
 
-def is_seed_product(product: Dict) -> bool:
+def is_seed_product(product: dict) -> bool:
     name = (product.get("product_name") or "").lower()
     slug = (product.get("slug") or "").lower()
     return "seed" in name or "seed" in slug
 
 
-def find_duplicates(products: List[Dict]) -> List[Tuple[str, List[Dict]]]:
-    buckets: Dict[str, List[Dict]] = {}
+def find_duplicates(products: list[dict]) -> list[tuple[str, list[dict]]]:
+    buckets: dict[str, list[dict]] = {}
     for product in products:
         key = (product.get("product_name") or "").strip().lower()
         if not key:

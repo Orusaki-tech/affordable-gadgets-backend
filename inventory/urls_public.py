@@ -1,29 +1,49 @@
 """Public API URLs for e-commerce frontend."""
-from django.urls import path, include
+
+from django.urls import include, path
 from rest_framework.routers import DefaultRouter
+
 from . import views_public
-from . import views
 
 router = DefaultRouter()
-router.register(r'products', views_public.PublicProductViewSet, basename='public-product')
-router.register(r'cart', views_public.CartViewSet, basename='public-cart')
-router.register(r'promotions', views_public.PublicPromotionViewSet, basename='public-promotion')
-router.register(r'bundles', views_public.PublicBundleViewSet, basename='public-bundle')
-router.register(r'wishlist', views_public.PublicWishlistViewSet, basename='public-wishlist')
-router.register(r'delivery-rates', views_public.PublicDeliveryRateViewSet, basename='public-delivery-rate')
+router.register(r"products", views_public.PublicProductViewSet, basename="public-product")
+router.register(r"cart", views_public.CartViewSet, basename="public-cart")
+router.register(r"promotions", views_public.PublicPromotionViewSet, basename="public-promotion")
+router.register(r"bundles", views_public.PublicBundleViewSet, basename="public-bundle")
+router.register(r"wishlist", views_public.PublicWishlistViewSet, basename="public-wishlist")
+router.register(
+    r"delivery-rates", views_public.PublicDeliveryRateViewSet, basename="public-delivery-rate"
+)
 # Add accessories endpoint (read-only for public)
-router.register(r'accessories-link', views_public.PublicProductAccessoryViewSet, basename='public-accessory')
+router.register(
+    r"accessories-link", views_public.PublicProductAccessoryViewSet, basename="public-accessory"
+)
 # Add reviews endpoint (read-only for public)
-router.register(r'reviews', views_public.PublicReviewViewSet, basename='public-review')
+router.register(r"reviews", views_public.PublicReviewViewSet, basename="public-review")
 
 urlpatterns = [
-    path('reviews/otp/', views_public.ReviewOtpView.as_view(), name='public-review-otp'),
-    path('reviews/eligibility/', views_public.ReviewEligibilityView.as_view(), name='public-review-eligibility'),
-    path('reviews/submit/', views_public.PublicReviewSubmitView.as_view(), name='public-review-submit'),
-    path('orders/otp/', views_public.OrderOtpView.as_view(), name='public-order-otp'),
-    path('orders/history/', views_public.PublicOrderHistoryView.as_view(), name='public-order-history'),
-    path('', include(router.urls)),
+    path("reviews/otp/", views_public.ReviewOtpView.as_view(), name="public-review-otp"),
+    path(
+        "reviews/eligibility/",
+        views_public.ReviewEligibilityView.as_view(),
+        name="public-review-eligibility",
+    ),
+    path(
+        "reviews/submit/",
+        views_public.PublicReviewSubmitView.as_view(),
+        name="public-review-submit",
+    ),
+    path("orders/otp/", views_public.OrderOtpView.as_view(), name="public-order-otp"),
+    path(
+        "orders/history/",
+        views_public.PublicOrderHistoryView.as_view(),
+        name="public-order-history",
+    ),
+    path("", include(router.urls)),
     # Budget search endpoint
-    path('phone-search/', views_public.PhoneSearchByBudgetView.as_view(), name='public-phone-search-budget'),
+    path(
+        "phone-search/",
+        views_public.PhoneSearchByBudgetView.as_view(),
+        name="public-phone-search-budget",
+    ),
 ]
-

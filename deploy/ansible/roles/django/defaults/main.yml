@@ -1,0 +1,4 @@
+---
+# Override in group_vars
+delivery_county_price: 0
+delivery_ward_price: 0

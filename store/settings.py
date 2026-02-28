@@ -10,14 +10,15 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 """
 
-from pathlib import Path
 import os
+from pathlib import Path
+
 from dotenv import load_dotenv
 
 # Load environment variables from project root (same folder as manage.py), so cwd doesn't matter
 BASE_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(BASE_DIR / '.env')
-_env_local = BASE_DIR / '.env.local'
+load_dotenv(BASE_DIR / ".env")
+_env_local = BASE_DIR / ".env.local"
 if _env_local.exists():
     load_dotenv(_env_local, override=True)
 
@@ -26,51 +27,53 @@ if _env_local.exists():
 
 # SECURITY WARNING: keep the secret key used in production secret!
 # In production, this should come from environment variable
-SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-z&id8l&gleealb7*wwh))7p#f2b#(ki)m1_otxm=+%gx!6001m')
+SECRET_KEY = os.environ.get(
+    "SECRET_KEY", "django-insecure-z&id8l&gleealb7*wwh))7p#f2b#(ki)m1_otxm=+%gx!6001m"
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
+DEBUG = os.environ.get("DEBUG", "True").lower() == "true"
 
-_env_hosts = os.environ.get('ALLOWED_HOSTS', '').strip()
-_default_hosts = 'localhost,127.0.0.1,192.168.1.6,192.168.1.28,192.168.1.77'
-_allowed = [h.strip() for h in (_env_hosts or _default_hosts).split(',') if h.strip()]
+_env_hosts = os.environ.get("ALLOWED_HOSTS", "").strip()
+_default_hosts = "localhost,127.0.0.1,192.168.1.6,192.168.1.28,192.168.1.77"
+_allowed = [h.strip() for h in (_env_hosts or _default_hosts).split(",") if h.strip()]
 # Always allow localhost/127.0.0.1 so runserver works even when DEBUG=False or ALLOWED_HOSTS is overridden
 # Include host:8000 so Host header "127.0.0.1:8000" is accepted
-for host in ('localhost', '127.0.0.1', 'localhost:8000', '127.0.0.1:8000'):
+for host in ("localhost", "127.0.0.1", "localhost:8000", "127.0.0.1:8000"):
     if host not in _allowed:
         _allowed.append(host)
 ALLOWED_HOSTS = _allowed
-AUTH_USER_MODEL = 'inventory.User'
+AUTH_USER_MODEL = "inventory.User"
 
 # CSRF: trust same-origin for admin/login and Silk when using runserver (127.0.0.1 or localhost).
 # Fixes "CSRF token from POST incorrect" on admin login, especially when next=/silk/.
 CSRF_TRUSTED_ORIGINS = [
-    'http://127.0.0.1:8000',
-    'http://localhost:8000',
-    'http://127.0.0.1',
-    'http://localhost',
+    "http://127.0.0.1:8000",
+    "http://localhost:8000",
+    "http://127.0.0.1",
+    "http://localhost",
 ]
 
 # Application definition
-SILKY_ENABLED = os.environ.get('SILKY_ENABLED', 'false').lower() == 'true'
+SILKY_ENABLED = os.environ.get("SILKY_ENABLED", "false").lower() == "true"
 
 INSTALLED_APPS = [
-    'django_extensions',
-    'corsheaders',  # <--- ADDED: For CORS support (must be before django apps)
-    *(['silk'] if SILKY_ENABLED else []),
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
-    'django_filters',  # Django Filter (required for DRF filter forms)
-    'cloudinary_storage',  # <--- ADDED: Must be before 'cloudinary'
-    'cloudinary',  # <--- ADDED: Cloudinary integration
-    'rest_framework',
-    'rest_framework.authtoken', # <--- ADDED: Required for TokenAuthentication
-    'drf_spectacular',  # <--- ADDED: OpenAPI 3 schema generation
-    'inventory',
+    "django_extensions",
+    "corsheaders",  # <--- ADDED: For CORS support (must be before django apps)
+    *(["silk"] if SILKY_ENABLED else []),
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
+    "django_filters",  # Django Filter (required for DRF filter forms)
+    "cloudinary_storage",  # <--- ADDED: Must be before 'cloudinary'
+    "cloudinary",  # <--- ADDED: Cloudinary integration
+    "rest_framework",
+    "rest_framework.authtoken",  # <--- ADDED: Required for TokenAuthentication
+    "drf_spectacular",  # <--- ADDED: OpenAPI 3 schema generation
+    "inventory",
 ]
 
 # Reviews OTP settings
@@ -78,63 +81,64 @@ INSTALLED_APPS = [
 REVIEW_OTP_TTL_SECONDS = int(os.getenv("REVIEW_OTP_TTL_SECONDS", 60 * 60))
 
 MIDDLEWARE = [
-    *(['silk.middleware.SilkyMiddleware'] if SILKY_ENABLED else []),
-    'corsheaders.middleware.CorsMiddleware',  # <--- ADDED: Must be near top, before CommonMiddleware
-    'inventory.middleware.RequestTimingMiddleware',  # Early: adds X-Processing-Ms to compare TTFB vs cold start
-    'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'inventory.middleware.BrandContextMiddleware',  # Brand context middleware
+    *(["silk.middleware.SilkyMiddleware"] if SILKY_ENABLED else []),
+    "corsheaders.middleware.CorsMiddleware",  # <--- ADDED: Must be near top, before CommonMiddleware
+    "inventory.middleware.RequestTimingMiddleware",  # Early: adds X-Processing-Ms to compare TTFB vs cold start
+    "django.middleware.security.SecurityMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "inventory.middleware.BrandContextMiddleware",  # Brand context middleware
 ]
 
-ROOT_URLCONF = 'store.urls'
+ROOT_URLCONF = "store.urls"
 
 TEMPLATES = [
     {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'templates'],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [BASE_DIR / "templates"],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
             ],
         },
     },
 ]
 
-WSGI_APPLICATION = 'store.wsgi.application'
+WSGI_APPLICATION = "store.wsgi.application"
 
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 # Use PostgreSQL when DATABASE_URL is set (e.g. Supabase, Render); otherwise SQLite.
 
-DATABASE_URL = os.environ.get('DATABASE_URL', '').strip()
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
 
 if DATABASE_URL:
     from urllib.parse import urlparse
+
     try:
         parsed = urlparse(DATABASE_URL)
-        host = (parsed.hostname or '').lower()
+        host = (parsed.hostname or "").lower()
         # Local Docker / localhost Postgres usually has no SSL; use disable. Remote (e.g. Supabase) use require.
-        ssl_mode = 'disable' if host in ('localhost', '127.0.0.1') else 'require'
+        ssl_mode = "disable" if host in ("localhost", "127.0.0.1") else "require"
         DATABASES = {
-            'default': {
-                'ENGINE': 'django.db.backends.postgresql',
-                'NAME': parsed.path.lstrip('/').split('?')[0],
-                'USER': parsed.username,
-                'PASSWORD': parsed.password,
-                'HOST': parsed.hostname,
-                'PORT': parsed.port or '5432',
-                'OPTIONS': {
-                    'connect_timeout': 10,
-                    'sslmode': ssl_mode,
+            "default": {
+                "ENGINE": "django.db.backends.postgresql",
+                "NAME": parsed.path.lstrip("/").split("?")[0],
+                "USER": parsed.username,
+                "PASSWORD": parsed.password,
+                "HOST": parsed.hostname,
+                "PORT": parsed.port or "5432",
+                "OPTIONS": {
+                    "connect_timeout": 10,
+                    "sslmode": ssl_mode,
                 },
             }
         }
@@ -143,9 +147,9 @@ if DATABASE_URL:
 
 if not DATABASE_URL:
     DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
         }
     }
 
@@ -155,51 +159,47 @@ if not DATABASE_URL:
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
     },
 ]
 
 REST_FRAMEWORK = {
     # 1. DEFAULT AUTHENTICATION: Prioritize Token for API clients
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.TokenAuthentication', 
-        'rest_framework.authentication.SessionAuthentication',
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.TokenAuthentication",
+        "rest_framework.authentication.SessionAuthentication",
     ],
-
     # 2. DEFAULT PERMISSION CLASSES: Secure by default
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
     ],
-    
     # 3. DEFAULT RENDERER:
-    'DEFAULT_RENDERER_CLASSES': [
-        'rest_framework.renderers.JSONRenderer',
-        'rest_framework.renderers.BrowsableAPIRenderer',
+    "DEFAULT_RENDERER_CLASSES": [
+        "rest_framework.renderers.JSONRenderer",
+        "rest_framework.renderers.BrowsableAPIRenderer",
     ],
-    
     # 4. PAGINATION:
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 25,
-    
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 25,
     # 5. OPENAPI SCHEMA: Use drf-spectacular for automatic schema generation
-    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = "UTC"
 
 USE_I18N = True
 
@@ -209,22 +209,22 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = '/static/'
-STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATIC_URL = "/static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # Media files (User uploads - Images, Videos)
 # https://docs.djangoproject.com/en/5.2/topics/files/
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
 
 # Cloudinary Configuration
 # Get credentials from environment variables or .env file
-CLOUDINARY_CLOUD_NAME = os.environ.get('CLOUDINARY_CLOUD_NAME', '')
-CLOUDINARY_API_KEY = os.environ.get('CLOUDINARY_API_KEY', '')
-CLOUDINARY_API_SECRET = os.environ.get('CLOUDINARY_API_SECRET', '')
+CLOUDINARY_CLOUD_NAME = os.environ.get("CLOUDINARY_CLOUD_NAME", "")
+CLOUDINARY_API_KEY = os.environ.get("CLOUDINARY_API_KEY", "")
+CLOUDINARY_API_SECRET = os.environ.get("CLOUDINARY_API_SECRET", "")
 
 # Misc app secrets
-FIX_PRODUCTS_SECRET_KEY = os.environ.get('FIX_PRODUCTS_SECRET_KEY', '')
+FIX_PRODUCTS_SECRET_KEY = os.environ.get("FIX_PRODUCTS_SECRET_KEY", "")
 
 # CRITICAL: Configure Cloudinary BEFORE storage backend is initialized
 # django-cloudinary-storage checks for Cloudinary config at import time
@@ -232,60 +232,73 @@ FIX_PRODUCTS_SECRET_KEY = os.environ.get('FIX_PRODUCTS_SECRET_KEY', '')
 if all([CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET]):
     try:
         import cloudinary
+
         cloudinary.config(
             cloud_name=CLOUDINARY_CLOUD_NAME,
             api_key=CLOUDINARY_API_KEY,
             api_secret=CLOUDINARY_API_SECRET,
-            secure=True
+            secure=True,
         )
         # Print to stdout so it's visible in deployment logs
-        print(f"✅ CLOUDINARY CONFIGURED: cloud={CLOUDINARY_CLOUD_NAME}, api_key={CLOUDINARY_API_KEY[:10]}...")
+        print(
+            f"✅ CLOUDINARY CONFIGURED: cloud={CLOUDINARY_CLOUD_NAME}, api_key={CLOUDINARY_API_KEY[:10]}..."
+        )
         import logging
+
         logger = logging.getLogger(__name__)
         logger.info(f"Cloudinary configured at startup for cloud: {CLOUDINARY_CLOUD_NAME}")
     except Exception as e:
         # Print to stdout so it's visible in deployment logs
         print(f"❌ FAILED TO CONFIGURE CLOUDINARY: {e}")
         import logging
+
         logger = logging.getLogger(__name__)
         logger.error(f"Failed to configure Cloudinary at startup: {e}")
 else:
     # Print to stdout so it's visible in deployment logs
-    print(f"⚠️  CLOUDINARY CREDENTIALS MISSING: CLOUD_NAME={bool(CLOUDINARY_CLOUD_NAME)}, API_KEY={bool(CLOUDINARY_API_KEY)}, API_SECRET={bool(CLOUDINARY_API_SECRET)}")
+    print(
+        f"⚠️  CLOUDINARY CREDENTIALS MISSING: CLOUD_NAME={bool(CLOUDINARY_CLOUD_NAME)}, API_KEY={bool(CLOUDINARY_API_KEY)}, API_SECRET={bool(CLOUDINARY_API_SECRET)}"
+    )
 
 # CRITICAL: django-cloudinary-storage checks CLOUDINARY_STORAGE dict at import time
 # It must have non-empty values, otherwise it falls back to local storage
 # Ensure all values are strings (not empty strings)
 CLOUDINARY_STORAGE = {
-    'CLOUD_NAME': CLOUDINARY_CLOUD_NAME if CLOUDINARY_CLOUD_NAME else '',
-    'API_KEY': CLOUDINARY_API_KEY if CLOUDINARY_API_KEY else '',
-    'API_SECRET': CLOUDINARY_API_SECRET if CLOUDINARY_API_SECRET else '',
+    "CLOUD_NAME": CLOUDINARY_CLOUD_NAME if CLOUDINARY_CLOUD_NAME else "",
+    "API_KEY": CLOUDINARY_API_KEY if CLOUDINARY_API_KEY else "",
+    "API_SECRET": CLOUDINARY_API_SECRET if CLOUDINARY_API_SECRET else "",
     # Optional: Set secure delivery
-    'SECURE': True,
+    "SECURE": True,
     # Optional: Set default resource type
-    'RESOURCE_TYPE': 'auto',  # 'image', 'video', 'raw', or 'auto'
+    "RESOURCE_TYPE": "auto",  # 'image', 'video', 'raw', or 'auto'
     # CRITICAL: Prevent django-cloudinary-storage from adding 'media/' prefix
     # By default it uses MEDIA_URL to construct paths, but we want clean paths
-    'MEDIA_TAG': '',  # Empty string prevents media/ prefix
-    'INVALID_VIDEO': False,
+    "MEDIA_TAG": "",  # Empty string prevents media/ prefix
+    "INVALID_VIDEO": False,
 }
 
 # DEBUG: Log CLOUDINARY_STORAGE dict to verify it's set correctly
 if all([CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET]):
     import logging
+
     logger = logging.getLogger(__name__)
-    logger.info(f"CLOUDINARY_STORAGE dict: CLOUD_NAME={CLOUDINARY_STORAGE['CLOUD_NAME'][:10]}..., API_KEY={CLOUDINARY_STORAGE['API_KEY'][:10]}..., API_SECRET={'*' * 10}...")
-    print(f"DEBUG: CLOUDINARY_STORAGE dict set - CLOUD_NAME={CLOUDINARY_STORAGE['CLOUD_NAME']}, API_KEY={CLOUDINARY_STORAGE['API_KEY'][:10]}...")
+    logger.info(
+        f"CLOUDINARY_STORAGE dict: CLOUD_NAME={CLOUDINARY_STORAGE['CLOUD_NAME'][:10]}..., API_KEY={CLOUDINARY_STORAGE['API_KEY'][:10]}..., API_SECRET={'*' * 10}..."
+    )
+    print(
+        f"DEBUG: CLOUDINARY_STORAGE dict set - CLOUD_NAME={CLOUDINARY_STORAGE['CLOUD_NAME']}, API_KEY={CLOUDINARY_STORAGE['API_KEY'][:10]}..."
+    )
 
 # Validate Cloudinary credentials
 CLOUDINARY_ENABLED = all([CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET])
-CLOUDINARY_REQUIRED = os.environ.get('CLOUDINARY_REQUIRED', '').lower() == 'true'
+CLOUDINARY_REQUIRED = os.environ.get("CLOUDINARY_REQUIRED", "").lower() == "true"
 CLOUDINARY_STRICT = CLOUDINARY_REQUIRED or not DEBUG
 
 # Warn if Cloudinary is configured but credentials are missing
 if not CLOUDINARY_ENABLED:
-    import warnings
     import logging
+    import warnings
+
     logger = logging.getLogger(__name__)
     warning_msg = (
         "Cloudinary storage is enabled but credentials are missing. "
@@ -309,33 +322,36 @@ if not CLOUDINARY_ENABLED:
 # CRITICAL: Only use Cloudinary storage if credentials are available
 # Otherwise django-cloudinary-storage will silently fall back to local storage
 if CLOUDINARY_ENABLED:
-    DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
-    
+    DEFAULT_FILE_STORAGE = "cloudinary_storage.storage.MediaCloudinaryStorage"
+
     # Verify the storage backend will actually use Cloudinary
     # Import and check after setting DEFAULT_FILE_STORAGE
     import logging
+
     logger = logging.getLogger(__name__)
-    
-    # Force import of the storage backend to verify it's configured
+
+    # Force import of the storage backend to verify it's configured (side effect only)
     try:
-        from cloudinary_storage.storage import MediaCloudinaryStorage
+        import cloudinary_storage.storage  # noqa: F401
+
         # The storage backend checks CLOUDINARY_STORAGE dict at import time
-        # If credentials are missing, it falls back to local storage
-        # We've already set CLOUDINARY_STORAGE above, so it should work
-        print(f"✅ CLOUDINARY STORAGE ENABLED: Using MediaCloudinaryStorage for cloud={CLOUDINARY_CLOUD_NAME}")
+        print(
+            f"✅ CLOUDINARY STORAGE ENABLED: Using MediaCloudinaryStorage for cloud={CLOUDINARY_CLOUD_NAME}"
+        )
         logger.info(f"Cloudinary storage enabled for cloud: {CLOUDINARY_CLOUD_NAME}")
     except Exception as e:
         print(f"⚠️  WARNING: Could not import MediaCloudinaryStorage: {e}")
         logger.warning(f"Could not import MediaCloudinaryStorage: {e}")
         # Still set it - let Django handle the import
-        DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+        DEFAULT_FILE_STORAGE = "cloudinary_storage.storage.MediaCloudinaryStorage"
 else:
     # If credentials are missing, explicitly use local storage
     # This prevents silent failures
-    DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
+    DEFAULT_FILE_STORAGE = "django.core.files.storage.FileSystemStorage"
     import logging
+
     logger = logging.getLogger(__name__)
-    print(f"❌ CLOUDINARY CREDENTIALS MISSING - Using local FileSystemStorage")
+    print("❌ CLOUDINARY CREDENTIALS MISSING - Using local FileSystemStorage")
     logger.error(
         "Cloudinary credentials missing! Using local FileSystemStorage. "
         "Set CLOUDINARY_* environment variables to use Cloudinary."
@@ -348,125 +364,148 @@ else:
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # --- Django Silk (profiling) ---
 # Enable with SILKY_ENABLED=true. In production, keep access restricted.
 if SILKY_ENABLED:
     SILKY_AUTHENTICATION = True
     SILKY_AUTHORIZATION = True
-    SILKY_PERMISSIONS = lambda user: user.is_staff
+
+    def _silk_staff_only(user):
+        return user.is_staff
+
+    SILKY_PERMISSIONS = _silk_staff_only
     # Silk's login-required redirect uses Django's LOGIN_URL.
     # Point it to admin login to avoid missing registration/login.html.
-    LOGIN_URL = '/admin/login/'
+    LOGIN_URL = "/admin/login/"
     # Only this percentage of requests are "intercepted": DataCollector().request is set only for them.
     # So silk_profile() in views only runs when request is intercepted. Use 100 to profile every request
     # (e.g. in dev); lower values reduce overhead and DB usage (e.g. in production).
-    SILKY_INTERCEPT_PERCENT = float(os.environ.get('SILKY_INTERCEPT_PERCENT', '10'))
-    SILKY_LOGIN_URL = '/admin/login/'
+    SILKY_INTERCEPT_PERCENT = float(os.environ.get("SILKY_INTERCEPT_PERCENT", "10"))
+    SILKY_LOGIN_URL = "/admin/login/"
     # Python profiler can conflict with other tools (e.g. debugger). Disable to avoid "Another profiling tool is already active".
     # Set SILKY_PYTHON_PROFILER=true in env if you need the Profiling tab and no other profiler is running.
-    SILKY_PYTHON_PROFILER = os.environ.get('SILKY_PYTHON_PROFILER', 'false').lower() == 'true'
-    SILKY_PYTHON_PROFILER_RESULT_PATH = os.path.join(BASE_DIR, 'profiles')
+    SILKY_PYTHON_PROFILER = os.environ.get("SILKY_PYTHON_PROFILER", "false").lower() == "true"
+    SILKY_PYTHON_PROFILER_RESULT_PATH = os.path.join(BASE_DIR, "profiles")
 
 # --- drf-spectacular Configuration (OpenAPI 3 Schema Generation) ---
 SPECTACULAR_SETTINGS = {
-    'TITLE': 'Inventory Management & E-commerce API',
-    'VERSION': '1.0.0',
-    'DESCRIPTION': '''
+    "TITLE": "Inventory Management & E-commerce API",
+    "VERSION": "1.0.0",
+    "DESCRIPTION": """
     Complete API specification for the Django-based Inventory Management and Sales system.
     DRF TokenAuthentication is used: clients must send `Authorization: Token <key>` for protected endpoints.
-    ''',
-    'SERVE_INCLUDE_SCHEMA': False,  # Don't include schema in Swagger UI
-    'SCHEMA_PATH_PREFIX': '/api/inventory',  # Base path for all endpoints
-    'COMPONENT_SPLIT_REQUEST': True,  # Split request/response schemas
-    'COMPONENT_NO_READ_ONLY_REQUIRED': True,  # Don't require read-only fields
-    'AUTHENTICATION_WHITELIST': [
-        'rest_framework.authentication.TokenAuthentication',
-        'rest_framework.authentication.SessionAuthentication',
+    """,
+    "SERVE_INCLUDE_SCHEMA": False,  # Don't include schema in Swagger UI
+    "SCHEMA_PATH_PREFIX": "/api/inventory",  # Base path for all endpoints
+    "COMPONENT_SPLIT_REQUEST": True,  # Split request/response schemas
+    "COMPONENT_NO_READ_ONLY_REQUIRED": True,  # Don't require read-only fields
+    "AUTHENTICATION_WHITELIST": [
+        "rest_framework.authentication.TokenAuthentication",
+        "rest_framework.authentication.SessionAuthentication",
     ],
-    'SERVERS': [
-        {'url': '/api/inventory/', 'description': 'Inventory Management API'},
-        {'url': '/api/v1/public/', 'description': 'Public E-commerce API'},
+    "SERVERS": [
+        {"url": "/api/inventory/", "description": "Inventory Management API"},
+        {"url": "/api/v1/public/", "description": "Public E-commerce API"},
     ],
-    'ENUM_NAME_OVERRIDES': {
-        'OrderStatusEnum': 'inventory.models.ORDER_STATUS_CHOICES',
-        'LeadStatusEnum': 'inventory.models.LEAD_STATUS_CHOICES',
-        'ReservationRequestStatusEnum': 'inventory.models.RESERVATION_REQUEST_STATUS_CHOICES',
-        'ReturnRequestStatusEnum': 'inventory.models.RETURN_REQUEST_STATUS_CHOICES',
-        'InventoryUnitSaleStatusEnum': 'inventory.models.INVENTORY_UNIT_SALE_STATUS_CHOICES',
-        'PesapalPaymentStatusEnum': 'inventory.models.PESAPAL_PAYMENT_STATUS_CHOICES',
-        'PesapalRefundStatusEnum': 'inventory.models.PESAPAL_REFUND_STATUS_CHOICES',
-        'ProductTypesEnum': 'inventory.models.PRODUCT_TYPE_CHOICES',
+    "ENUM_NAME_OVERRIDES": {
+        "OrderStatusEnum": "inventory.models.ORDER_STATUS_CHOICES",
+        "LeadStatusEnum": "inventory.models.LEAD_STATUS_CHOICES",
+        "ReservationRequestStatusEnum": "inventory.models.RESERVATION_REQUEST_STATUS_CHOICES",
+        "ReturnRequestStatusEnum": "inventory.models.RETURN_REQUEST_STATUS_CHOICES",
+        "InventoryUnitSaleStatusEnum": "inventory.models.INVENTORY_UNIT_SALE_STATUS_CHOICES",
+        "PesapalPaymentStatusEnum": "inventory.models.PESAPAL_PAYMENT_STATUS_CHOICES",
+        "PesapalRefundStatusEnum": "inventory.models.PESAPAL_REFUND_STATUS_CHOICES",
+        "ProductTypesEnum": "inventory.models.PRODUCT_TYPE_CHOICES",
     },
-    'TAGS': [
-        {'name': 'Account & Profile Management', 'description': 'User authentication and profile management'},
-        {'name': 'Core Catalog & Inventory Management', 'description': 'Products, units, reports, and inventory operations'},
-        {'name': 'Order & Sales Management', 'description': 'Orders, payments, and sales operations'},
-        {'name': 'Discovery & Utility', 'description': 'Search, discovery, and utility endpoints'},
-        {'name': 'Lookup Table Management', 'description': 'Colors, sources, promotion types, and other lookup tables'},
-        {'name': 'Request Management', 'description': 'Leads, reservation requests, return requests'},
-        {'name': 'Notifications', 'description': 'User notifications and alerts'},
+    "TAGS": [
+        {
+            "name": "Account & Profile Management",
+            "description": "User authentication and profile management",
+        },
+        {
+            "name": "Core Catalog & Inventory Management",
+            "description": "Products, units, reports, and inventory operations",
+        },
+        {
+            "name": "Order & Sales Management",
+            "description": "Orders, payments, and sales operations",
+        },
+        {"name": "Discovery & Utility", "description": "Search, discovery, and utility endpoints"},
+        {
+            "name": "Lookup Table Management",
+            "description": "Colors, sources, promotion types, and other lookup tables",
+        },
+        {
+            "name": "Request Management",
+            "description": "Leads, reservation requests, return requests",
+        },
+        {"name": "Notifications", "description": "User notifications and alerts"},
     ],
     # Customize schema generation
-    'SCHEMA_PATH_PREFIX_TRIM': True,  # Trim common prefix from paths
-    'DEFAULT_GENERATOR_CLASS': 'drf_spectacular.generators.SchemaGenerator',
+    "SCHEMA_PATH_PREFIX_TRIM": True,  # Trim common prefix from paths
+    "DEFAULT_GENERATOR_CLASS": "drf_spectacular.generators.SchemaGenerator",
 }
 
 # --- Pesapal Configuration ---
 # All Pesapal credentials must come from environment variables (no defaults)
-PESAPAL_CONSUMER_KEY = os.environ.get('PESAPAL_CONSUMER_KEY', '')
-PESAPAL_CONSUMER_SECRET = os.environ.get('PESAPAL_CONSUMER_SECRET', '')
-PESAPAL_ENVIRONMENT = os.environ.get('PESAPAL_ENVIRONMENT', 'sandbox')  # Default to sandbox for safety
-PESAPAL_CALLBACK_URL = os.environ.get('PESAPAL_CALLBACK_URL', '')
-PESAPAL_IPN_URL = os.environ.get('PESAPAL_IPN_URL', '')
-PESAPAL_NOTIFICATION_ID = os.environ.get('PESAPAL_NOTIFICATION_ID', '')
-PESAPAL_API_TIMEOUT = int(os.environ.get('PESAPAL_API_TIMEOUT', '30'))
-PESAPAL_MAX_RETRIES = int(os.environ.get('PESAPAL_MAX_RETRIES', '3'))
-PESAPAL_RETRY_DELAY = int(os.environ.get('PESAPAL_RETRY_DELAY', '2'))
-PESAPAL_LOG_PATH = os.environ.get('PESAPAL_LOG_PATH', '/tmp/pesapal_debug.log')
+PESAPAL_CONSUMER_KEY = os.environ.get("PESAPAL_CONSUMER_KEY", "")
+PESAPAL_CONSUMER_SECRET = os.environ.get("PESAPAL_CONSUMER_SECRET", "")
+PESAPAL_ENVIRONMENT = os.environ.get(
+    "PESAPAL_ENVIRONMENT", "sandbox"
+)  # Default to sandbox for safety
+PESAPAL_CALLBACK_URL = os.environ.get("PESAPAL_CALLBACK_URL", "")
+PESAPAL_IPN_URL = os.environ.get("PESAPAL_IPN_URL", "")
+PESAPAL_NOTIFICATION_ID = os.environ.get("PESAPAL_NOTIFICATION_ID", "")
+PESAPAL_API_TIMEOUT = int(os.environ.get("PESAPAL_API_TIMEOUT", "30"))
+PESAPAL_MAX_RETRIES = int(os.environ.get("PESAPAL_MAX_RETRIES", "3"))
+PESAPAL_RETRY_DELAY = int(os.environ.get("PESAPAL_RETRY_DELAY", "2"))
+PESAPAL_LOG_PATH = os.environ.get("PESAPAL_LOG_PATH", "/tmp/pesapal_debug.log")
 
 # --- Email Configuration ---
 # Frontend base URL for email verification links
-FRONTEND_BASE_URL = os.environ.get('FRONTEND_BASE_URL', 'http://localhost:3000')
+FRONTEND_BASE_URL = os.environ.get("FRONTEND_BASE_URL", "http://localhost:3000")
 # Gmail API backend by default; override via EMAIL_BACKEND if needed.
-EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'store.gmail_backend.GmailApiEmailBackend')
-EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
-EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True').lower() == 'true'
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
-EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', '10'))
-EMAIL_SSL_CA_FILE = os.environ.get('EMAIL_SSL_CA_FILE', '')
-EMAIL_TLS_ALLOW_INVALID_CERTS = os.environ.get('EMAIL_TLS_ALLOW_INVALID_CERTS', 'False').lower() == 'true'
+EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND", "store.gmail_backend.GmailApiEmailBackend")
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp.gmail.com")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "True").lower() == "true"
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER)
+EMAIL_TIMEOUT = int(os.environ.get("EMAIL_TIMEOUT", "10"))
+EMAIL_SSL_CA_FILE = os.environ.get("EMAIL_SSL_CA_FILE", "")
+EMAIL_TLS_ALLOW_INVALID_CERTS = (
+    os.environ.get("EMAIL_TLS_ALLOW_INVALID_CERTS", "False").lower() == "true"
+)
 
 # Gmail API configuration
-GMAIL_CLIENT_ID = os.environ.get('GMAIL_CLIENT_ID', '')
-GMAIL_CLIENT_SECRET = os.environ.get('GMAIL_CLIENT_SECRET', '')
-GMAIL_REFRESH_TOKEN = os.environ.get('GMAIL_REFRESH_TOKEN', '')
-GMAIL_SENDER = os.environ.get('GMAIL_SENDER', DEFAULT_FROM_EMAIL)
-GMAIL_API_TIMEOUT = int(os.environ.get('GMAIL_API_TIMEOUT', '10'))
-GMAIL_MAX_RETRIES = int(os.environ.get('GMAIL_MAX_RETRIES', '3'))
-GMAIL_RETRY_BASE_DELAY = float(os.environ.get('GMAIL_RETRY_BASE_DELAY', '1.0'))
+GMAIL_CLIENT_ID = os.environ.get("GMAIL_CLIENT_ID", "")
+GMAIL_CLIENT_SECRET = os.environ.get("GMAIL_CLIENT_SECRET", "")
+GMAIL_REFRESH_TOKEN = os.environ.get("GMAIL_REFRESH_TOKEN", "")
+GMAIL_SENDER = os.environ.get("GMAIL_SENDER", DEFAULT_FROM_EMAIL)
+GMAIL_API_TIMEOUT = int(os.environ.get("GMAIL_API_TIMEOUT", "10"))
+GMAIL_MAX_RETRIES = int(os.environ.get("GMAIL_MAX_RETRIES", "3"))
+GMAIL_RETRY_BASE_DELAY = float(os.environ.get("GMAIL_RETRY_BASE_DELAY", "1.0"))
 
 # --- Twilio WhatsApp Configuration ---
-TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID', '')
-TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN', '')
-TWILIO_WHATSAPP_FROM = os.environ.get('TWILIO_WHATSAPP_FROM', '')  # Format: whatsapp:+14155238886
-TWILIO_TIMEOUT = int(os.environ.get('TWILIO_TIMEOUT', '10'))
+TWILIO_ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID", "")
+TWILIO_AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN", "")
+TWILIO_WHATSAPP_FROM = os.environ.get("TWILIO_WHATSAPP_FROM", "")  # Format: whatsapp:+14155238886
+TWILIO_TIMEOUT = int(os.environ.get("TWILIO_TIMEOUT", "10"))
 
 # --- CORS Configuration (Development) ---
 # Configure allowed origins for your frontend applications
 # Update these when deploying to production with actual frontend URLs
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",   # Create React App default port
-    "http://localhost:3001",   # Next.js (if using different port)
-    "http://localhost:3002",   # Alternative React App port
-    "http://127.0.0.1:3000",   # Alternative localhost format for CRA
-    "http://127.0.0.1:3001",   # Alternative localhost format for Next.js
-    "http://127.0.0.1:3002",   # Alternative localhost format for CRA
+    "http://localhost:3000",  # Create React App default port
+    "http://localhost:3001",  # Next.js (if using different port)
+    "http://localhost:3002",  # Alternative React App port
+    "http://127.0.0.1:3000",  # Alternative localhost format for CRA
+    "http://127.0.0.1:3001",  # Alternative localhost format for Next.js
+    "http://127.0.0.1:3002",  # Alternative localhost format for CRA
     "http://192.168.1.6:3000",  # Local network IP for Next.js
     "http://192.168.1.6:3001",  # Local network IP alternative port
     "http://192.168.1.6:3002",  # Local network IP alternative port
@@ -491,30 +530,30 @@ CORS_ALLOW_CREDENTIALS = True
 
 # Allow common headers your API uses
 CORS_ALLOW_HEADERS = [
-    'accept',
-    'accept-encoding',
-    'authorization',  # Required for Token Authentication (Authorization: Token <key>)
-    'content-type',
-    'origin',
-    'user-agent',
-    'x-csrftoken',
-    'x-requested-with',
-    'x-brand-code',  # Required for brand-based filtering
-    'idempotency-key',  # Required for order idempotency
-    'x-idempotency-key',  # Alternative idempotency key header
+    "accept",
+    "accept-encoding",
+    "authorization",  # Required for Token Authentication (Authorization: Token <key>)
+    "content-type",
+    "origin",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
+    "x-brand-code",  # Required for brand-based filtering
+    "idempotency-key",  # Required for order idempotency
+    "x-idempotency-key",  # Alternative idempotency key header
 ]
 
 # Allow these HTTP methods
 CORS_ALLOW_METHODS = [
-    'DELETE',
-    'GET',
-    'OPTIONS',
-    'PATCH',
-    'POST',
-    'PUT',
+    "DELETE",
+    "GET",
+    "OPTIONS",
+    "PATCH",
+    "POST",
+    "PUT",
 ]
 
 # Load production settings if DJANGO_ENV is set to 'production'
 # This must be at the end to override development settings
-if os.environ.get('DJANGO_ENV') == 'production':
-    from .settings_production import *
+if os.environ.get("DJANGO_ENV") == "production":
+    from .settings_production import *  # noqa: F403

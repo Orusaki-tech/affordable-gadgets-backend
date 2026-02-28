@@ -1,0 +1,13 @@
+# Copy to terraform.tfvars and fill in. Do not commit terraform.tfvars if it contains sensitive data.
+
+project_id = "your-gcp-project-id"   # e.g. gmail-486411
+region     = "us-central1"
+zone       = "us-central1-a"
+
+# Optional overrides
+# name_prefix     = "affordable-gadgets-backend"
+# instance_name   = "affordable-gadgets-backend"
+# machine_type    = "e2-small"          # 2 vCPU, 2 GB RAM
+# boot_disk_size_gb = 20
+# create_static_ip  = true             # recommended for production
+# enable_startup_script = true         # installs Python 3 so Ansible can run immediately

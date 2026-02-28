@@ -1,0 +1,5 @@
+---
+# Override in group_vars or extra vars
+db_name: affordable_gadgets
+db_user: affordable
+db_password: "CHANGE_ME"  # must be set securely (e.g. ansible-vault or -e)

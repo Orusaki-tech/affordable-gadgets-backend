@@ -1,0 +1,48 @@
+---
+# Install and configure PostgreSQL (local to VM). Uses psql; no Ansible collection required.
+
+- name: Install PostgreSQL
+  apt:
+    name:
+      - postgresql
+      - postgresql-contrib
+      - libpq-dev
+    state: present
+    update_cache: true
+
+- name: Ensure PostgreSQL is started
+  service:
+    name: postgresql
+    state: started
+    enabled: true
+
+- name: Set pg_hba path (Ubuntu 22.04 default is PostgreSQL 14)
+  set_fact:
+    pg_hba_path: "/etc/postgresql/14/main/pg_hba.conf"
+
+- name: Create PostgreSQL user
+  become_user: postgres
+  shell: |
+    psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='{{ db_user }}'" | grep -q 1 || \
+    psql -c "CREATE USER {{ db_user }} WITH PASSWORD '{{ db_password }}';"
+  no_log: true
+
+- name: Create PostgreSQL database
+  become_user: postgres
+  shell: |
+    psql -tAc "SELECT 1 FROM pg_database WHERE datname='{{ db_name }}'" | grep -q 1 || \
+    psql -c "CREATE DATABASE {{ db_name }} OWNER {{ db_user }};"
+
+- name: Allow local TCP password auth for app user
+  lineinfile:
+    path: "{{ pg_hba_path }}"
+    line: "host    all    {{ db_user }}    127.0.0.1/32    md5"
+    insertafter: "^# \"local\" is for Unix domain socket"
+    state: present
+  notify: Restart PostgreSQL
+
+- name: Restart PostgreSQL
+  service:
+    name: postgresql
+    state: restarted
+  listen: Restart PostgreSQL

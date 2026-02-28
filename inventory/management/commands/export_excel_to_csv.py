@@ -63,4 +63,3 @@ class Command(BaseCommand):
                 writer.writerow(cleaned_row)
 
         self.stdout.write(self.style.SUCCESS(f'Exported sheet "{sheet_name}" to {csv_path}'))
-
