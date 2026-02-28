@@ -180,8 +180,10 @@ CORS_ALLOW_HEADERS = [
     "accept",
     "accept-encoding",
     "authorization",  # Required for Token Authentication (Authorization: Token <key>)
+    "cache-control",  # Required when frontend sends no-cache to avoid stale error responses
     "content-type",
     "origin",
+    "pragma",  # Required when frontend sends Pragma: no-cache
     "user-agent",
     "x-csrftoken",
     "x-requested-with",
