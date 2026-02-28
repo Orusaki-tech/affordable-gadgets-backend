@@ -33,6 +33,7 @@ This does everything from code:
 No GCP Console, no Ansible. App: `http://<VM_IP>:8000`.
 
 - **Skip Terraform** (VM already exists): `SKIP_TERRAFORM=1 ./deploy/deploy-gcp.sh`
+- **Using ngrok for HTTPS:** Deploy overwrites the VM `.env` and sets `ALLOWED_HOSTS` to the VM IP only. If you use ngrok, run `./deploy/ngrok-on-vm.sh` **after** each deploy so the ngrok host is added to `ALLOWED_HOSTS` and CORS. Otherwise the backend returns **400 Bad Request** on login/API calls from the admin/frontend.
 - **Remote user** (if not `ubuntu`): `REMOTE_USER=youruser ./deploy/deploy-gcp.sh`
 
 ### HTTPS URL for Vercel (no domain): ngrok on the VM
