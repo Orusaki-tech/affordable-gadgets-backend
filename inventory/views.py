@@ -1,3 +1,4 @@
+import base64
 import csv
 import io
 import logging
@@ -1143,13 +1144,37 @@ class InventoryUnitViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     def import_csv(self, request):
         from decimal import Decimal
 
+        # Log what we received (for debugging production import)
+        data_keys = list(request.data.keys()) if hasattr(request, "data") and request.data else []
+        files_keys = list(request.FILES.keys()) if request.FILES else []
+        logger.info(
+            "units/import_csv: request received. content_type=%s, FILES_keys=%s, data_keys=%s, has_csv_base64=%s",
+            getattr(request, "content_type", None),
+            files_keys,
+            data_keys,
+            "csv_base64" in data_keys,
+        )
+
+        csv_content = None
         file = request.FILES.get("file")
-        if not file:
+        if file:
+            csv_content = file.read().decode("utf-8")
+        else:
+            csv_base64 = request.data.get("csv_base64") if hasattr(request, "data") else None
+            if csv_base64:
+                try:
+                    csv_bytes = base64.b64decode(csv_base64)
+                    csv_content = csv_bytes.decode("utf-8")
+                except Exception as e:
+                    return Response(
+                        {"error": f"Invalid csv_base64: {str(e)}"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+        if not csv_content:
             return Response({"error": "No file uploaded"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            decoded_file = file.read().decode("utf-8")
-            io_string = io.StringIO(decoded_file)
+            io_string = io.StringIO(csv_content)
             reader = csv.DictReader(io_string)
         except Exception as e:
             return Response(
