@@ -1073,7 +1073,11 @@ class InventoryUnitViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
         detail=False, methods=["get"], permission_classes=[IsInventoryManagerOrSalespersonReadOnly]
     )
     def export_csv(self, request):
-        """Export inventory units to CSV file."""
+        """Export inventory units to CSV file.
+
+        Always returns at least the header row (column names) so that when there is no data,
+        the user still receives a valid CSV with column names for use as a template.
+        """
         from django.http import HttpResponse
 
         # Get all units with filters applied
@@ -1086,29 +1090,29 @@ class InventoryUnitViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
         )
 
         writer = csv.writer(response)
-        # Write header
-        writer.writerow(
-            [
-                "ID",
-                "Serial Number",
-                "IMEI",
-                "Product",
-                "Color",
-                "Condition",
-                "Grade",
-                "Storage (GB)",
-                "RAM (GB)",
-                "Selling Price",
-                "Sale Status",
-                "Source",
-                "Date Sourced",
-                "Reserved By",
-                "Reserved Until",
-                "Notes",
-            ]
-        )
 
-        # Write data
+        # Always write header first so empty export still has column names
+        csv_headers = [
+            "ID",
+            "Serial Number",
+            "IMEI",
+            "Product",
+            "Color",
+            "Condition",
+            "Grade",
+            "Storage (GB)",
+            "RAM (GB)",
+            "Selling Price",
+            "Sale Status",
+            "Source",
+            "Date Sourced",
+            "Reserved By",
+            "Reserved Until",
+            "Notes",
+        ]
+        writer.writerow(csv_headers)
+
+        # Write data rows (none when queryset is empty)
         for unit in queryset:
             writer.writerow(
                 [
@@ -1155,11 +1159,15 @@ class InventoryUnitViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
         created_count = 0
         errors = []
 
+        # Import ignores ID column if present; backend always assigns new IDs when creating units.
+        # Accepts CSV from export (column "Product") or legacy ("product_name", "Model").
         with transaction.atomic():
             for row_num, row in enumerate(reader, start=2):
                 try:
-                    # Look up Product: prefer product_name (normalized), else Model (strip spaces for safety)
-                    model_name = (row.get("product_name") or row.get("Model") or "").strip()
+                    # Look up Product: "Product" (export column), then product_name, then Model
+                    model_name = (
+                        row.get("Product") or row.get("product_name") or row.get("Model") or ""
+                    ).strip()
                     if not model_name:
                         continue  # Skip empty rows
 
@@ -1169,28 +1177,30 @@ class InventoryUnitViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                         errors.append(f"Row {row_num}: Product '{model_name}' not found.")
                         continue
 
-                    # Clean Price
-                    raw_price = str(row.get("Selling Price", "0")).replace(",", "").strip()
-                    price = (
-                        Decimal(raw_price) if raw_price and raw_price != "None" else Decimal("0.00")
-                    )
+                    # Convert Selling Price to decimal; use 0.00 on failure
+                    raw_price = (row.get("Selling Price") or "").strip().replace(",", "")
+                    try:
+                        price = Decimal(raw_price) if raw_price and raw_price != "None" else Decimal("0.00")
+                    except Exception:
+                        price = Decimal("0.00")
+                        errors.append(f"Row {row_num}: Invalid Selling Price '{raw_price}'; used 0.00.")
+
+                    # Optional numeric fields: allow empty (export may have blank)
+                    storage_val = row.get("Storage (GB)", "") or ""
+                    ram_val = row.get("RAM (GB)", "") or ""
+                    storage_gb = int(storage_val) if str(storage_val).strip().isdigit() else 0
+                    ram_gb = int(ram_val) if str(ram_val).strip().isdigit() else 0
 
                     InventoryUnit.objects.create(
                         product_template=product,
-                        serial_number=row.get("Serial Number"),
-                        imei=row.get("IMEI"),
-                        condition=row.get("Condition", "N"),
-                        grade=row.get("Grade"),
-                        storage_gb=int(row["Storage (GB)"])
-                        if row.get("Storage (GB)") and str(row["Storage (GB)"]).isdigit()
-                        else 0,
-                        ram_gb=int(row["RAM (GB)"])
-                        if row.get("RAM (GB)") and str(row["RAM (GB)"]).isdigit()
-                        else 0,
+                        serial_number=(row.get("Serial Number") or "").strip() or None,
+                        imei=(row.get("IMEI") or "").strip() or None,
+                        condition=(row.get("Condition") or "N").strip() or "N",
+                        grade=(row.get("Grade") or "").strip() or None,
+                        storage_gb=storage_gb,
+                        ram_gb=ram_gb,
+                        cost_of_unit=price,  # required; use selling price if CSV has no cost column
                         selling_price=price,
-                        notes=row.get("Notes", ""),
-                        created_by=request.user,
-                        updated_by=request.user,
                         sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
                     )
                     created_count += 1
@@ -3326,6 +3336,16 @@ class AdminTokenLoginView(ObtainAuthToken):
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data["user"]
 
+        # Ensure an admin profile exists before issuing a token so frontend can rely on a
+        # single login response containing both auth token and profile details.
+        try:
+            admin_profile = Admin.objects.get(user=user)
+        except Admin.DoesNotExist:
+            return Response(
+                {"detail": "Staff account is missing an admin profile."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         # Update last_login
         user.last_login = timezone.now()
         user.save(update_fields=["last_login"])
@@ -3333,7 +3353,20 @@ class AdminTokenLoginView(ObtainAuthToken):
         # Get or create token
         token, created = Token.objects.get_or_create(user=user)
 
-        return Response({"token": token.key})
+        profile_data = AdminSerializer(admin_profile).data
+        return Response(
+            {
+                "token": token.key,
+                "profile": profile_data,
+                "user": {
+                    "id": user.id,
+                    "username": user.username,
+                    "email": user.email,
+                    "is_staff": user.is_staff,
+                    "is_superuser": user.is_superuser,
+                },
+            }
+        )
 
 
 class CustomerLoginView(generics.GenericAPIView):
