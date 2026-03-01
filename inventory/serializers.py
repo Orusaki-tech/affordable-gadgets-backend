@@ -787,15 +787,15 @@ class InventoryUnitImageSerializer(serializers.ModelSerializer):
         instance = super().create(validated_data)
 
         if image:
-            from django.core.files.base import File
-
             from .cloudinary_utils import upload_image_to_cloudinary
 
             saved_name, _ = upload_image_to_cloudinary(image, "unit_photos")
             if saved_name:
-                # Store Cloudinary path (file already uploaded); set field to path without re-uploading
-                instance.image = File(None, name=saved_name)
-                instance.save(update_fields=["image"])
+                # Store Cloudinary path in DB only (file already in Cloudinary).
+                # Do not assign File(None, name=...) and save() - that triggers
+                # FileField save and storage expects readable content.
+                InventoryUnitImage.objects.filter(pk=instance.pk).update(image=saved_name)
+                instance.refresh_from_db()
 
         return instance
 
@@ -809,10 +809,11 @@ class InventoryUnitImageSerializer(serializers.ModelSerializer):
 
                 saved_name, _ = upload_image_to_cloudinary(image, "unit_photos")
                 if saved_name:
-                    instance.image.name = saved_name
+                    InventoryUnitImage.objects.filter(pk=instance.pk).update(image=saved_name)
+                    instance.refresh_from_db()
             else:
-                instance.image = None
-            instance.save()
+                InventoryUnitImage.objects.filter(pk=instance.pk).update(image=None)
+                instance.refresh_from_db()
 
         return instance
 
