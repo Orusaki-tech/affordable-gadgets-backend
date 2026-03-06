@@ -1103,6 +1103,7 @@ class InventoryUnitViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
             "Grade",
             "Storage (GB)",
             "RAM (GB)",
+            "Cost Price",
             "Selling Price",
             "Sale Status",
             "Source",
@@ -1126,6 +1127,7 @@ class InventoryUnitViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                     unit.grade or "",
                     unit.storage_gb or "",
                     unit.ram_gb or "",
+                    str(unit.cost_of_unit) if unit.cost_of_unit is not None else "",
                     str(unit.selling_price) if unit.selling_price else "",
                     unit.sale_status or "",
                     unit.acquisition_source_details.name if unit.acquisition_source_details else "",
@@ -1202,13 +1204,32 @@ class InventoryUnitViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                         errors.append(f"Row {row_num}: Product '{model_name}' not found.")
                         continue
 
-                    # Convert Selling Price to decimal; use 0.00 on failure
-                    raw_price = (row.get("Selling Price") or "").strip().replace(",", "")
+                    # Selling Price (required for display)
+                    raw_selling = (row.get("Selling Price") or "").strip().replace(",", "")
                     try:
-                        price = Decimal(raw_price) if raw_price and raw_price != "None" else Decimal("0.00")
+                        selling_price = (
+                            Decimal(raw_selling) if raw_selling and raw_selling != "None" else Decimal("0.00")
+                        )
                     except Exception:
-                        price = Decimal("0.00")
-                        errors.append(f"Row {row_num}: Invalid Selling Price '{raw_price}'; used 0.00.")
+                        selling_price = Decimal("0.00")
+                        errors.append(
+                            f"Row {row_num}: Invalid Selling Price '{raw_selling}'; used 0.00."
+                        )
+
+                    # Cost Price: use "Cost Price", "Cost", or "Cost of Unit" if present; else use selling price
+                    raw_cost = (
+                        row.get("Cost Price") or row.get("Cost") or row.get("Cost of Unit") or ""
+                    ).strip().replace(",", "")
+                    if raw_cost and raw_cost != "None":
+                        try:
+                            cost_of_unit = Decimal(raw_cost)
+                        except Exception:
+                            cost_of_unit = selling_price
+                            errors.append(
+                                f"Row {row_num}: Invalid Cost Price '{raw_cost}'; used Selling Price."
+                            )
+                    else:
+                        cost_of_unit = selling_price
 
                     # Optional numeric fields: allow empty (export may have blank)
                     storage_val = row.get("Storage (GB)", "") or ""
@@ -1224,8 +1245,8 @@ class InventoryUnitViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                         grade=(row.get("Grade") or "").strip() or None,
                         storage_gb=storage_gb,
                         ram_gb=ram_gb,
-                        cost_of_unit=price,  # required; use selling price if CSV has no cost column
-                        selling_price=price,
+                        cost_of_unit=cost_of_unit,
+                        selling_price=selling_price,
                         sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
                     )
                     created_count += 1
@@ -5595,11 +5616,11 @@ class PromotionTypeViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
 
 
 class PromotionViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
-    """Promotion management ViewSet (admin and marketing managers)."""
+    """Promotion management ViewSet (admin, marketing managers, content creators)."""
 
     queryset = Promotion.objects.all()
     serializer_class = PromotionSerializer
-    permission_classes = [IsAdminUser | IsMarketingManager]
+    permission_classes = [IsAdminUser | IsMarketingManager | IsContentCreator]
     parser_classes = [MultiPartParser, FormParser, JSONParser]  # Support file uploads
 
     def get_queryset(self):
@@ -5729,7 +5750,7 @@ class PromotionViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                 if hasattr(self.request.data, "_mutable"):
                     self.request.data._mutable = False
 
-        valid_locations = ["stories_carousel", "special_offers", "flash_sales"]
+        valid_locations = ["stories_carousel", "special_offers", "flash_sales", "homepage_hero"]
         invalid_locations = [loc for loc in display_locations if loc not in valid_locations]
         if invalid_locations:
             from rest_framework.exceptions import ValidationError
