@@ -6,7 +6,7 @@ from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
-from django.core.validators import MaxValueValidator, MinValueValidator
+from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -1810,13 +1810,13 @@ class Promotion(models.Model):
     )
     display_locations = models.JSONField(
         default=list,
-        help_text="List of display locations: 'stories_carousel', 'special_offers', 'flash_sales'",
+        help_text="List of display locations: 'stories_carousel', 'special_offers', 'flash_sales', 'homepage_hero'",
     )
     carousel_position = models.IntegerField(
         null=True,
         blank=True,
-        help_text="Position in stories carousel (1-5). 1 = Large banner, 2-5 = Grid positions",
-        validators=[MinValueValidator(1), MaxValueValidator(5)],
+        help_text="Display order in carousels (e.g. homepage hero). Any positive integer; lower = earlier.",
+        validators=[MinValueValidator(1)],
     )
 
     # Discount details
@@ -1844,6 +1844,21 @@ class Promotion(models.Model):
         blank=True,
         related_name="promotions",
         help_text="Specific products this promotion applies to",
+    )
+    featured_product = models.ForeignKey(
+        Product,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="featured_promotions",
+        help_text="Product showcased in storefront promo cards like the homepage hero.",
+    )
+    featured_sale_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Explicit sale price to show and apply for the featured product.",
     )
     product_types = models.CharField(
         max_length=2,

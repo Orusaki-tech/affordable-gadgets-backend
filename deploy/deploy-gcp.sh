@@ -26,10 +26,21 @@ fi
 
 # 2. Get VM IP and zone
 cd "${TERRAFORM_DIR}"
-IP="$(terraform output -raw external_ip)"
+IP="$(terraform output -raw external_ip 2>/dev/null || true)"
 ZONE="$(terraform output -raw zone)"
 INSTANCE_NAME="$(terraform output -raw instance_name)"
 cd "${BACKEND_ROOT}"
+
+if [[ -z "${IP}" ]]; then
+  echo "ERROR: VM has no external IP (external_ip is empty)."
+  echo "  This often happens after the VM was stopped—ephemeral IPs are released."
+  echo "  Fix: Recreate the instance so it gets a new external IP:"
+  echo "    cd ${TERRAFORM_DIR}"
+  echo "    terraform apply -replace='google_compute_instance.backend' -auto-approve -input=false"
+  echo "  Then run this deploy script again."
+  echo "  To avoid this in future, set create_static_ip = true in deploy/terraform/terraform.tfvars"
+  exit 1
+fi
 
 echo "==> VM: ${INSTANCE_NAME}, IP: ${IP}, zone: ${ZONE}"
 

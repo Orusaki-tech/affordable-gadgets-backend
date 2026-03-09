@@ -3064,8 +3064,14 @@ class PublicPromotionViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOn
         from django.utils import timezone
 
         now = timezone.now()
-        queryset = Promotion.objects.filter(
-            brand=brand, is_active=True, start_date__lte=now, end_date__gte=now
+        queryset = (
+            Promotion.objects.filter(brand=brand, is_active=True, start_date__lte=now, end_date__gte=now)
+            .select_related("featured_product")
+            .prefetch_related(
+                "products",
+                "featured_product__images",
+                "featured_product__inventory_units__product_color",
+            )
         )
 
         display_location_param = self.request.query_params.get("display_location")

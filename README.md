@@ -33,6 +33,4 @@ Django REST API backend for the Affordable Gadgets e-commerce platform (inventor
 ```bash
 ruff check .
 ruff format .
-```
-
-(Ruff config in `pyproject.toml`.)
+```(Ruff config in `pyproject.toml`.)

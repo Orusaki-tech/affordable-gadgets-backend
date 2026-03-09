@@ -114,7 +114,12 @@ class CartService:
 
                     if is_eligible:
                         # Calculate discounted price
-                        if promotion.discount_percentage:
+                        if (
+                            promotion.featured_product_id == product.id
+                            and promotion.featured_sale_price is not None
+                        ):
+                            final_price = Decimal(str(promotion.featured_sale_price))
+                        elif promotion.discount_percentage:
                             discount = (
                                 inventory_unit.selling_price * promotion.discount_percentage
                             ) / 100

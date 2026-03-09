@@ -3,11 +3,16 @@ Middleware for brand context and request timing (cold start vs in-app time).
 """
 
 import logging
+import threading
 import time
 
 from django.utils.deprecation import MiddlewareMixin
 
 logger = logging.getLogger(__name__)
+
+# Guard against re-entrant brand loading (avoids "maximum recursion depth exceeded"
+# if loading Brand triggers code that runs this middleware again).
+_loading_brand = threading.local()
 
 
 class RequestTimingMiddleware(MiddlewareMixin):
@@ -38,17 +43,31 @@ class BrandContextMiddleware(MiddlewareMixin):
 
     def process_request(self, request):
         """Set brand context from X-Brand-Code header."""
-        from inventory.models import Brand
-
         brand_code = request.headers.get("X-Brand-Code", "").strip()
         request.brand = None
 
-        if brand_code:
-            try:
-                brand = Brand.objects.filter(code=brand_code, is_active=True).first()
-                if brand:
-                    request.brand = brand
-            except Exception as e:
-                logger.warning(f"Error loading brand '{brand_code}': {e}")
+        if not brand_code:
+            return None
+
+        # Avoid re-entrancy: if we're already loading brand (e.g. import/ORM triggered middleware again), skip
+        if getattr(_loading_brand, "active", False):
+            return None
+
+        _loading_brand.active = True
+        try:
+            from inventory.models import Brand
+
+            brand = Brand.objects.filter(code=brand_code, is_active=True).first()
+            if brand:
+                request.brand = brand
+        except RecursionError:
+            logger.warning(
+                "Error loading brand '%s': maximum recursion depth exceeded (re-entrancy guard will prevent repeat)",
+                brand_code,
+            )
+        except Exception as e:
+            logger.warning(f"Error loading brand '{brand_code}': {e}")
+        finally:
+            _loading_brand.active = False
 
         return None

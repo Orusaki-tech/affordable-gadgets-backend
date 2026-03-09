@@ -5660,7 +5660,7 @@ class PromotionViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
         except Admin.DoesNotExist:
             admin = None
 
-        # Validate: require at least one product or product_type
+        # Validate: require at least one product, featured product, or product_type
         # Handle products from both JSON and FormData
         if "products" in self.request.data:
             products = self.request.data.get("products", [])
@@ -5675,13 +5675,19 @@ class PromotionViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
         else:
             has_products = False
 
+        featured_product_id = self.request.data.get("featured_product")
+        has_featured_product = bool(featured_product_id)
         product_types = self.request.data.get("product_types", "")
 
-        if not has_products and not product_types:
+        if not has_products and not has_featured_product and not product_types:
             from rest_framework.exceptions import ValidationError
 
             raise ValidationError(
-                {"non_field_errors": ["At least one product or product type must be specified."]}
+                {
+                    "non_field_errors": [
+                        "At least one product, featured product, or product type must be specified."
+                    ]
+                }
             )
 
         # Validate: cannot use both discount_percentage and discount_amount
@@ -5952,6 +5958,11 @@ class PromotionViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
             elif products:
                 product_ids = [int(products)] if str(products).isdigit() else []
 
+        if featured_product_id and str(featured_product_id).isdigit():
+            featured_product_int = int(featured_product_id)
+            if featured_product_int not in product_ids:
+                product_ids.append(featured_product_int)
+
         # Set products (empty list clears all products)
         promotion_instance.products.set(product_ids)
 
@@ -6116,17 +6127,21 @@ class PromotionViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                 else:
                     has_products = instance.products.exists() if instance else False
 
+                featured_product_id = self.request.data.get(
+                    "featured_product", instance.featured_product_id if instance else None
+                )
+                has_featured_product = bool(featured_product_id)
                 product_types = self.request.data.get(
                     "product_types", instance.product_types if instance else ""
                 )
 
-                if not has_products and not product_types:
+                if not has_products and not has_featured_product and not product_types:
                     from rest_framework.exceptions import ValidationError
 
                     raise ValidationError(
                         {
                             "non_field_errors": [
-                                "At least one product or product type must be specified."
+                                "At least one product, featured product, or product type must be specified."
                             ]
                         }
                     )
@@ -6150,6 +6165,11 @@ class PromotionViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                         ]
                     elif products:
                         product_ids = [int(products)] if str(products).isdigit() else []
+
+                    if featured_product_id and str(featured_product_id).isdigit():
+                        featured_product_int = int(featured_product_id)
+                        if featured_product_int not in product_ids:
+                            product_ids.append(featured_product_int)
 
                     promotion_instance.products.set(product_ids)
 
@@ -6211,15 +6231,23 @@ class PromotionViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
             # No products in request, check existing instance
             has_products = instance.products.exists() if instance else False
 
+        featured_product_id = self.request.data.get(
+            "featured_product", instance.featured_product_id if instance else None
+        )
+        has_featured_product = bool(featured_product_id)
         product_types = self.request.data.get(
             "product_types", instance.product_types if instance else ""
         )
 
-        if not has_products and not product_types:
+        if not has_products and not has_featured_product and not product_types:
             from rest_framework.exceptions import ValidationError
 
             raise ValidationError(
-                {"non_field_errors": ["At least one product or product type must be specified."]}
+                {
+                    "non_field_errors": [
+                        "At least one product, featured product, or product type must be specified."
+                    ]
+                }
             )
 
         promotion_instance = serializer.save()
@@ -6242,6 +6270,11 @@ class PromotionViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                 ]
             elif products:
                 product_ids = [int(products)] if str(products).isdigit() else []
+
+            if featured_product_id and str(featured_product_id).isdigit():
+                featured_product_int = int(featured_product_id)
+                if featured_product_int not in product_ids:
+                    product_ids.append(featured_product_int)
 
             # Set products (empty list clears all products)
             promotion_instance.products.set(product_ids)

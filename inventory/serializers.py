@@ -3447,6 +3447,8 @@ class PromotionSerializer(serializers.ModelSerializer):
             "carousel_position",
             "discount_percentage",
             "discount_amount",
+            "featured_product",
+            "featured_sale_price",
             "start_date",
             "end_date",
             "is_active",
@@ -3465,6 +3467,50 @@ class PromotionSerializer(serializers.ModelSerializer):
             "product_count",
             "banner_image_url",
         )
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+
+        featured_product = attrs.get(
+            "featured_product",
+            getattr(self.instance, "featured_product", None) if self.instance else None,
+        )
+        featured_sale_price = attrs.get(
+            "featured_sale_price",
+            getattr(self.instance, "featured_sale_price", None) if self.instance else None,
+        )
+        product_types = attrs.get(
+            "product_types",
+            getattr(self.instance, "product_types", "") if self.instance else "",
+        )
+
+        if featured_sale_price is not None and featured_product is None:
+            raise serializers.ValidationError(
+                {"featured_sale_price": "Select a featured product before setting a featured sale price."}
+            )
+
+        if featured_product and product_types and featured_product.product_type != product_types:
+            raise serializers.ValidationError(
+                {"featured_product": "Featured product must match the selected product type."}
+            )
+
+        if featured_product and featured_sale_price is not None:
+            units = featured_product.inventory_units.filter(
+                sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+                available_online=True,
+            )
+            if units.exists():
+                min_selling_price = min(units.values_list("selling_price", flat=True))
+                if featured_sale_price > min_selling_price:
+                    raise serializers.ValidationError(
+                        {
+                            "featured_sale_price": (
+                                "Featured sale price cannot be higher than the product's current lowest selling price."
+                            )
+                        }
+                    )
+
+        return attrs
 
     def validate_banner_image(self, value):
         import json

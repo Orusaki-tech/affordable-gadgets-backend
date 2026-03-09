@@ -1,3 +1,4 @@
+from django import forms
 from django.contrib import admin
 
 # Importing all models needed for the Admin panel.
@@ -255,9 +256,46 @@ class UnitAcquisitionSourceAdmin(admin.ModelAdmin):
     search_fields = ("name", "phone_number")
 
 
+DISPLAY_LOCATION_CHOICES = [
+    ("stories_carousel", "Stories carousel"),
+    ("special_offers", "Special offers"),
+    ("flash_sales", "Flash sales"),
+    ("homepage_hero", "Homepage hero"),
+]
+
+
+class PromotionAdminForm(forms.ModelForm):
+    """Form with checkbox selection for display_locations so admins can tick 'Homepage hero' etc."""
+
+    display_locations = forms.MultipleChoiceField(
+        choices=DISPLAY_LOCATION_CHOICES,
+        widget=forms.CheckboxSelectMultiple,
+        required=False,
+        help_text="Tick 'Homepage hero' to show this promotion in the homepage hero carousel.",
+    )
+
+    class Meta:
+        model = Promotion
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk and isinstance(self.instance.display_locations, list):
+            self.fields["display_locations"].initial = self.instance.display_locations
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        instance.display_locations = self.cleaned_data.get("display_locations") or []
+        if commit:
+            instance.save()
+        return instance
+
+
 @admin.register(Promotion)
 class PromotionAdmin(admin.ModelAdmin):
     """Admin view for managing promotions and special offers."""
+
+    form = PromotionAdminForm
 
     list_display = (
         "title",
@@ -279,7 +317,7 @@ class PromotionAdmin(admin.ModelAdmin):
         (
             "Discount Details",
             {
-                "fields": ("discount_percentage", "discount_amount"),
+                "fields": ("discount_percentage", "discount_amount", "featured_sale_price"),
                 "description": "Use either percentage or fixed amount, not both",
             },
         ),
@@ -287,8 +325,15 @@ class PromotionAdmin(admin.ModelAdmin):
         (
             "Product Targeting",
             {
-                "fields": ("product_types", "products"),
-                "description": "Apply to all products of a type, or select specific products. Leave both empty for site-wide promotions.",
+                "fields": ("product_types", "products", "featured_product"),
+                "description": "Apply to all products of a type, or select specific products. Choose a featured product when this promotion needs a storefront promo card.",
+            },
+        ),
+        (
+            "Display & placement",
+            {
+                "fields": ("display_locations", "carousel_position", "promotion_code"),
+                "description": "Tick 'Homepage hero' to show this promotion in the homepage hero carousel. Use carousel_position to control order (lower = earlier).",
             },
         ),
     )

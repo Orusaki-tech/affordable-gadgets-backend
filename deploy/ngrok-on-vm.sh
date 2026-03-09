@@ -46,7 +46,7 @@ set -e
 if ! command -v ngrok &>/dev/null; then
   echo "Downloading ngrok..." 1>&2
   ( sudo curl -sL "https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz" -o /tmp/ngrok.tgz || sudo curl -sL "https://github.com/ngrok/ngrok/releases/latest/download/ngrok-v3-stable-linux-amd64.tgz" -o /tmp/ngrok.tgz ) && sudo tar xzf /tmp/ngrok.tgz -C /tmp && sudo mv /tmp/ngrok /usr/local/bin/ngrok && sudo chmod +x /usr/local/bin/ngrok
-  rm -f /tmp/ngrok.tgz
+  sudo rm -f /tmp/ngrok.tgz
 fi
 if [ -n "${NGROK_AUTH}" ]; then
   ngrok config add-authtoken "${NGROK_AUTH}" 2>/dev/null || true

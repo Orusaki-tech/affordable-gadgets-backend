@@ -964,6 +964,16 @@ class PublicDeliveryRateSerializer(serializers.ModelSerializer):
         fields = ["id", "county", "ward", "price"]
 
 
+class PublicPromotionCardSerializer(serializers.Serializer):
+    product_id = serializers.IntegerField()
+    product_name = serializers.CharField()
+    product_slug = serializers.CharField(allow_blank=True, allow_null=True)
+    product_image_url = serializers.URLField(allow_null=True)
+    option_summary = serializers.CharField(allow_blank=True, allow_null=True)
+    original_price = serializers.DecimalField(max_digits=10, decimal_places=2)
+    promotional_price = serializers.DecimalField(max_digits=10, decimal_places=2)
+
+
 class PublicPromotionSerializer(serializers.ModelSerializer):
     """Public promotion serializer (limited fields)."""
 
@@ -972,6 +982,7 @@ class PublicPromotionSerializer(serializers.ModelSerializer):
     products = serializers.SerializerMethodField()
     banner_image_url = serializers.SerializerMethodField(read_only=True)
     banner_image = serializers.SerializerMethodField(read_only=True)
+    promo_card = serializers.SerializerMethodField()
 
     class Meta:
         model = Promotion
@@ -991,6 +1002,7 @@ class PublicPromotionSerializer(serializers.ModelSerializer):
             "display_locations",
             "carousel_position",
             "products",
+            "promo_card",
         )
         read_only_fields = (
             "is_currently_active",
@@ -998,6 +1010,7 @@ class PublicPromotionSerializer(serializers.ModelSerializer):
             "products",
             "banner_image_url",
             "banner_image",
+            "promo_card",
         )
 
     @extend_schema_field(serializers.URLField(allow_null=True))
@@ -1193,6 +1206,108 @@ class PublicPromotionSerializer(serializers.ModelSerializer):
     def get_products(self, obj):
         """Return list of product IDs associated with this promotion."""
         return list(obj.products.values_list("id", flat=True))
+
+    def _get_promo_card_product(self, obj):
+        if getattr(obj, "featured_product", None):
+            return obj.featured_product
+        return obj.products.order_by("id").first()
+
+    def _get_product_image_url(self, product):
+        from inventory.cloudinary_utils import get_optimized_image_url
+
+        primary_image = product.images.filter(is_primary=True).first() or product.images.first()
+        if primary_image and primary_image.image:
+            request = self.context.get("request")
+            original_url = primary_image.image.url
+            optimized_url = get_optimized_image_url(primary_image.image)
+            if (
+                request
+                and (original_url.startswith("/media/") or original_url.startswith("/static/"))
+            ):
+                absolute_url = request.build_absolute_uri(original_url)
+                return optimized_url if optimized_url and "cloudinary.com" in optimized_url else absolute_url
+            return optimized_url or original_url
+        return None
+
+    def _get_available_product_units(self, product):
+        brand = self.context.get("brand")
+        units = product.inventory_units.filter(
+            sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+            available_online=True,
+        ).select_related("product_color")
+        if brand:
+            units = units.filter(Q(brands=brand) | Q(brands__isnull=True)).distinct()
+        return list(units)
+
+    def _get_option_summary(self, units):
+        storages = sorted({int(unit.storage_gb) for unit in units if unit.storage_gb})
+        rams = sorted({int(unit.ram_gb) for unit in units if unit.ram_gb})
+        colors = sorted(
+            {
+                unit.product_color.name.strip()
+                for unit in units
+                if unit.product_color and unit.product_color.name
+            }
+        )
+
+        parts = []
+        if storages:
+            storage_labels = [f"{storage}GB" for storage in storages[:3]]
+            if len(storages) > 3:
+                storage_labels.append(f"+{len(storages) - 3} more")
+            parts.append(", ".join(storage_labels))
+        if rams:
+            ram_labels = [f"{ram}GB RAM" for ram in rams[:2]]
+            if len(rams) > 2:
+                ram_labels.append(f"+{len(rams) - 2} more")
+            parts.append(", ".join(ram_labels))
+        if colors:
+            parts.append(colors[0] if len(colors) == 1 else f"{len(colors)} colors")
+
+        return " • ".join(parts) if parts else None
+
+    def _get_promotional_price(self, obj, product, units):
+        if (
+            getattr(obj, "featured_product_id", None) == product.id
+            and obj.featured_sale_price is not None
+        ):
+            return Decimal(str(obj.featured_sale_price))
+
+        if not units:
+            return None
+
+        base_price = min(Decimal(str(unit.selling_price)) for unit in units)
+        if obj.discount_percentage:
+            discount = (base_price * Decimal(str(obj.discount_percentage))) / Decimal("100")
+            return max(Decimal("0.00"), base_price - discount)
+        if obj.discount_amount:
+            return max(Decimal("0.00"), base_price - Decimal(str(obj.discount_amount)))
+        return None
+
+    @extend_schema_field(PublicPromotionCardSerializer(allow_null=True))
+    def get_promo_card(self, obj):
+        product = self._get_promo_card_product(obj)
+        if not product:
+            return None
+
+        units = self._get_available_product_units(product)
+        if not units:
+            return None
+
+        original_price = min(Decimal(str(unit.selling_price)) for unit in units)
+        promotional_price = self._get_promotional_price(obj, product, units)
+        if promotional_price is None:
+            return None
+
+        return {
+            "product_id": product.id,
+            "product_name": product.product_name,
+            "product_slug": product.slug,
+            "product_image_url": self._get_product_image_url(product),
+            "option_summary": self._get_option_summary(units),
+            "original_price": original_price,
+            "promotional_price": promotional_price,
+        }
 
     @extend_schema_field(serializers.CharField(allow_null=True))
     def get_discount_display(self, obj):

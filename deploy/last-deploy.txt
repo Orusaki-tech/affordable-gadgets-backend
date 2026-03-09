@@ -1,6 +1,6 @@
-Deploy: 2026-02-28T13:48:47Z
+Deploy: 2026-03-02T10:23:46Z
 VM: affordable-gadgets-backend
-External IP: 34.133.194.98
+External IP: 34.29.8.90
 Zone: us-central1-a
 Project: gmail-486411
-Backend URL: http://34.133.194.98:8000
+Backend URL: http://34.29.8.90:8000

@@ -164,13 +164,14 @@ CORS_ALLOWED_ORIGINS = os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",")
 # Filter out empty strings from split
 CORS_ALLOWED_ORIGINS = [origin.strip() for origin in CORS_ALLOWED_ORIGINS if origin.strip()]
 
-# Allow Vercel preview deployments (dynamic URLs)
+# Allow Vercel preview deployments (dynamic URLs) and production custom domain
 # Vercel preview URLs follow pattern: https://*-git-*-*-*.vercel.app
-# Production URLs: https://*.vercel.app
+# Production URLs: https://*.vercel.app, https://www.affordable-gadgetske.com
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https://.*\.vercel\.app$",
     r"^https://.*-git-.*-.*-.*\.vercel\.app$",
     r"^https://affordable-gadgets-frontend.*\.vercel\.app$",
+    r"^https://(www\.)?affordable-gadgetske\.com$",
 ]
 
 CORS_ALLOW_CREDENTIALS = True

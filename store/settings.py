@@ -515,14 +515,17 @@ CORS_ALLOWED_ORIGINS = [
     "http://192.168.1.77:3000",  # Local network IP for e-commerce frontend
     "http://192.168.1.77:3001",  # Local network IP alternative port
     "http://192.168.1.77:3002",  # Local network IP alternative port
+    "https://www.affordable-gadgetske.com",  # Production e-commerce frontend
+    "https://affordable-gadgetske.com",  # Production (non-www)
 ]
 
-# Allow Vercel deployments in development configs as well.
+# Allow Vercel deployments and production domain in development configs as well.
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https://.*\.vercel\.app$",
     r"^https://.*-git-.*-.*-.*\.vercel\.app$",
     r"^https://affordable-gadgets-frontend.*\.vercel\.app$",
     r"^https://affordable-gadgets-admin.*\.vercel\.app$",
+    r"^https://(www\.)?affordable-gadgetske\.com$",
 ]
 
 # Allow credentials (cookies, authorization headers) if needed
@@ -541,6 +544,7 @@ CORS_ALLOW_HEADERS = [
     "x-brand-code",  # Required for brand-based filtering
     "idempotency-key",  # Required for order idempotency
     "x-idempotency-key",  # Alternative idempotency key header
+    "ngrok-skip-browser-warning",  # Allow frontend's ngrok dev header
 ]
 
 # Allow these HTTP methods
