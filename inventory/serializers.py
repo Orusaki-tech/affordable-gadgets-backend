@@ -122,8 +122,12 @@ class AdminSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_brands(self, obj):
-        """Return list of brands associated with this admin"""
-        brands = obj.brands.all()
+        """Return list of brands associated with this admin. When admin has no brands, include the default brand (AFFORDABLE_GADGETS) so the UI can default to it."""
+        brands = list(obj.brands.all())
+        if not brands:
+            default_brand = Brand.objects.filter(code="AFFORDABLE_GADGETS", is_active=True).first()
+            if default_brand:
+                brands = [default_brand]
         return [
             {
                 "id": brand.id,

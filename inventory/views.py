@@ -5793,8 +5793,10 @@ class PromotionViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                     }
                 )
 
-        # Auto-assign brand if not provided and admin has brands
+        # Auto-assign brand if not provided: use admin's single brand, or default to AFFORDABLE_GADGETS when admin has no brands
         brand_id = self.request.data.get("brand")
+        default_brand = Brand.objects.filter(code="AFFORDABLE_GADGETS", is_active=True).first()
+
         if not brand_id and admin and admin.brands.exists() and not admin.is_global_admin:
             # Auto-assign to first brand if admin has only one, or require selection if multiple
             if admin.brands.count() == 1:
@@ -5816,8 +5818,16 @@ class PromotionViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                         ]
                     }
                 )
+        elif not brand_id and default_brand:
+            # Admin has no brands or no admin: default to Affordable Gadgets so the form always has a valid brand
+            brand_id = default_brand.id
+            if hasattr(self.request.data, "_mutable"):
+                self.request.data._mutable = True
+            self.request.data["brand"] = brand_id
+            if hasattr(self.request.data, "_mutable"):
+                self.request.data._mutable = False
 
-        # Ensure brand is from admin's assigned brands (for non-superusers)
+        # Ensure brand is from admin's assigned brands, or the default brand when admin has none (for non-superusers)
         user = self.request.user
         if admin and not admin.is_global_admin and not user.is_superuser:
             if brand_id:
@@ -5829,12 +5839,13 @@ class PromotionViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                             "You can only create promotions for your assigned brands."
                         )
                 else:
-                    # Admin with no assigned brands cannot create promotions
-                    from rest_framework.exceptions import PermissionDenied
+                    # Admin with no assigned brands: only allow the default AFFORDABLE_GADGETS brand
+                    if not default_brand or int(brand_id) != default_brand.id:
+                        from rest_framework.exceptions import PermissionDenied
 
-                    raise PermissionDenied(
-                        "You must be assigned to at least one brand to create promotions."
-                    )
+                        raise PermissionDenied(
+                            "You must be assigned to at least one brand to create promotions, or use the default brand."
+                        )
 
         # Promotion code will be auto-generated in model's save() method if not provided
         # #region agent log
