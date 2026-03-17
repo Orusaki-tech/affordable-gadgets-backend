@@ -8,6 +8,7 @@ from django.views.static import serve as static_serve
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 
 from inventory import views as inventory_views
+from inventory.feeds import google_products_feed
 
 
 def api_root(request):
@@ -42,6 +43,8 @@ urlpatterns = [
     # 0. Root and health (keep-warm / monitoring)
     path("", api_root, name="api-root"),
     path("health/", health, name="health"),
+    # 0.5 Google Merchant Center feeds (public)
+    path("feeds/google-products.xml", google_products_feed, name="google-products-feed"),
     # 1. Django Admin Interface
     path("admin/", admin.site.urls),
     path("api/auth/token/login/", inventory_views.AdminTokenLoginView.as_view()),
