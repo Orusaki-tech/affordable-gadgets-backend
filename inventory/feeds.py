@@ -84,6 +84,62 @@ def _get_media_base_url(site_base_url: str) -> str:
     return forced or site_base_url
 
 
+def _cloudinary_url_from_name(name: str) -> str:
+    """
+    Build a direct Cloudinary delivery URL from a stored ImageField name/path.
+
+    In some environments, even with Cloudinary configured, `image.url` can be a relative
+    path like `/media/...` which Merchant Center rejects. Our DB typically stores a
+    Cloudinary public-id-ish path in `image.name` (e.g. `media/product_photos/<public_id>`).
+    """
+    cloud_name = (
+        (getattr(settings, "CLOUDINARY_CLOUD_NAME", "") or "").strip()
+        or (getattr(settings, "CLOUDINARY_STORAGE", {}) or {}).get("CLOUD_NAME", "").strip()
+    )
+    raw = (name or "").strip().lstrip("/")
+    if not cloud_name or not raw:
+        return ""
+
+    # Common: DB stores leading "media/" folder; strip it for cleaner public IDs.
+    public_id = raw[len("media/") :] if raw.startswith("media/") else raw
+    public_id = public_id.lstrip("/")
+
+    # Cloudinary delivery URL (no version needed).
+    return f"https://res.cloudinary.com/{cloud_name}/image/upload/{public_id}"
+
+
+def _image_field_to_public_url(site_base_url: str, image_field) -> str:
+    """
+    Return an absolute https URL for a Django File/ImageField suitable for Merchant Center.
+    """
+    if not image_field:
+        return ""
+
+    media_base_url = _get_media_base_url(site_base_url)
+
+    # 1) Prefer whatever storage gives us, if it's already absolute.
+    try:
+        raw_url = (image_field.url or "").strip()
+    except Exception:
+        raw_url = ""
+
+    if raw_url.startswith(("http://", "https://", "//")):
+        return _absolute_url(media_base_url, raw_url)
+
+    # 2) If Cloudinary is configured, build a Cloudinary URL from the stored name.
+    try:
+        raw_name = (image_field.name or "").strip()
+    except Exception:
+        raw_name = ""
+
+    cloudinary_url = _cloudinary_url_from_name(raw_name)
+    if cloudinary_url:
+        return cloudinary_url
+
+    # 3) Last resort: make relative url/name absolute to media_base_url.
+    return _absolute_url(media_base_url, raw_url or raw_name)
+
+
 def _get_request_base_url(request: HttpRequest) -> str:
     """
     Base URL for resolving relative storage URLs coming from Django (e.g. /media/..).
@@ -145,7 +201,6 @@ def _safe_text(value: str, max_len: int) -> str:
 
 def _pick_image_url(site_base_url: str, unit: InventoryUnit) -> str:
     # Prefer unit primary image, then any unit image, then product primary image, then any product image.
-    media_base_url = _get_media_base_url(site_base_url)
     unit_images = list(getattr(unit, "prefetched_images", []))
     if not unit_images and hasattr(unit, "images"):
         try:
@@ -158,7 +213,7 @@ def _pick_image_url(site_base_url: str, unit: InventoryUnit) -> str:
 
     if chosen_unit and chosen_unit.image:
         try:
-            return _absolute_url(media_base_url, chosen_unit.image.url)
+            return _image_field_to_public_url(site_base_url, chosen_unit.image)
         except Exception:
             pass
 
@@ -173,7 +228,7 @@ def _pick_image_url(site_base_url: str, unit: InventoryUnit) -> str:
     chosen_product = primary_product or (product_images[0] if product_images else None)
     if chosen_product and chosen_product.image:
         try:
-            return _absolute_url(media_base_url, chosen_product.image.url)
+            return _image_field_to_public_url(site_base_url, chosen_product.image)
         except Exception:
             pass
 
