@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from decimal import Decimal
 from typing import Optional
 from urllib.parse import urljoin
@@ -24,20 +23,73 @@ def _normalize_site_url(value: str) -> str:
         url = "https:" + url
     if not url.startswith(("http://", "https://")):
         url = "https://" + url
+    if url.startswith("http://"):
+        url = "https://" + url[len("http://") :]
     return url.rstrip("/")
 
 
+def _absolute_url(base_url: str, value: str) -> str:
+    """
+    Ensure value is an absolute https URL.
+    - If value is already absolute, normalize to https.
+    - If value is relative (e.g. /media/x.jpg), join to base_url.
+    """
+    raw = (value or "").strip()
+    if not raw:
+        return ""
+    if raw.startswith("//"):
+        raw = "https:" + raw
+    if raw.startswith("http://"):
+        raw = "https://" + raw[len("http://") :]
+    if raw.startswith(("http://", "https://")):
+        return raw
+    return urljoin(base_url.rstrip("/") + "/", raw.lstrip("/"))
+
+
 def _get_site_base_url(request: HttpRequest, brand: Optional[Brand]) -> str:
+    # Optional hard override so feeds fetched from ngrok still point to canonical domain.
+    forced = _normalize_site_url(getattr(settings, "MERCHANT_FEED_SITE_BASE_URL", ""))
+    if forced:
+        return forced
+
     if brand and brand.ecommerce_domain:
         normalized = _normalize_site_url(brand.ecommerce_domain)
         if normalized:
             return normalized
+
+    # Allow reusing existing frontend env var name too (common on deployments).
+    public_site = _normalize_site_url(getattr(settings, "PUBLIC_SITE_URL", ""))
+    if public_site:
+        return public_site
 
     frontend = _normalize_site_url(getattr(settings, "FRONTEND_BASE_URL", ""))
     if frontend:
         return frontend
 
     # Last resort: derive from request host
+    return _normalize_site_url(request.build_absolute_uri("/"))
+
+
+def _get_media_base_url(site_base_url: str) -> str:
+    """
+    Base URL for media assets in the feed.
+
+    If you always store images in Cloudinary, set:
+      MERCHANT_FEED_MEDIA_BASE_URL=https://res.cloudinary.com/<cloud_name>/
+
+    This is only used to resolve relative image paths (e.g. /media/..).
+    Absolute URLs from storage are left as-is (normalized to https).
+    """
+    forced = _normalize_site_url(getattr(settings, "MERCHANT_FEED_MEDIA_BASE_URL", ""))
+    return forced or site_base_url
+
+
+def _get_request_base_url(request: HttpRequest) -> str:
+    """
+    Base URL for resolving relative storage URLs coming from Django (e.g. /media/..).
+    This should typically be the backend host (ngrok or your API domain), because that host
+    is what actually serves /media/ in many deployments.
+    """
     return _normalize_site_url(request.build_absolute_uri("/"))
 
 
@@ -93,6 +145,7 @@ def _safe_text(value: str, max_len: int) -> str:
 
 def _pick_image_url(site_base_url: str, unit: InventoryUnit) -> str:
     # Prefer unit primary image, then any unit image, then product primary image, then any product image.
+    media_base_url = _get_media_base_url(site_base_url)
     unit_images = list(getattr(unit, "prefetched_images", []))
     if not unit_images and hasattr(unit, "images"):
         try:
@@ -105,7 +158,7 @@ def _pick_image_url(site_base_url: str, unit: InventoryUnit) -> str:
 
     if chosen_unit and chosen_unit.image:
         try:
-            return chosen_unit.image.url
+            return _absolute_url(media_base_url, chosen_unit.image.url)
         except Exception:
             pass
 
@@ -120,12 +173,12 @@ def _pick_image_url(site_base_url: str, unit: InventoryUnit) -> str:
     chosen_product = primary_product or (product_images[0] if product_images else None)
     if chosen_product and chosen_product.image:
         try:
-            return chosen_product.image.url
+            return _absolute_url(media_base_url, chosen_product.image.url)
         except Exception:
             pass
 
     # Fallback to a known logo path on the frontend domain
-    return urljoin(site_base_url + "/", "affordablelogo.png")
+    return _absolute_url(site_base_url, "affordablelogo.png")
 
 
 def _build_unit_title(unit: InventoryUnit) -> str:
@@ -152,6 +205,7 @@ def google_products_feed(request: HttpRequest) -> HttpResponse:
     """
     brand = _get_brand_for_feed(request)
     site_base_url = _get_site_base_url(request, brand)
+    request_base_url = _get_request_base_url(request)
 
     qs = (
         InventoryUnit.objects.select_related("product_template", "product_color")
@@ -204,7 +258,7 @@ def google_products_feed(request: HttpRequest) -> HttpResponse:
             # Skip products without a stable frontend URL.
             continue
 
-        product_link = f"{site_base_url}/products/{slug}"
+        product_link = _absolute_url(site_base_url, f"/products/{slug}")
         title = _build_unit_title(unit)
         description = _safe_text(
             product.meta_description
@@ -215,6 +269,10 @@ def google_products_feed(request: HttpRequest) -> HttpResponse:
         )
 
         image_link = _pick_image_url(site_base_url, unit)
+        # If storage returned a relative URL (e.g. /media/...), resolve it to the backend host
+        # so Merchant Center gets a valid absolute URL.
+        if image_link.startswith("/"):
+            image_link = _absolute_url(request_base_url, image_link)
         availability = _unit_availability_to_google(unit)
         condition = _unit_condition_to_google(unit.condition)
 
