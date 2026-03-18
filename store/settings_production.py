@@ -171,6 +171,7 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https://.*\.vercel\.app$",
     r"^https://.*-git-.*-.*-.*\.vercel\.app$",
     r"^https://affordable-gadgets-frontend.*\.vercel\.app$",
+    r"^https://affordable-gadgets-admin.*\.vercel\.app$",
     r"^https://(www\.)?affordable-gadgetske\.com$",
 ]
 
