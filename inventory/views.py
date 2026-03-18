@@ -470,6 +470,11 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
             from .permissions import IsInventoryManagerOrSuperuser
 
             return [IsInventoryManagerOrSuperuser()]
+        if self.action in ["upload_images", "delete_images", "set_primary_image"]:
+            # Inventory Managers and Superusers can manage product images from product detail
+            from .permissions import IsInventoryManagerOrSuperuser
+
+            return [IsInventoryManagerOrSuperuser()]
         if self.action == "update_content":
             # Content Creators and Inventory Managers can update content fields
             from .permissions import IsContentCreatorOrInventoryManager
@@ -506,6 +511,146 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
 
                 raise NotFound()
         return super().retrieve(request, *args, **kwargs)
+
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="images/upload",
+        parser_classes=[MultiPartParser, FormParser],
+    )
+    def upload_images(self, request, pk=None):
+        """
+        Upload one or more images for a Product.
+
+        This is intended for Inventory Managers to attach product images directly from the product screen,
+        without needing to call the standalone ProductImage endpoint.
+
+        Expected multipart form-data:
+        - images: one or more files (recommended field name)
+          OR image: a single file (backward-compatible convenience)
+        - alt_text (optional): string applied to all uploaded images
+        - image_caption (optional): string applied to all uploaded images
+        - start_display_order (optional): integer; if provided, assigns incremental display_order
+        - make_primary (optional): boolean; if true, first uploaded image becomes primary (and clears others)
+        """
+        product = self.get_object()
+
+        files = request.FILES.getlist("images")
+        if not files and "image" in request.FILES:
+            files = [request.FILES["image"]]
+
+        if not files:
+            return Response(
+                {"detail": "No files uploaded. Provide 'images' (multi) or 'image' (single)."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        alt_text = request.data.get("alt_text", "")
+        image_caption = request.data.get("image_caption", "")
+
+        start_display_order = request.data.get("start_display_order", None)
+        try:
+            start_display_order_int = int(start_display_order) if start_display_order is not None else None
+        except (TypeError, ValueError):
+            return Response(
+                {"start_display_order": "Must be an integer."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        make_primary_raw = request.data.get("make_primary", False)
+        make_primary = str(make_primary_raw).lower() in ("1", "true", "yes", "on")
+
+        from .cloudinary_utils import upload_image_to_cloudinary
+
+        created = []
+        for idx, f in enumerate(files):
+            saved_name, _ = upload_image_to_cloudinary(f, "product_photos")
+            if not saved_name:
+                return Response(
+                    {"detail": "Image upload failed."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            display_order = (
+                (start_display_order_int + idx) if start_display_order_int is not None else 0
+            )
+
+            created.append(
+                ProductImage.objects.create(
+                    product=product,
+                    image=saved_name,  # store Cloudinary path in DB
+                    is_primary=False,
+                    alt_text=alt_text,
+                    image_caption=image_caption,
+                    display_order=display_order,
+                )
+            )
+
+        if make_primary:
+            ProductImage.objects.filter(product=product, is_primary=True).update(is_primary=False)
+            created[0].is_primary = True
+            created[0].save(update_fields=["is_primary"])
+        else:
+            has_primary = ProductImage.objects.filter(product=product, is_primary=True).exists()
+            if not has_primary:
+                created[0].is_primary = True
+                created[0].save(update_fields=["is_primary"])
+
+        serializer = ProductImageSerializer(created, many=True, context={"request": request})
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["post"], url_path="images/set-primary")
+    def set_primary_image(self, request, pk=None):
+        """Set a specific product image as primary."""
+        product = self.get_object()
+        image_id = request.data.get("image_id")
+        try:
+            image_id_int = int(image_id)
+        except (TypeError, ValueError):
+            return Response({"image_id": "Must be an integer."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            img = ProductImage.objects.get(pk=image_id_int, product=product)
+        except ProductImage.DoesNotExist:
+            return Response({"detail": "Image not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        ProductImage.objects.filter(product=product, is_primary=True).exclude(pk=img.pk).update(
+            is_primary=False
+        )
+        if not img.is_primary:
+            img.is_primary = True
+            img.save(update_fields=["is_primary"])
+
+        return Response({"detail": "Primary image updated."}, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"], url_path="images/delete")
+    def delete_images(self, request, pk=None):
+        """
+        Delete one or more product images.
+
+        Body:
+        - image_ids: list[int]
+        """
+        product = self.get_object()
+        image_ids = request.data.get("image_ids", [])
+        if not isinstance(image_ids, list) or not image_ids:
+            return Response(
+                {"image_ids": "Provide a non-empty list of image IDs."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        qs = ProductImage.objects.filter(product=product, id__in=image_ids)
+        deleted_count = qs.count()
+        was_primary_deleted = qs.filter(is_primary=True).exists()
+        qs.delete()
+
+        if was_primary_deleted:
+            next_img = ProductImage.objects.filter(product=product).order_by("display_order", "id").first()
+            if next_img:
+                next_img.is_primary = True
+                next_img.save(update_fields=["is_primary"])
+
+        return Response({"deleted": deleted_count}, status=status.HTTP_200_OK)
 
     def perform_create(self, serializer):
         """Set created_by and updated_by, and auto-assign to admin's brands if not specified."""
@@ -840,12 +985,12 @@ class InventoryUnitImageViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     CRUD for individual inventory unit images.
     Only Admins can add/manage images; everyone can view unit images
     (which are nested in InventoryUnitViewSet).
-    Uses IsAdminOrReadOnly.
+    Uses IsInventoryManagerOrMarketingManagerReadOnly (write for Inventory Managers).
     """
 
     queryset = InventoryUnitImage.objects.all().select_related("inventory_unit", "color")
     serializer_class = InventoryUnitImageSerializer
-    permission_classes = [IsAdminOrReadOnly]
+    permission_classes = [IsInventoryManagerOrMarketingManagerReadOnly]
     parser_classes = [MultiPartParser, FormParser]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = {"inventory_unit": ["exact"]}
@@ -3328,7 +3473,7 @@ class ProductAccessoryViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
 
     queryset = _product_accessory_queryset()
     serializer_class = ProductAccessorySerializer
-    permission_classes = [IsAdminOrReadOnly]
+    permission_classes = [IsSalespersonOrInventoryManagerOrMarketingManagerReadOnly]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["main_product", "accessory"]
 
