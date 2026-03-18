@@ -116,7 +116,8 @@ echo "==> Updating backend ALLOWED_HOSTS and CORS on VM to include ${NGROK_HOST}
     # NOT the API URL (ngrok URL). If your admin is on Vercel, its origin must be allowed.
     ADMIN_ORIGIN=\"https://affordable-gadgets-admin.vercel.app\"
     if grep -q '^CORS_ALLOWED_ORIGINS=' .env 2>/dev/null; then
-      if ! grep -q \"^CORS_ALLOWED_ORIGINS=.*${ADMIN_ORIGIN}\" .env 2>/dev/null; then
+      # Escape \$ so ADMIN_ORIGIN is expanded on the VM (not locally in this script).
+      if ! grep -q \"^CORS_ALLOWED_ORIGINS=.*\\${ADMIN_ORIGIN}\" .env 2>/dev/null; then
         sed -i 's|^CORS_ALLOWED_ORIGINS=\\(.*\\)|CORS_ALLOWED_ORIGINS=\\1,'\"${ADMIN_ORIGIN}\"'|' .env 2>/dev/null || true
       fi
     else
