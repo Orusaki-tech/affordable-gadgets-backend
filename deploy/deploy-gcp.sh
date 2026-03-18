@@ -58,6 +58,17 @@ echo "DJANGO_SETTINGS_MODULE=store.settings_production" >> "${ENV_REMOTE}"
 echo "DJANGO_ENV=production" >> "${ENV_REMOTE}"
 # REDIS_URL is not set on GCP (no Railway Redis) → Django uses LocMemCache
 
+# Ensure CORS includes the admin app origin (browser origin), otherwise Vercel -> API requests will be blocked by CORS.
+ADMIN_ORIGIN_DEFAULT="https://affordable-gadgets-admin.vercel.app"
+if grep -q '^CORS_ALLOWED_ORIGINS=' "${ENV_REMOTE}"; then
+  if ! grep -q "^CORS_ALLOWED_ORIGINS=.*${ADMIN_ORIGIN_DEFAULT}" "${ENV_REMOTE}"; then
+    # Append while preserving existing values.
+    sed -i '' "s|^CORS_ALLOWED_ORIGINS=\\(.*\\)|CORS_ALLOWED_ORIGINS=\\1,${ADMIN_ORIGIN_DEFAULT}|" "${ENV_REMOTE}" 2>/dev/null || true
+  fi
+else
+  echo "CORS_ALLOWED_ORIGINS=${ADMIN_ORIGIN_DEFAULT}" >> "${ENV_REMOTE}"
+fi
+
 # 4. Tarball backend (exclude git, venv, cache, local env, and the tarball itself)
 TARBALL="backend-deploy.tar.gz"
 echo "==> Creating tarball..."

@@ -7,10 +7,11 @@ db_password: "CHANGE_ME"   # use -e db_password=... or vault
 
 # Django production
 secret_key: "CHANGE_ME"   # use -e secret_key=... or vault; generate: python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
-allowed_hosts: "localhost,127.0.0.1,YOUR_VM_IP"   # add your VM external IP or domain
-cors_allowed_origins: "http://localhost:3000"
-frontend_base_url: "http://localhost:3000"
-csrf_trusted_origins: "http://YOUR_VM_IP"   # or https://yourdomain.com
+allowed_hosts: "localhost,127.0.0.1,YOUR_VM_IP,www.affordable-gadgetske.com,affordable-gadgetske.com"   # add your VM external IP or domain
+cors_allowed_origins: "https://www.affordable-gadgetske.com,https://affordable-gadgetske.com,https://affordable-gadgets-admin.vercel.app"
+frontend_base_url: "https://www.affordable-gadgetske.com"
+merchant_feed_site_base_url: "https://www.affordable-gadgetske.com"
+csrf_trusted_origins: "https://YOUR_VM_IP,https://www.affordable-gadgetske.com,https://affordable-gadgetske.com,https://affordable-gadgets-admin.vercel.app"
 
 # Optional: Cloudinary, Pesapal (set in vault or -e)
 cloudinary_cloud_name: ""
