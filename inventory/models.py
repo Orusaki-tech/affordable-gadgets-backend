@@ -341,17 +341,34 @@ class Product(models.Model):
         return self.product_name
 
     def save(self, *args, **kwargs):
-        """Auto-generate slug from product_name if not provided"""
-        if not self.slug and self.product_name:
-            from django.utils.text import slugify
+        """
+        Ensure slug is always unique.
 
+        - If a slug is provided (e.g. from the admin UI), normalize it and
+          de-duplicate by appending a numeric suffix when needed.
+        - If no slug is provided but product_name exists, generate a slug from
+          product_name and apply the same de-duplication logic.
+        """
+        from django.utils.text import slugify
+
+        base_slug = None
+
+        if self.slug:
+            # Normalize any provided slug
+            base_slug = slugify(self.slug)
+        elif self.product_name:
+            # Generate from product_name when slug is empty
             base_slug = slugify(self.product_name)
+
+        if base_slug:
             slug = base_slug
             counter = 1
+            # Ensure uniqueness by appending a counter when there are collisions
             while Product.objects.filter(slug=slug).exclude(pk=self.pk).exists():
                 slug = f"{base_slug}-{counter}"
                 counter += 1
             self.slug = slug
+
         super().save(*args, **kwargs)
 
 
