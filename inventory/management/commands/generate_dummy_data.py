@@ -446,16 +446,23 @@ class Command(BaseCommand):
             model_list = models_data.get(brand, ["Model X", "Model Y"])
             model = random.choice(model_list)
             product_type = random.choice(product_types)
+            model_for_keywords = model
+            model_series_for_template = None
 
             if product_type != "AC":
                 product_name = f"{brand} {model}"
                 slug = slugify(f"{brand}-{model}-{i + 1}")
+                # Ensure uniqueness for the template constraint (brand, model_series, product_type)
+                model_series_for_template = f"{model}-{i + 1}"
             else:
                 accessory_type = random.choice(
                     ["Charger", "Case", "Screen Protector", "Earbuds", "Power Bank"]
                 )
                 product_name = f"{brand} {accessory_type}"
                 slug = slugify(f"{brand}-{accessory_type}-{i + 1}")
+                # For accessories, keep model_series aligned with the accessory type.
+                model_for_keywords = accessory_type
+                model_series_for_template = f"{accessory_type}-{i + 1}"
 
             # Ensure slug is unique
             base_slug = slug
@@ -470,7 +477,7 @@ class Command(BaseCommand):
                 product_type=product_type,
                 product_name=product_name,
                 brand=brand,
-                model_series=model,
+                model_series=model_series_for_template,
                 product_description=f"High-quality {type_names[product_type]} with advanced features. Perfect for everyday use.",
                 min_stock_threshold=5,
                 reorder_point=10,
@@ -479,7 +486,7 @@ class Command(BaseCommand):
                 slug=slug,
                 meta_title=f"{product_name} - Best {type_names[product_type]} Deals",
                 meta_description=f"Shop {product_name} at Affordable Gadgets. Best prices and quality guaranteed.",
-                keywords=f"{brand}, {model}, {type_names[product_type]}, smartphone, mobile",
+                keywords=f"{brand}, {model_for_keywords}, {type_names[product_type]}, smartphone, mobile",
                 product_highlights=[
                     "High-quality display",
                     "Long battery life",

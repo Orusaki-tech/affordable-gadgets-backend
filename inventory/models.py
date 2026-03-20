@@ -336,6 +336,12 @@ class Product(models.Model):
             models.Index(fields=["is_published", "is_discontinued"]),
             models.Index(fields=["product_type"]),
         ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=("brand", "model_series", "product_type"),
+                name="uniq_product_brand_model_series_product_type",
+            )
+        ]
 
     def __str__(self):
         return self.product_name
@@ -346,30 +352,110 @@ class Product(models.Model):
 
         - If a slug is provided (e.g. from the admin UI), normalize it and
           de-duplicate by appending a numeric suffix when needed.
-        - If no slug is provided but product_name exists, generate a slug from
-          product_name and apply the same de-duplication logic.
+        - If no slug is provided, generate it from structured fields:
+          `brand` + `model_series` (+ `product_type` for extra separation).
+          For accessories, this assumes `model_series` contains the accessory type.
+          If `brand`/`model_series` are missing, we fall back to `product_name`.
         """
         from django.utils.text import slugify
+        from django.db import IntegrityError
+        from django.core.exceptions import ValidationError
+
+        def _is_missing(value) -> bool:
+            return not value or value.strip() == "" or value.strip().upper() == "N/A"
 
         base_slug = None
 
-        if self.slug:
-            # Normalize any provided slug
-            base_slug = slugify(self.slug)
-        elif self.product_name:
-            # Generate from product_name when slug is empty
-            base_slug = slugify(self.product_name)
+        # Normalize core identifying fields (prevents accidental duplicates from whitespace).
+        self.brand = (self.brand or "").strip()
+        self.model_series = (self.model_series or "").strip()
+        self.product_type = (self.product_type or "").strip()
 
-        if base_slug:
+        # Hard validation for accessories: ensure model_series is provided.
+        if self.product_type == Product.ProductType.ACCESSORY and _is_missing(self.model_series):
+            raise ValidationError(
+                {"model_series": "Accessories require model_series. Please add model_series (e.g. Charger, Case, Earbuds)."}
+            )
+
+        # Prevent template duplicates at the model layer (so admin sees a friendly error).
+        duplicate_qs = Product.objects.filter(
+            brand=self.brand, model_series=self.model_series, product_type=self.product_type
+        )
+        if self.pk:
+            duplicate_qs = duplicate_qs.exclude(pk=self.pk)
+        if duplicate_qs.exists():
+            raise ValidationError(
+                {
+                    "non_field_errors": (
+                        "A product template already exists with the same brand, model_series, and product_type."
+                    )
+                }
+            )
+
+        # Normalize slug input (treat whitespace-only as empty).
+        slug_input = (self.slug or "").strip()
+
+        if slug_input:
+            # Normalize any provided slug
+            base_slug = slugify(slug_input)
+        else:
+            # Generate from structured fields when slug is empty.
+            # We treat empty/"N/A" values as missing so we don't end up with "na" slugs.
+            brand = self.brand
+            model_series = self.model_series
+            product_type = self.product_type
+
+            # Prevent accidental URL changes: if this is an update and the slug
+            # was cleared, keep the existing slug instead of regenerating.
+            if self.pk:
+                existing_slug = (
+                    Product.objects.filter(pk=self.pk)
+                    .values_list("slug", flat=True)
+                    .first()
+                )
+                if existing_slug and str(existing_slug).strip():
+                    self.slug = existing_slug
+                    return super().save(*args, **kwargs)
+
+            if not _is_missing(brand) and not _is_missing(model_series):
+                # Include product_type so phone/laptop/tablet/accessory templates
+                # don't collide when model_series happens to match.
+                base_slug = slugify(f"{brand}-{model_series}-{product_type}".strip("-"))
+            elif self.product_name:
+                # Defensive fallback: product_name is always required for Product.
+                base_slug = slugify(self.product_name)
+
+        if not base_slug:
+            # product_name is required by the model; this is a defensive fallback.
+            return super().save(*args, **kwargs)
+
+        # Generate a unique slug candidate. For high-concurrency cases, the DB
+        # may still reject the first candidate due to a race; retry with the
+        # next available suffix.
+        max_attempts = 10
+        attempt = 0
+        exclude_pk = self.pk
+
+        while True:
             slug = base_slug
             counter = 1
+
             # Ensure uniqueness by appending a counter when there are collisions
-            while Product.objects.filter(slug=slug).exclude(pk=self.pk).exists():
+            while Product.objects.filter(slug=slug).exclude(pk=exclude_pk).exists():
                 slug = f"{base_slug}-{counter}"
                 counter += 1
-            self.slug = slug
 
-        super().save(*args, **kwargs)
+            self.slug = slug
+            try:
+                return super().save(*args, **kwargs)
+            except IntegrityError as e:
+                attempt += 1
+                # Only retry for slug uniqueness violations; other integrity
+                # errors should surface to the caller.
+                if attempt >= max_attempts or "slug" not in str(e).lower():
+                    raise
+                # Retry: another transaction likely inserted the same slug.
+                continue
 
 
 class ProductImage(models.Model):

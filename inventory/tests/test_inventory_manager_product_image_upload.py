@@ -46,7 +46,12 @@ class InventoryManagerProductImageUploadTests(APITestCase):
         self.sales_admin = Admin.objects.create(user=self.sales_user, admin_code="ADM-SP-IMG-002")
         self.sales_admin.roles.add(self.sales_role)
 
-        self.product = Product.objects.create(product_name="Upload Images Product")
+        self.product = Product.objects.create(
+            product_name="Upload Images Product",
+            brand="TestBrand",
+            model_series="TestModelImagesUpload",
+            product_type=Product.ProductType.PHONE,
+        )
 
         self.image_file_1 = SimpleUploadedFile(
             "test-image-1.jpg",

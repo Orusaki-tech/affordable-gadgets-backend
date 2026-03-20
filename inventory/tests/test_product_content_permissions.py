@@ -49,7 +49,12 @@ class ProductContentPermissionTests(APITestCase):
         )
         self.sales_admin.roles.add(self.sales_role)
 
-        self.product = Product.objects.create(product_name="Test Product")
+        self.product = Product.objects.create(
+            product_name="Test Product",
+            brand="TestBrand",
+            model_series="TestModel",
+            product_type=Product.ProductType.PHONE,
+        )
 
     def test_content_creator_can_update_content(self):
         self.client.force_authenticate(user=self.creator_user)

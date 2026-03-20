@@ -52,7 +52,12 @@ class ProductImagePermissionTests(APITestCase):
         )
         self.sales_admin.roles.add(self.sales_role)
 
-        self.product = Product.objects.create(product_name="Test Product Images")
+        self.product = Product.objects.create(
+            product_name="Test Product Images",
+            brand="TestBrand",
+            model_series="TestModelImages",
+            product_type=Product.ProductType.PHONE,
+        )
 
         self.image_file = SimpleUploadedFile(
             "test-image.jpg",
