@@ -352,6 +352,8 @@ class Product(models.Model):
 
         - If a slug is provided (e.g. from the admin UI), normalize it and
           de-duplicate by appending a numeric suffix when needed.
+          For new products, very weak slugs (e.g. "i") are ignored and
+          regenerated from structured fields.
         - If no slug is provided, generate it from structured fields:
           `brand` + `model_series` (+ `product_type` for extra separation).
           For accessories, this assumes `model_series` contains the accessory type.
@@ -397,7 +399,13 @@ class Product(models.Model):
 
         if slug_input:
             # Normalize any provided slug
-            base_slug = slugify(slug_input)
+            normalized_slug = slugify(slug_input)
+            # Harden create flow: ignore weak slugs from clients and regenerate
+            # from structured fields to keep accessory/product URLs meaningful.
+            if self.pk is None and normalized_slug and len(normalized_slug) < 3:
+                slug_input = ""
+            else:
+                base_slug = normalized_slug
         else:
             # Generate from structured fields when slug is empty.
             # We treat empty/"N/A" values as missing so we don't end up with "na" slugs.
@@ -418,9 +426,10 @@ class Product(models.Model):
                     return super().save(*args, **kwargs)
 
             if not _is_missing(brand) and not _is_missing(model_series):
-                # Include product_type so phone/laptop/tablet/accessory templates
-                # don't collide when model_series happens to match.
-                base_slug = slugify(f"{brand}-{model_series}-{product_type}".strip("-"))
+                # Prefer brand + model_series + product_name for readable, stable slugs.
+                # If product_name is somehow missing, fall back to product_type.
+                name_or_type = self.product_name if not _is_missing(self.product_name) else product_type
+                base_slug = slugify(f"{brand}-{model_series}-{name_or_type}".strip("-"))
             elif self.product_name:
                 # Defensive fallback: product_name is always required for Product.
                 base_slug = slugify(self.product_name)

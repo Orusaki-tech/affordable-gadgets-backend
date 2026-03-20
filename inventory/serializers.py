@@ -861,6 +861,9 @@ class ProductSerializer(serializers.ModelSerializer):
     og_image_url = serializers.SerializerMethodField(read_only=True)
     product_video_file_url = serializers.SerializerMethodField(read_only=True)
     available_stock = serializers.IntegerField(read_only=True)
+    # Let model-level save() resolve slug collisions by appending a suffix
+    # instead of failing fast in DRF's default UniqueValidator.
+    slug = serializers.SlugField(required=False, allow_blank=True, validators=[])
 
     class Meta:
         model = Product
