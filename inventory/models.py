@@ -400,10 +400,31 @@ class Product(models.Model):
         if slug_input:
             # Normalize any provided slug
             normalized_slug = slugify(slug_input)
-            # Harden create flow: ignore weak slugs from clients and regenerate
-            # from structured fields to keep accessory/product URLs meaningful.
-            if self.pk is None and normalized_slug and len(normalized_slug) < 3:
-                slug_input = ""
+            # Harden create flow:
+            # - ignore weak slugs from clients and regenerate from structured fields
+            # - if the incoming slug looks like it's missing product_name (common with
+            #   the current admin auto-generator), regenerate with full info so
+            #   accessories like "iPhone Pocket" get meaningful unique slugs.
+            if self.pk is None and normalized_slug:
+                structured_without_name = slugify(
+                    f"{self.brand}-{self.model_series}-{self.product_type}".strip("-")
+                )
+                should_regenerate = (
+                    len(normalized_slug) < 3
+                    or (
+                        normalized_slug == structured_without_name
+                        and not _is_missing(self.product_name)
+                    )
+                )
+
+                if should_regenerate:
+                    base_slug = slugify(
+                        f"{self.brand}-{self.model_series}-{self.product_name}-{self.product_type}".strip(
+                            "-"
+                        )
+                    )
+                else:
+                    base_slug = normalized_slug
             else:
                 base_slug = normalized_slug
         else:
@@ -426,10 +447,14 @@ class Product(models.Model):
                     return super().save(*args, **kwargs)
 
             if not _is_missing(brand) and not _is_missing(model_series):
-                # Prefer brand + model_series + product_name for readable, stable slugs.
-                # If product_name is somehow missing, fall back to product_type.
-                name_or_type = self.product_name if not _is_missing(self.product_name) else product_type
-                base_slug = slugify(f"{brand}-{model_series}-{name_or_type}".strip("-"))
+                # Prefer brand + model_series + product_name + product_type for
+                # readable, stable, collision-resistant slugs (including accessories).
+                if not _is_missing(self.product_name):
+                    base_slug = slugify(
+                        f"{brand}-{model_series}-{self.product_name}-{product_type}".strip("-")
+                    )
+                else:
+                    base_slug = slugify(f"{brand}-{model_series}-{product_type}".strip("-"))
             elif self.product_name:
                 # Defensive fallback: product_name is always required for Product.
                 base_slug = slugify(self.product_name)
