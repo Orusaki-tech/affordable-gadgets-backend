@@ -31,6 +31,19 @@ class PesapalPaymentService:
         self.payment_expiry_hours = 24
         print("[PESAPAL] PesapalPaymentService initialized")
 
+    @staticmethod
+    def get_effective_order_total(order: Order) -> Decimal:
+        """
+        Compute payable total for gateway submission.
+        Prefer persisted order.total_amount when present; otherwise fallback to
+        (sum of order items + delivery fee) so delivery is always included.
+        """
+        items_total = sum((item.sub_total for item in order.order_items.all()), Decimal("0.00"))
+        delivery_fee = order.delivery_fee or Decimal("0.00")
+        computed_total = items_total + delivery_fee
+        persisted_total = order.total_amount or Decimal("0.00")
+        return persisted_total if persisted_total > Decimal("0.00") else computed_total
+
     @transaction.atomic
     def initiate_payment(
         self,
@@ -41,9 +54,14 @@ class PesapalPaymentService:
         billing_address: dict | None = None,
     ) -> dict:
         """Initiate Pesapal payment for an order."""
+        payable_amount = self.get_effective_order_total(order)
+        if order.total_amount != payable_amount:
+            order.total_amount = payable_amount
+            order.save(update_fields=["total_amount"])
+
         print("\n[PESAPAL] ========== INITIATE PAYMENT START ==========")
         print(f"[PESAPAL] Order ID: {order.order_id}")
-        print(f"[PESAPAL] Order Amount: {order.total_amount}")
+        print(f"[PESAPAL] Order Amount: {payable_amount}")
         print(f"[PESAPAL] Order Status: {order.status}")
         print(f"[PESAPAL] Callback URL: {callback_url}")
         print(f"[PESAPAL] Cancellation URL: {cancellation_url}")
@@ -142,7 +160,7 @@ class PesapalPaymentService:
             order_data = {
                 "id": str(order.order_id),
                 "currency": "KES",
-                "amount": str(order.total_amount),
+                "amount": str(payable_amount),
                 "description": f"Order #{order.order_id}",
                 "callback_url": callback_url,
                 "cancellation_url": cancellation_url or callback_url,
@@ -229,7 +247,7 @@ class PesapalPaymentService:
                 payment = PesapalPayment.objects.create(
                     order=order,
                     pesapal_order_tracking_id=order_tracking_id,
-                    amount=order.total_amount,
+                    amount=payable_amount,
                     currency="KES",
                     redirect_url=redirect_url,
                     callback_url=callback_url,

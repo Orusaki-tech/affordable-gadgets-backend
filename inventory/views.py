@@ -3219,7 +3219,8 @@ class OrderViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            if order.total_amount <= 0:
+            payable_amount = service.get_effective_order_total(order)
+            if payable_amount <= 0:
                 print("[PESAPAL] ========== VIEW: INITIATE PAYMENT FAILED ==========")
                 print("[PESAPAL] ERROR: Order total amount must be greater than 0")
                 print("[PESAPAL] ==================================================\n")
@@ -3811,7 +3812,8 @@ class OrderReceiptView(APIView):
             pass
         elif request.user.is_authenticated:
             # Authenticated users can only view their own receipts
-            if order.customer.user != request.user:
+            order_customer_user = getattr(getattr(order, "customer", None), "user", None)
+            if order_customer_user != request.user:
                 return Response(
                     {"error": "You do not have permission to view this receipt."},
                     status=status.HTTP_403_FORBIDDEN,
@@ -3836,9 +3838,14 @@ class OrderReceiptView(APIView):
                     receipt.save(update_fields=["receipt_number"])
 
                 # Generate PDF if not exists or file is missing
-                if not receipt.pdf_file or (
-                    receipt.pdf_file and not os.path.exists(receipt.pdf_file.path)
-                ):
+                file_missing = True
+                if receipt.pdf_file and receipt.pdf_file.name:
+                    try:
+                        file_missing = not receipt.pdf_file.storage.exists(receipt.pdf_file.name)
+                    except Exception:
+                        file_missing = True
+
+                if not receipt.pdf_file or file_missing:
                     pdf_bytes = ReceiptService.generate_receipt_pdf(order)
                     pdf_filename = f"receipt_{order.order_id}_{receipt.receipt_number}.pdf"
                     pdf_path = os.path.join(
@@ -3847,9 +3854,8 @@ class OrderReceiptView(APIView):
                     receipt.pdf_file.save(pdf_path, ContentFile(pdf_bytes), save=True)
 
                 # Return PDF
-                response = FileResponse(
-                    open(receipt.pdf_file.path, "rb"), content_type="application/pdf"
-                )
+                receipt.pdf_file.open("rb")
+                response = FileResponse(receipt.pdf_file, content_type="application/pdf")
                 response["Content-Disposition"] = (
                     f'attachment; filename="receipt_{receipt.receipt_number}.pdf"'
                 )

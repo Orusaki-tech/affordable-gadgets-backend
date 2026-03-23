@@ -3,6 +3,7 @@ Order-related email helpers (order confirmation, updates).
 """
 
 import logging
+from decimal import Decimal
 
 from django.conf import settings
 from django.core.mail import EmailMessage
@@ -17,6 +18,13 @@ class OrderEmailService:
     def send_order_confirmation_email(order: Order) -> bool:
         """Send order confirmation email to the customer."""
         try:
+            # Reload to reduce chances of stale/partial order data in signal handlers.
+            order = (
+                Order.objects.select_related("customer__user")
+                .prefetch_related("order_items__inventory_unit__product_template", "order_items__bundle")
+                .get(pk=order.pk)
+            )
+
             customer = order.customer
             customer_email = customer.email or (
                 customer.user.email if customer.user and hasattr(customer.user, "email") else None
@@ -31,16 +39,17 @@ class OrderEmailService:
                 customer.user.get_full_name() if customer.user else "Customer"
             )
 
-            items = order.order_items.select_related(
-                "inventory_unit__product_template", "bundle"
-            ).all()
+            items = order.order_items.select_related("inventory_unit__product_template", "bundle").all()
             item_lines = []
+            computed_total = Decimal("0.00")
             for item in items:
                 product_name = "Item"
                 if item.inventory_unit and item.inventory_unit.product_template:
                     product_name = item.inventory_unit.product_template.product_name
                 if item.bundle and item.bundle.title:
                     product_name = f"{product_name} (Bundle: {item.bundle.title})"
+                line_total = (item.unit_price_at_purchase or Decimal("0.00")) * (item.quantity or 0)
+                computed_total += line_total
                 item_lines.append(
                     f"- {product_name} x{item.quantity} @ Ksh {item.unit_price_at_purchase:,.2f}"
                 )
@@ -49,15 +58,28 @@ class OrderEmailService:
                 "\n".join(item_lines) if item_lines else "Items will be listed on your receipt."
             )
 
+            delivery_fee = order.delivery_fee or Decimal("0.00")
+            fallback_total = computed_total + delivery_fee
+            order_total = order.total_amount or Decimal("0.00")
+            display_total = order_total if order_total > Decimal("0.00") else fallback_total
+
+            # Skip sending when order is still incomplete; avoids misleading 0.00 confirmations.
+            if not item_lines and display_total <= Decimal("0.00"):
+                logger.warning(
+                    "Skipping confirmation email for order %s: order details not finalized yet.",
+                    order.order_id,
+                )
+                return False
+
             subject = f"Order Confirmation {order.order_id} - Affordable Gadgets"
             message = (
                 f"Dear {customer_name},\n\n"
                 "Thank you for your order! We have received it and will process it shortly.\n\n"
                 f"Order ID: {order.order_id}\n"
-                f"Status: {order.status}\n"
+                f"Status: {order.get_status_display()}\n"
                 "Items:\n"
                 f"{items_text}\n\n"
-                f"Total Amount: Ksh {order.total_amount:,.2f}\n\n"
+                f"Total Amount: Ksh {display_total:,.2f}\n\n"
                 "If you have any questions, please contact us at +254717881573.\n\n"
                 "Best regards,\n"
                 "Affordable Gadgets Team\n"
