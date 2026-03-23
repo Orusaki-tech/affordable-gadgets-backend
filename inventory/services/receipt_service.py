@@ -57,12 +57,16 @@ class ReceiptService:
 
     @staticmethod
     def get_receipt_url(order: Order, format_type: str = "pdf") -> str:
+        api_path = f"/api/inventory/orders/{order.order_id}/receipt/?format={format_type}"
         base_url = (
             getattr(settings, "BACKEND_PUBLIC_URL", None)
-            or "https://affordable-gadgets-backend.onrender.com"
+            or getattr(settings, "PUBLIC_API_BASE_URL", None)
+            or ""
         )
-        base_url = base_url.rstrip("/")
-        return f"{base_url}/api/inventory/orders/{order.order_id}/receipt/?format={format_type}"
+        if not base_url:
+            # Avoid leaking hard-coded infrastructure hostnames in customer messages.
+            return api_path
+        return f"{base_url.rstrip('/')}{api_path}"
 
     @staticmethod
     def get_receipt_context(order: Order) -> dict:
@@ -309,10 +313,13 @@ class ReceiptService:
                 receipt.receipt_number = ReceiptService.generate_receipt_number(order)
                 receipt.save(update_fields=["receipt_number"])
 
-            # Get customer email
+            # Get customer email with robust fallbacks (guest/source_lead flows).
             customer = order.customer
-            customer_email = customer.email or (
-                customer.user.email if customer.user and hasattr(customer.user, "email") else None
+            customer_email = (
+                customer.email
+                or (customer.user.email if customer.user and hasattr(customer.user, "email") else None)
+                or (getattr(order, "source_lead", None) and getattr(order.source_lead, "customer_email", None))
+                or (order.user.email if order.user and hasattr(order.user, "email") else None)
             )
 
             if not customer_email:
@@ -347,9 +354,29 @@ Affordable Gadgets Team
                 to=[customer_email],
             )
 
-            # Attach PDF if already generated
-            if receipt.pdf_file and os.path.exists(receipt.pdf_file.path):
-                email.attach_file(receipt.pdf_file.path)
+            # Ensure PDF exists so receipt is delivered immediately after payment completion.
+            file_missing = True
+            if receipt.pdf_file and receipt.pdf_file.name:
+                try:
+                    file_missing = not receipt.pdf_file.storage.exists(receipt.pdf_file.name)
+                except Exception:
+                    file_missing = True
+
+            if not receipt.pdf_file or file_missing:
+                pdf_bytes = ReceiptService.generate_receipt_pdf(order)
+                pdf_filename = f"receipt_{order.order_id}_{receipt.receipt_number}.pdf"
+                pdf_path = os.path.join("receipts", timezone.now().strftime("%Y/%m"), pdf_filename)
+                receipt.pdf_file.save(pdf_path, ContentFile(pdf_bytes), save=True)
+
+            # Attach generated file in a storage-agnostic way.
+            if receipt.pdf_file and receipt.pdf_file.name:
+                receipt.pdf_file.open("rb")
+                email.attach(
+                    f"receipt_{receipt.receipt_number}.pdf",
+                    receipt.pdf_file.read(),
+                    "application/pdf",
+                )
+                receipt.pdf_file.close()
 
             # Send email
             email.send()
@@ -432,7 +459,7 @@ Affordable Gadgets Team
         """
         try:
             # Create receipt
-            receipt = ReceiptService.create_and_save_receipt(order, generate_pdf=False)
+            receipt = ReceiptService.create_and_save_receipt(order, generate_pdf=True)
 
             # Send email only if not already sent
             email_sent = receipt.email_sent

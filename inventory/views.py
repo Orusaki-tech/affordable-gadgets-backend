@@ -3781,9 +3781,9 @@ class OrderReceiptView(APIView):
         import os
         from uuid import UUID
 
+        from django.http import JsonResponse
         from django.utils import timezone
         from rest_framework import status
-        from rest_framework.response import Response
 
         from inventory.models import Order, Receipt
         from inventory.services.receipt_service import ReceiptService
@@ -3794,16 +3794,18 @@ class OrderReceiptView(APIView):
                 order_id = UUID(order_id)
             order = Order.objects.get(order_id=order_id)
         except Order.DoesNotExist:
-            return Response({"error": "Order not found."}, status=status.HTTP_404_NOT_FOUND)
+            return JsonResponse({"error": "Order not found."}, status=status.HTTP_404_NOT_FOUND)
         except (ValueError, TypeError):
             logger.error(f"Invalid order ID format: {order_id}")
-            return Response(
-                {"error": "Invalid order ID format."}, status=status.HTTP_400_BAD_REQUEST
+            return JsonResponse(
+                {"error": "Invalid order ID format."},
+                status=status.HTTP_400_BAD_REQUEST,
             )
         except Exception as e:
             logger.error(f"Error retrieving order: {e}", exc_info=True)
-            return Response(
-                {"error": "Failed to retrieve order."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            return JsonResponse(
+                {"error": "Failed to retrieve order."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
         # 2. Security: Check permissions
@@ -3814,14 +3816,14 @@ class OrderReceiptView(APIView):
             # Authenticated users can only view their own receipts
             order_customer_user = getattr(getattr(order, "customer", None), "user", None)
             if order_customer_user != request.user:
-                return Response(
+                return JsonResponse(
                     {"error": "You do not have permission to view this receipt."},
                     status=status.HTTP_403_FORBIDDEN,
                 )
         else:
             # Unauthenticated users: only for PAID orders (guest checkout)
             if order.status != Order.StatusChoices.PAID:
-                return Response(
+                return JsonResponse(
                     {"error": "Receipt is only available for paid orders."},
                     status=status.HTTP_403_FORBIDDEN,
                 )
@@ -3867,7 +3869,7 @@ class OrderReceiptView(APIView):
 
         except Exception as e:
             logger.error(f"Error generating receipt for order {order.order_id}: {e}", exc_info=True)
-            return Response(
+            return JsonResponse(
                 {"error": "Failed to generate receipt. Please try again later."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
