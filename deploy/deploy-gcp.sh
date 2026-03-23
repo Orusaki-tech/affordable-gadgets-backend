@@ -52,7 +52,8 @@ fi
 ENV_REMOTE=".env.deploy.${IP}.tmp"
 # Copy .env but strip vars we override or that don't apply on GCP (e.g. Railway Redis)
 { grep -v -e '^ALLOWED_HOSTS=' -e '^DATABASE_URL=' -e '^DJANGO_SETTINGS_MODULE=' -e '^DJANGO_ENV=' -e '^REDIS_URL=' .env 2>/dev/null || true; } > "${ENV_REMOTE}"
-echo "ALLOWED_HOSTS=${IP},localhost,127.0.0.1" >> "${ENV_REMOTE}"
+NGROK_HOST="unreversed-nonadmissible-kandis.ngrok-free.dev"
+echo "ALLOWED_HOSTS=${IP},localhost,127.0.0.1,${NGROK_HOST}" >> "${ENV_REMOTE}"
 echo "DATABASE_URL=postgresql://affordable:affordable@postgres:5432/affordable_gadgets" >> "${ENV_REMOTE}"
 echo "DJANGO_SETTINGS_MODULE=store.settings_production" >> "${ENV_REMOTE}"
 echo "DJANGO_ENV=production" >> "${ENV_REMOTE}"
