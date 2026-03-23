@@ -34,6 +34,17 @@ if not ALLOWED_HOSTS:
         "or it will be auto-detected from RENDER_EXTERNAL_HOSTNAME if available."
     )
 
+# Frontend URL used in outbound emails (verification/reset/payment redirects).
+# In production this must always be an explicit public HTTPS URL.
+frontend_base_url = os.environ.get("FRONTEND_BASE_URL", "").strip()
+if not frontend_base_url:
+    raise ValueError("FRONTEND_BASE_URL environment variable must be set in production")
+if "localhost" in frontend_base_url or "127.0.0.1" in frontend_base_url:
+    raise ValueError(
+        "FRONTEND_BASE_URL cannot point to localhost/127.0.0.1 in production"
+    )
+FRONTEND_BASE_URL = frontend_base_url.rstrip("/")
+
 # Database (use PostgreSQL in production)
 # Support both DATABASE_URL (Render/Heroku style) and individual DB_* variables
 database_url = os.environ.get("DATABASE_URL", "").strip()
