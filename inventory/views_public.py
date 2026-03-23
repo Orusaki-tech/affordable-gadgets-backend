@@ -2643,7 +2643,7 @@ class ReviewEligibilityView(_PublicAPIMixin, APIView):
 
 @extend_schema(request=PublicReviewSubmitSerializer, responses=ReviewSerializer)
 class PublicReviewSubmitView(_PublicAPIMixin, APIView):
-    """Create a verified review for a purchased product."""
+    """Create a verified review after OTP verification."""
 
     permission_classes = [permissions.AllowAny]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
@@ -2668,25 +2668,32 @@ class PublicReviewSubmitView(_PublicAPIMixin, APIView):
                 .first()
             )
         if not customer:
-            return Response({"error": "Customer not found."}, status=status.HTTP_404_NOT_FOUND)
+            # Allow OTP-verified first-time reviewers without purchase history.
+            local_part = email.split("@")[0] if "@" in email else "Customer"
+            customer = Customer.objects.create(name=local_part[:255], email=email, phone="")
 
-        order_item = (
-            OrderItem.objects.filter(
-                id=data["order_item_id"],
-                order__customer=customer,
-                order__status__in=[Order.StatusChoices.PAID, Order.StatusChoices.DELIVERED],
+        order_item = None
+        if data.get("order_item_id"):
+            order_item = (
+                OrderItem.objects.filter(
+                    id=data["order_item_id"],
+                    order__customer=customer,
+                    order__status__in=[Order.StatusChoices.PAID, Order.StatusChoices.DELIVERED],
+                )
+                .select_related("order", "inventory_unit__product_template")
+                .first()
             )
-            .select_related("order", "inventory_unit__product_template")
-            .first()
-        )
-        if not order_item or not order_item.inventory_unit:
-            return Response({"error": "Order item not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        product = order_item.inventory_unit.product_template
-        if not product or product.id != data["product_id"]:
-            return Response(
-                {"error": "Order item does not match product."}, status=status.HTTP_400_BAD_REQUEST
-            )
+        if order_item and order_item.inventory_unit:
+            product = order_item.inventory_unit.product_template
+            if not product or product.id != data["product_id"]:
+                return Response(
+                    {"error": "Order item does not match product."}, status=status.HTTP_400_BAD_REQUEST
+                )
+        else:
+            product = Product.objects.filter(id=data["product_id"]).first()
+            if not product:
+                return Response({"error": "Product not found."}, status=status.HTTP_404_NOT_FOUND)
 
         if Review.objects.filter(customer=customer, product=product).exists():
             return Response(
@@ -2706,7 +2713,7 @@ class PublicReviewSubmitView(_PublicAPIMixin, APIView):
         review_serializer.is_valid(raise_exception=True)
         review = review_serializer.save(customer=customer)
 
-        if not review.purchase_date or not review.product_condition:
+        if order_item and (not review.purchase_date or not review.product_condition):
             update_fields = []
             if not review.purchase_date and order_item.order.created_at:
                 review.purchase_date = order_item.order.created_at.date()

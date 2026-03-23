@@ -77,52 +77,54 @@ class ReceiptService:
         ).all()
 
         # Get customer details
-        customer = getattr(order, "customer", None)
-        customer_name = "Customer"
-        customer_phone = ""
-        customer_email = ""
-        if customer:
-            customer_name = customer.name or (customer.user.username if customer.user else "Customer")
-            customer_phone = customer.phone or getattr(customer, "phone_number", "") or ""
-            customer_email = customer.email or (
-                customer.user.email if customer.user and hasattr(customer.user, "email") else ""
-            )
-        elif hasattr(order, "source_lead") and order.source_lead:
-            # Fallback for guest checkout/source-lead based orders.
-            customer_name = getattr(order.source_lead, "customer_name", "") or "Customer"
-            customer_phone = getattr(order.source_lead, "customer_phone", "") or ""
-            customer_email = getattr(order.source_lead, "customer_email", "") or ""
+        customer = order.customer
+        customer_name = customer.name or (customer.user.username if customer.user else "Unknown")
+        customer_phone = customer.phone or getattr(customer, "phone_number", "") or ""
+        customer_email = customer.email or (
+            customer.user.email if customer.user and hasattr(customer.user, "email") else ""
+        )
 
         # Get served by (staff member who created order)
         served_by = "System"
         if order.user:
             served_by = order.user.get_full_name() or order.user.username
 
-        # Get payment method from Pesapal payment if available, otherwise default to CASH
+        # Get payment method/details from Pesapal payment if available.
+        # Fall back to sensible defaults for walk-in/manual orders.
         payment_method = "CASH"
         payment_methods_checked = ["cash"]
+        payment_reference = ""
+        payment_channel = "Walk-in / Manual"
         try:
-            pesapal_payment = order.pesapal_payments.filter(status="COMPLETED").first()
-            if pesapal_payment and pesapal_payment.payment_method:
-                raw_method = pesapal_payment.payment_method.upper()
-                payment_method = raw_method
+            pesapal_payment = (
+                order.pesapal_payments.filter(status="COMPLETED").order_by("-completed_at", "-initiated_at").first()
+                or order.pesapal_payments.order_by("-initiated_at").first()
+            )
+            if pesapal_payment:
+                if pesapal_payment.payment_method:
+                    raw_method = pesapal_payment.payment_method.upper()
+                    payment_method = raw_method
+                else:
+                    payment_method = "PESAPAL"
+
+                payment_reference = (
+                    pesapal_payment.pesapal_reference
+                    or pesapal_payment.pesapal_payment_id
+                    or pesapal_payment.pesapal_order_tracking_id
+                    or ""
+                )
+                payment_channel = "Pesapal"
                 mapped_methods = set()
-                if any(
-                    token in raw_method
-                    for token in ["MPESA", "M-PESA", "MOBILE_MONEY", "MOBILE MONEY"]
-                ):
+                if any(token in payment_method for token in ["MPESA", "M-PESA", "MOBILE_MONEY", "MOBILE MONEY"]):
                     mapped_methods.add("mpesa")
-                if any(
-                    token in raw_method
-                    for token in ["BANK", "VISA", "MASTERCARD", "AMEX", "CARD", "BANK_TRANSFER"]
-                ):
+                if any(token in payment_method for token in ["BANK", "VISA", "MASTERCARD", "AMEX", "CARD", "BANK_TRANSFER"]):
                     mapped_methods.add("bank")
-                if "CASH" in raw_method:
+                if "CASH" in payment_method:
                     mapped_methods.add("cash")
                 if mapped_methods:
                     payment_methods_checked = sorted(mapped_methods)
                 else:
-                    # Default to bank for unknown card-like methods
+                    # Default to bank-like marker for unknown online methods.
                     payment_methods_checked = ["bank"]
         except Exception as e:
             logger.warning(f"Could not determine payment method: {e}")
@@ -206,6 +208,8 @@ class ReceiptService:
             "served_by": served_by,
             "payment_method": payment_method,
             "payment_methods_checked": payment_methods_checked,
+            "payment_reference": payment_reference,
+            "payment_channel": payment_channel,
             "phone_number": "+254717881573",  # Company phone
             "bundle_summary": bundle_summary,
         }
@@ -323,14 +327,10 @@ class ReceiptService:
                 receipt.save(update_fields=["receipt_number"])
 
             # Get customer email with robust fallbacks (guest/source_lead flows).
-            customer = getattr(order, "customer", None)
+            customer = order.customer
             customer_email = (
-                (customer.email if customer else None)
-                or (
-                    customer.user.email
-                    if customer and customer.user and hasattr(customer.user, "email")
-                    else None
-                )
+                customer.email
+                or (customer.user.email if customer.user and hasattr(customer.user, "email") else None)
                 or (getattr(order, "source_lead", None) and getattr(order.source_lead, "customer_email", None))
                 or (order.user.email if order.user and hasattr(order.user, "email") else None)
             )
@@ -342,11 +342,7 @@ class ReceiptService:
             receipt_url = ReceiptService.get_receipt_url(order, format_type="pdf")
 
             # Prepare email
-            customer_name = (
-                (customer.name if customer else None)
-                or (getattr(order, "source_lead", None) and getattr(order.source_lead, "customer_name", None))
-                or "Customer"
-            )
+            customer_name = customer.name or "Customer"
             subject = f"Receipt for Order {receipt.receipt_number} - Affordable Gadgets"
             message = f"""Dear {customer_name},
 

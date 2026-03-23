@@ -150,8 +150,8 @@ class ReviewEligibilityItemSerializer(serializers.Serializer):
     product_id = serializers.IntegerField()
     product_name = serializers.CharField()
     product_slug = serializers.CharField(allow_blank=True, required=False)
-    order_id = serializers.UUIDField()
-    order_item_id = serializers.IntegerField()
+    order_id = serializers.UUIDField(required=False, allow_null=True)
+    order_item_id = serializers.IntegerField(required=False, allow_null=True)
     purchase_date = serializers.DateField(allow_null=True, required=False)
 
 
@@ -194,7 +194,7 @@ class PublicReviewSubmitSerializer(serializers.Serializer):
     email = serializers.EmailField()
     otp = serializers.CharField(max_length=6)
     product_id = serializers.IntegerField()
-    order_item_id = serializers.IntegerField()
+    order_item_id = serializers.IntegerField(required=False, allow_null=True)
     rating = serializers.IntegerField(min_value=1, max_value=5)
     comment = serializers.CharField()
     review_image = serializers.ImageField(required=False, allow_null=True)

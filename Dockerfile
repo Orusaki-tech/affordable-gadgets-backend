@@ -7,9 +7,17 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PORT=8000
 
-# Install runtime deps (libpq for psycopg, optional for weasyprint)
+# Install runtime deps (Postgres + WeasyPrint native libraries)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
+    libglib2.0-0 \
+    libgobject-2.0-0 \
+    libcairo2 \
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
+    libgdk-pixbuf-2.0-0 \
+    shared-mime-info \
+    fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

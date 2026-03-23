@@ -556,7 +556,10 @@
 
                 <div class="notes-section">
                     <label>Notes:</label>
-                    <div class="value">Payment completed successfully via {{ payment_method }}. Order ID: {{ order.order_id }}</div>
+                    <div class="value">
+                        Payment completed successfully via {{ payment_method }} ({{ payment_channel }}). Order ID: {{ order.order_id }}
+                        {% if payment_reference %}<br>Payment Ref: {{ payment_reference }}{% endif %}
+                    </div>
                 </div>
 
                 <div class="divider"></div>

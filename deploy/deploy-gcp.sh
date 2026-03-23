@@ -116,6 +116,12 @@ GCLOUD_SSH=(gcloud compute ssh "${REMOTE_USER}@${INSTANCE_NAME}" --zone="${ZONE}
   else
     sudo docker-compose up -d --build
   fi
+  echo 'Running WeasyPrint smoke check in web container...'
+  if sudo docker compose exec -T web python -c \"from weasyprint import HTML; print('weasy ok')\" 2>/dev/null; then
+    :
+  else
+    sudo docker-compose exec -T web python -c \"from weasyprint import HTML; print('weasy ok')\"
+  fi
   echo 'Done. App should be at http://${IP}:8000'
 "
 
