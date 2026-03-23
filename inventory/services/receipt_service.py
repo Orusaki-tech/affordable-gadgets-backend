@@ -77,12 +77,21 @@ class ReceiptService:
         ).all()
 
         # Get customer details
-        customer = order.customer
-        customer_name = customer.name or (customer.user.username if customer.user else "Unknown")
-        customer_phone = customer.phone or getattr(customer, "phone_number", "") or ""
-        customer_email = customer.email or (
-            customer.user.email if customer.user and hasattr(customer.user, "email") else ""
-        )
+        customer = getattr(order, "customer", None)
+        customer_name = "Customer"
+        customer_phone = ""
+        customer_email = ""
+        if customer:
+            customer_name = customer.name or (customer.user.username if customer.user else "Customer")
+            customer_phone = customer.phone or getattr(customer, "phone_number", "") or ""
+            customer_email = customer.email or (
+                customer.user.email if customer.user and hasattr(customer.user, "email") else ""
+            )
+        elif hasattr(order, "source_lead") and order.source_lead:
+            # Fallback for guest checkout/source-lead based orders.
+            customer_name = getattr(order.source_lead, "customer_name", "") or "Customer"
+            customer_phone = getattr(order.source_lead, "customer_phone", "") or ""
+            customer_email = getattr(order.source_lead, "customer_email", "") or ""
 
         # Get served by (staff member who created order)
         served_by = "System"
@@ -314,10 +323,14 @@ class ReceiptService:
                 receipt.save(update_fields=["receipt_number"])
 
             # Get customer email with robust fallbacks (guest/source_lead flows).
-            customer = order.customer
+            customer = getattr(order, "customer", None)
             customer_email = (
-                customer.email
-                or (customer.user.email if customer.user and hasattr(customer.user, "email") else None)
+                (customer.email if customer else None)
+                or (
+                    customer.user.email
+                    if customer and customer.user and hasattr(customer.user, "email")
+                    else None
+                )
                 or (getattr(order, "source_lead", None) and getattr(order.source_lead, "customer_email", None))
                 or (order.user.email if order.user and hasattr(order.user, "email") else None)
             )
@@ -329,7 +342,11 @@ class ReceiptService:
             receipt_url = ReceiptService.get_receipt_url(order, format_type="pdf")
 
             # Prepare email
-            customer_name = customer.name or "Customer"
+            customer_name = (
+                (customer.name if customer else None)
+                or (getattr(order, "source_lead", None) and getattr(order.source_lead, "customer_name", None))
+                or "Customer"
+            )
             subject = f"Receipt for Order {receipt.receipt_number} - Affordable Gadgets"
             message = f"""Dear {customer_name},
 
