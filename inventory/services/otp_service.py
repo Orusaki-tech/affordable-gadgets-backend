@@ -5,8 +5,7 @@ import secrets
 
 from django.conf import settings
 from django.core.cache import cache
-
-from inventory.services.whatsapp_service import WhatsAppService
+from django.core.mail import send_mail
 
 
 class OtpService:
@@ -16,12 +15,12 @@ class OtpService:
     PURPOSE_ORDER = "order"
 
     @staticmethod
-    def _otp_cache_key(phone: str, purpose: str) -> str:
-        return f"otp:{purpose}:{phone}"
+    def _otp_cache_key(identifier: str, purpose: str) -> str:
+        return f"otp:{purpose}:{identifier}"
 
     @staticmethod
-    def _otp_rate_key(phone: str, purpose: str) -> str:
-        return f"otp:{purpose}:rate:{phone}"
+    def _otp_rate_key(identifier: str, purpose: str) -> str:
+        return f"otp:{purpose}:rate:{identifier}"
 
     @staticmethod
     def _hash_code(code: str) -> str:
@@ -33,13 +32,14 @@ class OtpService:
         return "".join(str(secrets.randbelow(10)) for _ in range(length))
 
     @classmethod
-    def send_review_otp(cls, phone: str) -> dict:
+    def send_review_otp(cls, email: str) -> dict:
         """Generate and send OTP for review verification."""
         ttl_seconds = int(getattr(settings, "REVIEW_OTP_TTL_SECONDS", 600))
         max_sends = int(getattr(settings, "REVIEW_OTP_MAX_SENDS", 3))
         rate_window = int(getattr(settings, "REVIEW_OTP_RATE_WINDOW_SECONDS", 900))
 
-        rate_key = cls._otp_rate_key(phone, cls.PURPOSE_REVIEW)
+        normalized_email = (email or "").strip().lower()
+        rate_key = cls._otp_rate_key(normalized_email, cls.PURPOSE_REVIEW)
         sends = cache.get(rate_key, 0)
         if sends >= max_sends:
             return {
@@ -49,14 +49,27 @@ class OtpService:
             }
 
         code = cls.generate_code()
-        cache.set(cls._otp_cache_key(phone, cls.PURPOSE_REVIEW), cls._hash_code(code), ttl_seconds)
+        cache.set(
+            cls._otp_cache_key(normalized_email, cls.PURPOSE_REVIEW),
+            cls._hash_code(code),
+            ttl_seconds,
+        )
         cache.set(rate_key, sends + 1, rate_window)
 
-        message = (
-            "Your Affordable Gadgets review verification code is "
-            f"{code}. It expires in {ttl_seconds // 60} minutes."
-        )
-        sent = WhatsAppService.send_message(phone, message)
+        try:
+            send_mail(
+                subject="Your Affordable Gadgets review verification code",
+                message=(
+                    "Your Affordable Gadgets review verification code is "
+                    f"{code}. It expires in {ttl_seconds // 60} minutes."
+                ),
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[normalized_email],
+                fail_silently=False,
+            )
+            sent = True
+        except Exception:
+            sent = False
 
         if not sent and not settings.DEBUG:
             return {
@@ -73,7 +86,7 @@ class OtpService:
         return response
 
     @classmethod
-    def send_order_otp(cls, phone: str) -> dict:
+    def send_order_otp(cls, email: str) -> dict:
         """Generate and send OTP for order history verification."""
         ttl_seconds = int(
             getattr(
@@ -91,7 +104,8 @@ class OtpService:
             )
         )
 
-        rate_key = cls._otp_rate_key(phone, cls.PURPOSE_ORDER)
+        normalized_email = (email or "").strip().lower()
+        rate_key = cls._otp_rate_key(normalized_email, cls.PURPOSE_ORDER)
         sends = cache.get(rate_key, 0)
         if sends >= max_sends:
             return {
@@ -101,14 +115,27 @@ class OtpService:
             }
 
         code = cls.generate_code()
-        cache.set(cls._otp_cache_key(phone, cls.PURPOSE_ORDER), cls._hash_code(code), ttl_seconds)
+        cache.set(
+            cls._otp_cache_key(normalized_email, cls.PURPOSE_ORDER),
+            cls._hash_code(code),
+            ttl_seconds,
+        )
         cache.set(rate_key, sends + 1, rate_window)
 
-        message = (
-            "Your Affordable Gadgets order verification code is "
-            f"{code}. It expires in {ttl_seconds // 60} minutes."
-        )
-        sent = WhatsAppService.send_message(phone, message)
+        try:
+            send_mail(
+                subject="Your Affordable Gadgets order verification code",
+                message=(
+                    "Your Affordable Gadgets order verification code is "
+                    f"{code}. It expires in {ttl_seconds // 60} minutes."
+                ),
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[normalized_email],
+                fail_silently=False,
+            )
+            sent = True
+        except Exception:
+            sent = False
 
         if not sent and not settings.DEBUG:
             return {
@@ -125,21 +152,23 @@ class OtpService:
         return response
 
     @classmethod
-    def verify_review_otp(cls, phone: str, otp: str) -> bool:
+    def verify_review_otp(cls, email: str, otp: str) -> bool:
         """Verify OTP for review verification."""
         if not otp:
             return False
-        cached = cache.get(cls._otp_cache_key(phone, cls.PURPOSE_REVIEW))
+        normalized_email = (email or "").strip().lower()
+        cached = cache.get(cls._otp_cache_key(normalized_email, cls.PURPOSE_REVIEW))
         if not cached:
             return False
         return cached == cls._hash_code(str(otp).strip())
 
     @classmethod
-    def verify_order_otp(cls, phone: str, otp: str) -> bool:
+    def verify_order_otp(cls, email: str, otp: str) -> bool:
         """Verify OTP for order history verification."""
         if not otp:
             return False
-        cached = cache.get(cls._otp_cache_key(phone, cls.PURPOSE_ORDER))
+        normalized_email = (email or "").strip().lower()
+        cached = cache.get(cls._otp_cache_key(normalized_email, cls.PURPOSE_ORDER))
         if not cached:
             return False
         return cached == cls._hash_code(str(otp).strip())

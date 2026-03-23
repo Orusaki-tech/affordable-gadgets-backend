@@ -129,20 +129,20 @@ class PublicInventoryUnitSerializer(serializers.ModelSerializer):
 
 
 class ReviewOtpRequestSerializer(serializers.Serializer):
-    phone = serializers.CharField(max_length=20)
+    email = serializers.EmailField()
 
 
 class ReviewEligibilityRequestSerializer(serializers.Serializer):
-    phone = serializers.CharField(max_length=20)
+    email = serializers.EmailField()
     otp = serializers.CharField(max_length=6)
 
 
 class OrderOtpRequestSerializer(serializers.Serializer):
-    phone = serializers.CharField(max_length=20)
+    email = serializers.EmailField()
 
 
 class OrderHistoryRequestSerializer(serializers.Serializer):
-    phone = serializers.CharField(max_length=20)
+    email = serializers.EmailField()
     otp = serializers.CharField(max_length=6)
 
 
@@ -191,7 +191,7 @@ class PublicOrderSerializer(serializers.ModelSerializer):
 
 
 class PublicReviewSubmitSerializer(serializers.Serializer):
-    phone = serializers.CharField(max_length=20)
+    email = serializers.EmailField()
     otp = serializers.CharField(max_length=6)
     product_id = serializers.IntegerField()
     order_item_id = serializers.IntegerField()

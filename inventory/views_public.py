@@ -2494,9 +2494,9 @@ class ReviewOtpView(_PublicAPIMixin, APIView):
     def post(self, request):
         serializer = ReviewOtpRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        phone = serializer.validated_data["phone"]
+        email = serializer.validated_data["email"].strip().lower()
 
-        result = OtpService.send_review_otp(phone)
+        result = OtpService.send_review_otp(email)
         if not result.get("sent"):
             status_code = status.HTTP_429_TOO_MANY_REQUESTS
             if result.get("error") and "Unable to send" in result.get("error", ""):
@@ -2514,9 +2514,9 @@ class OrderOtpView(_PublicAPIMixin, APIView):
     def post(self, request):
         serializer = OrderOtpRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        phone = serializer.validated_data["phone"]
+        email = serializer.validated_data["email"].strip().lower()
 
-        result = OtpService.send_order_otp(phone)
+        result = OtpService.send_order_otp(email)
         if not result.get("sent"):
             status_code = status.HTTP_429_TOO_MANY_REQUESTS
             if result.get("error") and "Unable to send" in result.get("error", ""):
@@ -2534,15 +2534,21 @@ class PublicOrderHistoryView(_PublicAPIMixin, APIView):
     def post(self, request):
         serializer = OrderHistoryRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        phone = serializer.validated_data["phone"]
+        email = serializer.validated_data["email"].strip().lower()
         otp = serializer.validated_data["otp"]
 
-        if not OtpService.verify_order_otp(phone, otp):
+        if not OtpService.verify_order_otp(email, otp):
             return Response(
                 {"error": "Invalid or expired OTP."}, status=status.HTTP_400_BAD_REQUEST
             )
 
-        customer = Customer.objects.filter(phone=phone).first()
+        customer = Customer.objects.filter(email__iexact=email).first()
+        if not customer:
+            customer = (
+                Customer.objects.filter(user__email__iexact=email)
+                .select_related("user")
+                .first()
+            )
         if not customer:
             return Response({"orders": []})
 
@@ -2568,15 +2574,21 @@ class ReviewEligibilityView(_PublicAPIMixin, APIView):
     def post(self, request):
         serializer = ReviewEligibilityRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        phone = serializer.validated_data["phone"]
+        email = serializer.validated_data["email"].strip().lower()
         otp = serializer.validated_data["otp"]
 
-        if not OtpService.verify_review_otp(phone, otp):
+        if not OtpService.verify_review_otp(email, otp):
             return Response(
                 {"error": "Invalid or expired OTP."}, status=status.HTTP_400_BAD_REQUEST
             )
 
-        customer = Customer.objects.filter(phone=phone).first()
+        customer = Customer.objects.filter(email__iexact=email).first()
+        if not customer:
+            customer = (
+                Customer.objects.filter(user__email__iexact=email)
+                .select_related("user")
+                .first()
+            )
         if not customer:
             return Response({"customer": None, "eligible_items": []})
 
@@ -2641,14 +2653,20 @@ class PublicReviewSubmitView(_PublicAPIMixin, APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
-        phone = data["phone"]
+        email = data["email"].strip().lower()
         otp = data["otp"]
-        if not OtpService.verify_review_otp(phone, otp):
+        if not OtpService.verify_review_otp(email, otp):
             return Response(
                 {"error": "Invalid or expired OTP."}, status=status.HTTP_400_BAD_REQUEST
             )
 
-        customer = Customer.objects.filter(phone=phone).first()
+        customer = Customer.objects.filter(email__iexact=email).first()
+        if not customer:
+            customer = (
+                Customer.objects.filter(user__email__iexact=email)
+                .select_related("user")
+                .first()
+            )
         if not customer:
             return Response({"error": "Customer not found."}, status=status.HTTP_404_NOT_FOUND)
 
