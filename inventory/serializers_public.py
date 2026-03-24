@@ -200,6 +200,9 @@ class PublicOrderSerializer(serializers.ModelSerializer):
         if not obj.order_id:
             return False, "Missing order ID for Google review prompt."
 
+        if not (obj.delivery_window_end or obj.delivery_window_start):
+            return False, "Missing delivery date window for Google review prompt."
+
         return True, ""
 
     @extend_schema_field(serializers.CharField())
@@ -261,6 +264,7 @@ class PublicProductSerializer(serializers.ModelSerializer):
     review_count = serializers.SerializerMethodField()
     average_rating = serializers.SerializerMethodField()
     primary_image = serializers.SerializerMethodField()
+    product_video_file_url = serializers.SerializerMethodField()
     tags = serializers.SerializerMethodField()
     has_active_bundle = serializers.SerializerMethodField()
     bundle_price_preview = serializers.SerializerMethodField()
@@ -292,12 +296,22 @@ class PublicProductSerializer(serializers.ModelSerializer):
             "primary_image",
             "slug",
             "product_video_url",
+            "product_video_file_url",
             "tags",
             "has_active_bundle",
             "bundle_price_preview",
             "meta_title",
             "meta_description",  # SEO fields
         ]
+
+    @extend_schema_field(serializers.URLField(allow_null=True))
+    def get_product_video_file_url(self, obj):
+        """Return uploaded product video URL (e.g. Cloudinary) when present."""
+        if obj.product_video_file:
+            from inventory.cloudinary_utils import get_video_url
+
+            return get_video_url(obj.product_video_file)
+        return None
 
     @extend_schema_field(serializers.ListField(child=serializers.CharField()))
     def get_tags(self, obj):
@@ -707,6 +721,7 @@ class PublicProductListSerializer(PublicProductSerializer):
             "primary_image",
             "slug",
             "product_video_url",
+            "product_video_file_url",
             "has_active_bundle",
             "bundle_price_preview",
         ]

@@ -205,6 +205,12 @@ class PublicProductListPagination(PageNumberPagination):
                 OpenApiParameter.QUERY,
                 description='If true, return only products tagged as "Featured" (for homepage; use page_size=5 for fast load).',
             ),
+            OpenApiParameter(
+                "homepage_videos",
+                OpenApiTypes.BOOL,
+                OpenApiParameter.QUERY,
+                description='If true, return only published products tagged "Video" with a product video URL or uploaded video file (homepage reel).',
+            ),
         ]
     )
 )
@@ -1027,6 +1033,11 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
                 # Use tagged set if any exist; otherwise leave queryset as-is (later filters + ordering will apply)
                 if featured_tagged.exists():
                     queryset = featured_tagged
+            elif self.request.query_params.get("homepage_videos") in ("1", "true", "yes"):
+                tagged_video = queryset.filter(tags__name__iexact="Video").distinct()
+                has_url = Q(product_video_url__isnull=False) & ~Q(product_video_url="")
+                has_file = Q(product_video_file__isnull=False) & ~Q(product_video_file="")
+                queryset = tagged_video.filter(has_url | has_file)
             is_list = getattr(self, "action", None) == "list" and not self.request.query_params.get(
                 "slug"
             )
