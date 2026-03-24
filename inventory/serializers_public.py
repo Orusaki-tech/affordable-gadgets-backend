@@ -171,6 +171,50 @@ class PublicOrderItemSerializer(serializers.ModelSerializer):
 
 class PublicOrderSerializer(serializers.ModelSerializer):
     order_items = PublicOrderItemSerializer(many=True, read_only=True)
+    customer_email = serializers.SerializerMethodField(read_only=True)
+    gcr_eligible = serializers.SerializerMethodField(read_only=True)
+    gcr_reason = serializers.SerializerMethodField(read_only=True)
+
+    def _get_customer_email(self, obj):
+        if getattr(obj, "source_lead", None) and getattr(obj.source_lead, "customer_email", None):
+            return obj.source_lead.customer_email or ""
+        if getattr(obj, "customer", None):
+            if getattr(obj.customer, "email", None):
+                return obj.customer.email or ""
+            if getattr(obj.customer, "user", None) and getattr(obj.customer.user, "email", None):
+                return obj.customer.user.email or ""
+        return ""
+
+    def _compute_gcr_eligibility(self, obj):
+        paid_like_statuses = {
+            Order.StatusChoices.PAID,
+            Order.StatusChoices.DELIVERED,
+        }
+        if obj.status not in paid_like_statuses:
+            return False, "Order status is not eligible for Google review prompt."
+
+        email = (self._get_customer_email(obj) or "").strip()
+        if not email:
+            return False, "Missing customer email for Google review prompt."
+
+        if not obj.order_id:
+            return False, "Missing order ID for Google review prompt."
+
+        return True, ""
+
+    @extend_schema_field(serializers.CharField())
+    def get_customer_email(self, obj):
+        return self._get_customer_email(obj)
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_gcr_eligible(self, obj):
+        eligible, _ = self._compute_gcr_eligibility(obj)
+        return eligible
+
+    @extend_schema_field(serializers.CharField())
+    def get_gcr_reason(self, obj):
+        _, reason = self._compute_gcr_eligibility(obj)
+        return reason
 
     class Meta:
         model = Order
@@ -179,6 +223,9 @@ class PublicOrderSerializer(serializers.ModelSerializer):
             "created_at",
             "status",
             "total_amount",
+            "customer_email",
+            "gcr_eligible",
+            "gcr_reason",
             "delivery_address",
             "delivery_county",
             "delivery_ward",

@@ -2045,6 +2045,8 @@ class OrderSerializer(serializers.ModelSerializer):
     customer_username = serializers.SerializerMethodField(read_only=True)
     customer_phone = serializers.SerializerMethodField(read_only=True)
     customer_email = serializers.SerializerMethodField(read_only=True)
+    gcr_eligible = serializers.SerializerMethodField(read_only=True)
+    gcr_reason = serializers.SerializerMethodField(read_only=True)
     delivery_address = serializers.SerializerMethodField(read_only=True)
     delivery_county = serializers.CharField(required=False, allow_blank=True)
     delivery_ward = serializers.CharField(required=False, allow_blank=True, allow_null=True)
@@ -2088,6 +2090,33 @@ class OrderSerializer(serializers.ModelSerializer):
                 return obj.customer.user.email or ""
         return ""
 
+    def _compute_gcr_eligibility(self, obj):
+        paid_like_statuses = {
+            Order.StatusChoices.PAID,
+            Order.StatusChoices.DELIVERED,
+        }
+        if obj.status not in paid_like_statuses:
+            return False, "Order status is not eligible for Google review prompt."
+
+        email = (self.get_customer_email(obj) or "").strip()
+        if not email:
+            return False, "Missing customer email for Google review prompt."
+
+        if not obj.order_id:
+            return False, "Missing order ID for Google review prompt."
+
+        return True, ""
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_gcr_eligible(self, obj):
+        eligible, _ = self._compute_gcr_eligibility(obj)
+        return eligible
+
+    @extend_schema_field(serializers.CharField())
+    def get_gcr_reason(self, obj):
+        _, reason = self._compute_gcr_eligibility(obj)
+        return reason
+
     @extend_schema_field(serializers.CharField())
     def get_delivery_address(self, obj):
         """Get delivery address - prefer from source_lead for online orders, otherwise from customer."""
@@ -2115,6 +2144,8 @@ class OrderSerializer(serializers.ModelSerializer):
             "customer_username",
             "customer_phone",
             "customer_email",
+            "gcr_eligible",
+            "gcr_reason",
             "delivery_address",
             "delivery_county",
             "delivery_ward",
