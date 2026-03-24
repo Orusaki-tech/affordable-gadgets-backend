@@ -2105,6 +2105,9 @@ class OrderSerializer(serializers.ModelSerializer):
         if not obj.order_id:
             return False, "Missing order ID for Google review prompt."
 
+        if not (obj.delivery_window_end or obj.delivery_window_start):
+            return False, "Missing delivery date window for Google review prompt."
+
         return True, ""
 
     @extend_schema_field(serializers.BooleanField())
