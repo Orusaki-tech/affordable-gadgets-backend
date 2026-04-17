@@ -6,6 +6,7 @@ from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password  # NEW: For password strength
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
+from django.db.models import Q
 from drf_spectacular.utils import OpenApiTypes, extend_schema_field, extend_schema_serializer
 from rest_framework import serializers
 from rest_framework.authtoken.models import Token  # NEW: For generating auth tokens
@@ -2023,13 +2024,56 @@ class DeliveryRateSerializer(serializers.ModelSerializer):
         fields = ["id", "county", "ward", "price", "is_active", "created_at", "updated_at"]
 
     def validate(self, attrs):
-        county = attrs.get("county") or getattr(self.instance, "county", None)
-        ward = attrs.get("ward")
+        county_raw = attrs.get("county")
+        if county_raw is not None:
+            county = county_raw.strip()
+            attrs["county"] = county
+        elif self.instance:
+            county = (self.instance.county or "").strip()
+        else:
+            county = ""
 
-        if ward and county and county.strip().lower() not in ["nairobi", "kiambu"]:
+        if "ward" in attrs:
+            ward = attrs.get("ward")
+            if ward is None:
+                attrs["ward"] = None
+            elif isinstance(ward, str):
+                attrs["ward"] = ward.strip() or None
+            ward = attrs.get("ward")
+        else:
+            ward = self.instance.ward if self.instance else None
+
+        if "is_active" in attrs:
+            is_active = attrs["is_active"]
+        else:
+            is_active = self.instance.is_active if self.instance else True
+
+        if ward and county and county.lower() not in ["nairobi", "kiambu"]:
             raise serializers.ValidationError(
                 {"ward": "Ward-specific pricing is only allowed for Nairobi and Kiambu."}
             )
+
+        def _ward_empty(w):
+            if w is None:
+                return True
+            return isinstance(w, str) and w.strip() == ""
+
+        if is_active and _ward_empty(ward) and county:
+            clash = DeliveryRate.objects.filter(is_active=True, county__iexact=county).filter(
+                Q(ward__isnull=True) | Q(ward="")
+            )
+            if self.instance:
+                clash = clash.exclude(pk=self.instance.pk)
+            if clash.exists():
+                raise serializers.ValidationError(
+                    {
+                        "non_field_errors": [
+                            "Only one active county-wide delivery rate is allowed per county "
+                            "(empty/null ward). Deactivate or delete the existing row, or edit it."
+                        ]
+                    }
+                )
+
         return attrs
 
 

@@ -8,6 +8,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.validators import MinValueValidator
 from django.db import models
+from django.db.models import Q
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
@@ -892,7 +893,13 @@ class DeliveryRate(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=["county", "ward"], name="uniq_delivery_rate_county_ward"
-            )
+            ),
+            models.UniqueConstraint(
+                fields=["county"],
+                name="uniq_delivery_active_county_no_ward",
+                condition=Q(is_active=True)
+                & (Q(ward__isnull=True) | Q(ward="")),
+            ),
         ]
         indexes = [
             models.Index(fields=["county", "ward"]),
