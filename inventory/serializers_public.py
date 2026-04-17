@@ -14,6 +14,7 @@ from inventory.models import (
     Cart,
     CartItem,
     DeliveryRate,
+    FinancingOffer,
     InventoryUnit,
     Lead,
     LeadItem,
@@ -28,6 +29,47 @@ from inventory.models import (
 from inventory.services.interest_service import InterestService
 
 logger = logging.getLogger(__name__)
+
+
+class PublicFinancingOfferSerializer(serializers.ModelSerializer):
+    provider_name = serializers.CharField(source="provider.name", read_only=True)
+    provider_slug = serializers.CharField(source="provider.slug", read_only=True)
+    provider_logo_url = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = FinancingOffer
+        fields = [
+            "id",
+            "provider",
+            "provider_name",
+            "provider_slug",
+            "provider_logo_url",
+            "deposit_amount",
+            "retail_amount",
+            "daily_payment",
+            "weekly_payment",
+            "monthly_payment",
+            "ram_gb",
+            "rom_gb",
+        ]
+
+    @extend_schema_field(serializers.URLField(allow_null=True))
+    def get_provider_logo_url(self, obj):
+        provider = getattr(obj, "provider", None)
+        if provider and getattr(provider, "logo", None):
+            from inventory.cloudinary_utils import get_optimized_image_url
+
+            return get_optimized_image_url(provider.logo, width=200, height=200, crop="fit")
+        return None
+
+
+class FinancingInquiryRequestSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=255)
+    phone = serializers.CharField(max_length=50)
+    email = serializers.EmailField()
+    product_id = serializers.IntegerField()
+    provider_id = serializers.IntegerField(required=False, allow_null=True)
+    offer_id = serializers.IntegerField(required=False, allow_null=True)
 
 
 @extend_schema_serializer(component_name="PublicInventoryUnitPublic")
@@ -254,6 +296,8 @@ class PublicReviewSubmitSerializer(serializers.Serializer):
 class PublicProductSerializer(serializers.ModelSerializer):
     """Public product serializer (stripped down)."""
 
+    financing_available = serializers.SerializerMethodField()
+    financing_offers = serializers.SerializerMethodField()
     available_units_count = serializers.SerializerMethodField()
     interest_count = serializers.SerializerMethodField()
     min_price = serializers.SerializerMethodField()
@@ -284,6 +328,8 @@ class PublicProductSerializer(serializers.ModelSerializer):
             "product_description",
             "long_description",
             "product_highlights",
+            "financing_available",
+            "financing_offers",
             "available_units_count",
             "interest_count",
             "min_price",
@@ -317,6 +363,26 @@ class PublicProductSerializer(serializers.ModelSerializer):
     def get_tags(self, obj):
         """Return list of tag names."""
         return [tag.name for tag in obj.tags.all()]
+
+    @extend_schema_field(OpenApiTypes.BOOL)
+    def get_financing_available(self, obj):
+        if hasattr(obj, "financing_available"):
+            return bool(getattr(obj, "financing_available"))
+        return FinancingOffer.objects.filter(
+            product=obj, is_active=True, provider__is_active=True
+        ).exists()
+
+    @extend_schema_field(serializers.ListField(child=PublicFinancingOfferSerializer()))
+    def get_financing_offers(self, obj):
+        # Avoid heavy payload on list responses
+        if self.context.get("view_action") == "list":
+            return []
+        offers = (
+            FinancingOffer.objects.filter(product=obj, is_active=True, provider__is_active=True)
+            .select_related("provider")
+            .order_by("provider__name", "rom_gb", "ram_gb", "id")
+        )
+        return PublicFinancingOfferSerializer(offers, many=True, context=self.context).data
 
     @extend_schema_field(OpenApiTypes.BOOL)
     def get_has_active_bundle(self, obj):
@@ -710,6 +776,7 @@ class PublicProductListSerializer(PublicProductSerializer):
             "brand",
             "model_series",
             "product_type",
+            "financing_available",
             "available_units_count",
             "min_price",
             "max_price",

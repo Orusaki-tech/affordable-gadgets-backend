@@ -579,6 +579,89 @@ class Tag(models.Model):
 
 
 # -------------------------------------------------------------------------
+# 3A. FINANCING (BUY NOW PAY LATER) MODELS
+# -------------------------------------------------------------------------
+
+
+class FinancingProvider(models.Model):
+    """BNPL provider (e.g., Affirm, Lipa Later)."""
+
+    name = models.CharField(max_length=100, unique=True, db_index=True)
+    slug = models.SlugField(max_length=120, unique=True, db_index=True, blank=True)
+    logo = models.ImageField(upload_to="financing/providers/logos/", blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        """Auto-generate slug from name if not provided."""
+        if not self.slug and self.name:
+            from django.utils.text import slugify
+
+            self.slug = slugify(self.name)
+        super().save(*args, **kwargs)
+
+
+class FinancingOffer(models.Model):
+    """Financing offer for a Product (template) under a provider."""
+
+    provider = models.ForeignKey(
+        FinancingProvider, on_delete=models.PROTECT, related_name="offers"
+    )
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="financing_offers")
+
+    # Pricing terms (manual)
+    deposit_amount = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
+    retail_amount = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
+    daily_payment = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
+    weekly_payment = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
+    monthly_payment = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
+
+    # Variant dimensions (align with InventoryUnit naming)
+    ram_gb = models.PositiveIntegerField(null=True, blank=True)
+    rom_gb = models.PositiveIntegerField(null=True, blank=True)
+
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["provider__name", "product_id", "rom_gb", "ram_gb", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["provider", "product", "ram_gb", "rom_gb"],
+                name="uniq_financing_offer_provider_product_ram_rom",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["provider", "is_active"]),
+            models.Index(fields=["product", "is_active"]),
+        ]
+
+    def __str__(self):
+        variant = []
+        if self.rom_gb is not None:
+            variant.append(f"{self.rom_gb}GB")
+        if self.ram_gb is not None:
+            variant.append(f"{self.ram_gb}GB RAM")
+        suffix = f" ({', '.join(variant)})" if variant else ""
+        return f"{self.provider.name} - {self.product.product_name}{suffix}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        if self.deposit_amount is not None and self.retail_amount is not None:
+            if self.deposit_amount > self.retail_amount:
+                raise ValidationError({"deposit_amount": "Deposit amount cannot exceed retail amount."})
+
+
+# -------------------------------------------------------------------------
 # 3. INVENTORY TRACKING MODELS
 # -------------------------------------------------------------------------
 

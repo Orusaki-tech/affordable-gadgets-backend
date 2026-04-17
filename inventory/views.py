@@ -66,6 +66,8 @@ from .models import (  # noqa: E402
     AdminRole,
     AuditLog,
     Brand,
+    FinancingOffer,
+    FinancingProvider,
     Bundle,
     BundleItem,
     Cart,
@@ -105,6 +107,7 @@ from .permissions import (  # noqa: E402
     IsContentCreatorOrInventoryManagerOrReadOnly,
     IsCustomerOwnerOrAdmin,
     IsInventoryManager,
+    IsInventoryManagerOrSuperuser,
     IsInventoryManagerOrMarketingManagerReadOnly,
     IsInventoryManagerOrSalespersonReadOnly,
     IsMarketingManager,
@@ -127,6 +130,8 @@ from .serializers import (  # noqa: E402
     CustomerProfileUpdateSerializer,
     DeliveryRateSerializer,
     DiscountCalculatorSerializer,
+    FinancingOfferSerializer,
+    FinancingProviderSerializer,
     InitiatePaymentRequestSerializer,
     InventoryUnitImageSerializer,
     InventoryUnitSerializer,
@@ -5327,6 +5332,40 @@ class BrandViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
             pass
 
         return queryset.none()
+
+
+class FinancingProviderViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
+    """Financing provider management (Inventory Manager / Superuser)."""
+
+    queryset = FinancingProvider.objects.all()
+    serializer_class = FinancingProviderSerializer
+    permission_classes = [IsInventoryManagerOrSuperuser]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ["name", "slug"]
+    ordering_fields = ["name", "updated_at", "created_at"]
+    ordering = ["name"]
+
+
+class FinancingOfferViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
+    """Financing offer management (Inventory Manager / Superuser)."""
+
+    queryset = FinancingOffer.objects.select_related("provider", "product").all()
+    serializer_class = FinancingOfferSerializer
+    permission_classes = [IsInventoryManagerOrSuperuser]
+    parser_classes = [JSONParser, FormParser, MultiPartParser]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ["provider", "product", "is_active", "ram_gb", "rom_gb"]
+    search_fields = ["product__product_name", "provider__name"]
+    ordering_fields = ["updated_at", "created_at", "rom_gb", "ram_gb", "deposit_amount"]
+    ordering = ["-updated_at"]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        provider_id = self.request.query_params.get("provider_id")
+        if provider_id:
+            qs = qs.filter(provider_id=provider_id)
+        return qs
 
 
 @extend_schema_view(

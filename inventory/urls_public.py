@@ -22,6 +22,11 @@ router.register(
 router.register(r"reviews", views_public.PublicReviewViewSet, basename="public-review")
 
 urlpatterns = [
+    path(
+        "financing/inquiry/",
+        views_public.PublicFinancingInquiryView.as_view(),
+        name="public-financing-inquiry",
+    ),
     path("reviews/otp/", views_public.ReviewOtpView.as_view(), name="public-review-otp"),
     path(
         "reviews/eligibility/",

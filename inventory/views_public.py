@@ -10,6 +10,7 @@ from django.db.models import (
     Case,
     Count,
     DecimalField,
+    Exists,
     IntegerField,
     Max,
     Min,
@@ -36,6 +37,7 @@ from inventory.models import (
     Cart,
     Customer,
     DeliveryRate,
+    FinancingOffer,
     InventoryUnit,
     InventoryUnitImage,
     Lead,
@@ -56,6 +58,7 @@ from inventory.serializers_public import (
     CartSerializer,
     CheckoutResponseSerializer,
     CheckoutSerializer,
+    FinancingInquiryRequestSerializer,
     OrderHistoryRequestSerializer,
     OrderOtpRequestSerializer,
     PublicBundleSerializer,
@@ -74,6 +77,7 @@ from inventory.serializers_public import (
 from inventory.services.cart_service import CartService
 from inventory.services.customer_service import CustomerService
 from inventory.services.delivery_service import get_delivery_fee
+from inventory.services.lead_service import LeadService
 from inventory.services.otp_service import OtpService
 
 from . import views as inventory_views
@@ -1024,6 +1028,58 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
                 # Stable ordering for pagination (avoids UnorderedObjectListWarning when slug returns 1 row).
                 return queryset.order_by("id")
 
+            # Financing listing: return products that have active BNPL offers.
+            # IMPORTANT: This list should include products even when out of stock.
+            if self.request.query_params.get("financing") in ("1", "true", "yes"):
+                brand = getattr(self.request, "brand", None)
+                qs = Product.objects.filter(is_discontinued=False, is_published=True)
+                if brand:
+                    qs = qs.filter(
+                        Q(brands=brand) | Q(is_global=True) | Q(brands__isnull=True)
+                    ).distinct()
+
+                # Only products with active offers from active providers
+                qs = qs.filter(
+                    financing_offers__is_active=True,
+                    financing_offers__provider__is_active=True,
+                ).distinct()
+
+                primary_images_prefetch = Prefetch(
+                    "images",
+                    queryset=ProductImage.objects.filter(is_primary=True),
+                    to_attr="primary_images_list",
+                )
+
+                available_units_filter = Q(
+                    inventory_units__sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+                    inventory_units__available_online=True,
+                )
+                if brand:
+                    available_units_filter &= Q(inventory_units__brands=brand) | Q(
+                        inventory_units__brands__isnull=True
+                    )
+
+                qs = qs.prefetch_related(primary_images_prefetch).annotate(
+                    financing_available=Value(True),
+                    min_price=Min("inventory_units__selling_price", filter=available_units_filter),
+                    max_price=Max("inventory_units__selling_price", filter=available_units_filter),
+                    compare_at_min_price=Min(
+                        "inventory_units__compare_at_price",
+                        filter=available_units_filter
+                        & Q(inventory_units__compare_at_price__isnull=False),
+                    ),
+                    compare_at_max_price=Max(
+                        "inventory_units__compare_at_price",
+                        filter=available_units_filter
+                        & Q(inventory_units__compare_at_price__isnull=False),
+                    ),
+                    available_units_count=Count(
+                        "inventory_units", filter=available_units_filter, distinct=True
+                    ),
+                )
+
+                return qs.order_by("product_name", "id")
+
             # Normal queryset filtering for list views
             queryset = super().get_queryset()
             brand = getattr(self.request, "brand", None)
@@ -1038,6 +1094,14 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
                 has_url = Q(product_video_url__isnull=False) & ~Q(product_video_url="")
                 has_file = Q(product_video_file__isnull=False) & ~Q(product_video_file="")
                 queryset = tagged_video.filter(has_url | has_file)
+
+            # Attach a lightweight boolean for UI chips ("Financing available") on list responses.
+            financing_exists = FinancingOffer.objects.filter(
+                product_id=OuterRef("pk"),
+                is_active=True,
+                provider__is_active=True,
+            )
+            queryset = queryset.annotate(financing_available=Exists(financing_exists))
             is_list = getattr(self, "action", None) == "list" and not self.request.query_params.get(
                 "slug"
             )
@@ -2514,6 +2578,100 @@ class ReviewOtpView(_PublicAPIMixin, APIView):
                 status_code = status.HTTP_503_SERVICE_UNAVAILABLE
             return Response(result, status=status_code)
         return Response(result)
+
+
+@extend_schema(request=FinancingInquiryRequestSerializer, responses=OpenApiTypes.OBJECT)
+class PublicFinancingInquiryView(_PublicAPIMixin, APIView):
+    """Create a BNPL inquiry which is routed to Leads (Sales team)."""
+
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        serializer = FinancingInquiryRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        brand = getattr(request, "brand", None)
+        if not brand:
+            return Response(
+                {"error": "Brand is required (missing or invalid X-Brand-Code)."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        product = Product.objects.filter(id=data["product_id"]).first()
+        if not product:
+            return Response({"error": "Product not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        offer = None
+        if data.get("offer_id"):
+            offer = (
+                FinancingOffer.objects.filter(
+                    id=data["offer_id"],
+                    product=product,
+                    is_active=True,
+                    provider__is_active=True,
+                )
+                .select_related("provider")
+                .first()
+            )
+
+        # Optional provider selection (when offer_id not provided)
+        provider_id = data.get("provider_id")
+        provider = offer.provider if offer else None
+        if not provider and provider_id:
+            provider = (
+                FinancingOffer.objects.filter(
+                    product=product,
+                    is_active=True,
+                    provider__is_active=True,
+                    provider_id=provider_id,
+                )
+                .select_related("provider")
+                .values_list("provider", flat=True)
+                .first()
+            )
+
+        notes_parts = [
+            "BNPL inquiry",
+            f"Product: {product.product_name} (id={product.id})",
+        ]
+        if offer:
+            notes_parts.append(f"Provider: {offer.provider.name} (id={offer.provider_id})")
+            notes_parts.append(
+                f"Offer: deposit={offer.deposit_amount}, retail={offer.retail_amount}, "
+                f"daily={offer.daily_payment}, weekly={offer.weekly_payment}, monthly={offer.monthly_payment}, "
+                f"ram_gb={offer.ram_gb}, rom_gb={offer.rom_gb}"
+            )
+        elif provider_id:
+            notes_parts.append(f"Provider id: {provider_id}")
+
+        lead = Lead.objects.create(
+            customer_name=data["name"].strip(),
+            customer_phone=data["phone"].strip(),
+            customer_email=data["email"].strip().lower(),
+            delivery_address="",
+            delivery_county="",
+            delivery_ward="",
+            delivery_notes="",
+            brand=brand,
+            status=Lead.StatusChoices.NEW,
+            customer_notes=" | ".join([p for p in notes_parts if p]),
+            total_value=(offer.retail_amount if offer else Decimal("0.00")),
+        )
+
+        # Auto-assign to a salesperson for this brand when possible.
+        try:
+            LeadService.auto_assign_lead(lead)
+        except Exception:
+            pass
+
+        return Response(
+            {
+                "message": "Inquiry received. Our team will reach out shortly.",
+                "lead_reference": lead.lead_reference,
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
 
 @extend_schema(request=OrderOtpRequestSerializer, responses=OpenApiTypes.OBJECT)

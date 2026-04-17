@@ -8,6 +8,8 @@ from .models import (
     Brand,
     Color,
     Customer,
+    FinancingOffer,
+    FinancingProvider,
     InventoryUnit,
     InventoryUnitImage,
     Order,
@@ -361,6 +363,44 @@ class BrandAdmin(admin.ModelAdmin):
         "logo",
         "primary_color",
         "ecommerce_domain",
+    )
+
+
+@admin.register(FinancingProvider)
+class FinancingProviderAdmin(admin.ModelAdmin):
+    list_display = ("name", "is_active", "updated_at")
+    list_filter = ("is_active",)
+    search_fields = ("name", "slug")
+    fields = ("name", "slug", "logo", "is_active")
+
+
+@admin.register(FinancingOffer)
+class FinancingOfferAdmin(admin.ModelAdmin):
+    list_display = (
+        "provider",
+        "product",
+        "rom_gb",
+        "ram_gb",
+        "deposit_amount",
+        "retail_amount",
+        "monthly_payment",
+        "is_active",
+        "updated_at",
+    )
+    list_select_related = ("provider", "product")
+    list_filter = ("provider", "is_active")
+    search_fields = ("product__product_name", "provider__name")
+    fields = (
+        "provider",
+        "product",
+        "rom_gb",
+        "ram_gb",
+        "deposit_amount",
+        "retail_amount",
+        "daily_payment",
+        "weekly_payment",
+        "monthly_payment",
+        "is_active",
     )
 
 

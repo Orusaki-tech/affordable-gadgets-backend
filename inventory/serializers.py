@@ -15,6 +15,8 @@ from .models import (
     AdminRole,
     AuditLog,
     Brand,
+    FinancingOffer,
+    FinancingProvider,
     Bundle,
     BundleItem,
     Cart,
@@ -3303,6 +3305,75 @@ class BrandSerializer(serializers.ModelSerializer):
             instance.save()
 
         return instance
+
+
+class FinancingProviderSerializer(serializers.ModelSerializer):
+    """Serializer for BNPL financing providers."""
+
+    logo_url = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = FinancingProvider
+        fields = (
+            "id",
+            "name",
+            "slug",
+            "logo",
+            "logo_url",
+            "is_active",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = ("created_at", "updated_at", "logo_url")
+
+    @extend_schema_field(serializers.URLField(allow_null=True))
+    def get_logo_url(self, obj):
+        if obj.logo:
+            from .cloudinary_utils import get_optimized_image_url
+
+            return get_optimized_image_url(obj.logo, width=200, height=200, crop="fit")
+        return None
+
+
+class FinancingOfferSerializer(serializers.ModelSerializer):
+    """Serializer for BNPL financing offers."""
+
+    provider_name = serializers.CharField(source="provider.name", read_only=True)
+    provider_slug = serializers.CharField(source="provider.slug", read_only=True)
+    provider_logo_url = serializers.SerializerMethodField(read_only=True)
+    product_name = serializers.CharField(source="product.product_name", read_only=True)
+
+    class Meta:
+        model = FinancingOffer
+        fields = (
+            "id",
+            "provider",
+            "provider_name",
+            "provider_slug",
+            "provider_logo_url",
+            "product",
+            "product_name",
+            "deposit_amount",
+            "retail_amount",
+            "daily_payment",
+            "weekly_payment",
+            "monthly_payment",
+            "ram_gb",
+            "rom_gb",
+            "is_active",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = ("created_at", "updated_at", "provider_logo_url")
+
+    @extend_schema_field(serializers.URLField(allow_null=True))
+    def get_provider_logo_url(self, obj):
+        provider = getattr(obj, "provider", None)
+        if provider and getattr(provider, "logo", None):
+            from .cloudinary_utils import get_optimized_image_url
+
+            return get_optimized_image_url(provider.logo, width=200, height=200, crop="fit")
+        return None
 
 
 class LeadItemSerializer(serializers.ModelSerializer):
