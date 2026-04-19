@@ -2452,10 +2452,19 @@ class ReservationRequestSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_requesting_salesperson_brands(self, obj):
-        """Get brands associated with the requesting salesperson."""
+        """Get brands associated with the requesting salesperson.
+
+        Matches AdminSerializer.get_brands: when none are assigned, fall back to the
+        default AFFORDABLE_GADGETS brand so flows like "create order from reservation"
+        are not blocked with an empty list.
+        """
         if not obj.requesting_salesperson:
             return []
-        brands = obj.requesting_salesperson.brands.all()
+        brands = list(obj.requesting_salesperson.brands.all())
+        if not brands:
+            default_brand = Brand.objects.filter(code="AFFORDABLE_GADGETS", is_active=True).first()
+            if default_brand:
+                brands = [default_brand]
         return [
             {
                 "id": brand.id,
