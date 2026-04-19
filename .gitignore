@@ -49,6 +49,7 @@ db.sqlite3-journal
 Thumbs.db
 
 # Build artifacts
+backend-deploy.tar.gz
 *.tsbuildinfo
 __pycache__/
 *.pyc
