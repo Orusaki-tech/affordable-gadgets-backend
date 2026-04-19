@@ -111,6 +111,23 @@ else
   echo "CORS_ALLOWED_ORIGINS=${ADMIN_ORIGIN_DEFAULT}" >> "${ENV_REMOTE}"
 fi
 
+# Django production requires FRONTEND_BASE_URL (shop URL for emails, redirects). Local .env often omits it or uses localhost.
+DEPLOY_FB_DEFAULT="${DEPLOY_FRONTEND_BASE_URL:-https://www.affordable-gadgetske.com}"
+if grep -q '^FRONTEND_BASE_URL=' "${ENV_REMOTE}" 2>/dev/null; then
+  _fb_line="$(grep '^FRONTEND_BASE_URL=' "${ENV_REMOTE}" | head -1)"
+  _fb_val="${_fb_line#FRONTEND_BASE_URL=}"
+  _fb_val="$(echo "${_fb_val}" | tr -d '\r' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+  if [[ -z "${_fb_val}" ]] || echo "${_fb_val}" | grep -qE '(localhost|127\.0\.0\.1)'; then
+    sed -i '' '/^FRONTEND_BASE_URL=/d' "${ENV_REMOTE}" 2>/dev/null || true
+    echo "FRONTEND_BASE_URL=${DEPLOY_FB_DEFAULT}" >> "${ENV_REMOTE}"
+    echo "==> Set FRONTEND_BASE_URL=${DEPLOY_FB_DEFAULT} (was missing, localhost, or empty)."
+  fi
+else
+  echo "FRONTEND_BASE_URL=${DEPLOY_FB_DEFAULT}" >> "${ENV_REMOTE}"
+  echo "==> Set FRONTEND_BASE_URL=${DEPLOY_FB_DEFAULT} (override via .env or DEPLOY_FRONTEND_BASE_URL=... when running deploy)."
+fi
+unset _fb_line _fb_val
+
 # 4. Tarball backend (exclude git, venv, cache, local env, and the tarball itself)
 TARBALL="backend-deploy.tar.gz"
 echo "==> Creating tarball..."
