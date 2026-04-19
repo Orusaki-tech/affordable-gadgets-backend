@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Run the full laptop workflow: deploy backend to GCP, then start/update ngrok on the VM.
 # You do NOT need to SSH into the VM — both scripts use gcloud from your machine.
+# ngrok-on-vm.sh updates ALLOWED_HOSTS, CORS, PESAPAL_IPN_URL for the current tunnel, and recreates web.
 #
 # From backend repo root:
 #   ./deploy/deploy-and-ngrok.sh

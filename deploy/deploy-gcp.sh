@@ -48,20 +48,18 @@ echo "==> VM: ${INSTANCE_NAME}, IP: ${IP}, zone: ${ZONE}"
 # Never hardcode a stale ngrok domain here — it caused DisallowedHost + fake "CORS" errors
 # after ngrok restarts with a new URL.
 #
-# Priority:
+# Priority for ALLOWED_HOSTS extras:
 #   1. DEPLOY_EXTRA_ALLOWED_HOSTS — comma-separated (e.g. your reserved ngrok domain)
-#   2. SSH to VM and read ngrok's local API (127.0.0.1:4040) if the tunnel is already running
-#   3. none — run ./deploy/ngrok-on-vm.sh after starting/changing ngrok
+#   2. Else: hostname from ngrok local API on the VM (127.0.0.1:4040) if the tunnel is running
+#
+# We always SSH once to read the tunnel HTTPS URL (when possible) so we can also set
+# PESAPAL_IPN_URL to https://<host>/api/inventory/pesapal/ipn/ — required for M-Pesa/Pesapal on ngrok.
+TUNNEL_URL=""
 EXTRA_ALLOWED=""
-if [[ -n "${DEPLOY_EXTRA_ALLOWED_HOSTS:-}" ]]; then
-  EXTRA_ALLOWED="${DEPLOY_EXTRA_ALLOWED_HOSTS}"
-  echo "==> ALLOWED_HOSTS extras from DEPLOY_EXTRA_ALLOWED_HOSTS: ${EXTRA_ALLOWED}"
-else
-  PROJECT_ID_PROBE="$(cd "${TERRAFORM_DIR}" && terraform output -raw project_id 2>/dev/null || true)"
-  GCLOUD_SSH_PROBE=(gcloud compute ssh "${REMOTE_USER}@${INSTANCE_NAME}" --zone="${ZONE}")
-  [[ -n "${PROJECT_ID_PROBE}" ]] && GCLOUD_SSH_PROBE+=(--project="${PROJECT_ID_PROBE}")
-  TUNNEL_URL=""
-  TUNNEL_URL=$("${GCLOUD_SSH_PROBE[@]}" --command="curl -s http://127.0.0.1:4040/api/tunnels 2>/dev/null | python3 -c \"
+PROJECT_ID_PROBE="$(cd "${TERRAFORM_DIR}" && terraform output -raw project_id 2>/dev/null || true)"
+GCLOUD_SSH_PROBE=(gcloud compute ssh "${REMOTE_USER}@${INSTANCE_NAME}" --zone="${ZONE}")
+[[ -n "${PROJECT_ID_PROBE}" ]] && GCLOUD_SSH_PROBE+=(--project="${PROJECT_ID_PROBE}")
+TUNNEL_URL=$("${GCLOUD_SSH_PROBE[@]}" --command="curl -s http://127.0.0.1:4040/api/tunnels 2>/dev/null | python3 -c \"
 import sys, json
 try:
     d = json.load(sys.stdin)
@@ -73,12 +71,17 @@ try:
 except Exception:
     pass
 \"" 2>/dev/null | tail -1) || true
+
+if [[ -n "${DEPLOY_EXTRA_ALLOWED_HOSTS:-}" ]]; then
+  EXTRA_ALLOWED="${DEPLOY_EXTRA_ALLOWED_HOSTS}"
+  echo "==> ALLOWED_HOSTS extras from DEPLOY_EXTRA_ALLOWED_HOSTS: ${EXTRA_ALLOWED}"
+else
   if [[ -n "${TUNNEL_URL}" ]]; then
     EXTRA_ALLOWED="$(echo "${TUNNEL_URL}" | sed -E 's|https?://([^/]+).*|\1|')"
     echo "==> Detected ngrok host on VM for ALLOWED_HOSTS: ${EXTRA_ALLOWED}"
   else
     echo "==> No ngrok tunnel detected on VM (or SSH/curl failed). Using IP + localhost only."
-    echo "    If you use ngrok, start it on the VM then run: ./deploy/ngrok-on-vm.sh"
+    echo "    Run ./deploy/ngrok-on-vm.sh after starting ngrok (sets ALLOWED_HOSTS + PESAPAL_IPN_URL on the VM)."
   fi
 fi
 
@@ -127,6 +130,19 @@ else
   echo "==> Set FRONTEND_BASE_URL=${DEPLOY_FB_DEFAULT} (override via .env or DEPLOY_FRONTEND_BASE_URL=... when running deploy)."
 fi
 unset _fb_line _fb_val
+
+# Pesapal IPN must be a public HTTPS URL reachable by Pesapal. When using ngrok, set from tunnel URL.
+if [[ -n "${TUNNEL_URL:-}" ]]; then
+  _ipn="${TUNNEL_URL%/}/api/inventory/pesapal/ipn/"
+  sed -i '' '/^PESAPAL_IPN_URL=/d' "${ENV_REMOTE}" 2>/dev/null || true
+  echo "PESAPAL_IPN_URL=${_ipn}" >> "${ENV_REMOTE}"
+  echo "==> Set PESAPAL_IPN_URL from ngrok tunnel: ${_ipn}"
+elif [[ -n "${DEPLOY_PESAPAL_IPN_URL:-}" ]]; then
+  sed -i '' '/^PESAPAL_IPN_URL=/d' "${ENV_REMOTE}" 2>/dev/null || true
+  echo "PESAPAL_IPN_URL=${DEPLOY_PESAPAL_IPN_URL}" >> "${ENV_REMOTE}"
+  echo "==> Set PESAPAL_IPN_URL from DEPLOY_PESAPAL_IPN_URL"
+fi
+unset _ipn
 
 # 4. Tarball backend (exclude git, venv, cache, local env, and the tarball itself)
 TARBALL="backend-deploy.tar.gz"
@@ -197,6 +213,9 @@ DEPLOY_SUMMARY="${SCRIPT_DIR}/last-deploy.txt"
   echo "Backend URL: http://${IP}:8000"
   if [[ -n "${EXTRA_ALLOWED:-}" ]]; then
     echo "ALLOWED_HOSTS extras (e.g. ngrok): ${EXTRA_ALLOWED}"
+  fi
+  if [[ -n "${TUNNEL_URL:-}" ]]; then
+    echo "PESAPAL_IPN_URL (from tunnel): ${TUNNEL_URL%/}/api/inventory/pesapal/ipn/"
   fi
 } > "${DEPLOY_SUMMARY}"
 echo "==> Summary written to ${DEPLOY_SUMMARY}"
