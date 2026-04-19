@@ -44,6 +44,44 @@ fi
 
 echo "==> VM: ${INSTANCE_NAME}, IP: ${IP}, zone: ${ZONE}"
 
+# Optional hostnames for Django ALLOWED_HOSTS (e.g. current ngrok tunnel).
+# Never hardcode a stale ngrok domain here — it caused DisallowedHost + fake "CORS" errors
+# after ngrok restarts with a new URL.
+#
+# Priority:
+#   1. DEPLOY_EXTRA_ALLOWED_HOSTS — comma-separated (e.g. your reserved ngrok domain)
+#   2. SSH to VM and read ngrok's local API (127.0.0.1:4040) if the tunnel is already running
+#   3. none — run ./deploy/ngrok-on-vm.sh after starting/changing ngrok
+EXTRA_ALLOWED=""
+if [[ -n "${DEPLOY_EXTRA_ALLOWED_HOSTS:-}" ]]; then
+  EXTRA_ALLOWED="${DEPLOY_EXTRA_ALLOWED_HOSTS}"
+  echo "==> ALLOWED_HOSTS extras from DEPLOY_EXTRA_ALLOWED_HOSTS: ${EXTRA_ALLOWED}"
+else
+  PROJECT_ID_PROBE="$(cd "${TERRAFORM_DIR}" && terraform output -raw project_id 2>/dev/null || true)"
+  GCLOUD_SSH_PROBE=(gcloud compute ssh "${REMOTE_USER}@${INSTANCE_NAME}" --zone="${ZONE}")
+  [[ -n "${PROJECT_ID_PROBE}" ]] && GCLOUD_SSH_PROBE+=(--project="${PROJECT_ID_PROBE}")
+  TUNNEL_URL=""
+  TUNNEL_URL=$("${GCLOUD_SSH_PROBE[@]}" --command="curl -s http://127.0.0.1:4040/api/tunnels 2>/dev/null | python3 -c \"
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    for t in d.get('tunnels', []):
+        u = t.get('public_url') or ''
+        if u.startswith('https://'):
+            print(u)
+            break
+except Exception:
+    pass
+\"" 2>/dev/null | tail -1) || true
+  if [[ -n "${TUNNEL_URL}" ]]; then
+    EXTRA_ALLOWED="$(echo "${TUNNEL_URL}" | sed -E 's|https?://([^/]+).*|\1|')"
+    echo "==> Detected ngrok host on VM for ALLOWED_HOSTS: ${EXTRA_ALLOWED}"
+  else
+    echo "==> No ngrok tunnel detected on VM (or SSH/curl failed). Using IP + localhost only."
+    echo "    If you use ngrok, start it on the VM then run: ./deploy/ngrok-on-vm.sh"
+  fi
+fi
+
 # 3. Build .env for VM (inject ALLOWED_HOSTS and VM-specific vars)
 if [[ ! -f .env ]]; then
   echo "ERROR: .env not found. Create .env with SECRET_KEY, CORS, Cloudinary, etc."
@@ -52,8 +90,11 @@ fi
 ENV_REMOTE=".env.deploy.${IP}.tmp"
 # Copy .env but strip vars we override or that don't apply on GCP (e.g. Railway Redis)
 { grep -v -e '^ALLOWED_HOSTS=' -e '^DATABASE_URL=' -e '^DJANGO_SETTINGS_MODULE=' -e '^DJANGO_ENV=' -e '^REDIS_URL=' .env 2>/dev/null || true; } > "${ENV_REMOTE}"
-NGROK_HOST="unreversed-nonadmissible-kandis.ngrok-free.dev"
-echo "ALLOWED_HOSTS=${IP},localhost,127.0.0.1,${NGROK_HOST}" >> "${ENV_REMOTE}"
+ALLOWED_HOSTS_VALUE="${IP},localhost,127.0.0.1"
+if [[ -n "${EXTRA_ALLOWED}" ]]; then
+  ALLOWED_HOSTS_VALUE="${ALLOWED_HOSTS_VALUE},${EXTRA_ALLOWED}"
+fi
+echo "ALLOWED_HOSTS=${ALLOWED_HOSTS_VALUE}" >> "${ENV_REMOTE}"
 echo "DATABASE_URL=postgresql://affordable:affordable@postgres:5432/affordable_gadgets" >> "${ENV_REMOTE}"
 echo "DJANGO_SETTINGS_MODULE=store.settings_production" >> "${ENV_REMOTE}"
 echo "DJANGO_ENV=production" >> "${ENV_REMOTE}"
@@ -137,6 +178,9 @@ DEPLOY_SUMMARY="${SCRIPT_DIR}/last-deploy.txt"
   echo "Zone: ${ZONE}"
   echo "Project: ${PROJECT_ID}"
   echo "Backend URL: http://${IP}:8000"
+  if [[ -n "${EXTRA_ALLOWED:-}" ]]; then
+    echo "ALLOWED_HOSTS extras (e.g. ngrok): ${EXTRA_ALLOWED}"
+  fi
 } > "${DEPLOY_SUMMARY}"
 echo "==> Summary written to ${DEPLOY_SUMMARY}"
 
@@ -144,5 +188,10 @@ echo ""
 echo "==> Deploy complete. Backend: http://${IP}:8000"
 echo "    (Firewall for 22, 80, 443 is already in Terraform; no GCP Console needed.)"
 echo ""
-echo "    If you use ngrok for HTTPS, run: ./deploy/ngrok-on-vm.sh"
-echo "    (Deploy overwrites .env; ngrok-on-vm.sh re-adds the ngrok host to ALLOWED_HOSTS.)"
+if [[ -n "${EXTRA_ALLOWED:-}" ]]; then
+  echo "    ALLOWED_HOSTS on the VM includes the detected/extra hostname(s) above."
+else
+  echo "    Using ngrok? Start the tunnel on the VM, then run: ./deploy/ngrok-on-vm.sh"
+  echo "    (That updates ALLOWED_HOSTS + recreates the web container for the current URL.)"
+fi
+echo "    Vercel must use REACT_APP_API_BASE_URL / NEXT_PUBLIC_API_URL matching that HTTPS URL; redeploy after the URL changes."
