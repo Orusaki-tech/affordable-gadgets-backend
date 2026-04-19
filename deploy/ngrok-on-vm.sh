@@ -53,7 +53,11 @@ if [ -n "${NGROK_AUTH}" ]; then
 fi
 pkill -f "ngrok http" 2>/dev/null || true
 sleep 2
-nohup ngrok http 8000 --log=stdout --log-level=error > /tmp/ngrok.log 2>&1 &
+# Explicit http:// upstream avoids some ERR_NGROK_3004 cases; tunnel must reach a healthy Django on the VM.
+if ! curl -sf --max-time 5 http://127.0.0.1:8000/ >/dev/null 2>&1; then
+  echo "WARNING: No HTTP response on http://127.0.0.1:8000 — start the app first (e.g. docker compose up -d in ~/affordable-gadgets-backend)." 1>&2
+fi
+nohup ngrok http http://127.0.0.1:8000 --log=stdout --log-level=error > /tmp/ngrok.log 2>&1 &
 URL=""
 for i in 1 2 3 4 5; do
   sleep 3
