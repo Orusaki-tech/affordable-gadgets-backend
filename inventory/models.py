@@ -620,9 +620,15 @@ class FinancingOffer(models.Model):
     # Pricing terms (manual)
     deposit_amount = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
     retail_amount = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
-    daily_payment = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
-    weekly_payment = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
-    monthly_payment = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
+    daily_payment = models.DecimalField(
+        max_digits=10, decimal_places=2, validators=[MinValueValidator(0)], null=True, blank=True
+    )
+    weekly_payment = models.DecimalField(
+        max_digits=10, decimal_places=2, validators=[MinValueValidator(0)], null=True, blank=True
+    )
+    monthly_payment = models.DecimalField(
+        max_digits=10, decimal_places=2, validators=[MinValueValidator(0)], null=True, blank=True
+    )
 
     # Variant dimensions (align with InventoryUnit naming)
     ram_gb = models.PositiveIntegerField(null=True, blank=True)
