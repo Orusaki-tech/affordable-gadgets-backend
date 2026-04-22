@@ -268,6 +268,8 @@ class PublicOrderSerializer(serializers.ModelSerializer):
             "created_at",
             "status",
             "total_amount",
+            "is_items_paid",
+            "is_delivery_paid",
             "customer_email",
             "gcr_eligible",
             "gcr_reason",

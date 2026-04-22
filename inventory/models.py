@@ -966,6 +966,10 @@ class Order(models.Model):
     delivery_county = models.CharField(max_length=100, blank=True)
     delivery_ward = models.CharField(max_length=100, blank=True)
     delivery_fee = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    # Partial payment support: allow paying items and delivery separately.
+    # These flags represent whether each component has been successfully paid.
+    is_items_paid = models.BooleanField(default=False)
+    is_delivery_paid = models.BooleanField(default=False)
     delivery_window_start = models.DateTimeField(null=True, blank=True)
     delivery_window_end = models.DateTimeField(null=True, blank=True)
     delivery_notes = models.TextField(blank=True)
@@ -1066,6 +1070,11 @@ class PesapalPayment(models.Model):
         BANK = "BANK", _("Bank Transfer")
         UNKNOWN = "UNKNOWN", _("Unknown")
 
+    class PaymentPurposeChoices(models.TextChoices):
+        ITEMS_ONLY = "ITEMS_ONLY", _("Items only")
+        DELIVERY_ONLY = "DELIVERY_ONLY", _("Delivery only")
+        BOTH = "BOTH", _("Items + Delivery")
+
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="pesapal_payments")
     pesapal_order_tracking_id = models.CharField(
         max_length=100, unique=True, db_index=True, help_text="Pesapal order tracking ID"
@@ -1089,6 +1098,12 @@ class PesapalPayment(models.Model):
 
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     currency = models.CharField(max_length=3, default="KES")
+    payment_purpose = models.CharField(
+        max_length=20,
+        choices=PaymentPurposeChoices.choices,
+        default=PaymentPurposeChoices.BOTH,
+        help_text="What this payment covers (items, delivery, or both).",
+    )
     payment_method = models.CharField(
         max_length=20, choices=PaymentMethodChoices.choices, null=True, blank=True
     )

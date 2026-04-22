@@ -3224,7 +3224,8 @@ class OrderViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            payable_amount = service.get_effective_order_total(order)
+            payment_mode = request.data.get("payment_mode") or "BOTH"
+            payable_amount = service.get_effective_order_total(order, payment_mode=payment_mode)
             if payable_amount <= 0:
                 print("[PESAPAL] ========== VIEW: INITIATE PAYMENT FAILED ==========")
                 print("[PESAPAL] ERROR: Order total amount must be greater than 0")
@@ -3284,6 +3285,7 @@ class OrderViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                 cancellation_url=cancellation_url,
                 customer=customer,
                 billing_address=billing_address,
+                payment_mode=payment_mode,
             )
 
             print(f"[PESAPAL] Service result: {json.dumps(result, indent=2, default=str)}")

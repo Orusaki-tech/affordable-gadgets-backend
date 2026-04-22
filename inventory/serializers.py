@@ -2199,6 +2199,8 @@ class OrderSerializer(serializers.ModelSerializer):
             "delivery_county",
             "delivery_ward",
             "delivery_fee",
+            "is_items_paid",
+            "is_delivery_paid",
             "delivery_window_start",
             "delivery_window_end",
             "delivery_notes",
@@ -2358,6 +2360,12 @@ class InitiatePaymentRequestSerializer(serializers.Serializer):
     cancellation_url = serializers.URLField(required=False, allow_null=True, allow_blank=True)
     customer = serializers.JSONField(required=False)
     billing_address = serializers.JSONField(required=False)
+    payment_mode = serializers.ChoiceField(
+        choices=["ITEMS_ONLY", "DELIVERY_ONLY", "BOTH"],
+        required=False,
+        default="BOTH",
+        help_text="What to pay for: cart items, delivery, or both.",
+    )
 
     def update(self, instance, validated_data):
         """

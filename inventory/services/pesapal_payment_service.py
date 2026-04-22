@@ -32,17 +32,21 @@ class PesapalPaymentService:
         print("[PESAPAL] PesapalPaymentService initialized")
 
     @staticmethod
-    def get_effective_order_total(order: Order) -> Decimal:
+    def get_effective_order_total(order: Order, payment_mode: str = "BOTH") -> Decimal:
         """
-        Compute payable total for gateway submission.
-        Prefer persisted order.total_amount when present; otherwise fallback to
-        (sum of order items + delivery fee) so delivery is always included.
+        Compute payable total for gateway submission based on payment_mode:
+        - ITEMS_ONLY: only order items
+        - DELIVERY_ONLY: only delivery fee
+        - BOTH: items + delivery (default)
         """
         items_total = sum((item.sub_total for item in order.order_items.all()), Decimal("0.00"))
         delivery_fee = order.delivery_fee or Decimal("0.00")
-        computed_total = items_total + delivery_fee
-        persisted_total = order.total_amount or Decimal("0.00")
-        return persisted_total if persisted_total > Decimal("0.00") else computed_total
+        mode = (payment_mode or "BOTH").strip().upper()
+        if mode == "ITEMS_ONLY":
+            return items_total
+        if mode == "DELIVERY_ONLY":
+            return delivery_fee
+        return items_total + delivery_fee
 
     @transaction.atomic
     def initiate_payment(
@@ -52,17 +56,16 @@ class PesapalPaymentService:
         cancellation_url: str | None = None,
         customer: dict | None = None,
         billing_address: dict | None = None,
+        payment_mode: str = "BOTH",
     ) -> dict:
         """Initiate Pesapal payment for an order."""
-        payable_amount = self.get_effective_order_total(order)
-        if order.total_amount != payable_amount:
-            order.total_amount = payable_amount
-            order.save(update_fields=["total_amount"])
+        payable_amount = self.get_effective_order_total(order, payment_mode=payment_mode)
 
         print("\n[PESAPAL] ========== INITIATE PAYMENT START ==========")
         print(f"[PESAPAL] Order ID: {order.order_id}")
         print(f"[PESAPAL] Order Amount: {payable_amount}")
         print(f"[PESAPAL] Order Status: {order.status}")
+        print(f"[PESAPAL] Payment Mode: {payment_mode}")
         print(f"[PESAPAL] Callback URL: {callback_url}")
         print(f"[PESAPAL] Cancellation URL: {cancellation_url}")
         print(f"[PESAPAL] Customer: {json.dumps(customer, indent=2) if customer else 'None'}")
@@ -249,6 +252,7 @@ class PesapalPaymentService:
                     pesapal_order_tracking_id=order_tracking_id,
                     amount=payable_amount,
                     currency="KES",
+                    payment_purpose=(payment_mode or "BOTH").strip().upper(),
                     redirect_url=redirect_url,
                     callback_url=callback_url,
                     customer_email=customer.get("email") if customer else None,
@@ -401,13 +405,13 @@ class PesapalPaymentService:
                 if pesapal_amount_str:
                     try:
                         pesapal_amount = Decimal(str(pesapal_amount_str))
-                        order_amount = payment.order.total_amount
+                        expected_amount = payment.amount
                         # Allow small rounding differences (0.01 KES)
-                        amount_diff = abs(pesapal_amount - order_amount)
+                        amount_diff = abs(pesapal_amount - expected_amount)
                         if amount_diff > Decimal("0.01"):
                             error_msg = (
                                 f"SECURITY ALERT: Amount mismatch for order {payment.order.order_id}. "
-                                f"Order amount: {order_amount}, Pesapal amount: {pesapal_amount}, "
+                                f"Expected amount: {expected_amount}, Pesapal amount: {pesapal_amount}, "
                                 f"Difference: {amount_diff}"
                             )
                             print("[PESAPAL] ========== SECURITY: AMOUNT MISMATCH ==========")
@@ -424,7 +428,7 @@ class PesapalPaymentService:
                             }
                         amount_validated = True
                         print(
-                            f"[PESAPAL] ✓ Amount validation passed: {pesapal_amount} == {order_amount}"
+                            f"[PESAPAL] ✓ Amount validation passed: {pesapal_amount} == {expected_amount}"
                         )
                     except (ValueError, TypeError) as e:
                         logger.warning(f"Could not validate amount from Pesapal response: {e}")
@@ -443,7 +447,7 @@ class PesapalPaymentService:
                             if pesapal_amount_str:
                                 try:
                                     pesapal_amount = Decimal(str(pesapal_amount_str))
-                                    if abs(pesapal_amount - payment.order.total_amount) > Decimal(
+                                    if abs(pesapal_amount - payment.amount) > Decimal(
                                         "0.01"
                                     ):
                                         error_msg = f"SECURITY ALERT: Final amount check failed for order {payment.order.order_id}"
@@ -464,9 +468,20 @@ class PesapalPaymentService:
                         payment.completed_at = timezone.now()
                         payment.is_verified = True
                         payment.verified_at = timezone.now()
-                        payment.order.status = Order.StatusChoices.PAID
-                        payment.order.save()
-                        print("[PESAPAL] ✓ Payment verified as completed - Order marked as PAID")
+                        purpose = (payment.payment_purpose or "BOTH").strip().upper()
+                        if purpose in ["ITEMS_ONLY", "BOTH"]:
+                            payment.order.is_items_paid = True
+                        if purpose in ["DELIVERY_ONLY", "BOTH"]:
+                            payment.order.is_delivery_paid = True
+                        if payment.order.is_items_paid and payment.order.is_delivery_paid:
+                            payment.order.status = Order.StatusChoices.PAID
+                            print("[PESAPAL] ✓ Payment verified - Order marked as PAID (items + delivery paid)")
+                        else:
+                            print(
+                                "[PESAPAL] ✓ Payment verified - Order is PARTIALLY paid "
+                                f"(items_paid={payment.order.is_items_paid}, delivery_paid={payment.order.is_delivery_paid})"
+                            )
+                        payment.order.save(update_fields=["is_items_paid", "is_delivery_paid", "status"])
                         logger.info(
                             f"Payment completed and verified for order {payment.order.order_id}"
                         )
@@ -814,8 +829,20 @@ class PesapalPaymentService:
                         payment.completed_at = timezone.now()
                         payment.is_verified = True
                         payment.verified_at = timezone.now()
-                        payment.order.status = Order.StatusChoices.PAID
-                        payment.order.save()
+                        purpose = (payment.payment_purpose or "BOTH").strip().upper()
+                        if purpose in ["ITEMS_ONLY", "BOTH"]:
+                            payment.order.is_items_paid = True
+                        if purpose in ["DELIVERY_ONLY", "BOTH"]:
+                            payment.order.is_delivery_paid = True
+                        if payment.order.is_items_paid and payment.order.is_delivery_paid:
+                            payment.order.status = Order.StatusChoices.PAID
+                            print("[PESAPAL] ✓ Payment verified - Order marked as PAID (items + delivery paid)")
+                        else:
+                            print(
+                                "[PESAPAL] ✓ Payment verified - Order is PARTIALLY paid "
+                                f"(items_paid={payment.order.is_items_paid}, delivery_paid={payment.order.is_delivery_paid})"
+                            )
+                        payment.order.save(update_fields=["is_items_paid", "is_delivery_paid", "status"])
 
                         # Transition units from PENDING_PAYMENT to SOLD
                         for order_item in payment.order.order_items.all():

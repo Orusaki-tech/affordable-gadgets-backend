@@ -75,6 +75,8 @@ class ReceiptService:
         order_items = order.order_items.select_related(
             "inventory_unit__product_template", "inventory_unit__product_color", "bundle"
         ).all()
+        items_total = sum((item.sub_total for item in order_items), Decimal("0.00"))
+        delivery_fee = order.delivery_fee or Decimal("0.00")
 
         # Get customer details
         customer = order.customer
@@ -195,8 +197,11 @@ class ReceiptService:
             "customer_name": customer_name,
             "customer_phone": customer_phone,
             "customer_email": customer_email,
-            "amount_ksh": f"{order.total_amount:,.2f}".replace(",", ""),
-            "amount_words": ReceiptService.number_to_words(order.total_amount),
+            # Receipt should reflect product/items total only (delivery is not part of the receipt total).
+            "items_total": items_total,
+            "delivery_fee": delivery_fee,
+            "amount_ksh": f"{items_total:,.2f}".replace(",", ""),
+            "amount_words": ReceiptService.number_to_words(items_total),
             "item_description": inventory_unit.product_template.product_name
             if inventory_unit
             else "",
@@ -340,6 +345,9 @@ class ReceiptService:
                 return False
 
             receipt_url = ReceiptService.get_receipt_url(order, format_type="pdf")
+            items_total = sum((item.sub_total for item in order.order_items.all()), Decimal("0.00"))
+            delivery_fee = order.delivery_fee or Decimal("0.00")
+            grand_total = items_total + delivery_fee
 
             # Prepare email
             customer_name = customer.name or "Customer"
@@ -351,7 +359,9 @@ You can also download it here: {receipt_url}
 
 Receipt Number: {receipt.receipt_number}
 Order ID: {order.order_id}
-Total Amount: Ksh {order.total_amount:,.2f}
+Product Amount: Ksh {items_total:,.2f}
+Delivery Fee: Ksh {delivery_fee:,.2f}
+Total (Product + Delivery): Ksh {grand_total:,.2f}
 
 If you have any questions, please contact us at +254717881573.
 
