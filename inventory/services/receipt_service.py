@@ -360,8 +360,8 @@ You can also download it here: {receipt_url}
 Receipt Number: {receipt.receipt_number}
 Order ID: {order.order_id}
 Product Amount: Ksh {items_total:,.2f}
-Delivery Fee: Ksh {delivery_fee:,.2f}
-Total (Product + Delivery): Ksh {grand_total:,.2f}
+Shipping Fee: Ksh {delivery_fee:,.2f}
+Total (Product + Shipping): Ksh {grand_total:,.2f}
 
 If you have any questions, please contact us at +254717881573.
 
