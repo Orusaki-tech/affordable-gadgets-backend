@@ -1270,6 +1270,17 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
                 to_attr="primary_images_list",
             )
 
+            # Apply lightweight query-param filters early so they affect the list path too.
+            # NOTE: Some other filters (e.g. min/max price) rely on annotations not present on the
+            # list path; keep this block to fields that exist on Product.
+            product_type = self.request.query_params.get("type")
+            if product_type:
+                queryset = queryset.filter(product_type=product_type)
+
+            brand_filter = self.request.query_params.get("brand_filter")
+            if brand_filter:
+                queryset = queryset.filter(brand__icontains=brand_filter)
+
             if is_list:
                 # List path: add annotations so serializer avoids Python iteration over prefetched rows.
                 now = django_timezone.now()
