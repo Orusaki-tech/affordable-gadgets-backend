@@ -3416,6 +3416,8 @@ class FinancingOfferSerializer(serializers.ModelSerializer):
             "product_name",
             "deposit_amount",
             "retail_amount",
+            "term_unit",
+            "term_count",
             "daily_payment",
             "weekly_payment",
             "monthly_payment",

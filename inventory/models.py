@@ -612,6 +612,11 @@ class FinancingProvider(models.Model):
 class FinancingOffer(models.Model):
     """Financing offer for a Product (template) under a provider."""
 
+    class TermUnit(models.TextChoices):
+        DAY = "day", "Day"
+        WEEK = "week", "Week"
+        MONTH = "month", "Month"
+
     provider = models.ForeignKey(
         FinancingProvider, on_delete=models.PROTECT, related_name="offers"
     )
@@ -620,6 +625,10 @@ class FinancingOffer(models.Model):
     # Pricing terms (manual)
     deposit_amount = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
     retail_amount = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
+    term_unit = models.CharField(
+        max_length=10, choices=TermUnit.choices, null=True, blank=True, db_index=True
+    )
+    term_count = models.PositiveIntegerField(null=True, blank=True, db_index=True)
     daily_payment = models.DecimalField(
         max_digits=10, decimal_places=2, validators=[MinValueValidator(0)], null=True, blank=True
     )
@@ -642,8 +651,8 @@ class FinancingOffer(models.Model):
         ordering = ["provider__name", "product_id", "rom_gb", "ram_gb", "id"]
         constraints = [
             models.UniqueConstraint(
-                fields=["provider", "product", "ram_gb", "rom_gb"],
-                name="uniq_financing_offer_provider_product_ram_rom",
+                fields=["provider", "product", "term_unit", "term_count", "ram_gb", "rom_gb"],
+                name="uniq_financing_offer_provider_product_term_unit_count_ram_rom",
             )
         ]
         indexes = [

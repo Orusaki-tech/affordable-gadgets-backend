@@ -46,6 +46,8 @@ class PublicFinancingOfferSerializer(serializers.ModelSerializer):
             "provider_logo_url",
             "deposit_amount",
             "retail_amount",
+            "term_unit",
+            "term_count",
             "daily_payment",
             "weekly_payment",
             "monthly_payment",
