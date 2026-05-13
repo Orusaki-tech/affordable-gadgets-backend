@@ -6,9 +6,12 @@ Designed for the format produced by
 
 The command is idempotent — products already present (matched by
 ``product_name`` or by the model's unique ``(brand, model_series, product_type)``
-key) are skipped. ``ref_cost_kes`` and ``ref_sell_kes`` columns in the CSV are
-ignored by this command; they are kept as metadata so a follow-up command can
-create ``InventoryUnit`` rows once stock arrives.
+key) are skipped for creation. The ``ref_sell_kes`` column is used to populate
+``Product.default_selling_price`` on both creation and (by default) on re-runs
+for existing matched rows; pass ``--no-update-prices`` to disable that backfill,
+or ``--overwrite-existing-prices`` to force-overwrite a price that is already
+set. ``ref_cost_kes`` is currently unused by this command and is retained in
+the CSV as supplier metadata for a follow-up ``InventoryUnit`` importer.
 
 Usage:
 
@@ -28,6 +31,7 @@ from __future__ import annotations
 
 import csv
 import json
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
@@ -72,6 +76,24 @@ def _parse_int(value: Any) -> int | None:
         return None
 
 
+def _parse_decimal(value: Any) -> Decimal | None:
+    """Parse a price-like string (e.g. ``"85,500"`` or ``"85500.50"``) into ``Decimal``.
+
+    Returns ``None`` for blank / unparsable values so callers can skip them.
+    """
+    if value is None:
+        return None
+    s = str(value).strip()
+    if not s:
+        return None
+    # Allow numbers like "85,500" or "85,500.00" by stripping thousands separators.
+    s = s.replace(",", "")
+    try:
+        return Decimal(s)
+    except (InvalidOperation, ValueError):
+        return None
+
+
 def _parse_json_list(value: Any) -> list:
     if value is None:
         return []
@@ -88,7 +110,10 @@ def _parse_json_list(value: Any) -> list:
 class Command(BaseCommand):
     help = (
         "Bulk-create Product templates from a supplier price-list CSV. "
-        "Idempotent: skips products that already exist."
+        "Idempotent: skips products that already exist. "
+        "Also reads ``ref_sell_kes`` and populates ``Product.default_selling_price`` — "
+        "set on creation, and backfilled on re-runs for existing matched rows (unless "
+        "--no-update-prices is passed)."
     )
 
     def add_arguments(self, parser):
@@ -114,6 +139,23 @@ class Command(BaseCommand):
             action="store_true",
             help="Abort the whole import if any single row fails (default: keep going)",
         )
+        parser.add_argument(
+            "--no-update-prices",
+            action="store_true",
+            help=(
+                "Skip updating Product.default_selling_price on matched existing products. "
+                "By default, re-running this command backfills/refreshes default_selling_price "
+                "from the CSV's ref_sell_kes column."
+            ),
+        )
+        parser.add_argument(
+            "--overwrite-existing-prices",
+            action="store_true",
+            help=(
+                "Overwrite Product.default_selling_price even when it is already set. "
+                "By default, existing non-null prices are preserved."
+            ),
+        )
 
     def handle(self, *args, **options):
         csv_path = Path(options["csv"]).expanduser()
@@ -122,6 +164,8 @@ class Command(BaseCommand):
 
         dry_run = bool(options["dry_run"])
         stop_on_error = bool(options["stop_on_error"])
+        update_prices = not bool(options["no_update_prices"])
+        overwrite_existing_prices = bool(options["overwrite_existing_prices"])
 
         created_by = None
         try:
@@ -141,15 +185,23 @@ class Command(BaseCommand):
         if dry_run:
             self.stdout.write(self.style.WARNING("Running in --dry-run mode (no DB writes)."))
 
-        existing_names = set(Product.objects.values_list("product_name", flat=True))
-        existing_keys = set(
-            Product.objects.values_list("brand", "model_series", "product_type")
-        )
+        existing_by_name = {
+            p.product_name: p
+            for p in Product.objects.only(
+                "id", "product_name", "brand", "model_series", "product_type", "default_selling_price"
+            )
+        }
+        existing_by_key = {
+            (p.brand, p.model_series, p.product_type): p for p in existing_by_name.values()
+        }
 
         created = 0
         skipped_existing = 0
         skipped_invalid = 0
         failed = 0
+        price_updated = 0
+        price_skipped_set = 0
+        price_skipped_missing = 0
         errors: list[str] = []
 
         sid = None
@@ -175,12 +227,51 @@ class Command(BaseCommand):
 
                 brand = (row.get("brand") or "").strip() or "N/A"
                 model_series = (row.get("model_series") or "").strip() or "N/A"
+                csv_price = _parse_decimal(row.get("ref_sell_kes"))
 
-                if name in existing_names:
+                existing_product = existing_by_name.get(name) or existing_by_key.get(
+                    (brand, model_series, ptype)
+                )
+                if existing_product is not None:
                     skipped_existing += 1
-                    continue
-                if (brand, model_series, ptype) in existing_keys:
-                    skipped_existing += 1
+                    if update_prices:
+                        if csv_price is None:
+                            price_skipped_missing += 1
+                        elif (
+                            existing_product.default_selling_price is not None
+                            and not overwrite_existing_prices
+                        ):
+                            price_skipped_set += 1
+                        else:
+                            if dry_run:
+                                self.stdout.write(
+                                    f"DRY: would set default_selling_price={csv_price} "
+                                    f"on existing [{ptype}] {name!r}"
+                                )
+                                price_updated += 1
+                            else:
+                                try:
+                                    Product.objects.filter(pk=existing_product.pk).update(
+                                        default_selling_price=csv_price
+                                    )
+                                    price_updated += 1
+                                    self.stdout.write(
+                                        self.style.SUCCESS(
+                                            f"PRC [{ptype}] {name}: default_selling_price -> {csv_price}"
+                                        )
+                                    )
+                                except Exception as exc:  # noqa: BLE001
+                                    failed += 1
+                                    errors.append(
+                                        f"Row {idx} ({name}): price update failed: {exc}"
+                                    )
+                                    self.stdout.write(
+                                        self.style.ERROR(
+                                            f"FAIL price [{ptype}] {name}: {exc}"
+                                        )
+                                    )
+                                    if stop_on_error:
+                                        raise
                     continue
 
                 payload = {
@@ -191,6 +282,7 @@ class Command(BaseCommand):
                     "model_series": model_series,
                     "min_stock_threshold": _parse_int(row.get("min_stock_threshold")),
                     "reorder_point": _parse_int(row.get("reorder_point")),
+                    "default_selling_price": csv_price,
                     "is_discontinued": _parse_bool(row.get("is_discontinued"), default=False),
                     "meta_title": (row.get("meta_title") or "").strip()[:60],
                     "meta_description": (row.get("meta_description") or "").strip()[:160],
@@ -209,10 +301,21 @@ class Command(BaseCommand):
                     payload["updated_by"] = created_by
 
                 if dry_run:
-                    self.stdout.write(f"DRY: would create {ptype} {name!r} (brand={brand})")
+                    price_note = (
+                        f" @ KES {csv_price}" if csv_price is not None else " (no price)"
+                    )
+                    self.stdout.write(
+                        f"DRY: would create {ptype} {name!r} (brand={brand}){price_note}"
+                    )
                     created += 1
-                    existing_names.add(name)
-                    existing_keys.add((brand, model_series, ptype))
+                    existing_by_name[name] = Product(
+                        product_name=name,
+                        brand=brand,
+                        model_series=model_series,
+                        product_type=ptype,
+                        default_selling_price=csv_price,
+                    )
+                    existing_by_key[(brand, model_series, ptype)] = existing_by_name[name]
                     continue
 
                 try:
@@ -232,9 +335,12 @@ class Command(BaseCommand):
                                 product.tags.set(tags)
 
                     created += 1
-                    existing_names.add(name)
-                    existing_keys.add((brand, model_series, ptype))
-                    self.stdout.write(self.style.SUCCESS(f"OK  [{ptype}] {name}"))
+                    existing_by_name[name] = product
+                    existing_by_key[(brand, model_series, ptype)] = product
+                    price_note = (
+                        f" (default_selling_price={csv_price})" if csv_price is not None else ""
+                    )
+                    self.stdout.write(self.style.SUCCESS(f"OK  [{ptype}] {name}{price_note}"))
                 except Exception as exc:  # noqa: BLE001 - we want to surface any DB/validation error
                     failed += 1
                     errors.append(f"Row {idx} ({name}): {exc}")
@@ -257,6 +363,20 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(f"Created:         {created}"))
         self.stdout.write(f"Skipped (exists): {skipped_existing}")
         self.stdout.write(f"Skipped (invalid): {skipped_invalid}")
+        if update_prices:
+            self.stdout.write(
+                self.style.SUCCESS(f"Prices updated:  {price_updated}")
+            )
+            if price_skipped_set:
+                self.stdout.write(
+                    f"Prices preserved (already set, pass --overwrite-existing-prices to force): {price_skipped_set}"
+                )
+            if price_skipped_missing:
+                self.stdout.write(
+                    f"Prices missing in CSV (existing rows): {price_skipped_missing}"
+                )
+        else:
+            self.stdout.write("Price updates: disabled (--no-update-prices)")
         if failed:
             self.stdout.write(self.style.ERROR(f"Failed:          {failed}"))
         if dry_run:
