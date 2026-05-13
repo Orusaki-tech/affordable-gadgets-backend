@@ -231,6 +231,13 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
             return PublicProductListSerializer
         return PublicProductSerializer
 
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context["brand"] = getattr(self.request, "brand", None)
+        context["view_action"] = getattr(self, "action", None)
+        context.setdefault("_image_url_cache", {})
+        return context
+
     @action(detail=False, methods=["get"], permission_classes=[permissions.AllowAny])
     def brands(self, request):
         """Return distinct brand names grouped by product type for menu use.
@@ -472,8 +479,9 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
         start_time = time.perf_counter()
         cache_enabled = not debug_enabled and request.method == "GET"
         if cache_enabled:
+            # v3: bump when list semantics change (e.g. include out-of-stock) so Redis is not stuck on old payloads.
             cache_key = (
-                "public_products_list:"
+                "public_products_list:v3:"
                 + request.headers.get("X-Brand-Code", "")
                 + ":"
                 + urlencode(sorted(request.query_params.items()))
