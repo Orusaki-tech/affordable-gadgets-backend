@@ -88,11 +88,6 @@ PUBLIC_PRODUCT_DETAIL_CACHE_TTL = getattr(settings, "PUBLIC_PRODUCT_DETAIL_CACHE
 PUBLIC_WISHLIST_CACHE_TTL = getattr(
     settings, "PUBLIC_WISHLIST_CACHE_TTL", 60
 )  # 1 min (short so add/remove feels fresh)
-# Cache for "product IDs that have available stock" to avoid re-running the heavy subquery on every list request.
-PUBLIC_PRODUCT_IDS_WITH_STOCK_CACHE_TTL = getattr(
-    settings, "PUBLIC_PRODUCT_IDS_WITH_STOCK_CACHE_TTL", 300
-)  # 5 min (was 2 min; reduces DB load)
-
 # Optional Silk profiling: when SILKY_ENABLED, wrap views so the Silk "Profiling" tab has data
 try:
     if getattr(settings, "SILKY_ENABLED", False):
@@ -1298,26 +1293,8 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
                 if brand:
                     available_units_filter &= Q(brands=brand) | Q(brands__isnull=True)
 
-                # Product IDs with stock: cache to avoid heavy subquery on every request (~2s -> much faster).
-                unit_filter = Q(
-                    sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
-                    available_online=True,
-                    quantity__gt=0,
-                )
-                if brand:
-                    unit_filter &= Q(brands=brand) | Q(brands__isnull=True)
-                stock_cache_key = f"public_product_ids_with_stock:{brand.id if brand else 'none'}"
-                product_ids = cache.get(stock_cache_key)
-                if product_ids is None:
-                    product_ids = list(
-                        InventoryUnit.objects.filter(unit_filter)
-                        .values_list("product_template_id", flat=True)
-                        .distinct()[:5000]
-                    )
-                    cache.set(stock_cache_key, product_ids, PUBLIC_PRODUCT_IDS_WITH_STOCK_CACHE_TTL)
-                if not product_ids:
-                    return Product.objects.none().order_by("product_name")
-                queryset = queryset.filter(id__in=product_ids)
+                # List all published products in scope (including out-of-stock). Counts/prices come from
+                # prefetched available_units_list (quantity__gt=0 only), so serializers report 0 units when none.
 
                 # No min/max_price annotations for list: serializer uses prefetched available_units_list
                 # (avoids 2 correlated subqueries per row and speeds up the main list query).
