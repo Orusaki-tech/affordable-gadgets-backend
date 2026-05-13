@@ -33,24 +33,18 @@ This does everything from code:
 No GCP Console, no Ansible. App: `http://<VM_IP>:8000`.
 
 - **Skip Terraform** (VM already exists): `SKIP_TERRAFORM=1 ./deploy/deploy-gcp.sh`
-- **Using ngrok for HTTPS:** Deploy overwrites the VM `.env` and sets `ALLOWED_HOSTS` to the VM IP only. If you use ngrok, run `./deploy/ngrok-on-vm.sh` **after** each deploy so the ngrok host is added to `ALLOWED_HOSTS` and CORS. Otherwise the backend returns **400 Bad Request** on login/API calls from the admin/frontend.
+- **HTTPS for Vercel (recommended): Cloudflare Tunnel** – run `cloudflared` on the VM (as a Docker container) and use a stable hostname like `https://api.affordable-gadgetske.com`.
 - **Remote user** (if not `ubuntu`): `REMOTE_USER=youruser ./deploy/deploy-gcp.sh`
 
-### HTTPS URL for Vercel (no domain): ngrok on the VM
+### HTTPS URL for Vercel: Cloudflare Tunnel on the VM
 
-To use the GCP backend from your HTTPS Vercel frontends without Mixed Content, run ngrok on the VM to get an HTTPS URL:
-
-```bash
-./deploy/ngrok-on-vm.sh
-```
-
-The script installs ngrok on the VM, starts a tunnel to port 8000, and prints the HTTPS URL. It also updates the VM `.env` (ALLOWED_HOSTS and CORS) and restarts the app. Add the printed URL to your Vercel env (e.g. `REACT_APP_API_BASE_URL=<url>/api/inventory` for admin, `NEXT_PUBLIC_API_URL=<url>` for frontend), then redeploy the frontends.
-
-Optional: set `NGROK_AUTH_TOKEN` (from [ngrok dashboard](https://dashboard.ngrok.com/get-started/your-authtoken)) so the URL is stable and there’s no interstitial page:
+To use the GCP backend from your HTTPS Vercel frontends without Mixed Content, expose the backend with Cloudflare Tunnel and a stable hostname (recommended):
 
 ```bash
-NGROK_AUTH_TOKEN=your_token ./deploy/ngrok-on-vm.sh
+CLOUDFLARE_TUNNEL_TOKEN=your_token ./deploy/cloudflare-on-vm.sh
 ```
+
+The script updates the VM `.env` (`ALLOWED_HOSTS`, `PESAPAL_IPN_URL`) and starts the `cloudflared` Docker Compose service on the VM. After that, set your Vercel env vars to use your stable hostname (e.g. `https://api.affordable-gadgetske.com`) and redeploy the frontends.
 
 ---
 
@@ -177,11 +171,11 @@ deploy/
    The frontend uses `NEXT_PUBLIC_API_BASE_URL` at **build time**. Set it in Vercel → Project → Settings → Environment Variables for **Production** and **Preview** (or "All"). If you only set it for Production, branch/preview URLs (e.g. `*-git-*-*.vercel.app`) will have no API URL and will fall back to `http://localhost:8000` → "Failed to fetch". After changing env vars, **redeploy** (trigger a new deployment).
 
 2. **Backend reachable**  
-   From your machine, check the backend (or ngrok URL) responds:
+   From your machine, check the backend responds:
    ```bash
-   curl -s -o /dev/null -w "%{http_code}" https://YOUR_NGROK_URL/health/
+   curl -s -o /dev/null -w "%{http_code}" https://api.affordable-gadgetske.com/health/
    ```
-   You should get `200`. If it fails, ngrok may be down or the URL changed; run `./deploy/ngrok-on-vm.sh` again and update `NEXT_PUBLIC_API_BASE_URL` in Vercel, then redeploy.
+   You should get `200`. If it fails, check the tunnel on the VM (`docker compose logs cloudflared`) and ensure the Cloudflare Public Hostname routes to `http://web:8000`.
 
 3. **Which URL to test**  
    Use the **production** URL (e.g. `https://affordable-gadgets-frontend.vercel.app`) to confirm; preview URLs only work if the same env vars are set for Preview.

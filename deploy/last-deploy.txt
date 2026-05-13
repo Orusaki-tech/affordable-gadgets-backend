@@ -1,8 +1,8 @@
-Deploy: 2026-04-24T12:47:11Z
+Deploy: 2026-05-13T14:45:24Z
 VM: affordable-gadgets-backend
 External IP: 34.29.8.90
 Zone: us-central1-a
 Project: gmail-486411
 Backend URL: http://34.29.8.90:8000
-ALLOWED_HOSTS extras (e.g. ngrok): unreversed-nonadmissible-kandis.ngrok-free.dev
-PESAPAL_IPN_URL (from tunnel): https://unreversed-nonadmissible-kandis.ngrok-free.dev/api/inventory/pesapal/ipn/
+ALLOWED_HOSTS extras (e.g. ngrok): api.affordable-gadgetske.com
+Public API base URL: https://api.affordable-gadgetske.com

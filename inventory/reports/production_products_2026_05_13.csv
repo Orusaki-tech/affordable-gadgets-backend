@@ -1,0 +1,308 @@
+id,type,name,brand,model_series,available_stock,is_published,is_discontinued,slug
+13,AC,3 in 1 wireless charger,Apple,iPhone 3 in 1 wireless charger,99,True,False,3
+10,AC,Adapter 20W,Apple,iPhone 20W Adapter,100,True,False,a
+11,AC,Adapter 35W,Apple,iPhone Adapter 35W,100,True,False,adapter-35w
+240,AC,AirPods 4,Apple,AirPods 4,0,True,False,apple-airpods-4-airpods-4-ac
+243,AC,AirPods Max (USB-C),Apple,AirPods Max USB-C,0,True,False,apple-airpods-max-usb-c-airpods-max-usb-c-ac
+241,AC,AirPods Pro 2,Apple,AirPods Pro 2,0,True,False,apple-airpods-pro-2-airpods-pro-2-ac
+242,AC,AirPods Pro 3,Apple,AirPods Pro 3,0,True,False,apple-airpods-pro-3-airpods-pro-3-ac
+169,AC,Airpod Pro 3,Apple,Airpods Pro 3,1,True,False,apple-airpods-pro-3-airpod-pro-3-ac
+239,AC,Apple Magic Mouse,Apple,Magic Mouse,0,True,False,apple-magic-mouse-apple-magic-mouse-ac
+244,AC,Apple Watch SE 2 44mm,Apple,Watch SE 2 44mm,0,True,False,apple-watch-se-2-44mm-apple-watch-se-2-44mm-ac
+245,AC,Apple Watch SE 3 40mm,Apple,Watch SE 3 40mm,0,True,False,apple-watch-se-3-40mm-apple-watch-se-3-40mm-ac
+246,AC,Apple Watch SE 3 44mm,Apple,Watch SE 3 44mm,0,True,False,apple-watch-se-3-44mm-apple-watch-se-3-44mm-ac
+247,AC,Apple Watch Series 10 46mm,Apple,Watch Series 10 46mm,0,True,False,apple-watch-series-10-46mm-apple-watch-series-10-46mm-ac
+248,AC,Apple Watch Series 11 42mm,Apple,Watch Series 11 42mm,0,True,False,apple-watch-series-11-42mm-apple-watch-series-11-42mm-ac
+249,AC,Apple Watch Series 11 46mm,Apple,Watch Series 11 46mm,0,True,False,apple-watch-series-11-46mm-apple-watch-series-11-46mm-ac
+18,AC,Apple Watch Silicone Straps,Apple,Silicone watch straps,101,True,False,apple-watch-silicone-straps
+23,AC,Apple Watch Ultra 1,Apple,Apple Watch Ultra 1,1,False,False,apple-watch-ultra-1
+250,AC,Apple Watch Ultra 3 (2025) 49mm,Apple,Watch Ultra 3 2025 49mm,0,True,False,apple-watch-ultra-3-2025-49mm-apple-watch-ultra-3-2025-49mm-ac
+15,AC,C-Lightning Cable,Apple,iPhone C-Lightning Cable,100,True,False,c
+19,AC,Travel Portable Stand,Apple,Portable Phone Stand,100,True,False,t
+12,AC,USB A-Lightning cable,Apple,iPhone USB A-Lightning cable,100,True,False,u
+17,AC,Vacuum Magnetic phone stand,Apple,Magnetic Phone Stand,50,True,False,v
+16,AC,Wireless iPhone Charger,Apple,iPhone Wireless Charger,100,True,False,w
+28,AC,iPhone Pocket,Apple,iphone,0,True,False,apple-iphone-ac
+8,AC,iPhone Rhode Cover,Apple,iPhone,1,True,False,iphone-rhode-cover
+14,AC,iPhone lightning earphones,Apple,iPhone lightning earphones,196,True,False,i
+32,AC,Earphones,Others,Phone Earphones,96,True,False,others-phone-earphones-earphones-ac
+27,AC,Laptop Stand,Others,Stand,100,True,False,l
+26,AC,Octobuddy,Others,Phone Octobuddy,200,True,False,o
+25,AC,Powerbank,Others,Phone Powerbank,50,True,False,p
+285,AC,Samsung Galaxy Buds 3 FE,Samsung,Buds 3 FE,0,True,False,samsung-buds-3-fe-samsung-galaxy-buds-3-fe-ac
+286,AC,Samsung Galaxy Buds 3 Pro,Samsung,Buds 3 Pro,0,True,False,samsung-buds-3-pro-samsung-galaxy-buds-3-pro-ac
+287,AC,Samsung Galaxy Buds 4,Samsung,Buds 4,0,True,False,samsung-buds-4-samsung-galaxy-buds-4-ac
+288,AC,Samsung Galaxy Buds 4 Pro,Samsung,Buds 4 Pro,0,True,False,samsung-buds-4-pro-samsung-galaxy-buds-4-pro-ac
+289,AC,Samsung Galaxy Watch 6 Classic 43mm,Samsung,Watch 6 Classic 43mm,0,True,False,samsung-watch-6-classic-43mm-samsung-galaxy-watch-6-classic-43mm-ac
+290,AC,Samsung Galaxy Watch 6 Classic 47mm,Samsung,Watch 6 Classic 47mm,0,True,False,samsung-watch-6-classic-47mm-samsung-galaxy-watch-6-classic-47mm-ac
+291,AC,Samsung Galaxy Watch 7 40mm,Samsung,Watch 7 40mm,0,True,False,samsung-watch-7-40mm-samsung-galaxy-watch-7-40mm-ac
+292,AC,Samsung Galaxy Watch 7 44mm,Samsung,Watch 7 44mm,0,True,False,samsung-watch-7-44mm-samsung-galaxy-watch-7-44mm-ac
+293,AC,Samsung Galaxy Watch 8 40mm,Samsung,Watch 8 40mm,0,True,False,samsung-watch-8-40mm-samsung-galaxy-watch-8-40mm-ac
+294,AC,Samsung Galaxy Watch 8 44mm,Samsung,Watch 8 44mm,0,True,False,samsung-watch-8-44mm-samsung-galaxy-watch-8-44mm-ac
+30,AC,test payment product,test,test1,0,True,False,test-test1-test-payment-product-ac
+31,AC,test1,test,2test1,0,True,False,test-2test1-test1-ac
+231,LT,MacBook Air M1 13 inch 256GB 8GB RAM,Apple,MacBook Air M1 13 inch 256GB 8GB,0,True,False,apple-macbook-air-m1-13-inch-256gb-8gb-macbook-air-m1-13-inch-256gb-8gb-ram-lt
+232,LT,MacBook Air M2 13 inch 256GB 16GB RAM,Apple,MacBook Air M2 13 inch 256GB 16GB,0,True,False,apple-macbook-air-m2-13-inch-256gb-16gb-macbook-air-m2-13-inch-256gb-16gb-ram-lt
+233,LT,MacBook Air M3 13 inch 512GB 16GB RAM,Apple,MacBook Air M3 13 inch 512GB 16GB,0,True,False,apple-macbook-air-m3-13-inch-512gb-16gb-macbook-air-m3-13-inch-512gb-16gb-ram-lt
+234,LT,MacBook Air M4 13 inch 256GB 16GB RAM,Apple,MacBook Air M4 13 inch 256GB 16GB,0,True,False,apple-macbook-air-m4-13-inch-256gb-16gb-macbook-air-m4-13-inch-256gb-16gb-ram-lt
+235,LT,MacBook Air M5 13 inch 512GB 16GB RAM,Apple,MacBook Air M5 13 inch 512GB 16GB,0,True,False,apple-macbook-air-m5-13-inch-512gb-16gb-macbook-air-m5-13-inch-512gb-16gb-ram-lt
+236,LT,MacBook Pro M4 14.2 inch 512GB 16GB RAM,Apple,MacBook Pro M4 14.2 inch 512GB 16GB,0,True,False,apple-macbook-pro-m4-142-inch-512gb-16gb-macbook-pro-m4-142-inch-512gb-16gb-ram-lt
+237,LT,MacBook Pro M5 14.2 inch 512GB 16GB RAM,Apple,MacBook Pro M5 14.2 inch 512GB 16GB,0,True,False,apple-macbook-pro-m5-142-inch-512gb-16gb-macbook-pro-m5-142-inch-512gb-16gb-ram-lt
+21,LT,Macbook Air,Apple,Macbook Air 11 inch Early 2015,1,True,False,m
+238,LT,iMac M1 24 inch 256GB 8GB RAM,Apple,iMac M1 24 inch 256GB 8GB,0,True,False,apple-imac-m1-24-inch-256gb-8gb-imac-m1-24-inch-256gb-8gb-ram-lt
+44,PH,iPhone 11,Apple,iPhone 11,4,True,False,apple-iphone-11-iphone-11-ph
+42,PH,iPhone 11 Pro,Apple,iPhone 11 Pro,3,True,False,apple-iphone-11-pro-iphone-11-pro-ph
+43,PH,iPhone 11 Pro Max,Apple,iPhone 11 Pro Max,4,True,False,apple-iphone-11-pro-max-iphone-11-pro-max-ph
+46,PH,iPhone 12,Apple,iPhone 12,3,True,False,apple-iphone-12-iphone-12-ph
+48,PH,iPhone 12 Pro,Apple,iPhone 12 Pro,1,True,False,apple-iphone-12-pro-iphone-12-pro-ph
+49,PH,iPhone 12 Pro Max,Apple,iPhone 12 Pro Max,0,True,False,apple-iphone-12-pro-max-iphone-12-pro-max-ph
+24,PH,iPhone 12 Pro Max,Apple,Apple iPhone 12 Pro Max,1,True,False,apple-iphone-12-pro-max
+47,PH,iPhone 12 mini,Apple,iPhone 12 mini,4,True,False,apple-iphone-12-mini-iphone-12-mini-ph
+50,PH,iPhone 13,Apple,iPhone 13,7,True,False,apple-iphone-13-iphone-13-ac
+52,PH,iPhone 13 Pro,Apple,iPhone 13 Pro,1,True,False,apple-iphone-13-pro-iphone-13-pro-ph
+53,PH,iPhone 13 Pro Max,Apple,iPhone 13 Pro Max,2,True,False,apple-iphone-13-pro-max-iphone-13-pro-max-ph
+51,PH,iPhone 13 mini,Apple,iPhone 13 mini,5,True,False,apple-iphone-13-mini-iphone-13-mini-ph
+55,PH,iPhone 14,Apple,iPhone 14,0,True,False,apple-iphone-14-iphone-14-ph
+187,PH,iPhone 14 128GB SIM (Dubai),Apple,14 128GB SIM (Dubai),0,True,False,apple-14-128gb-sim-dubai-iphone-14-128gb-sim-dubai-ph
+188,PH,iPhone 14 256GB SIM (Dubai),Apple,14 256GB SIM (Dubai),0,True,False,apple-14-256gb-sim-dubai-iphone-14-256gb-sim-dubai-ph
+56,PH,iPhone 14 Plus,Apple,iPhone 14 Plus,0,True,False,apple-iphone-14-plus-iphone-14-plus-ph
+57,PH,iPhone 14 Pro,Apple,iPhone 14 Pro,0,True,False,apple-iphone-14-pro-iphone-14-pro-ph
+58,PH,iPhone 14 Pro Max,Apple,iPhone 14 Pro Max,2,True,False,apple-iphone-14-pro-max-iphone-14-pro-max-ph
+59,PH,iPhone 15,Apple,iPhone 15,0,True,False,apple-iphone-15-iphone-15-ph
+189,PH,iPhone 15 128GB SIM (Dubai),Apple,15 128GB SIM (Dubai),0,True,False,apple-15-128gb-sim-dubai-iphone-15-128gb-sim-dubai-ph
+190,PH,iPhone 15 256GB SIM (Dubai),Apple,15 256GB SIM (Dubai),0,True,False,apple-15-256gb-sim-dubai-iphone-15-256gb-sim-dubai-ph
+60,PH,iPhone 15 Plus,Apple,iPhone 15 Plus,0,True,False,apple-iphone-15-plus-iphone-15-plus-ph
+191,PH,iPhone 15 Plus 256GB SIM (Dubai),Apple,15 Plus 256GB SIM (Dubai),0,True,False,apple-15-plus-256gb-sim-dubai-iphone-15-plus-256gb-sim-dubai-ph
+61,PH,iPhone 15 Pro,Apple,iPhone 15 Pro,0,True,False,apple-iphone-15-pro-iphone-15-pro-ph
+62,PH,iPhone 15 Pro Max,Apple,iPhone 15 Pro Max,1,True,False,apple-iphone-15-pro-max-iphone-15-pro-max-ph
+192,PH,iPhone 15 Pro Max 256GB SIM (Dubai),Apple,15 Pro Max 256GB SIM (Dubai),0,True,False,apple-15-pro-max-256gb-sim-dubai-iphone-15-pro-max-256gb-sim-dubai-ph
+63,PH,iPhone 16,Apple,iPhone 16,0,True,False,apple-iphone-16-iphone-16-ph
+172,PH,iPhone 16 128GB E-SIM (Dubai),Apple,16 128GB E-SIM (Dubai),0,True,False,apple-16-128gb-e-sim-dubai-iphone-16-128gb-e-sim-dubai-ph
+195,PH,iPhone 16 128GB SIM (Dubai),Apple,16 128GB SIM (Dubai),0,True,False,apple-16-128gb-sim-dubai-iphone-16-128gb-sim-dubai-ph
+213,PH,iPhone 16 128GB SIM (Official),Apple,16 128GB SIM (Official),0,True,False,apple-16-128gb-sim-official-iphone-16-128gb-sim-official-ph
+196,PH,iPhone 16 256GB SIM (Dubai),Apple,16 256GB SIM (Dubai),0,True,False,apple-16-256gb-sim-dubai-iphone-16-256gb-sim-dubai-ph
+64,PH,iPhone 16 Plus,Apple,iPhone 16 Plus,0,True,False,apple-iphone-16-plus-iphone-16-plus-ph
+197,PH,iPhone 16 Plus 128GB SIM (Dubai),Apple,16 Plus 128GB SIM (Dubai),0,True,False,apple-16-plus-128gb-sim-dubai-iphone-16-plus-128gb-sim-dubai-ph
+214,PH,iPhone 16 Plus 128GB SIM (Official),Apple,16 Plus 128GB SIM (Official),0,True,False,apple-16-plus-128gb-sim-official-iphone-16-plus-128gb-sim-official-ph
+198,PH,iPhone 16 Plus 256GB SIM (Dubai),Apple,16 Plus 256GB SIM (Dubai),0,True,False,apple-16-plus-256gb-sim-dubai-iphone-16-plus-256gb-sim-dubai-ph
+65,PH,iPhone 16 Pro,Apple,iPhone 16 Pro,0,True,False,apple-iphone-16-pro-iphone-16-pro-ph
+199,PH,iPhone 16 Pro 128GB SIM (Dubai),Apple,16 Pro 128GB SIM (Dubai),0,True,False,apple-16-pro-128gb-sim-dubai-iphone-16-pro-128gb-sim-dubai-ph
+173,PH,iPhone 16 Pro 256GB E-SIM (Dubai),Apple,16 Pro 256GB E-SIM (Dubai),0,True,False,apple-16-pro-256gb-e-sim-dubai-iphone-16-pro-256gb-e-sim-dubai-ph
+66,PH,iPhone 16 Pro Max,Apple,iPhone 16 Pro Max,1,True,False,apple-iphone-16-pro-max-iphone-16-pro-max-ph
+201,PH,iPhone 16 Pro Max 256GB SIM Black (Dubai),Apple,16 Pro Max 256GB SIM Black (Dubai),0,True,False,apple-16-pro-max-256gb-sim-black-dubai-iphone-16-pro-max-256gb-sim-black-dubai-ph
+200,PH,iPhone 16 Pro Max 256GB SIM Desert (Dubai),Apple,16 Pro Max 256GB SIM Desert (Dubai),0,True,False,apple-16-pro-max-256gb-sim-desert-dubai-iphone-16-pro-max-256gb-sim-desert-dubai-ph
+202,PH,iPhone 16 Pro Max 512GB SIM (Dubai),Apple,16 Pro Max 512GB SIM (Dubai),0,True,False,apple-16-pro-max-512gb-sim-dubai-iphone-16-pro-max-512gb-sim-dubai-ph
+193,PH,iPhone 16E 128GB SIM (Dubai),Apple,16E 128GB SIM (Dubai),0,True,False,apple-16e-128gb-sim-dubai-iphone-16e-128gb-sim-dubai-ph
+194,PH,iPhone 16E 256GB SIM (Dubai),Apple,16E 256GB SIM (Dubai),0,True,False,apple-16e-256gb-sim-dubai-iphone-16e-256gb-sim-dubai-ph
+67,PH,iPhone 16e,Apple,iPhone 16e,2,True,False,apple-iphone-16e-iphone-16e-ph
+68,PH,iPhone 17,Apple,iPhone 17,0,True,False,apple-iphone-17-iphone-17-ph
+174,PH,iPhone 17 256GB E-SIM (Dubai),Apple,17 256GB E-SIM (Dubai),0,True,False,apple-17-256gb-e-sim-dubai-iphone-17-256gb-e-sim-dubai-ph
+203,PH,iPhone 17 256GB SIM (Dubai),Apple,17 256GB SIM (Dubai),0,True,False,apple-17-256gb-sim-dubai-iphone-17-256gb-sim-dubai-ph
+215,PH,iPhone 17 256GB SIM (Official),Apple,17 256GB SIM (Official),0,True,False,apple-17-256gb-sim-official-iphone-17-256gb-sim-official-ph
+175,PH,iPhone 17 512GB E-SIM (Dubai),Apple,17 512GB E-SIM (Dubai),0,True,False,apple-17-512gb-e-sim-dubai-iphone-17-512gb-e-sim-dubai-ph
+204,PH,iPhone 17 512GB SIM (Dubai),Apple,17 512GB SIM (Dubai),0,True,False,apple-17-512gb-sim-dubai-iphone-17-512gb-sim-dubai-ph
+176,PH,iPhone 17 Air 256GB E-SIM (Dubai),Apple,17 Air 256GB E-SIM (Dubai),0,True,False,apple-17-air-256gb-e-sim-dubai-iphone-17-air-256gb-e-sim-dubai-ph
+177,PH,iPhone 17 Air 256GB E-SIM White/Gold (Dubai),Apple,17 Air 256GB E-SIM White/Gold (Dubai),0,True,False,apple-17-air-256gb-e-sim-whitegold-dubai-iphone-17-air-256gb-e-sim-whitegold-dubai-ph
+69,PH,iPhone 17 Pro,Apple,iPhone 17 Pro,0,True,False,apple-iphone-17-pro-iphone-17-pro-ph
+181,PH,iPhone 17 Pro 1TB E-SIM (Dubai),Apple,17 Pro 1TB E-SIM (Dubai),0,True,False,apple-17-pro-1tb-e-sim-dubai-iphone-17-pro-1tb-e-sim-dubai-ph
+208,PH,iPhone 17 Pro 1TB SIM (Dubai),Apple,17 Pro 1TB SIM (Dubai),0,True,False,apple-17-pro-1tb-sim-dubai-iphone-17-pro-1tb-sim-dubai-ph
+178,PH,iPhone 17 Pro 256GB E-SIM (Dubai),Apple,17 Pro 256GB E-SIM (Dubai),0,True,False,apple-17-pro-256gb-e-sim-dubai-iphone-17-pro-256gb-e-sim-dubai-ph
+205,PH,iPhone 17 Pro 256GB SIM (Dubai),Apple,17 Pro 256GB SIM (Dubai),0,True,False,apple-17-pro-256gb-sim-dubai-iphone-17-pro-256gb-sim-dubai-ph
+206,PH,iPhone 17 Pro 256GB SIM Silver (Dubai),Apple,17 Pro 256GB SIM Silver (Dubai),0,True,False,apple-17-pro-256gb-sim-silver-dubai-iphone-17-pro-256gb-sim-silver-dubai-ph
+179,PH,iPhone 17 Pro 512GB E-SIM Orange/Blue (Dubai),Apple,17 Pro 512GB E-SIM Orange/Blue (Dubai),0,True,False,apple-17-pro-512gb-e-sim-orangeblue-dubai-iphone-17-pro-512gb-e-sim-orangeblue-dubai-ph
+180,PH,iPhone 17 Pro 512GB E-SIM Silver (Dubai),Apple,17 Pro 512GB E-SIM Silver (Dubai),0,True,False,apple-17-pro-512gb-e-sim-silver-dubai-iphone-17-pro-512gb-e-sim-silver-dubai-ph
+207,PH,iPhone 17 Pro 512GB SIM (Dubai),Apple,17 Pro 512GB SIM (Dubai),0,True,False,apple-17-pro-512gb-sim-dubai-iphone-17-pro-512gb-sim-dubai-ph
+70,PH,iPhone 17 Pro Max,Apple,iPhone 17 Pro Max,0,True,False,apple-iphone-17-pro-max-iphone-17-pro-max-ph
+186,PH,iPhone 17 Pro Max 1TB E-SIM (Dubai),Apple,17 Pro Max 1TB E-SIM (Dubai),0,True,False,apple-17-pro-max-1tb-e-sim-dubai-iphone-17-pro-max-1tb-e-sim-dubai-ph
+212,PH,iPhone 17 Pro Max 1TB SIM (Dubai),Apple,17 Pro Max 1TB SIM (Dubai),0,True,False,apple-17-pro-max-1tb-sim-dubai-iphone-17-pro-max-1tb-sim-dubai-ph
+182,PH,iPhone 17 Pro Max 256GB E-SIM Orange/Blue (Dubai),Apple,17 Pro Max 256GB E-SIM Orange/Blue (Dubai),0,True,False,apple-17-pro-max-256gb-e-sim-orangeblue-dubai-iphone-17-pro-max-256gb-e-sim-orangeblue-dubai-ph
+183,PH,iPhone 17 Pro Max 256GB E-SIM Silver (Dubai),Apple,17 Pro Max 256GB E-SIM Silver (Dubai),0,True,False,apple-17-pro-max-256gb-e-sim-silver-dubai-iphone-17-pro-max-256gb-e-sim-silver-dubai-ph
+217,PH,iPhone 17 Pro Max 256GB SIM (Official),Apple,17 Pro Max 256GB SIM (Official),0,True,False,apple-17-pro-max-256gb-sim-official-iphone-17-pro-max-256gb-sim-official-ph
+209,PH,iPhone 17 Pro Max 256GB SIM Blue/Orange (Dubai),Apple,17 Pro Max 256GB SIM Blue/Orange (Dubai),0,True,False,apple-17-pro-max-256gb-sim-blueorange-dubai-iphone-17-pro-max-256gb-sim-blueorange-dubai-ph
+210,PH,iPhone 17 Pro Max 256GB SIM Silver (Dubai),Apple,17 Pro Max 256GB SIM Silver (Dubai),0,True,False,apple-17-pro-max-256gb-sim-silver-dubai-iphone-17-pro-max-256gb-sim-silver-dubai-ph
+184,PH,iPhone 17 Pro Max 512GB E-SIM Orange/Blue (Dubai),Apple,17 Pro Max 512GB E-SIM Orange/Blue (Dubai),0,True,False,apple-17-pro-max-512gb-e-sim-orangeblue-dubai-iphone-17-pro-max-512gb-e-sim-orangeblue-dubai-ph
+185,PH,iPhone 17 Pro Max 512GB E-SIM Silver (Dubai),Apple,17 Pro Max 512GB E-SIM Silver (Dubai),0,True,False,apple-17-pro-max-512gb-e-sim-silver-dubai-iphone-17-pro-max-512gb-e-sim-silver-dubai-ph
+211,PH,iPhone 17 Pro Max 512GB SIM (Dubai),Apple,17 Pro Max 512GB SIM (Dubai),0,True,False,apple-17-pro-max-512gb-sim-dubai-iphone-17-pro-max-512gb-sim-dubai-ph
+216,PH,iPhone 17E 256GB SIM (Official),Apple,17E 256GB SIM (Official),0,True,False,apple-17e-256gb-sim-official-iphone-17e-256gb-sim-official-ph
+72,PH,iPhone 17e,Apple,iPhone 17e,0,True,False,apple-iphone-17e-iphone-17e-ph
+33,PH,iPhone 7,Apple,iPhone 7,0,True,False,apple-iphone-7-iphone-7-ph
+34,PH,iPhone 7 Plus,Apple,iPhone 7 Plus,0,True,False,apple-iphone-7-plus-iphone-7-plus-ph
+35,PH,iPhone 8,Apple,iPhone 8,0,True,False,apple-iphone-8-iphone-8-ph
+36,PH,iPhone 8 Plus,Apple,iPhone 8 Plus,0,True,False,apple-iphone-8-plus-iphone-8-plus-ph
+71,PH,iPhone Air,Apple,iPhone Air,0,True,False,apple-iphone-air-iphone-air-ph
+54,PH,iPhone SE(3rd Gen),Apple,iPhone SE(3rd Gen),0,True,False,apple-iphone-se-3rd-gen-iphone-se-3rd-gen-ph
+37,PH,iPhone X,Apple,iPhone X,0,True,False,apple-iphone-x-iphone-x-ph
+38,PH,iPhone XR,Apple,iPhone XR,0,True,False,apple-iphone-xr-iphone-xr-ph
+39,PH,iPhone XS,Apple,iPhone XS,0,True,False,apple-iphone-xs-iphone-xs-ph
+40,PH,iPhone XS Max,Apple,iPhone XS Max,0,True,False,apple-iphone-xs-max-iphone-xs-max-ph
+297,PH,Pixel 10 128GB 12GB RAM,Google,Pixel 10 128GB 12GB,0,True,False,google-pixel-10-128gb-12gb-pixel-10-128gb-12gb-ram-ph
+298,PH,Pixel 10 Pro 256GB 12GB RAM,Google,Pixel 10 Pro 256GB 12GB,0,True,False,google-pixel-10-pro-256gb-12gb-pixel-10-pro-256gb-12gb-ram-ph
+299,PH,Pixel 10 Pro XL 256GB 12GB RAM,Google,Pixel 10 Pro XL 256GB 12GB,0,True,False,google-pixel-10-pro-xl-256gb-12gb-pixel-10-pro-xl-256gb-12gb-ram-ph
+300,PH,Pixel 10 Pro XL 512GB 12GB RAM,Google,Pixel 10 Pro XL 512GB 12GB,0,True,False,google-pixel-10-pro-xl-512gb-12gb-pixel-10-pro-xl-512gb-12gb-ram-ph
+3,PH,Pixel 7A,Google,Pixel 7A,18,True,False,google-pixel-7a
+4,PH,Pixel 8,Google,Pixel 8,10,True,False,pixel-8
+295,PH,Pixel 8 256GB 8GB RAM,Google,Pixel 8 256GB 8GB,0,True,False,google-pixel-8-256gb-8gb-pixel-8-256gb-8gb-ram-ph
+296,PH,Pixel 9 Pro XL 256GB 12GB RAM,Google,Pixel 9 Pro XL 256GB 12GB,0,True,False,google-pixel-9-pro-xl-256gb-12gb-pixel-9-pro-xl-256gb-12gb-ram-ph
+311,PH,Honor H400 512GB 12GB RAM,Honor,H400 512GB 12GB,0,True,False,honor-h400-512gb-12gb-honor-h400-512gb-12gb-ram-ph
+312,PH,Honor H400 Pro 512GB 12GB RAM,Honor,H400 Pro 512GB 12GB,0,True,False,honor-h400-pro-512gb-12gb-honor-h400-pro-512gb-12gb-ram-ph
+309,PH,Honor X6C 256GB 6GB RAM,Honor,X6C 256GB 6GB,0,True,False,honor-x6c-256gb-6gb-honor-x6c-256gb-6gb-ram-ph
+310,PH,Honor X9D 256GB 8GB RAM,Honor,X9D 256GB 8GB,0,True,False,honor-x9d-256gb-8gb-honor-x9d-256gb-8gb-ram-ph
+308,PH,Nothing Phone 3 256GB 12GB RAM,Nothing,Phone 3 256GB 12GB,0,True,False,nothing-phone-3-256gb-12gb-nothing-phone-3-256gb-12gb-ram-ph
+306,PH,Nothing Phone 3A 256GB 8GB RAM,Nothing,Phone 3A 256GB 8GB,0,True,False,nothing-phone-3a-256gb-8gb-nothing-phone-3a-256gb-8gb-ram-ph
+307,PH,Nothing Phone 3A Pro 256GB 12GB RAM,Nothing,Phone 3A Pro 256GB 12GB,0,True,False,nothing-phone-3a-pro-256gb-12gb-nothing-phone-3a-pro-256gb-12gb-ram-ph
+302,PH,OnePlus 13 256GB 12GB RAM,OnePlus,13 256GB 12GB,0,True,False,oneplus-13-256gb-12gb-oneplus-13-256gb-12gb-ram-ph
+303,PH,OnePlus 13 512GB 16GB RAM,OnePlus,13 512GB 16GB,0,True,False,oneplus-13-512gb-16gb-oneplus-13-512gb-16gb-ram-ph
+304,PH,OnePlus 13s 256GB 12GB RAM,OnePlus,13s 256GB 12GB,0,True,False,oneplus-13s-256gb-12gb-oneplus-13s-256gb-12gb-ram-ph
+305,PH,OnePlus 15 512GB 12GB RAM,OnePlus,15 512GB 12GB,0,True,False,oneplus-15-512gb-12gb-oneplus-15-512gb-12gb-ram-ph
+170,PH,OnePlus 9 5G,OnePlus,OnePlus 9 5G,1,True,False,oneplus-oneplus-9-5g-oneplus-9-5g-ph
+301,PH,OnePlus Nord CE 5 256GB 8GB RAM,OnePlus,Nord CE 5 256GB 8GB,0,True,False,oneplus-nord-ce-5-256gb-8gb-oneplus-nord-ce-5-256gb-8gb-ram-ph
+6,PH,Galaxy A42 5G,Samsung,Galaxy A42 5G,13,True,False,galaxy-a42-5g
+5,PH,Galaxy A54 5G,Samsung,Galaxy A54 5G,21,False,False,samsung-a12
+122,PH,Galaxy M10,Samsung,Samsung Galaxy M10,0,True,False,samsung-samsung-galaxy-m10-galaxy-m10-ph
+126,PH,Galaxy M12,Samsung,Samsung Galaxy M12,0,True,False,samsung-samsung-galaxy-m12-galaxy-m12-ph
+130,PH,Galaxy M13,Samsung,Samsung Galaxy M13,0,True,False,samsung-samsung-galaxy-m13-galaxy-m13-ph
+155,PH,Galaxy M14,Samsung,Samsung Galaxy M14,0,True,False,samsung-samsung-galaxy-m14-galaxy-m14-ph
+156,PH,Galaxy M20,Samsung,Samsung Galaxy M20,0,True,False,samsung-samsung-galaxy-m20-galaxy-m20-ph
+157,PH,Galaxy M21,Samsung,Samsung Galaxy M21,0,True,False,samsung-samsung-galaxy-m21-galaxy-m21-ph
+158,PH,Galaxy M22,Samsung,Samsung Galaxy M22,0,True,False,samsung-samsung-galaxy-m22-galaxy-m22-ph
+159,PH,Galaxy M23 5G,Samsung,Samsung Galaxy M23 5G,0,True,False,samsung-samsung-galaxy-m23-5g-galaxy-m23-5g-ph
+160,PH,Galaxy M30s,Samsung,Samsung Galaxy M30s,0,True,False,samsung-samsung-galaxy-m30s-galaxy-m30s-ph
+161,PH,Galaxy M31,Samsung,Samsung Galaxy M31,0,True,False,samsung-samsung-galaxy-m31-galaxy-m31-ph
+162,PH,Galaxy M32,Samsung,Samsung Galaxy M32,0,True,False,samsung-samsung-galaxy-m32-galaxy-m32-ph
+163,PH,Galaxy M33 5G,Samsung,Samsung Galaxy M33 5G,0,True,False,samsung-samsung-galaxy-m33-5g-galaxy-m33-5g-ph
+164,PH,Galaxy M40,Samsung,Samsung Galaxy M40,0,True,False,samsung-samsung-galaxy-m40-galaxy-m40-ph
+165,PH,Galaxy M51,Samsung,Samsung Galaxy M51,0,True,False,samsung-samsung-galaxy-m51-galaxy-m51-ph
+166,PH,Galaxy M52,Samsung,Samsung Galaxy M52,0,True,False,samsung-samsung-galaxy-m52-galaxy-m52-ph
+167,PH,Galaxy M53,Samsung,Samsung Galaxy M53,0,True,False,samsung-samsung-galaxy-m53-galaxy-m53-ph
+168,PH,Galaxy M54,Samsung,Samsung Galaxy M54,0,True,False,samsung-samsung-galaxy-m54-galaxy-m54-ph
+7,PH,Galaxy S20 FE 5G,Samsung,Galaxy S20 FE 5G,29,True,False,galaxy-s20-fe-5g
+92,PH,Galaxy S22 Ultra,Samsung,Samsung Galaxy S22 Ultra,0,True,False,samsung-samsung-galaxy-s22-ultra-galaxy-s22-ultra-ph
+105,PH,Galaxy S23,Samsung,Samsung Galaxy S23,2,True,False,samsung-samsung-galaxy-s23-galaxy-s23-ph
+101,PH,Galaxy S23 Ultra,Samsung,Samsung Galaxy S23 Ultra,2,True,False,samsung-samsung-galaxy-s23-ultra-galaxy-s23-ultra-ph
+99,PH,Galaxy S23+,Samsung,Samsung Galaxy S23+,3,True,False,samsung-samsung-galaxy-s23-galaxy-s23-ph-1
+100,PH,Galaxy S23FE,Samsung,Samsung Galaxy S23FE,0,True,False,samsung-samsung-galaxy-s23fe-galaxy-s23fe-ph
+106,PH,Galaxy S24,Samsung,Samsung Galaxy S24,3,True,False,samsung-samsung-galaxy-s24-galaxy-s24-ph
+112,PH,Galaxy S24 Ultra,Samsung,Samsung Galaxy S24 Ultra,1,True,False,samsung-samsung-galaxy-s24-ultra-galaxy-s24-ultra-ph
+109,PH,Galaxy S24+,Samsung,Samsung Galaxy S24+,3,True,False,samsung-samsung-galaxy-s24-galaxy-s24-ph-1
+115,PH,Galaxy S25,Samsung,Samsung Galaxy S25,3,True,False,samsung-samsung-galaxy-s25-galaxy-s25-ph
+118,PH,Galaxy S25 Ultra,Samsung,Samsung Galaxy S25 Ultra,0,True,False,samsung-samsung-galaxy-s25-ultra-galaxy-s25-ultra-ph
+117,PH,Galaxy S25+,Samsung,Samsung Galaxy S25+,2,True,False,samsung-samsung-galaxy-s25-galaxy-s25-ph-1
+119,PH,Galaxy S26,Samsung,Samsung Galaxy S26,0,True,False,samsung-samsung-galaxy-s26-galaxy-s26-ph
+121,PH,Galaxy S26 Ultra,Samsung,Samsung Galaxy S26 Ultra,0,True,False,samsung-samsung-galaxy-s26-ultra-galaxy-s26-ultra-ph
+120,PH,Galaxy S26+,Samsung,Samsung Galaxy S26+,0,True,False,samsung-samsung-galaxy-s26-galaxy-s26-ph-1
+20,PH,Galaxy Z Fold5,Samsung,Samsung Galaxy Z Fold5,1,True,False,g
+104,PH,Samsung Galaxy A05,Samsung,Galaxy A05,0,True,False,samsung-galaxy-a05-samsung-galaxy-a05-ph
+107,PH,Samsung Galaxy A07,Samsung,Galaxy A07,0,True,False,samsung-galaxy-a07-samsung-galaxy-a07-ph
+108,PH,Samsung Galaxy A12,Samsung,Galaxy A12,0,True,False,samsung-galaxy-a12-samsung-galaxy-a12-ph
+110,PH,Samsung Galaxy A13,Samsung,Galaxy A13,0,True,False,samsung-galaxy-a13-samsung-galaxy-a13-ph
+111,PH,Samsung Galaxy A14,Samsung,Galaxy A14,0,True,False,samsung-galaxy-a14-samsung-galaxy-a14-ph
+113,PH,Samsung Galaxy A15,Samsung,Galaxy A15,0,True,False,samsung-galaxy-a15-samsung-galaxy-a15-ph
+114,PH,Samsung Galaxy A16,Samsung,Galaxy A16,0,True,False,samsung-galaxy-a16-samsung-galaxy-a16-ph
+251,PH,Samsung Galaxy A16 128GB 4GB RAM,Samsung,A16 128GB 4GB,0,True,False,samsung-a16-128gb-4gb-samsung-galaxy-a16-128gb-4gb-ram-ph
+252,PH,Samsung Galaxy A16 256GB 8GB RAM,Samsung,A16 256GB 8GB,0,True,False,samsung-a16-256gb-8gb-samsung-galaxy-a16-256gb-8gb-ram-ph
+116,PH,Samsung Galaxy A17,Samsung,Galaxy A17,0,True,False,samsung-galaxy-a17-samsung-galaxy-a17-ph
+123,PH,Samsung Galaxy A20,Samsung,Galaxy A20,0,True,False,samsung-galaxy-a20-samsung-galaxy-a20-ph
+124,PH,Samsung Galaxy A21,Samsung,Galaxy A21,0,True,False,samsung-galaxy-a21-samsung-galaxy-a21-ph
+125,PH,Samsung Galaxy A22,Samsung,Galaxy A22,0,True,False,samsung-galaxy-a22-samsung-galaxy-a22-ph
+127,PH,Samsung Galaxy A23,Samsung,Galaxy A23,0,True,False,samsung-galaxy-a23-samsung-galaxy-a23-ph
+128,PH,Samsung Galaxy A24,Samsung,Galaxy A24,0,True,False,samsung-galaxy-a24-samsung-galaxy-a24-ph
+129,PH,Samsung Galaxy A25,Samsung,Galaxy A25,0,True,False,samsung-galaxy-a25-samsung-galaxy-a25-ph
+131,PH,Samsung Galaxy A26,Samsung,Galaxy A26,0,True,False,samsung-galaxy-a26-samsung-galaxy-a26-ph
+253,PH,Samsung Galaxy A26 128GB 6GB RAM,Samsung,A26 128GB 6GB,0,True,False,samsung-a26-128gb-6gb-samsung-galaxy-a26-128gb-6gb-ram-ph
+254,PH,Samsung Galaxy A26 256GB 8GB RAM,Samsung,A26 256GB 8GB,0,True,False,samsung-a26-256gb-8gb-samsung-galaxy-a26-256gb-8gb-ram-ph
+132,PH,Samsung Galaxy A30,Samsung,Galaxy A30,0,True,False,samsung-galaxy-a30-samsung-galaxy-a30-ph
+133,PH,Samsung Galaxy A31,Samsung,Galaxy A31,0,True,False,samsung-galaxy-a31-samsung-galaxy-a31-ph
+134,PH,Samsung Galaxy A32,Samsung,Galaxy A32,0,True,False,samsung-galaxy-a32-samsung-galaxy-a32-ph
+135,PH,Samsung Galaxy A33,Samsung,Galaxy A33,0,True,False,samsung-galaxy-a33-samsung-galaxy-a33-ph
+136,PH,Samsung Galaxy A34,Samsung,Galaxy A34,0,True,False,samsung-galaxy-a34-samsung-galaxy-a34-ph
+137,PH,Samsung Galaxy A35,Samsung,Galaxy A35,0,True,False,samsung-galaxy-a35-samsung-galaxy-a35-ph
+138,PH,Samsung Galaxy A36,Samsung,Galaxy A36,0,True,False,samsung-galaxy-a36-samsung-galaxy-a36-ph
+256,PH,Samsung Galaxy A36 256GB 12GB RAM,Samsung,A36 256GB 12GB,0,True,False,samsung-a36-256gb-12gb-samsung-galaxy-a36-256gb-12gb-ram-ph
+255,PH,Samsung Galaxy A36 256GB 8GB RAM,Samsung,A36 256GB 8GB,0,True,False,samsung-a36-256gb-8gb-samsung-galaxy-a36-256gb-8gb-ram-ph
+139,PH,Samsung Galaxy A37,Samsung,Galaxy A37,0,True,False,samsung-galaxy-a37-samsung-galaxy-a37-ph
+257,PH,Samsung Galaxy A37 256GB 8GB RAM,Samsung,A37 256GB 8GB,0,True,False,samsung-a37-256gb-8gb-samsung-galaxy-a37-256gb-8gb-ram-ph
+140,PH,Samsung Galaxy A40,Samsung,Galaxy A40,0,True,False,samsung-galaxy-a40-samsung-galaxy-a40-ph
+141,PH,Samsung Galaxy A41,Samsung,Galaxy A41,0,True,False,samsung-galaxy-a41-samsung-galaxy-a41-ph
+142,PH,Samsung Galaxy A50,Samsung,Galaxy A50,0,True,False,samsung-galaxy-a50-samsung-galaxy-a50-ph
+143,PH,Samsung Galaxy A51,Samsung,Galaxy A51,0,True,False,samsung-galaxy-a51-samsung-galaxy-a51-ph
+144,PH,Samsung Galaxy A52,Samsung,Galaxy A52,0,True,False,samsung-galaxy-a52-samsung-galaxy-a52-ph
+145,PH,Samsung Galaxy A53,Samsung,Galaxy A53,0,True,False,samsung-galaxy-a53-samsung-galaxy-a53-ph
+146,PH,Samsung Galaxy A55,Samsung,Galaxy A55,0,True,False,samsung-galaxy-a55-samsung-galaxy-a55-ph
+147,PH,Samsung Galaxy A56,Samsung,Galaxy A56,0,True,False,samsung-galaxy-a56-samsung-galaxy-a56-ph
+259,PH,Samsung Galaxy A56 256GB 12GB RAM,Samsung,A56 256GB 12GB,0,True,False,samsung-a56-256gb-12gb-samsung-galaxy-a56-256gb-12gb-ram-ph
+258,PH,Samsung Galaxy A56 256GB 8GB RAM,Samsung,A56 256GB 8GB,0,True,False,samsung-a56-256gb-8gb-samsung-galaxy-a56-256gb-8gb-ram-ph
+148,PH,Samsung Galaxy A57,Samsung,Galaxy A57,0,True,False,samsung-galaxy-a57-samsung-galaxy-a57-ph
+261,PH,Samsung Galaxy A57 256GB 12GB RAM,Samsung,A57 256GB 12GB,0,True,False,samsung-a57-256gb-12gb-samsung-galaxy-a57-256gb-12gb-ram-ph
+260,PH,Samsung Galaxy A57 256GB 8GB RAM,Samsung,A57 256GB 8GB,0,True,False,samsung-a57-256gb-8gb-samsung-galaxy-a57-256gb-8gb-ram-ph
+149,PH,Samsung Galaxy A70,Samsung,Galaxy A70,0,True,False,samsung-galaxy-a70-samsung-galaxy-a70-ph
+150,PH,Samsung Galaxy A71,Samsung,Galaxy A71,0,True,False,samsung-galaxy-a71-samsung-galaxy-a71-ph
+91,PH,Samsung Galaxy Fold 5,Samsung,Galaxy Z Fold 5,0,True,False,samsung-galaxy-z-fold-5-samsung-galaxy-fold-5-ph
+151,PH,Samsung Galaxy Note 10,Samsung,Galaxy Note 10,0,True,False,samsung-galaxy-note-10-samsung-galaxy-note-10-ph
+152,PH,Samsung Galaxy Note 10+,Samsung,Galaxy Note 10+,0,True,False,samsung-galaxy-note-10-samsung-galaxy-note-10-ph-1
+153,PH,Samsung Galaxy Note 20,Samsung,Galaxy Note 20,1,True,False,samsung-galaxy-note-20-samsung-galaxy-note-20-ph
+154,PH,Samsung Galaxy Note 20 Ultra,Samsung,Galaxy Note 20 Ultra,0,True,False,samsung-galaxy-note-20-ultra-samsung-galaxy-note-20-ultra-ph
+75,PH,Samsung Galaxy S10,Samsung,Galaxy S10,0,True,False,samsung-galaxy-s10-samsung-galaxy-s10-ph
+77,PH,Samsung Galaxy S10 lite,Samsung,Galaxy S10 Lite,0,True,False,samsung-galaxy-s10-lite-samsung-galaxy-s10-lite-ph
+74,PH,Samsung Galaxy S10+,Samsung,Samsung,0,True,False,samsung-samsung-samsung-galaxy-s10-ph
+73,PH,Samsung Galaxy S10e,Samsung,Samsung S Series,0,True,False,samsung-samsung-s-series-samsung-galaxy-s10e-ph
+78,PH,Samsung Galaxy S20,Samsung,Galaxy S20,0,True,False,samsung-galaxy-s20-samsung-galaxy-s20-ph
+81,PH,Samsung Galaxy S20 Ultra,Samsung,Galaxy S20 Ultra,0,True,False,samsung-galaxy-s20-ultra-samsung-galaxy-s20-ultra-ph
+79,PH,Samsung Galaxy S20+,Samsung,Galaxy S20+,0,True,False,samsung-galaxy-s20-samsung-galaxy-s20-ph-1
+82,PH,Samsung Galaxy S21,Samsung,Galaxy S21,4,True,False,samsung-galaxy-s21-samsung-galaxy-s21-ph
+85,PH,Samsung Galaxy S21 Ultra,Samsung,Galaxy S21 Ultra,3,True,False,samsung-galaxy-s21-ultra-samsung-galaxy-s21-ultra-ph
+83,PH,Samsung Galaxy S21+,Samsung,Galaxy S21+,0,True,False,samsung-galaxy-s21-samsung-galaxy-s21-ph-1
+84,PH,Samsung Galaxy S21FE,Samsung,Galaxy S21FE,0,True,False,samsung-galaxy-s21fe-samsung-galaxy-s21fe-ph
+86,PH,Samsung Galaxy S22,Samsung,Galaxy S22,0,True,False,samsung-galaxy-s22-samsung-galaxy-s22-ph
+88,PH,Samsung Galaxy S22 Ultra,Samsung,Galaxy S22 Ultra,3,True,False,samsung-galaxy-s22-ultra-samsung-galaxy-s22-ultra-ph
+87,PH,Samsung Galaxy S22+,Samsung,Galaxy S22+,0,True,False,samsung-galaxy-s22-samsung-galaxy-s22-ph-1
+262,PH,Samsung Galaxy S24 256GB 8GB RAM,Samsung,S24 256GB 8GB,0,True,False,samsung-s24-256gb-8gb-samsung-galaxy-s24-256gb-8gb-ram-ph
+265,PH,Samsung Galaxy S25 128GB 12GB RAM,Samsung,S25 128GB 12GB,0,True,False,samsung-s25-128gb-12gb-samsung-galaxy-s25-128gb-12gb-ram-ph
+266,PH,Samsung Galaxy S25 256GB 12GB RAM,Samsung,S25 256GB 12GB,0,True,False,samsung-s25-256gb-12gb-samsung-galaxy-s25-256gb-12gb-ram-ph
+267,PH,Samsung Galaxy S25 Edge 256GB 12GB RAM,Samsung,S25 Edge 256GB 12GB,0,True,False,samsung-s25-edge-256gb-12gb-samsung-galaxy-s25-edge-256gb-12gb-ram-ph
+263,PH,Samsung Galaxy S25 FE 128GB 8GB RAM,Samsung,S25 FE 128GB 8GB,0,True,False,samsung-s25-fe-128gb-8gb-samsung-galaxy-s25-fe-128gb-8gb-ram-ph
+264,PH,Samsung Galaxy S25 FE 256GB 8GB RAM,Samsung,S25 FE 256GB 8GB,0,True,False,samsung-s25-fe-256gb-8gb-samsung-galaxy-s25-fe-256gb-8gb-ram-ph
+268,PH,Samsung Galaxy S25 Ultra 256GB 12GB RAM,Samsung,S25 Ultra 256GB 12GB,0,True,False,samsung-s25-ultra-256gb-12gb-samsung-galaxy-s25-ultra-256gb-12gb-ram-ph
+269,PH,Samsung Galaxy S25 Ultra 512GB 12GB RAM,Samsung,S25 Ultra 512GB 12GB,0,True,False,samsung-s25-ultra-512gb-12gb-samsung-galaxy-s25-ultra-512gb-12gb-ram-ph
+270,PH,Samsung Galaxy S26 256GB 12GB RAM,Samsung,S26 256GB 12GB,0,True,False,samsung-s26-256gb-12gb-samsung-galaxy-s26-256gb-12gb-ram-ph
+271,PH,Samsung Galaxy S26 Ultra 256GB 12GB RAM,Samsung,S26 Ultra 256GB 12GB,0,True,False,samsung-s26-ultra-256gb-12gb-samsung-galaxy-s26-ultra-256gb-12gb-ram-ph
+272,PH,Samsung Galaxy S26 Ultra 512GB 12GB RAM,Samsung,S26 Ultra 512GB 12GB,0,True,False,samsung-s26-ultra-512gb-12gb-samsung-galaxy-s26-ultra-512gb-12gb-ram-ph
+95,PH,Samsung Galaxy Z Flip 3,Samsung,Galaxy Z Flip 3,0,True,False,samsung-galaxy-z-flip-3-samsung-galaxy-z-flip-3-ph
+96,PH,Samsung Galaxy Z Flip 4,Samsung,Galaxy Z Flip 4,0,True,False,samsung-galaxy-z-flip-4-samsung-galaxy-z-flip-4-ph
+97,PH,Samsung Galaxy Z Flip 5,Samsung,Galaxy Z Flip 5,0,True,False,samsung-galaxy-z-flip-5-samsung-galaxy-z-flip-5-ph
+98,PH,Samsung Galaxy Z Flip 6,Samsung,Samsung Galaxy Z Flip 6,2,True,False,samsung-samsung-galaxy-z-flip-6-samsung-galaxy-z-flip-6-ph
+102,PH,Samsung Galaxy Z Flip 7,Samsung,Galaxy Z Flip 7,0,True,False,samsung-galaxy-z-flip-7-samsung-galaxy-z-flip-7-ph
+273,PH,Samsung Galaxy Z Flip 7 256GB 12GB RAM,Samsung,Z Flip 7 256GB 12GB,0,True,False,samsung-z-flip-7-256gb-12gb-samsung-galaxy-z-flip-7-256gb-12gb-ram-ph
+89,PH,Samsung Galaxy Z Fold 3,Samsung,Galaxy Z Fold 3,0,True,False,samsung-galaxy-z-fold-3-samsung-galaxy-z-fold-3-ph
+90,PH,Samsung Galaxy Z Fold 4,Samsung,Galaxy Z Fold 4,0,True,False,samsung-galaxy-z-fold-4-samsung-galaxy-z-fold-4-ph
+274,PH,Samsung Galaxy Z Fold 4 512GB 12GB RAM,Samsung,Z Fold 4 512GB 12GB,0,True,False,samsung-z-fold-4-512gb-12gb-samsung-galaxy-z-fold-4-512gb-12gb-ram-ph
+93,PH,Samsung Galaxy Z Fold 6,Samsung,Galaxy Z Fold 6,1,True,False,samsung-galaxy-z-fold-6-samsung-galaxy-z-fold-6-ph
+94,PH,Samsung Galaxy Z Fold 7,Samsung,Galaxy Z Fold 7,0,True,False,samsung-galaxy-z-fold-7-samsung-galaxy-z-fold-7-ph
+275,PH,Samsung Galaxy Z Fold 7 256GB 12GB RAM,Samsung,Z Fold 7 256GB 12GB,0,True,False,samsung-z-fold-7-256gb-12gb-samsung-galaxy-z-fold-7-256gb-12gb-ram-ph
+276,PH,Samsung Galaxy Z Fold 7 512GB 12GB RAM,Samsung,Z Fold 7 512GB 12GB,0,True,False,samsung-z-fold-7-512gb-12gb-samsung-galaxy-z-fold-7-512gb-12gb-ram-ph
+2,PH,Sony Xperia 10 V,Sony,Xperia 10 V,20,True,False,sony-xperia-10-v-price-kenya
+1,PH,Sony Xperia 5 IV,Sony,Sony Xperia 5 IV,43,True,False,sony-xperia-5-iv-price-kenya-affordable-gadgets-ke
+313,PH,Xiaomi 17 Pro Max 512GB 12GB RAM,Xiaomi,17 Pro Max 512GB 12GB,0,True,False,xiaomi-17-pro-max-512gb-12gb-xiaomi-17-pro-max-512gb-12gb-ram-ph
+314,PH,Xiaomi 17 Pro Max 512GB 16GB RAM,Xiaomi,17 Pro Max 512GB 16GB,0,True,False,xiaomi-17-pro-max-512gb-16gb-xiaomi-17-pro-max-512gb-16gb-ram-ph
+219,TB,iPad 10th gen 64GB Cellular,Apple,iPad 10th gen 64GB Cellular,0,True,False,apple-ipad-10th-gen-64gb-cellular-ipad-10th-gen-64gb-cellular-tb
+22,TB,iPad 11 A16,Apple,iPad 11 A16,0,True,False,ipad-11-a16
+220,TB,iPad 11th gen 128GB Cellular,Apple,iPad 11th gen 128GB Cellular,0,True,False,apple-ipad-11th-gen-128gb-cellular-ipad-11th-gen-128gb-cellular-tb
+222,TB,iPad 11th gen 256GB Cellular,Apple,iPad 11th gen 256GB Cellular,0,True,False,apple-ipad-11th-gen-256gb-cellular-ipad-11th-gen-256gb-cellular-tb
+221,TB,iPad 11th gen 256GB WiFi,Apple,iPad 11th gen 256GB WiFi,0,True,False,apple-ipad-11th-gen-256gb-wifi-ipad-11th-gen-256gb-wifi-tb
+171,TB,iPad 6th Gen,Apple,iPad 6th Gen 128GB Space Gray,1,True,False,apple-ipad-6th-gen-128gb-space-gray-ipad-6th-gen-tb
+224,TB,iPad Air M3 128GB Cellular,Apple,iPad Air M3 128GB Cellular,0,True,False,apple-ipad-air-m3-128gb-cellular-ipad-air-m3-128gb-cellular-tb
+223,TB,iPad Air M3 128GB WiFi,Apple,iPad Air M3 128GB WiFi,0,True,False,apple-ipad-air-m3-128gb-wifi-ipad-air-m3-128gb-wifi-tb
+225,TB,iPad Air M3 256GB Cellular,Apple,iPad Air M3 256GB Cellular,0,True,False,apple-ipad-air-m3-256gb-cellular-ipad-air-m3-256gb-cellular-tb
+227,TB,iPad Pro M4 11 inch 256GB Cellular,Apple,iPad Pro M4 11 inch 256GB Cellular,0,True,False,apple-ipad-pro-m4-11-inch-256gb-cellular-ipad-pro-m4-11-inch-256gb-cellular-tb
+226,TB,iPad Pro M4 11 inch 256GB WiFi,Apple,iPad Pro M4 11 inch 256GB WiFi,0,True,False,apple-ipad-pro-m4-11-inch-256gb-wifi-ipad-pro-m4-11-inch-256gb-wifi-tb
+228,TB,iPad Pro M4 13 inch 256GB Cellular,Apple,iPad Pro M4 13 inch 256GB Cellular,0,True,False,apple-ipad-pro-m4-13-inch-256gb-cellular-ipad-pro-m4-13-inch-256gb-cellular-tb
+229,TB,iPad Pro M5 11 inch 256GB Cellular,Apple,iPad Pro M5 11 inch 256GB Cellular,0,True,False,apple-ipad-pro-m5-11-inch-256gb-cellular-ipad-pro-m5-11-inch-256gb-cellular-tb
+230,TB,iPad Pro M5 13 inch 256GB Cellular,Apple,iPad Pro M5 13 inch 256GB Cellular,0,True,False,apple-ipad-pro-m5-13-inch-256gb-cellular-ipad-pro-m5-13-inch-256gb-cellular-tb
+218,TB,iPad mini 7 128GB WiFi,Apple,iPad mini 7 128GB WiFi,0,True,False,apple-ipad-mini-7-128gb-wifi-ipad-mini-7-128gb-wifi-tb
+277,TB,Samsung Galaxy Tab A11 128GB 8GB RAM Cellular,Samsung,Tab A11 128GB 8GB Cellular,0,True,False,samsung-tab-a11-128gb-8gb-cellular-samsung-galaxy-tab-a11-128gb-8gb-ram-cellular-tb
+278,TB,Samsung Galaxy Tab A11 Plus 128GB 6GB RAM Cellular,Samsung,Tab A11 Plus 128GB 6GB Cellular,0,True,False,samsung-tab-a11-plus-128gb-6gb-cellular-samsung-galaxy-tab-a11-plus-128gb-6gb-ram-cellular-tb
+280,TB,Samsung Galaxy Tab S10 Lite 256GB 8GB RAM Cellular,Samsung,Tab S10 Lite 256GB 8GB Cellular,0,True,False,samsung-tab-s10-lite-256gb-8gb-cellular-samsung-galaxy-tab-s10-lite-256gb-8gb-ram-cellular-tb
+282,TB,Samsung Galaxy Tab S10 Ultra 256GB 12GB RAM Cellular,Samsung,Tab S10 Ultra 256GB 12GB Cellular,0,True,False,samsung-tab-s10-ultra-256gb-12gb-cellular-samsung-galaxy-tab-s10-ultra-256gb-12gb-ram-cellular-tb
+281,TB,Samsung Galaxy Tab S10 Ultra 256GB 12GB RAM WiFi,Samsung,Tab S10 Ultra 256GB 12GB WiFi,0,True,False,samsung-tab-s10-ultra-256gb-12gb-wifi-samsung-galaxy-tab-s10-ultra-256gb-12gb-ram-wifi-tb
+284,TB,Samsung Galaxy Tab S11 Ultra 256GB 12GB RAM Cellular,Samsung,Tab S11 Ultra 256GB 12GB Cellular,0,True,False,samsung-tab-s11-ultra-256gb-12gb-cellular-samsung-galaxy-tab-s11-ultra-256gb-12gb-ram-cellular-tb
+283,TB,Samsung Galaxy Tab S11 Ultra 256GB 12GB RAM WiFi,Samsung,Tab S11 Ultra 256GB 12GB WiFi,0,True,False,samsung-tab-s11-ultra-256gb-12gb-wifi-samsung-galaxy-tab-s11-ultra-256gb-12gb-ram-wifi-tb
+279,TB,Samsung Galaxy Tab S9 256GB 12GB RAM Cellular,Samsung,Tab S9 256GB 12GB Cellular,0,True,False,samsung-tab-s9-256gb-12gb-cellular-samsung-galaxy-tab-s9-256gb-12gb-ram-cellular-tb

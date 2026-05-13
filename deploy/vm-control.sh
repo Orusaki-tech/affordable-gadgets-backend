@@ -8,8 +8,8 @@ TERRAFORM_DIR="${SCRIPT_DIR}/terraform"
 ACTION="${1:-}"
 if [[ -z "${ACTION}" ]] || [[ "${ACTION}" != "stop" && "${ACTION}" != "start" && "${ACTION}" != "status" ]]; then
   echo "Usage: $0 stop|start|status"
-  echo "  stop   - Stop the GCP VM (saves cost; Django and ngrok will be down)"
-  echo "  start  - Start the GCP VM (takes ~1 min; then run ngrok-on-vm.sh if needed)"
+  echo "  stop   - Stop the GCP VM (saves cost; Django and tunnel will be down)"
+  echo "  start  - Start the GCP VM (takes ~1 min; then start Cloudflare Tunnel if needed)"
   echo "  status - Show VM run status"
   exit 1
 fi
@@ -34,7 +34,7 @@ case "${ACTION}" in
   start)
     echo "==> Starting VM ${INSTANCE_NAME} (zone: ${ZONE})..."
     gcloud compute instances start "${INSTANCE_NAME}" --zone="${ZONE}" ${PROJECT_ARG}
-    echo "==> VM started. Wait ~1 min, then run ./deploy/ngrok-on-vm.sh if you need the tunnel."
+    echo "==> VM started. Wait ~1 min, then run ./deploy/cloudflare-on-vm.sh if you need the tunnel."
     ;;
   status)
     gcloud compute instances describe "${INSTANCE_NAME}" --zone="${ZONE}" ${PROJECT_ARG} --format="table(name,zone.basename(),status)"

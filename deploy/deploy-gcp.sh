@@ -44,45 +44,28 @@ fi
 
 echo "==> VM: ${INSTANCE_NAME}, IP: ${IP}, zone: ${ZONE}"
 
-# Optional hostnames for Django ALLOWED_HOSTS (e.g. current ngrok tunnel).
-# Never hardcode a stale ngrok domain here — it caused DisallowedHost + fake "CORS" errors
-# after ngrok restarts with a new URL.
+# Optional hostnames for Django ALLOWED_HOSTS.
+# Prefer stable hostnames (e.g. api.affordable-gadgetske.com via Cloudflare Tunnel).
 #
 # Priority for ALLOWED_HOSTS extras:
-#   1. DEPLOY_EXTRA_ALLOWED_HOSTS — comma-separated (e.g. your reserved ngrok domain)
-#   2. Else: hostname from ngrok local API on the VM (127.0.0.1:4040) if the tunnel is running
+#   1. DEPLOY_EXTRA_ALLOWED_HOSTS — comma-separated (e.g. api.affordable-gadgetske.com)
+#   2. Else: DEPLOY_PUBLIC_API_BASE_URL hostname (defaults to https://api.affordable-gadgetske.com)
 #
-# We always SSH once to read the tunnel HTTPS URL (when possible) so we can also set
-# PESAPAL_IPN_URL to https://<host>/api/inventory/pesapal/ipn/ — required for M-Pesa/Pesapal on ngrok.
-TUNNEL_URL=""
+# NOTE: We no longer probe ngrok from the VM because ngrok free-tier limits can break
+# requests and surface as misleading "CORS" errors in the browser.
 EXTRA_ALLOWED=""
-PROJECT_ID_PROBE="$(cd "${TERRAFORM_DIR}" && terraform output -raw project_id 2>/dev/null || true)"
-GCLOUD_SSH_PROBE=(gcloud compute ssh "${REMOTE_USER}@${INSTANCE_NAME}" --zone="${ZONE}")
-[[ -n "${PROJECT_ID_PROBE}" ]] && GCLOUD_SSH_PROBE+=(--project="${PROJECT_ID_PROBE}")
-TUNNEL_URL=$("${GCLOUD_SSH_PROBE[@]}" --command="curl -s http://127.0.0.1:4040/api/tunnels 2>/dev/null | python3 -c \"
-import sys, json
-try:
-    d = json.load(sys.stdin)
-    for t in d.get('tunnels', []):
-        u = t.get('public_url') or ''
-        if u.startswith('https://'):
-            print(u)
-            break
-except Exception:
-    pass
-\"" 2>/dev/null | tail -1) || true
+DEPLOY_PUBLIC_API_BASE_URL="${DEPLOY_PUBLIC_API_BASE_URL:-https://api.affordable-gadgetske.com}"
+# Host only (no sed backrefs — macOS/BSD sed can emit literal "\1" and break ALLOWED_HOSTS).
+DEPLOY_PUBLIC_API_HOST="${DEPLOY_PUBLIC_API_BASE_URL#https://}"
+DEPLOY_PUBLIC_API_HOST="${DEPLOY_PUBLIC_API_HOST#http://}"
+DEPLOY_PUBLIC_API_HOST="${DEPLOY_PUBLIC_API_HOST%%/*}"
 
 if [[ -n "${DEPLOY_EXTRA_ALLOWED_HOSTS:-}" ]]; then
   EXTRA_ALLOWED="${DEPLOY_EXTRA_ALLOWED_HOSTS}"
   echo "==> ALLOWED_HOSTS extras from DEPLOY_EXTRA_ALLOWED_HOSTS: ${EXTRA_ALLOWED}"
 else
-  if [[ -n "${TUNNEL_URL}" ]]; then
-    EXTRA_ALLOWED="$(echo "${TUNNEL_URL}" | sed -E 's|https?://([^/]+).*|\1|')"
-    echo "==> Detected ngrok host on VM for ALLOWED_HOSTS: ${EXTRA_ALLOWED}"
-  else
-    echo "==> No ngrok tunnel detected on VM (or SSH/curl failed). Using IP + localhost only."
-    echo "    Run ./deploy/ngrok-on-vm.sh after starting ngrok (sets ALLOWED_HOSTS + PESAPAL_IPN_URL on the VM)."
-  fi
+  EXTRA_ALLOWED="${DEPLOY_PUBLIC_API_HOST}"
+  echo "==> Using public API hostname for ALLOWED_HOSTS: ${EXTRA_ALLOWED}"
 fi
 
 # 3. Build .env for VM (inject ALLOWED_HOSTS and VM-specific vars)
@@ -131,16 +114,16 @@ else
 fi
 unset _fb_line _fb_val
 
-# Pesapal IPN must be a public HTTPS URL reachable by Pesapal. When using ngrok, set from tunnel URL.
-if [[ -n "${TUNNEL_URL:-}" ]]; then
-  _ipn="${TUNNEL_URL%/}/api/inventory/pesapal/ipn/"
-  sed -i '' '/^PESAPAL_IPN_URL=/d' "${ENV_REMOTE}" 2>/dev/null || true
-  echo "PESAPAL_IPN_URL=${_ipn}" >> "${ENV_REMOTE}"
-  echo "==> Set PESAPAL_IPN_URL from ngrok tunnel: ${_ipn}"
-elif [[ -n "${DEPLOY_PESAPAL_IPN_URL:-}" ]]; then
+# Pesapal IPN must be a public HTTPS URL reachable by Pesapal. Default to stable public API domain.
+if [[ -n "${DEPLOY_PESAPAL_IPN_URL:-}" ]]; then
   sed -i '' '/^PESAPAL_IPN_URL=/d' "${ENV_REMOTE}" 2>/dev/null || true
   echo "PESAPAL_IPN_URL=${DEPLOY_PESAPAL_IPN_URL}" >> "${ENV_REMOTE}"
   echo "==> Set PESAPAL_IPN_URL from DEPLOY_PESAPAL_IPN_URL"
+else
+  _ipn="${DEPLOY_PUBLIC_API_BASE_URL%/}/api/inventory/pesapal/ipn/"
+  sed -i '' '/^PESAPAL_IPN_URL=/d' "${ENV_REMOTE}" 2>/dev/null || true
+  echo "PESAPAL_IPN_URL=${_ipn}" >> "${ENV_REMOTE}"
+  echo "==> Set PESAPAL_IPN_URL to stable public URL: ${_ipn}"
 fi
 unset _ipn
 
@@ -214,9 +197,7 @@ DEPLOY_SUMMARY="${SCRIPT_DIR}/last-deploy.txt"
   if [[ -n "${EXTRA_ALLOWED:-}" ]]; then
     echo "ALLOWED_HOSTS extras (e.g. ngrok): ${EXTRA_ALLOWED}"
   fi
-  if [[ -n "${TUNNEL_URL:-}" ]]; then
-    echo "PESAPAL_IPN_URL (from tunnel): ${TUNNEL_URL%/}/api/inventory/pesapal/ipn/"
-  fi
+  echo "Public API base URL: ${DEPLOY_PUBLIC_API_BASE_URL}"
 } > "${DEPLOY_SUMMARY}"
 echo "==> Summary written to ${DEPLOY_SUMMARY}"
 
@@ -227,7 +208,6 @@ echo ""
 if [[ -n "${EXTRA_ALLOWED:-}" ]]; then
   echo "    ALLOWED_HOSTS on the VM includes the detected/extra hostname(s) above."
 else
-  echo "    Using ngrok? Start the tunnel on the VM, then run: ./deploy/ngrok-on-vm.sh"
-  echo "    (That updates ALLOWED_HOSTS + recreates the web container for the current URL.)"
+  echo "    Using Cloudflare Tunnel? Run: CLOUDFLARE_TUNNEL_TOKEN=... ./deploy/cloudflare-on-vm.sh"
 fi
 echo "    Vercel must use REACT_APP_API_BASE_URL / NEXT_PUBLIC_API_URL matching that HTTPS URL; redeploy after the URL changes."

@@ -21,9 +21,9 @@ cd "${ROOT}"
 
 "${ROOT}/deploy/deploy-gcp.sh"
 
-if [[ "${SKIP_NGROK:-}" == "1" ]]; then
-  echo "==> SKIP_NGROK=1 — skipping ./deploy/ngrok-on-vm.sh"
+if [[ "${SKIP_NGROK:-}" == "1" ]] || [[ "${SKIP_CLOUDFLARE_TUNNEL:-}" == "1" ]]; then
+  echo "==> Skipping tunnel step (SKIP_NGROK=1 or SKIP_CLOUDFLARE_TUNNEL=1)."
   exit 0
 fi
 
-exec "${ROOT}/deploy/ngrok-on-vm.sh"
+exec "${ROOT}/deploy/cloudflare-on-vm.sh"

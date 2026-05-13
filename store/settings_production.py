@@ -145,6 +145,11 @@ _csrf_origins = os.environ.get("CSRF_TRUSTED_ORIGINS", "").strip()
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_origins.split(",") if o.strip()]
 if not CSRF_TRUSTED_ORIGINS and render_hostname:
     CSRF_TRUSTED_ORIGINS = [f"https://{render_hostname}"]
+if FRONTEND_BASE_URL and FRONTEND_BASE_URL not in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.append(FRONTEND_BASE_URL)
+for _origin in ("https://www.affordable-gadgetske.com", "https://affordable-gadgetske.com"):
+    if _origin not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(_origin)
 
 # Security headers
 # When behind a reverse proxy that terminates SSL (e.g. Railway, Render), trust X-Forwarded-Proto
@@ -171,9 +176,22 @@ SECURE_HSTS_PRELOAD = True
 # 1. E-commerce frontend (shwari-phones/Next.js)
 # 2. Admin frontend (inventory-management-frontend/React)
 # Format: https://domain1.com,https://domain2.com
-CORS_ALLOWED_ORIGINS = os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",")
-# Filter out empty strings from split
-CORS_ALLOWED_ORIGINS = [origin.strip() for origin in CORS_ALLOWED_ORIGINS if origin.strip()]
+_cors_env = os.environ.get("CORS_ALLOWED_ORIGINS", "").strip()
+CORS_ALLOWED_ORIGINS = [o.strip() for o in _cors_env.split(",") if o.strip()]
+
+# If CORS_ALLOWED_ORIGINS is not provided, default to known production domains.
+# This prevents a deploy misconfig from silently breaking the storefront.
+_default_cors = {
+    "https://www.affordable-gadgetske.com",
+    "https://affordable-gadgetske.com",
+}
+if FRONTEND_BASE_URL:
+    _default_cors.add(FRONTEND_BASE_URL)
+if not CORS_ALLOWED_ORIGINS:
+    CORS_ALLOWED_ORIGINS = sorted(_default_cors)
+else:
+    # Ensure storefront domains are always present.
+    CORS_ALLOWED_ORIGINS = sorted(set(CORS_ALLOWED_ORIGINS).union(_default_cors))
 
 # Allow Vercel preview deployments (dynamic URLs) and production custom domain
 # Vercel preview URLs follow pattern: https://*-git-*-*-*.vercel.app
@@ -208,6 +226,11 @@ CORS_ALLOW_HEADERS = [
 
 # Remove any wildcard CORS settings
 CORS_ALLOW_ALL_ORIGINS = False
+
+# If the public site uses a session-based cart, browsers treat these cookies as cross-site.
+# Without SameSite=None (and Secure), the cart session cookie won't be sent.
+SESSION_COOKIE_SAMESITE = "None"
+CSRF_COOKIE_SAMESITE = "None"
 
 # Cache: use Redis in production when REDIS_URL is set (e.g. Railway Redis add-on).
 # This makes product list cache survive restarts and cold starts; first request after
