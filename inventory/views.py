@@ -104,6 +104,7 @@ from .permissions import (  # noqa: E402
     IsAdminUser,
     IsBundleManagerOrReadOnly,
     IsContentCreator,
+    IsContentCreatorOrInventoryManager,
     IsContentCreatorOrInventoryManagerOrReadOnly,
     IsCustomerOwnerOrAdmin,
     IsInventoryManager,
@@ -141,6 +142,7 @@ from .serializers import (  # noqa: E402
     OrderSerializer,
     ProductAccessorySerializer,
     ProductImageSerializer,
+    ProductListSerializer,
     ProductSerializer,
     PromotionSerializer,
     PromotionTypeSerializer,
@@ -252,6 +254,11 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     ordering_fields = ["product_name", "available_stock", "created_at", "updated_at"]
     ordering = ["product_name"]
 
+    def get_serializer_class(self):
+        if getattr(self, "action", None) == "list":
+            return ProductListSerializer
+        return ProductSerializer
+
     def get_queryset(self):
         """Filter products by admin's assigned brands."""
         # Fast path for single-product retrieve: avoid heavy list-style filters and brand JOINs.
@@ -274,7 +281,7 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                 Product.objects.filter(pk=pk)
                 .order_by("product_name")
                 .annotate(available_stock=available_stock_expr)
-                .prefetch_related("images", "brands", "tags")
+                .prefetch_related("images", "brands", "tags", "article")
             )
 
         queryset = super().get_queryset()
@@ -458,7 +465,7 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
         # Reduce N+1: prefetch relations used by ProductSerializer (images, brands, tags)
         # Skip prefetch for stock_summary — only needs id, product_name, product_type; avoids 3 extra queries
         if self.action != "stock_summary":
-            queryset = queryset.prefetch_related("images", "brands", "tags")
+            queryset = queryset.prefetch_related("images", "brands", "tags", "article")
         elif self.action == "stock_summary":
             queryset = queryset.only("id", "product_name", "product_type")
         return queryset
@@ -859,7 +866,7 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
             status=status.HTTP_200_OK,
         )
 
-    @action(detail=True, methods=["patch"], permission_classes=[IsContentCreator])
+    @action(detail=True, methods=["patch"], permission_classes=[IsContentCreatorOrInventoryManager])
     def update_content(self, request, pk=None):
         """
         Custom action for Content Creators to update only content fields.
@@ -882,6 +889,7 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
             "product_video_url",
             "product_video_file",
             "tag_ids",
+            "article",
         }
 
         # Filter request data to only include content fields

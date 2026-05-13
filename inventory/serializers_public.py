@@ -3,6 +3,7 @@
 import logging
 from decimal import Decimal
 
+from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import Avg, Min, Q, Sum
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiTypes, extend_schema_field, extend_schema_serializer
@@ -21,6 +22,7 @@ from inventory.models import (
     Order,
     OrderItem,
     Product,
+    ProductArticle,
     ProductImage,
     Promotion,
     Review,
@@ -297,6 +299,22 @@ class PublicReviewSubmitSerializer(serializers.Serializer):
     video_url = serializers.URLField(required=False, allow_null=True)
 
 
+class PublicProductArticleSerializer(serializers.ModelSerializer):
+    """Published buying guide for storefront article page (public read-only)."""
+
+    class Meta:
+        model = ProductArticle
+        fields = (
+            "headline",
+            "seo_title",
+            "seo_description",
+            "body",
+            "published_at",
+            "updated_at",
+        )
+        read_only_fields = fields
+
+
 class PublicProductSerializer(serializers.ModelSerializer):
     """Public product serializer (stripped down)."""
 
@@ -320,6 +338,8 @@ class PublicProductSerializer(serializers.ModelSerializer):
         child=serializers.CharField(), read_only=True, required=False
     )
     long_description = serializers.CharField(read_only=True, required=False)
+    has_published_article = serializers.SerializerMethodField()
+    article_headline = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
@@ -352,7 +372,28 @@ class PublicProductSerializer(serializers.ModelSerializer):
             "bundle_price_preview",
             "meta_title",
             "meta_description",  # SEO fields
+            "has_published_article",
+            "article_headline",
         ]
+
+    @extend_schema_field(OpenApiTypes.BOOL)
+    def get_has_published_article(self, obj):
+        if hasattr(obj, "has_published_article"):
+            return bool(obj.has_published_article)
+        return ProductArticle.objects.filter(product=obj, is_published=True).exists()
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_article_headline(self, obj):
+        if self.context.get("view_action") == "list" and not self.context.get("include_article_teaser"):
+            return None
+        try:
+            art = obj.article
+        except ObjectDoesNotExist:
+            return None
+        if not art.is_published:
+            return None
+        h = (art.headline or "").strip()
+        return h or None
 
     @extend_schema_field(serializers.URLField(allow_null=True))
     def get_product_video_file_url(self, obj):
@@ -567,9 +608,14 @@ class PublicProductSerializer(serializers.ModelSerializer):
             .count()
         )
 
-    @extend_schema_field(OpenApiTypes.NUMBER)
-    def get_min_price(self, obj):
-        """Get min price for available units - use annotation when present (list), else prefetched list or query."""
+    def _default_selling_price_float(self, obj):
+        p = getattr(obj, "default_selling_price", None)
+        if p is None:
+            return None
+        return float(p)
+
+    def _min_price_from_listable_units(self, obj):
+        """Min selling_price from listable units only (no product default)."""
         # List view: prefer annotation to avoid iterating available_units_list
         if (
             self.context.get("view_action") == "list"
@@ -596,9 +642,8 @@ class PublicProductSerializer(serializers.ModelSerializer):
         prices = units.values_list("selling_price", flat=True)
         return float(min(prices)) if prices else None
 
-    @extend_schema_field(OpenApiTypes.NUMBER)
-    def get_max_price(self, obj):
-        """Get max price for available units - use annotation when present (list), else prefetched list or query."""
+    def _max_price_from_listable_units(self, obj):
+        """Max selling_price from listable units only (no product default)."""
         if (
             self.context.get("view_action") == "list"
             and getattr(obj, "max_price", None) is not None
@@ -623,6 +668,22 @@ class PublicProductSerializer(serializers.ModelSerializer):
             units = units.filter(Q(brands=brand) | Q(brands__isnull=True))
         prices = units.values_list("selling_price", flat=True)
         return float(max(prices)) if prices else None
+
+    @extend_schema_field(OpenApiTypes.NUMBER)
+    def get_min_price(self, obj):
+        """Get min price for available units; fall back to Product.default_selling_price when none."""
+        v = self._min_price_from_listable_units(obj)
+        if v is not None:
+            return v
+        return self._default_selling_price_float(obj)
+
+    @extend_schema_field(OpenApiTypes.NUMBER)
+    def get_max_price(self, obj):
+        """Get max price for available units; fall back to Product.default_selling_price when none."""
+        v = self._max_price_from_listable_units(obj)
+        if v is not None:
+            return v
+        return self._default_selling_price_float(obj)
 
     @extend_schema_field(OpenApiTypes.NUMBER)
     def get_compare_at_min_price(self, obj):
@@ -795,6 +856,7 @@ class PublicProductListSerializer(PublicProductSerializer):
             "product_video_file_url",
             "has_active_bundle",
             "bundle_price_preview",
+            "has_published_article",
         ]
 
 

@@ -81,6 +81,13 @@ class ProductAdmin(admin.ModelAdmin):
 
     fieldsets = (
         ("Core Details", {"fields": ("product_name", "brand", "model_series", "product_type")}),
+        (
+            "Pricing",
+            {
+                "fields": ("default_selling_price",),
+                "description": "Shown when no listable units; seeds unit selling price if omitted on create.",
+            },
+        ),
         # FIXED: Removed 'product_image' from the fields list, as it's handled by the Inline.
         (
             "Description & Media",

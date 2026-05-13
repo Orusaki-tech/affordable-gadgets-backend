@@ -9,12 +9,14 @@ paths:
   /api/auth/token/login/:
     post:
       operationId: api_auth_token_login_create
-      description: |-
-        Custom token login view that updates last_login field.
+      description: 'Custom token login view that updates last_login field.
+
         Use this instead of the default obtain_auth_token for admin users.
 
+
         Supports both username and email login (username field can contain an email).
-        Only allows users with is_staff=True or is_superuser=True to login.
+
+        Only allows users with is_staff=True or is_superuser=True to login.'
       tags:
       - api
       requestBody:
@@ -42,10 +44,13 @@ paths:
   /accessories-link/:
     get:
       operationId: accessories_link_list
-      description: |-
-        Link model between products and accessories. Admin-only write, public read.
+      description: 'Link model between products and accessories. Admin-only write,
+        public read.
+
         Uses IsAdminOrReadOnly.
-        Allows all product types to have accessories (including accessories having accessories).
+
+        Allows all product types to have accessories (including accessories having
+        accessories).'
       parameters:
       - in: query
         name: accessory
@@ -75,10 +80,13 @@ paths:
           description: ''
     post:
       operationId: accessories_link_create
-      description: |-
-        Link model between products and accessories. Admin-only write, public read.
+      description: 'Link model between products and accessories. Admin-only write,
+        public read.
+
         Uses IsAdminOrReadOnly.
-        Allows all product types to have accessories (including accessories having accessories).
+
+        Allows all product types to have accessories (including accessories having
+        accessories).'
       tags:
       - accessories-link
       requestBody:
@@ -106,10 +114,13 @@ paths:
   /accessories-link/{id}/:
     get:
       operationId: accessories_link_retrieve
-      description: |-
-        Link model between products and accessories. Admin-only write, public read.
+      description: 'Link model between products and accessories. Admin-only write,
+        public read.
+
         Uses IsAdminOrReadOnly.
-        Allows all product types to have accessories (including accessories having accessories).
+
+        Allows all product types to have accessories (including accessories having
+        accessories).'
       parameters:
       - in: path
         name: id
@@ -131,10 +142,13 @@ paths:
           description: ''
     put:
       operationId: accessories_link_update
-      description: |-
-        Link model between products and accessories. Admin-only write, public read.
+      description: 'Link model between products and accessories. Admin-only write,
+        public read.
+
         Uses IsAdminOrReadOnly.
-        Allows all product types to have accessories (including accessories having accessories).
+
+        Allows all product types to have accessories (including accessories having
+        accessories).'
       parameters:
       - in: path
         name: id
@@ -168,10 +182,13 @@ paths:
           description: ''
     patch:
       operationId: accessories_link_partial_update
-      description: |-
-        Link model between products and accessories. Admin-only write, public read.
+      description: 'Link model between products and accessories. Admin-only write,
+        public read.
+
         Uses IsAdminOrReadOnly.
-        Allows all product types to have accessories (including accessories having accessories).
+
+        Allows all product types to have accessories (including accessories having
+        accessories).'
       parameters:
       - in: path
         name: id
@@ -204,10 +221,13 @@ paths:
           description: ''
     delete:
       operationId: accessories_link_destroy
-      description: |-
-        Link model between products and accessories. Admin-only write, public read.
+      description: 'Link model between products and accessories. Admin-only write,
+        public read.
+
         Uses IsAdminOrReadOnly.
-        Allows all product types to have accessories (including accessories having accessories).
+
+        Allows all product types to have accessories (including accessories having
+        accessories).'
       parameters:
       - in: path
         name: id
@@ -226,9 +246,9 @@ paths:
   /admin-roles/:
     get:
       operationId: admin_roles_list
-      description: |-
-        ViewSet for listing available admin roles.
-        Read-only access to see what roles can be assigned.
+      description: 'ViewSet for listing available admin roles.
+
+        Read-only access to see what roles can be assigned.'
       tags:
       - admin-roles
       security:
@@ -246,9 +266,9 @@ paths:
   /admin-roles/{id}/:
     get:
       operationId: admin_roles_retrieve
-      description: |-
-        ViewSet for listing available admin roles.
-        Read-only access to see what roles can be assigned.
+      description: 'ViewSet for listing available admin roles.
+
+        Read-only access to see what roles can be assigned.'
       parameters:
       - in: path
         name: id
@@ -300,12 +320,15 @@ paths:
   /admins/:
     get:
       operationId: admins_list
-      description: |-
-        Admin management ViewSet. Superuser-only access.
+      description: 'Admin management ViewSet. Superuser-only access.
+
         - List all admins
+
         - Create new admin accounts
+
         - Retrieve/Update/Delete admin profiles
-        - Assign/remove roles
+
+        - Assign/remove roles'
       parameters:
       - name: page
         required: false
@@ -355,12 +378,15 @@ paths:
   /admins/{id}/:
     get:
       operationId: admins_retrieve
-      description: |-
-        Admin management ViewSet. Superuser-only access.
+      description: 'Admin management ViewSet. Superuser-only access.
+
         - List all admins
+
         - Create new admin accounts
+
         - Retrieve/Update/Delete admin profiles
-        - Assign/remove roles
+
+        - Assign/remove roles'
       parameters:
       - in: path
         name: id
@@ -382,12 +408,15 @@ paths:
           description: ''
     put:
       operationId: admins_update
-      description: |-
-        Admin management ViewSet. Superuser-only access.
+      description: 'Admin management ViewSet. Superuser-only access.
+
         - List all admins
+
         - Create new admin accounts
+
         - Retrieve/Update/Delete admin profiles
-        - Assign/remove roles
+
+        - Assign/remove roles'
       parameters:
       - in: path
         name: id
@@ -421,12 +450,15 @@ paths:
           description: ''
     patch:
       operationId: admins_partial_update
-      description: |-
-        Admin management ViewSet. Superuser-only access.
+      description: 'Admin management ViewSet. Superuser-only access.
+
         - List all admins
+
         - Create new admin accounts
+
         - Retrieve/Update/Delete admin profiles
-        - Assign/remove roles
+
+        - Assign/remove roles'
       parameters:
       - in: path
         name: id
@@ -459,12 +491,15 @@ paths:
           description: ''
     delete:
       operationId: admins_destroy
-      description: |-
-        Admin management ViewSet. Superuser-only access.
+      description: 'Admin management ViewSet. Superuser-only access.
+
         - List all admins
+
         - Create new admin accounts
+
         - Retrieve/Update/Delete admin profiles
-        - Assign/remove roles
+
+        - Assign/remove roles'
       parameters:
       - in: path
         name: id
@@ -621,9 +656,9 @@ paths:
   /audit-logs/:
     get:
       operationId: audit_logs_list
-      description: |-
-        ViewSet for audit logs (Inventory Manager and Superuser only).
-        Read-only access to view system audit trail.
+      description: 'ViewSet for audit logs (Inventory Manager and Superuser only).
+
+        Read-only access to view system audit trail.'
       parameters:
       - name: page
         required: false
@@ -646,9 +681,9 @@ paths:
   /audit-logs/{id}/:
     get:
       operationId: audit_logs_retrieve
-      description: |-
-        ViewSet for audit logs (Inventory Manager and Superuser only).
-        Read-only access to view system audit trail.
+      description: 'ViewSet for audit logs (Inventory Manager and Superuser only).
+
+        Read-only access to view system audit trail.'
       parameters:
       - in: path
         name: id
@@ -1145,9 +1180,9 @@ paths:
   /colors/:
     get:
       operationId: colors_list
-      description: |-
-        Color lookup table. Admin-only write, public read.
-        Uses IsAdminOrReadOnly.
+      description: 'Color lookup table. Admin-only write, public read.
+
+        Uses IsAdminOrReadOnly.'
       parameters:
       - name: page
         required: false
@@ -1169,9 +1204,9 @@ paths:
           description: ''
     post:
       operationId: colors_create
-      description: |-
-        Color lookup table. Admin-only write, public read.
-        Uses IsAdminOrReadOnly.
+      description: 'Color lookup table. Admin-only write, public read.
+
+        Uses IsAdminOrReadOnly.'
       tags:
       - colors
       requestBody:
@@ -1199,9 +1234,9 @@ paths:
   /colors/{id}/:
     get:
       operationId: colors_retrieve
-      description: |-
-        Color lookup table. Admin-only write, public read.
-        Uses IsAdminOrReadOnly.
+      description: 'Color lookup table. Admin-only write, public read.
+
+        Uses IsAdminOrReadOnly.'
       parameters:
       - in: path
         name: id
@@ -1223,9 +1258,9 @@ paths:
           description: ''
     put:
       operationId: colors_update
-      description: |-
-        Color lookup table. Admin-only write, public read.
-        Uses IsAdminOrReadOnly.
+      description: 'Color lookup table. Admin-only write, public read.
+
+        Uses IsAdminOrReadOnly.'
       parameters:
       - in: path
         name: id
@@ -1259,9 +1294,9 @@ paths:
           description: ''
     patch:
       operationId: colors_partial_update
-      description: |-
-        Color lookup table. Admin-only write, public read.
-        Uses IsAdminOrReadOnly.
+      description: 'Color lookup table. Admin-only write, public read.
+
+        Uses IsAdminOrReadOnly.'
       parameters:
       - in: path
         name: id
@@ -1294,9 +1329,9 @@ paths:
           description: ''
     delete:
       operationId: colors_destroy
-      description: |-
-        Color lookup table. Admin-only write, public read.
-        Uses IsAdminOrReadOnly.
+      description: 'Color lookup table. Admin-only write, public read.
+
+        Uses IsAdminOrReadOnly.'
       parameters:
       - in: path
         name: id
@@ -1312,14 +1347,534 @@ paths:
       responses:
         '204':
           description: No response body
+  /delivery-rates/:
+    get:
+      operationId: delivery_rates_list
+      description: Manage delivery rates (order manager only).
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - delivery-rates
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedDeliveryRateList'
+          description: ''
+    post:
+      operationId: delivery_rates_create
+      description: Manage delivery rates (order manager only).
+      tags:
+      - delivery-rates
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeliveryRateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DeliveryRateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DeliveryRateRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryRate'
+          description: ''
+  /delivery-rates/{id}/:
+    get:
+      operationId: delivery_rates_retrieve
+      description: Manage delivery rates (order manager only).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this delivery rate.
+        required: true
+      tags:
+      - delivery-rates
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryRate'
+          description: ''
+    put:
+      operationId: delivery_rates_update
+      description: Manage delivery rates (order manager only).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this delivery rate.
+        required: true
+      tags:
+      - delivery-rates
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeliveryRateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DeliveryRateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DeliveryRateRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryRate'
+          description: ''
+    patch:
+      operationId: delivery_rates_partial_update
+      description: Manage delivery rates (order manager only).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this delivery rate.
+        required: true
+      tags:
+      - delivery-rates
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedDeliveryRateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedDeliveryRateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedDeliveryRateRequest'
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryRate'
+          description: ''
+    delete:
+      operationId: delivery_rates_destroy
+      description: Manage delivery rates (order manager only).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this delivery rate.
+        required: true
+      tags:
+      - delivery-rates
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /financing-offers/:
+    get:
+      operationId: financing_offers_list
+      description: Financing offer management (Inventory Manager / Superuser).
+      parameters:
+      - in: query
+        name: is_active
+        schema:
+          type: boolean
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: product
+        schema:
+          type: integer
+      - in: query
+        name: provider
+        schema:
+          type: integer
+      - in: query
+        name: ram_gb
+        schema:
+          type: integer
+      - in: query
+        name: rom_gb
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - financing-offers
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedFinancingOfferList'
+          description: ''
+    post:
+      operationId: financing_offers_create
+      description: Financing offer management (Inventory Manager / Superuser).
+      tags:
+      - financing-offers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FinancingOfferRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FinancingOfferRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FinancingOfferRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FinancingOffer'
+          description: ''
+  /financing-offers/{id}/:
+    get:
+      operationId: financing_offers_retrieve
+      description: Financing offer management (Inventory Manager / Superuser).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this financing offer.
+        required: true
+      tags:
+      - financing-offers
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FinancingOffer'
+          description: ''
+    put:
+      operationId: financing_offers_update
+      description: Financing offer management (Inventory Manager / Superuser).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this financing offer.
+        required: true
+      tags:
+      - financing-offers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FinancingOfferRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FinancingOfferRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FinancingOfferRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FinancingOffer'
+          description: ''
+    patch:
+      operationId: financing_offers_partial_update
+      description: Financing offer management (Inventory Manager / Superuser).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this financing offer.
+        required: true
+      tags:
+      - financing-offers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedFinancingOfferRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedFinancingOfferRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedFinancingOfferRequest'
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FinancingOffer'
+          description: ''
+    delete:
+      operationId: financing_offers_destroy
+      description: Financing offer management (Inventory Manager / Superuser).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this financing offer.
+        required: true
+      tags:
+      - financing-offers
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /financing-providers/:
+    get:
+      operationId: financing_providers_list
+      description: Financing provider management (Inventory Manager / Superuser).
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - financing-providers
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedFinancingProviderList'
+          description: ''
+    post:
+      operationId: financing_providers_create
+      description: Financing provider management (Inventory Manager / Superuser).
+      tags:
+      - financing-providers
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FinancingProviderRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FinancingProviderRequest'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FinancingProviderRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FinancingProvider'
+          description: ''
+  /financing-providers/{id}/:
+    get:
+      operationId: financing_providers_retrieve
+      description: Financing provider management (Inventory Manager / Superuser).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this financing provider.
+        required: true
+      tags:
+      - financing-providers
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FinancingProvider'
+          description: ''
+    put:
+      operationId: financing_providers_update
+      description: Financing provider management (Inventory Manager / Superuser).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this financing provider.
+        required: true
+      tags:
+      - financing-providers
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FinancingProviderRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FinancingProviderRequest'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FinancingProviderRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FinancingProvider'
+          description: ''
+    patch:
+      operationId: financing_providers_partial_update
+      description: Financing provider management (Inventory Manager / Superuser).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this financing provider.
+        required: true
+      tags:
+      - financing-providers
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedFinancingProviderRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedFinancingProviderRequest'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedFinancingProviderRequest'
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FinancingProvider'
+          description: ''
+    delete:
+      operationId: financing_providers_destroy
+      description: Financing provider management (Inventory Manager / Superuser).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this financing provider.
+        required: true
+      tags:
+      - financing-providers
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
   /images/:
     get:
       operationId: images_list
-      description: |-
-        CRUD for individual product images.
+      description: 'CRUD for individual product images.
+
         Only Admins can add/manage images; everyone can view product images
+
         (which are nested in ProductViewSet).
-        Uses IsContentCreatorOrInventoryManagerOrReadOnly.
+
+        Uses IsContentCreatorOrInventoryManagerOrReadOnly.'
       parameters:
       - name: page
         required: false
@@ -1341,11 +1896,13 @@ paths:
           description: ''
     post:
       operationId: images_create
-      description: |-
-        CRUD for individual product images.
+      description: 'CRUD for individual product images.
+
         Only Admins can add/manage images; everyone can view product images
+
         (which are nested in ProductViewSet).
-        Uses IsContentCreatorOrInventoryManagerOrReadOnly.
+
+        Uses IsContentCreatorOrInventoryManagerOrReadOnly.'
       tags:
       - images
       requestBody:
@@ -1370,11 +1927,13 @@ paths:
   /images/{id}/:
     get:
       operationId: images_retrieve
-      description: |-
-        CRUD for individual product images.
+      description: 'CRUD for individual product images.
+
         Only Admins can add/manage images; everyone can view product images
+
         (which are nested in ProductViewSet).
-        Uses IsContentCreatorOrInventoryManagerOrReadOnly.
+
+        Uses IsContentCreatorOrInventoryManagerOrReadOnly.'
       parameters:
       - in: path
         name: id
@@ -1396,11 +1955,13 @@ paths:
           description: ''
     put:
       operationId: images_update
-      description: |-
-        CRUD for individual product images.
+      description: 'CRUD for individual product images.
+
         Only Admins can add/manage images; everyone can view product images
+
         (which are nested in ProductViewSet).
-        Uses IsContentCreatorOrInventoryManagerOrReadOnly.
+
+        Uses IsContentCreatorOrInventoryManagerOrReadOnly.'
       parameters:
       - in: path
         name: id
@@ -1431,11 +1992,13 @@ paths:
           description: ''
     patch:
       operationId: images_partial_update
-      description: |-
-        CRUD for individual product images.
+      description: 'CRUD for individual product images.
+
         Only Admins can add/manage images; everyone can view product images
+
         (which are nested in ProductViewSet).
-        Uses IsContentCreatorOrInventoryManagerOrReadOnly.
+
+        Uses IsContentCreatorOrInventoryManagerOrReadOnly.'
       parameters:
       - in: path
         name: id
@@ -1465,11 +2028,13 @@ paths:
           description: ''
     delete:
       operationId: images_destroy
-      description: |-
-        CRUD for individual product images.
+      description: 'CRUD for individual product images.
+
         Only Admins can add/manage images; everyone can view product images
+
         (which are nested in ProductViewSet).
-        Uses IsContentCreatorOrInventoryManagerOrReadOnly.
+
+        Uses IsContentCreatorOrInventoryManagerOrReadOnly.'
       parameters:
       - in: path
         name: id
@@ -1783,10 +2348,12 @@ paths:
   /login/:
     post:
       operationId: login_create
-      description: |-
-        POST: Authenticates a user (customer) and returns their authentication token
+      description: 'POST: Authenticates a user (customer) and returns their authentication
+        token
+
         and basic user details (email, user_id).
-        - Uses CustomerLoginSerializer for credential validation and token retrieval.
+
+        - Uses CustomerLoginSerializer for credential validation and token retrieval.'
       tags:
       - login
       requestBody:
@@ -1815,9 +2382,9 @@ paths:
   /logout/:
     post:
       operationId: logout_create
-      description: |-
-        POST: Logs out the user by deleting their authentication token.
-        Requires authentication (IsAuthenticated) via the provided token header.
+      description: 'POST: Logs out the user by deleting their authentication token.
+
+        Requires authentication (IsAuthenticated) via the provided token header.'
       tags:
       - logout
       security:
@@ -1931,10 +2498,11 @@ paths:
   /order-items/:
     get:
       operationId: order_items_list
-      description: |-
-        CRUD for Order Items. Strictly Admin-only access.
+      description: 'CRUD for Order Items. Strictly Admin-only access.
+
         Generally used only for reporting and admin-level viewing of existing orders.
-        Uses IsAdminUser.
+
+        Uses IsAdminUser.'
       parameters:
       - name: page
         required: false
@@ -1956,10 +2524,11 @@ paths:
           description: ''
     post:
       operationId: order_items_create
-      description: |-
-        CRUD for Order Items. Strictly Admin-only access.
+      description: 'CRUD for Order Items. Strictly Admin-only access.
+
         Generally used only for reporting and admin-level viewing of existing orders.
-        Uses IsAdminUser.
+
+        Uses IsAdminUser.'
       tags:
       - order-items
       requestBody:
@@ -1987,10 +2556,11 @@ paths:
   /order-items/{id}/:
     get:
       operationId: order_items_retrieve
-      description: |-
-        CRUD for Order Items. Strictly Admin-only access.
+      description: 'CRUD for Order Items. Strictly Admin-only access.
+
         Generally used only for reporting and admin-level viewing of existing orders.
-        Uses IsAdminUser.
+
+        Uses IsAdminUser.'
       parameters:
       - in: path
         name: id
@@ -2012,10 +2582,11 @@ paths:
           description: ''
     put:
       operationId: order_items_update
-      description: |-
-        CRUD for Order Items. Strictly Admin-only access.
+      description: 'CRUD for Order Items. Strictly Admin-only access.
+
         Generally used only for reporting and admin-level viewing of existing orders.
-        Uses IsAdminUser.
+
+        Uses IsAdminUser.'
       parameters:
       - in: path
         name: id
@@ -2049,10 +2620,11 @@ paths:
           description: ''
     patch:
       operationId: order_items_partial_update
-      description: |-
-        CRUD for Order Items. Strictly Admin-only access.
+      description: 'CRUD for Order Items. Strictly Admin-only access.
+
         Generally used only for reporting and admin-level viewing of existing orders.
-        Uses IsAdminUser.
+
+        Uses IsAdminUser.'
       parameters:
       - in: path
         name: id
@@ -2085,10 +2657,11 @@ paths:
           description: ''
     delete:
       operationId: order_items_destroy
-      description: |-
-        CRUD for Order Items. Strictly Admin-only access.
+      description: 'CRUD for Order Items. Strictly Admin-only access.
+
         Generally used only for reporting and admin-level viewing of existing orders.
-        Uses IsAdminUser.
+
+        Uses IsAdminUser.'
       parameters:
       - in: path
         name: id
@@ -2107,11 +2680,13 @@ paths:
   /orders/:
     get:
       operationId: orders_list
-      description: |-
-        Handles Order creation and management.
+      description: 'Handles Order creation and management.
+
         - Admins can view/manage all orders.
+
         - Customers can only view/manage their own orders.
-        - Guest users can create orders (no login required).
+
+        - Guest users can create orders (no login required).'
       parameters:
       - name: page
         required: false
@@ -2133,9 +2708,10 @@ paths:
           description: ''
     post:
       operationId: orders_create
-      description: |-
-        Override create to handle idempotency via Idempotency-Key header.
-        If an order with the same idempotency key exists, return it instead of creating a new one.
+      description: 'Override create to handle idempotency via Idempotency-Key header.
+
+        If an order with the same idempotency key exists, return it instead of creating
+        a new one.'
       tags:
       - orders
       requestBody:
@@ -2164,12 +2740,16 @@ paths:
   /orders/{order_id}/:
     get:
       operationId: orders_retrieve
-      description: |-
-        Override retrieve to allow unauthenticated users to view paid orders.
+      description: 'Override retrieve to allow unauthenticated users to view paid
+        orders.
+
         This enables guest checkout users to view their order details after payment.
 
+
         CRITICAL FIX: Also check if this is actually a receipt request that was
-        incorrectly routed to retrieve. If the path contains '/receipt/', redirect to receipt method.
+
+        incorrectly routed to retrieve. If the path contains ''/receipt/'', redirect
+        to receipt method.'
       parameters:
       - in: path
         name: order_id
@@ -2193,9 +2773,9 @@ paths:
           description: ''
     put:
       operationId: orders_update
-      description: |-
-        Override update to allow partial updates (status-only updates).
-        This allows updating just the status without requiring all fields.
+      description: 'Override update to allow partial updates (status-only updates).
+
+        This allows updating just the status without requiring all fields.'
       parameters:
       - in: path
         name: order_id
@@ -2230,11 +2810,13 @@ paths:
           description: ''
     patch:
       operationId: orders_partial_update
-      description: |-
-        Handles Order creation and management.
+      description: 'Handles Order creation and management.
+
         - Admins can view/manage all orders.
+
         - Customers can only view/manage their own orders.
-        - Guest users can create orders (no login required).
+
+        - Guest users can create orders (no login required).'
       parameters:
       - in: path
         name: order_id
@@ -2268,11 +2850,13 @@ paths:
           description: ''
     delete:
       operationId: orders_destroy
-      description: |-
-        Handles Order creation and management.
+      description: 'Handles Order creation and management.
+
         - Admins can view/manage all orders.
+
         - Customers can only view/manage their own orders.
-        - Guest users can create orders (no login required).
+
+        - Guest users can create orders (no login required).'
       parameters:
       - in: path
         name: order_id
@@ -2388,13 +2972,16 @@ paths:
   /orders/{order_id}/receipt/:
     get:
       operationId: orders_receipt_retrieve
-      description: |-
-        Generate and return receipt HTML/PDF.
+      description: 'Generate and return receipt HTML/PDF.
+
 
         Security validations:
+
         1. Order must exist
+
         2. For unauthenticated users: Order must be PAID
-        3. For authenticated users: Must be their own order (unless staff)
+
+        3. For authenticated users: Must be their own order (unless staff)'
       parameters:
       - in: path
         name: order_id
@@ -2472,15 +3059,20 @@ paths:
   /phone-search/:
     get:
       operationId: phone_search_list
-      description: |-
-        GET: Allows customers to search for available phone Inventory Units
+      description: 'GET: Allows customers to search for available phone Inventory
+        Units
+
         within a specified budget range.
 
+
         Query Params required:
+
         - min_price (required, decimal)
+
         - max_price (required, decimal)
 
-        Example URL: /api/phone-search/?min_price=15000&max_price=30000
+
+        Example URL: /api/phone-search/?min_price=15000&max_price=30000'
       parameters:
       - name: page
         required: false
@@ -2504,20 +3096,36 @@ paths:
   /products/:
     get:
       operationId: products_list
-      description: |-
-        CRUD for Product Templates.
+      description: 'CRUD for Product Templates.
+
         - Public: Read-only access
+
         - Inventory Manager: Full CRUD access
+
         - Content Creator: Can update content via update_content only (no create/delete)
+
         - Salesperson: Read-only access
-        - Superuser: Full access
+
+        - Superuser: Full access'
       parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
       - name: page
         required: false
         in: query
         description: A page number within the paginated result set.
         schema:
           type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
       tags:
       - products
       security:
@@ -2528,17 +3136,21 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedProductList'
+                $ref: '#/components/schemas/PaginatedProductListList'
           description: ''
     post:
       operationId: products_create
-      description: |-
-        CRUD for Product Templates.
+      description: 'CRUD for Product Templates.
+
         - Public: Read-only access
+
         - Inventory Manager: Full CRUD access
+
         - Content Creator: Can update content via update_content only (no create/delete)
+
         - Salesperson: Read-only access
-        - Superuser: Full access
+
+        - Superuser: Full access'
       tags:
       - products
       requestBody:
@@ -2566,13 +3178,8 @@ paths:
   /products/{id}/:
     get:
       operationId: products_retrieve
-      description: |-
-        CRUD for Product Templates.
-        - Public: Read-only access
-        - Inventory Manager: Full CRUD access
-        - Content Creator: Can update content via update_content only (no create/delete)
-        - Salesperson: Read-only access
-        - Superuser: Full access
+      description: Enforce brand access when using the fast-path queryset for single-product
+        fetch.
       parameters:
       - in: path
         name: id
@@ -2594,13 +3201,17 @@ paths:
           description: ''
     put:
       operationId: products_update
-      description: |-
-        CRUD for Product Templates.
+      description: 'CRUD for Product Templates.
+
         - Public: Read-only access
+
         - Inventory Manager: Full CRUD access
+
         - Content Creator: Can update content via update_content only (no create/delete)
+
         - Salesperson: Read-only access
-        - Superuser: Full access
+
+        - Superuser: Full access'
       parameters:
       - in: path
         name: id
@@ -2634,13 +3245,17 @@ paths:
           description: ''
     patch:
       operationId: products_partial_update
-      description: |-
-        CRUD for Product Templates.
+      description: 'CRUD for Product Templates.
+
         - Public: Read-only access
+
         - Inventory Manager: Full CRUD access
+
         - Content Creator: Can update content via update_content only (no create/delete)
+
         - Salesperson: Read-only access
-        - Superuser: Full access
+
+        - Superuser: Full access'
       parameters:
       - in: path
         name: id
@@ -2673,13 +3288,17 @@ paths:
           description: ''
     delete:
       operationId: products_destroy
-      description: |-
-        CRUD for Product Templates.
+      description: 'CRUD for Product Templates.
+
         - Public: Read-only access
+
         - Inventory Manager: Full CRUD access
+
         - Content Creator: Can update content via update_content only (no create/delete)
+
         - Salesperson: Read-only access
-        - Superuser: Full access
+
+        - Superuser: Full access'
       parameters:
       - in: path
         name: id
@@ -2698,9 +3317,10 @@ paths:
   /products/{id}/available-units/:
     get:
       operationId: products_available_units_retrieve
-      description: |-
-        Public: List available units (public fields) for a specific product template, paginated.
-        Intended for product detail pages to show purchasable configurations.
+      description: 'Public: List available units (public fields) for a specific product
+        template, paginated.
+
+        Intended for product detail pages to show purchasable configurations.'
       parameters:
       - in: path
         name: id
@@ -2720,14 +3340,131 @@ paths:
               schema:
                 $ref: '#/components/schemas/Product'
           description: ''
+  /products/{id}/images/delete/:
+    post:
+      operationId: products_images_delete_create
+      description: 'Delete one or more product images.
+
+
+        Body:
+
+        - image_ids: list[int]'
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this product.
+        required: true
+      tags:
+      - products
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ProductRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ProductRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+          description: ''
+  /products/{id}/images/set-primary/:
+    post:
+      operationId: products_images_set_primary_create
+      description: Set a specific product image as primary.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this product.
+        required: true
+      tags:
+      - products
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ProductRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ProductRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+          description: ''
+  /products/{id}/images/upload/:
+    post:
+      operationId: products_images_upload_create
+      description: "Upload one or more images for a Product.\n\nThis is intended for\
+        \ Inventory Managers to attach product images directly from the product screen,\n\
+        without needing to call the standalone ProductImage endpoint.\n\nExpected\
+        \ multipart form-data:\n- images: one or more files (recommended field name)\n\
+        \  OR image: a single file (backward-compatible convenience)\n- alt_text (optional):\
+        \ string applied to all uploaded images\n- image_caption (optional): string\
+        \ applied to all uploaded images\n- start_display_order (optional): integer;\
+        \ if provided, assigns incremental display_order\n- make_primary (optional):\
+        \ boolean; if true, first uploaded image becomes primary (and clears others)"
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this product.
+        required: true
+      tags:
+      - products
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ProductRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ProductRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+          description: ''
   /products/{id}/stock-summary/:
     get:
       operationId: products_stock_summary_retrieve
-      description: |-
-        Custom action to retrieve the available inventory count, min price, and max price
+      description: 'Custom action to retrieve the available inventory count, min price,
+        and max price
+
         for a specific Product (template). Accessible by staff users (read-only).
 
-        Example URL: /api/products/{product_id}/stock-summary/
+
+        Example URL: /api/products/{product_id}/stock-summary/'
       parameters:
       - in: path
         name: id
@@ -2750,9 +3487,10 @@ paths:
   /products/{id}/update_content/:
     patch:
       operationId: products_update_content_partial_update
-      description: |-
-        Custom action for Content Creators to update only content fields.
-        This allows Content Creators to update product content without touching inventory fields.
+      description: 'Custom action for Content Creators to update only content fields.
+
+        This allows Content Creators to update product content without touching inventory
+        fields.'
       parameters:
       - in: path
         name: id
@@ -2783,12 +3521,47 @@ paths:
               schema:
                 $ref: '#/components/schemas/Product'
           description: ''
+  /products/bulk-destroy/:
+    post:
+      operationId: products_bulk_destroy_create
+      description: "Delete products by ID list or delete all product-related data\
+        \ (full reset).\n\n- To delete specific products (and their units/bundle items):\
+        \ POST with body\n  {\"product_ids\": [1, 2, 3]}. Same permission as single-product\
+        \ delete.\n\n- To delete every product and all dependent data (orders, carts,\
+        \ units, etc.): POST with\n  {\"delete_all\": true}. Use only in dev/staging.\
+        \ Requires Inventory Manager or Superuser."
+      tags:
+      - products
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ProductRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ProductRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+          description: ''
   /profiles/admin/:
     get:
       operationId: profiles_admin_retrieve
-      description: |-
-        GET: Retrieve the authenticated user's Admin profile. Admin-only access.
-        Creates Admin profile if it doesn't exist (for staff users without Admin profile).
+      description: 'GET: Retrieve the authenticated user''s Admin profile. Admin-only
+        access.
+
+        Creates Admin profile if it doesn''t exist (for staff users without Admin
+        profile).'
       tags:
       - profiles
       security:
@@ -2804,10 +3577,11 @@ paths:
   /profiles/customer/:
     get:
       operationId: profiles_customer_retrieve
-      description: |-
-        GET: Retrieve the authenticated user's Customer profile.
-        PUT/PATCH: Update the authenticated user's Customer profile.
-        Uses IsCustomerOwnerOrAdmin.
+      description: 'GET: Retrieve the authenticated user''s Customer profile.
+
+        PUT/PATCH: Update the authenticated user''s Customer profile.
+
+        Uses IsCustomerOwnerOrAdmin.'
       tags:
       - profiles
       security:
@@ -2822,10 +3596,11 @@ paths:
           description: ''
     put:
       operationId: profiles_customer_update
-      description: |-
-        GET: Retrieve the authenticated user's Customer profile.
-        PUT/PATCH: Update the authenticated user's Customer profile.
-        Uses IsCustomerOwnerOrAdmin.
+      description: 'GET: Retrieve the authenticated user''s Customer profile.
+
+        PUT/PATCH: Update the authenticated user''s Customer profile.
+
+        Uses IsCustomerOwnerOrAdmin.'
       tags:
       - profiles
       requestBody:
@@ -2851,10 +3626,11 @@ paths:
           description: ''
     patch:
       operationId: profiles_customer_partial_update
-      description: |-
-        GET: Retrieve the authenticated user's Customer profile.
-        PUT/PATCH: Update the authenticated user's Customer profile.
-        Uses IsCustomerOwnerOrAdmin.
+      description: 'GET: Retrieve the authenticated user''s Customer profile.
+
+        PUT/PATCH: Update the authenticated user''s Customer profile.
+
+        Uses IsCustomerOwnerOrAdmin.'
       tags:
       - profiles
       requestBody:
@@ -3039,7 +3815,8 @@ paths:
   /promotions/:
     get:
       operationId: promotions_list
-      description: Promotion management ViewSet (admin and marketing managers).
+      description: Promotion management ViewSet (admin, marketing managers, content
+        creators).
       parameters:
       - name: page
         required: false
@@ -3061,7 +3838,8 @@ paths:
           description: ''
     post:
       operationId: promotions_create
-      description: Promotion management ViewSet (admin and marketing managers).
+      description: Promotion management ViewSet (admin, marketing managers, content
+        creators).
       tags:
       - promotions
       requestBody:
@@ -3089,7 +3867,8 @@ paths:
   /promotions/{id}/:
     get:
       operationId: promotions_retrieve
-      description: Promotion management ViewSet (admin and marketing managers).
+      description: Promotion management ViewSet (admin, marketing managers, content
+        creators).
       parameters:
       - in: path
         name: id
@@ -3111,7 +3890,8 @@ paths:
           description: ''
     put:
       operationId: promotions_update
-      description: Promotion management ViewSet (admin and marketing managers).
+      description: Promotion management ViewSet (admin, marketing managers, content
+        creators).
       parameters:
       - in: path
         name: id
@@ -3145,7 +3925,8 @@ paths:
           description: ''
     patch:
       operationId: promotions_partial_update
-      description: Promotion management ViewSet (admin and marketing managers).
+      description: Promotion management ViewSet (admin, marketing managers, content
+        creators).
       parameters:
       - in: path
         name: id
@@ -3178,7 +3959,8 @@ paths:
           description: ''
     delete:
       operationId: promotions_destroy
-      description: Promotion management ViewSet (admin and marketing managers).
+      description: Promotion management ViewSet (admin, marketing managers, content
+        creators).
       parameters:
       - in: path
         name: id
@@ -3197,11 +3979,14 @@ paths:
   /register/:
     post:
       operationId: register_create
-      description: |-
-        Handles POST requests to /register/ to create a new User and Customer instance.
+      description: 'Handles POST requests to /register/ to create a new User and Customer
+        instance.
+
         - Uses CustomerRegistrationSerializer for validation and atomic creation.
+
         - Does not require authentication (AllowAny).
-        - Returns the created user data and the authentication token.
+
+        - Returns the created user data and the authentication token.'
       tags:
       - register
       requestBody:
@@ -3332,10 +4117,11 @@ paths:
   /reservation-requests/:
     get:
       operationId: reservation_requests_list
-      description: |-
-        ViewSet for managing reservation requests.
+      description: 'ViewSet for managing reservation requests.
+
         - Salespersons can create requests and view their own
-        - Inventory Managers can approve/reject and view all pending requests
+
+        - Inventory Managers can approve/reject and view all pending requests'
       parameters:
       - name: page
         required: false
@@ -3357,10 +4143,7 @@ paths:
           description: ''
     post:
       operationId: reservation_requests_create
-      description: |-
-        ViewSet for managing reservation requests.
-        - Salespersons can create requests and view their own
-        - Inventory Managers can approve/reject and view all pending requests
+      description: Override create to provide clearer validation errors.
       tags:
       - reservation-requests
       requestBody:
@@ -3387,10 +4170,11 @@ paths:
   /reservation-requests/{id}/:
     get:
       operationId: reservation_requests_retrieve
-      description: |-
-        ViewSet for managing reservation requests.
+      description: 'ViewSet for managing reservation requests.
+
         - Salespersons can create requests and view their own
-        - Inventory Managers can approve/reject and view all pending requests
+
+        - Inventory Managers can approve/reject and view all pending requests'
       parameters:
       - in: path
         name: id
@@ -3446,10 +4230,11 @@ paths:
           description: ''
     patch:
       operationId: reservation_requests_partial_update
-      description: |-
-        ViewSet for managing reservation requests.
+      description: 'ViewSet for managing reservation requests.
+
         - Salespersons can create requests and view their own
-        - Inventory Managers can approve/reject and view all pending requests
+
+        - Inventory Managers can approve/reject and view all pending requests'
       parameters:
       - in: path
         name: id
@@ -3482,10 +4267,11 @@ paths:
           description: ''
     delete:
       operationId: reservation_requests_destroy
-      description: |-
-        ViewSet for managing reservation requests.
+      description: 'ViewSet for managing reservation requests.
+
         - Salespersons can create requests and view their own
-        - Inventory Managers can approve/reject and view all pending requests
+
+        - Inventory Managers can approve/reject and view all pending requests'
       parameters:
       - in: path
         name: id
@@ -3504,10 +4290,8 @@ paths:
   /return-requests/:
     get:
       operationId: return_requests_list
-      description: |-
-        ViewSet for managing return requests (bulk returns of reserved units).
-        - Salespersons can create return requests for their reserved units
-        - Inventory Managers can approve/reject return requests
+      description: Override to inject batched net_holdings into context and avoid
+        3N queries in serializer.
       parameters:
       - name: page
         required: false
@@ -3556,10 +4340,12 @@ paths:
   /return-requests/{id}/:
     get:
       operationId: return_requests_retrieve
-      description: |-
-        ViewSet for managing return requests (bulk returns of reserved units).
+      description: 'ViewSet for managing return requests (bulk returns of reserved
+        units).
+
         - Salespersons can create return requests for their reserved units
-        - Inventory Managers can approve/reject return requests
+
+        - Inventory Managers can approve/reject return requests'
       parameters:
       - in: path
         name: id
@@ -3581,10 +4367,12 @@ paths:
           description: ''
     put:
       operationId: return_requests_update
-      description: |-
-        ViewSet for managing return requests (bulk returns of reserved units).
+      description: 'ViewSet for managing return requests (bulk returns of reserved
+        units).
+
         - Salespersons can create return requests for their reserved units
-        - Inventory Managers can approve/reject return requests
+
+        - Inventory Managers can approve/reject return requests'
       parameters:
       - in: path
         name: id
@@ -3617,10 +4405,12 @@ paths:
           description: ''
     patch:
       operationId: return_requests_partial_update
-      description: |-
-        ViewSet for managing return requests (bulk returns of reserved units).
+      description: 'ViewSet for managing return requests (bulk returns of reserved
+        units).
+
         - Salespersons can create return requests for their reserved units
-        - Inventory Managers can approve/reject return requests
+
+        - Inventory Managers can approve/reject return requests'
       parameters:
       - in: path
         name: id
@@ -3653,10 +4443,12 @@ paths:
           description: ''
     delete:
       operationId: return_requests_destroy
-      description: |-
-        ViewSet for managing return requests (bulk returns of reserved units).
+      description: 'ViewSet for managing return requests (bulk returns of reserved
+        units).
+
         - Salespersons can create return requests for their reserved units
-        - Inventory Managers can approve/reject return requests
+
+        - Inventory Managers can approve/reject return requests'
       parameters:
       - in: path
         name: id
@@ -3702,13 +4494,17 @@ paths:
   /reviews/:
     get:
       operationId: reviews_list
-      description: |-
-        Handles customer and admin reviews.
+      description: 'Handles customer and admin reviews.
+
         - Everyone can read (GET).
+
         - Authenticated users can create (POST).
+
         - Owners or Admins can update/delete (PUT/PATCH/DELETE).
+
         - Uses IsReviewOwnerOrAdmin.
-        - Supports video file uploads via multipart/form-data.
+
+        - Supports video file uploads via multipart/form-data.'
       parameters:
       - name: ordering
         required: false
@@ -3747,13 +4543,17 @@ paths:
           description: ''
     post:
       operationId: reviews_create
-      description: |-
-        Handles customer and admin reviews.
+      description: 'Handles customer and admin reviews.
+
         - Everyone can read (GET).
+
         - Authenticated users can create (POST).
+
         - Owners or Admins can update/delete (PUT/PATCH/DELETE).
+
         - Uses IsReviewOwnerOrAdmin.
-        - Supports video file uploads via multipart/form-data.
+
+        - Supports video file uploads via multipart/form-data.'
       tags:
       - reviews
       requestBody:
@@ -3778,13 +4578,17 @@ paths:
   /reviews/{id}/:
     get:
       operationId: reviews_retrieve
-      description: |-
-        Handles customer and admin reviews.
+      description: 'Handles customer and admin reviews.
+
         - Everyone can read (GET).
+
         - Authenticated users can create (POST).
+
         - Owners or Admins can update/delete (PUT/PATCH/DELETE).
+
         - Uses IsReviewOwnerOrAdmin.
-        - Supports video file uploads via multipart/form-data.
+
+        - Supports video file uploads via multipart/form-data.'
       parameters:
       - in: path
         name: id
@@ -3807,13 +4611,17 @@ paths:
           description: ''
     put:
       operationId: reviews_update
-      description: |-
-        Handles customer and admin reviews.
+      description: 'Handles customer and admin reviews.
+
         - Everyone can read (GET).
+
         - Authenticated users can create (POST).
+
         - Owners or Admins can update/delete (PUT/PATCH/DELETE).
+
         - Uses IsReviewOwnerOrAdmin.
-        - Supports video file uploads via multipart/form-data.
+
+        - Supports video file uploads via multipart/form-data.'
       parameters:
       - in: path
         name: id
@@ -3844,13 +4652,17 @@ paths:
           description: ''
     patch:
       operationId: reviews_partial_update
-      description: |-
-        Handles customer and admin reviews.
+      description: 'Handles customer and admin reviews.
+
         - Everyone can read (GET).
+
         - Authenticated users can create (POST).
+
         - Owners or Admins can update/delete (PUT/PATCH/DELETE).
+
         - Uses IsReviewOwnerOrAdmin.
-        - Supports video file uploads via multipart/form-data.
+
+        - Supports video file uploads via multipart/form-data.'
       parameters:
       - in: path
         name: id
@@ -3880,13 +4692,17 @@ paths:
           description: ''
     delete:
       operationId: reviews_destroy
-      description: |-
-        Handles customer and admin reviews.
+      description: 'Handles customer and admin reviews.
+
         - Everyone can read (GET).
+
         - Authenticated users can create (POST).
+
         - Owners or Admins can update/delete (PUT/PATCH/DELETE).
+
         - Uses IsReviewOwnerOrAdmin.
-        - Supports video file uploads via multipart/form-data.
+
+        - Supports video file uploads via multipart/form-data.'
       parameters:
       - in: path
         name: id
@@ -3905,9 +4721,9 @@ paths:
   /reviews/bulk_action/:
     post:
       operationId: reviews_bulk_action_create
-      description: |-
-        Bulk actions for reviews (approve, reject, delete, hide).
-        Content Creators can use this to moderate reviews.
+      description: 'Bulk actions for reviews (approve, reject, delete, hide).
+
+        Content Creators can use this to moderate reviews.'
       tags:
       - reviews
       requestBody:
@@ -3932,9 +4748,9 @@ paths:
   /sources/:
     get:
       operationId: sources_list
-      description: |-
-        Acquisition Source lookup table. Admin-only write, public read.
-        Uses IsAdminOrReadOnly.
+      description: 'Acquisition Source lookup table. Admin-only write, public read.
+
+        Uses IsAdminOrReadOnly.'
       parameters:
       - name: page
         required: false
@@ -3956,9 +4772,9 @@ paths:
           description: ''
     post:
       operationId: sources_create
-      description: |-
-        Acquisition Source lookup table. Admin-only write, public read.
-        Uses IsAdminOrReadOnly.
+      description: 'Acquisition Source lookup table. Admin-only write, public read.
+
+        Uses IsAdminOrReadOnly.'
       tags:
       - sources
       requestBody:
@@ -3986,9 +4802,9 @@ paths:
   /sources/{id}/:
     get:
       operationId: sources_retrieve
-      description: |-
-        Acquisition Source lookup table. Admin-only write, public read.
-        Uses IsAdminOrReadOnly.
+      description: 'Acquisition Source lookup table. Admin-only write, public read.
+
+        Uses IsAdminOrReadOnly.'
       parameters:
       - in: path
         name: id
@@ -4010,9 +4826,9 @@ paths:
           description: ''
     put:
       operationId: sources_update
-      description: |-
-        Acquisition Source lookup table. Admin-only write, public read.
-        Uses IsAdminOrReadOnly.
+      description: 'Acquisition Source lookup table. Admin-only write, public read.
+
+        Uses IsAdminOrReadOnly.'
       parameters:
       - in: path
         name: id
@@ -4046,9 +4862,9 @@ paths:
           description: ''
     patch:
       operationId: sources_partial_update
-      description: |-
-        Acquisition Source lookup table. Admin-only write, public read.
-        Uses IsAdminOrReadOnly.
+      description: 'Acquisition Source lookup table. Admin-only write, public read.
+
+        Uses IsAdminOrReadOnly.'
       parameters:
       - in: path
         name: id
@@ -4081,9 +4897,9 @@ paths:
           description: ''
     delete:
       operationId: sources_destroy
-      description: |-
-        Acquisition Source lookup table. Admin-only write, public read.
-        Uses IsAdminOrReadOnly.
+      description: 'Acquisition Source lookup table. Admin-only write, public read.
+
+        Uses IsAdminOrReadOnly.'
       parameters:
       - in: path
         name: id
@@ -4119,10 +4935,11 @@ paths:
   /tags/:
     get:
       operationId: tags_list
-      description: |-
-        ViewSet for managing product tags.
-        - All authenticated staff users can read
-        - Content Creators and Inventory Managers can create/edit/delete
+      description: 'ViewSet for managing product tags.
+
+        - Anyone can read (public read).
+
+        - Only Content Creators, Inventory Managers, and Superusers can create/edit/delete.'
       tags:
       - tags
       security:
@@ -4139,10 +4956,11 @@ paths:
           description: ''
     post:
       operationId: tags_create
-      description: |-
-        ViewSet for managing product tags.
-        - All authenticated staff users can read
-        - Content Creators and Inventory Managers can create/edit/delete
+      description: 'ViewSet for managing product tags.
+
+        - Anyone can read (public read).
+
+        - Only Content Creators, Inventory Managers, and Superusers can create/edit/delete.'
       tags:
       - tags
       requestBody:
@@ -4170,10 +4988,11 @@ paths:
   /tags/{id}/:
     get:
       operationId: tags_retrieve
-      description: |-
-        ViewSet for managing product tags.
-        - All authenticated staff users can read
-        - Content Creators and Inventory Managers can create/edit/delete
+      description: 'ViewSet for managing product tags.
+
+        - Anyone can read (public read).
+
+        - Only Content Creators, Inventory Managers, and Superusers can create/edit/delete.'
       parameters:
       - in: path
         name: id
@@ -4195,10 +5014,11 @@ paths:
           description: ''
     put:
       operationId: tags_update
-      description: |-
-        ViewSet for managing product tags.
-        - All authenticated staff users can read
-        - Content Creators and Inventory Managers can create/edit/delete
+      description: 'ViewSet for managing product tags.
+
+        - Anyone can read (public read).
+
+        - Only Content Creators, Inventory Managers, and Superusers can create/edit/delete.'
       parameters:
       - in: path
         name: id
@@ -4232,10 +5052,11 @@ paths:
           description: ''
     patch:
       operationId: tags_partial_update
-      description: |-
-        ViewSet for managing product tags.
-        - All authenticated staff users can read
-        - Content Creators and Inventory Managers can create/edit/delete
+      description: 'ViewSet for managing product tags.
+
+        - Anyone can read (public read).
+
+        - Only Content Creators, Inventory Managers, and Superusers can create/edit/delete.'
       parameters:
       - in: path
         name: id
@@ -4268,10 +5089,11 @@ paths:
           description: ''
     delete:
       operationId: tags_destroy
-      description: |-
-        ViewSet for managing product tags.
-        - All authenticated staff users can read
-        - Content Creators and Inventory Managers can create/edit/delete
+      description: 'ViewSet for managing product tags.
+
+        - Anyone can read (public read).
+
+        - Only Content Creators, Inventory Managers, and Superusers can create/edit/delete.'
       parameters:
       - in: path
         name: id
@@ -4290,12 +5112,18 @@ paths:
   /unit-images/:
     get:
       operationId: unit_images_list
-      description: |-
-        CRUD for individual inventory unit images.
+      description: 'CRUD for individual inventory unit images.
+
         Only Admins can add/manage images; everyone can view unit images
+
         (which are nested in InventoryUnitViewSet).
-        Uses IsAdminOrReadOnly.
+
+        Uses IsInventoryManagerOrMarketingManagerReadOnly (write for Inventory Managers).'
       parameters:
+      - in: query
+        name: inventory_unit
+        schema:
+          type: integer
       - name: page
         required: false
         in: query
@@ -4316,11 +5144,13 @@ paths:
           description: ''
     post:
       operationId: unit_images_create
-      description: |-
-        CRUD for individual inventory unit images.
+      description: 'CRUD for individual inventory unit images.
+
         Only Admins can add/manage images; everyone can view unit images
+
         (which are nested in InventoryUnitViewSet).
-        Uses IsAdminOrReadOnly.
+
+        Uses IsInventoryManagerOrMarketingManagerReadOnly (write for Inventory Managers).'
       tags:
       - unit-images
       requestBody:
@@ -4345,11 +5175,13 @@ paths:
   /unit-images/{id}/:
     get:
       operationId: unit_images_retrieve
-      description: |-
-        CRUD for individual inventory unit images.
+      description: 'CRUD for individual inventory unit images.
+
         Only Admins can add/manage images; everyone can view unit images
+
         (which are nested in InventoryUnitViewSet).
-        Uses IsAdminOrReadOnly.
+
+        Uses IsInventoryManagerOrMarketingManagerReadOnly (write for Inventory Managers).'
       parameters:
       - in: path
         name: id
@@ -4371,11 +5203,13 @@ paths:
           description: ''
     put:
       operationId: unit_images_update
-      description: |-
-        CRUD for individual inventory unit images.
+      description: 'CRUD for individual inventory unit images.
+
         Only Admins can add/manage images; everyone can view unit images
+
         (which are nested in InventoryUnitViewSet).
-        Uses IsAdminOrReadOnly.
+
+        Uses IsInventoryManagerOrMarketingManagerReadOnly (write for Inventory Managers).'
       parameters:
       - in: path
         name: id
@@ -4406,11 +5240,13 @@ paths:
           description: ''
     patch:
       operationId: unit_images_partial_update
-      description: |-
-        CRUD for individual inventory unit images.
+      description: 'CRUD for individual inventory unit images.
+
         Only Admins can add/manage images; everyone can view unit images
+
         (which are nested in InventoryUnitViewSet).
-        Uses IsAdminOrReadOnly.
+
+        Uses IsInventoryManagerOrMarketingManagerReadOnly (write for Inventory Managers).'
       parameters:
       - in: path
         name: id
@@ -4440,11 +5276,13 @@ paths:
           description: ''
     delete:
       operationId: unit_images_destroy
-      description: |-
-        CRUD for individual inventory unit images.
+      description: 'CRUD for individual inventory unit images.
+
         Only Admins can add/manage images; everyone can view unit images
+
         (which are nested in InventoryUnitViewSet).
-        Uses IsAdminOrReadOnly.
+
+        Uses IsInventoryManagerOrMarketingManagerReadOnly (write for Inventory Managers).'
       parameters:
       - in: path
         name: id
@@ -4463,10 +5301,11 @@ paths:
   /unit-transfers/:
     get:
       operationId: unit_transfers_list
-      description: |-
-        ViewSet for managing unit transfers between salespersons.
+      description: 'ViewSet for managing unit transfers between salespersons.
+
         - Salespersons can request transfers
-        - Inventory Managers can approve/reject transfers
+
+        - Inventory Managers can approve/reject transfers'
       parameters:
       - name: page
         required: false
@@ -4488,10 +5327,11 @@ paths:
           description: ''
     post:
       operationId: unit_transfers_create
-      description: |-
-        ViewSet for managing unit transfers between salespersons.
+      description: 'ViewSet for managing unit transfers between salespersons.
+
         - Salespersons can request transfers
-        - Inventory Managers can approve/reject transfers
+
+        - Inventory Managers can approve/reject transfers'
       tags:
       - unit-transfers
       requestBody:
@@ -4519,10 +5359,11 @@ paths:
   /unit-transfers/{id}/:
     get:
       operationId: unit_transfers_retrieve
-      description: |-
-        ViewSet for managing unit transfers between salespersons.
+      description: 'ViewSet for managing unit transfers between salespersons.
+
         - Salespersons can request transfers
-        - Inventory Managers can approve/reject transfers
+
+        - Inventory Managers can approve/reject transfers'
       parameters:
       - in: path
         name: id
@@ -4544,10 +5385,11 @@ paths:
           description: ''
     put:
       operationId: unit_transfers_update
-      description: |-
-        ViewSet for managing unit transfers between salespersons.
+      description: 'ViewSet for managing unit transfers between salespersons.
+
         - Salespersons can request transfers
-        - Inventory Managers can approve/reject transfers
+
+        - Inventory Managers can approve/reject transfers'
       parameters:
       - in: path
         name: id
@@ -4581,10 +5423,11 @@ paths:
           description: ''
     patch:
       operationId: unit_transfers_partial_update
-      description: |-
-        ViewSet for managing unit transfers between salespersons.
+      description: 'ViewSet for managing unit transfers between salespersons.
+
         - Salespersons can request transfers
-        - Inventory Managers can approve/reject transfers
+
+        - Inventory Managers can approve/reject transfers'
       parameters:
       - in: path
         name: id
@@ -4617,10 +5460,11 @@ paths:
           description: ''
     delete:
       operationId: unit_transfers_destroy
-      description: |-
-        ViewSet for managing unit transfers between salespersons.
+      description: 'ViewSet for managing unit transfers between salespersons.
+
         - Salespersons can request transfers
-        - Inventory Managers can approve/reject transfers
+
+        - Inventory Managers can approve/reject transfers'
       parameters:
       - in: path
         name: id
@@ -4639,14 +5483,19 @@ paths:
   /units/:
     get:
       operationId: units_list
-      description: |-
-        CRUD for individual physical Inventory Units.
+      description: 'CRUD for individual physical Inventory Units.
+
         - Inventory Manager: Full access (read/write)
+
         - Marketing Manager: Read-only access
+
         - Salesperson: Read-only access
+
         - Superuser: Full access
 
-        NEW: Includes filtering and searching capabilities for efficient inventory management.
+
+        NEW: Includes filtering and searching capabilities for efficient inventory
+        management.'
       parameters:
       - in: query
         name: condition
@@ -4657,11 +5506,13 @@ paths:
           - N
           - P
           - R
-        description: |-
-          * `N` - New
+        description: '* `N` - New
+
           * `R` - Refurbished
+
           * `P` - Pre-owned
-          * `D` - Defective
+
+          * `D` - Defective'
       - name: ordering
         required: false
         in: query
@@ -4691,11 +5542,13 @@ paths:
           - LT
           - PH
           - TB
-        description: |-
-          * `PH` - Phone
+        description: '* `PH` - Phone
+
           * `LT` - Laptop
+
           * `TB` - Tablet/iPad
-          * `AC` - Accessory
+
+          * `AC` - Accessory'
       - in: query
         name: ram_gb
         schema:
@@ -4714,12 +5567,15 @@ paths:
           - RS
           - RT
           - SD
-        description: |-
-          * `AV` - Available
+        description: '* `AV` - Available
+
           * `SD` - Sold
+
           * `RS` - Reserved
+
           * `RT` - Returned
-          * `PP` - Pending Payment
+
+          * `PP` - Pending Payment'
       - name: search
         required: false
         in: query
@@ -4760,25 +5616,30 @@ paths:
           description: ''
     post:
       operationId: units_create
-      description: |-
-        CRUD for individual physical Inventory Units.
+      description: 'CRUD for individual physical Inventory Units.
+
         - Inventory Manager: Full access (read/write)
+
         - Marketing Manager: Read-only access
+
         - Salesperson: Read-only access
+
         - Superuser: Full access
 
-        NEW: Includes filtering and searching capabilities for efficient inventory management.
+
+        NEW: Includes filtering and searching capabilities for efficient inventory
+        management.'
       tags:
       - units
       requestBody:
         content:
-          application/json:
+          multipart/form-data:
             schema:
               $ref: '#/components/schemas/InventoryUnitRequest'
           application/x-www-form-urlencoded:
             schema:
               $ref: '#/components/schemas/InventoryUnitRequest'
-          multipart/form-data:
+          application/json:
             schema:
               $ref: '#/components/schemas/InventoryUnitRequest'
         required: true
@@ -4795,14 +5656,19 @@ paths:
   /units/{id}/:
     get:
       operationId: units_retrieve
-      description: |-
-        CRUD for individual physical Inventory Units.
+      description: 'CRUD for individual physical Inventory Units.
+
         - Inventory Manager: Full access (read/write)
+
         - Marketing Manager: Read-only access
+
         - Salesperson: Read-only access
+
         - Superuser: Full access
 
-        NEW: Includes filtering and searching capabilities for efficient inventory management.
+
+        NEW: Includes filtering and searching capabilities for efficient inventory
+        management.'
       parameters:
       - in: path
         name: id
@@ -4824,14 +5690,19 @@ paths:
           description: ''
     put:
       operationId: units_update
-      description: |-
-        CRUD for individual physical Inventory Units.
+      description: 'CRUD for individual physical Inventory Units.
+
         - Inventory Manager: Full access (read/write)
+
         - Marketing Manager: Read-only access
+
         - Salesperson: Read-only access
+
         - Superuser: Full access
 
-        NEW: Includes filtering and searching capabilities for efficient inventory management.
+
+        NEW: Includes filtering and searching capabilities for efficient inventory
+        management.'
       parameters:
       - in: path
         name: id
@@ -4843,13 +5714,13 @@ paths:
       - units
       requestBody:
         content:
-          application/json:
+          multipart/form-data:
             schema:
               $ref: '#/components/schemas/InventoryUnitRequest'
           application/x-www-form-urlencoded:
             schema:
               $ref: '#/components/schemas/InventoryUnitRequest'
-          multipart/form-data:
+          application/json:
             schema:
               $ref: '#/components/schemas/InventoryUnitRequest'
         required: true
@@ -4865,14 +5736,19 @@ paths:
           description: ''
     patch:
       operationId: units_partial_update
-      description: |-
-        CRUD for individual physical Inventory Units.
+      description: 'CRUD for individual physical Inventory Units.
+
         - Inventory Manager: Full access (read/write)
+
         - Marketing Manager: Read-only access
+
         - Salesperson: Read-only access
+
         - Superuser: Full access
 
-        NEW: Includes filtering and searching capabilities for efficient inventory management.
+
+        NEW: Includes filtering and searching capabilities for efficient inventory
+        management.'
       parameters:
       - in: path
         name: id
@@ -4884,13 +5760,13 @@ paths:
       - units
       requestBody:
         content:
-          application/json:
+          multipart/form-data:
             schema:
               $ref: '#/components/schemas/PatchedInventoryUnitRequest'
           application/x-www-form-urlencoded:
             schema:
               $ref: '#/components/schemas/PatchedInventoryUnitRequest'
-          multipart/form-data:
+          application/json:
             schema:
               $ref: '#/components/schemas/PatchedInventoryUnitRequest'
       security:
@@ -4905,14 +5781,19 @@ paths:
           description: ''
     delete:
       operationId: units_destroy
-      description: |-
-        CRUD for individual physical Inventory Units.
+      description: 'CRUD for individual physical Inventory Units.
+
         - Inventory Manager: Full access (read/write)
+
         - Marketing Manager: Read-only access
+
         - Salesperson: Read-only access
+
         - Superuser: Full access
 
-        NEW: Includes filtering and searching capabilities for efficient inventory management.
+
+        NEW: Includes filtering and searching capabilities for efficient inventory
+        management.'
       parameters:
       - in: path
         name: id
@@ -4931,12 +5812,15 @@ paths:
   /units/{id}/approve_buyback/:
     post:
       operationId: units_approve_buyback_create
-      description: |-
-        Admin action to approve a RETURNED buyback item and make it AVAILABLE.
+      description: 'Admin action to approve a RETURNED buyback item and make it AVAILABLE.
+
         Only buyback items (source=BB) with status RETURNED can be approved.
 
-        Note: If a pending ReturnRequest exists for this unit, it should be approved via
-        the ReturnRequestViewSet instead to maintain proper workflow.
+
+        Note: If a pending ReturnRequest exists for this unit, it should be approved
+        via
+
+        the ReturnRequestViewSet instead to maintain proper workflow.'
       parameters:
       - in: path
         name: id
@@ -4948,13 +5832,13 @@ paths:
       - units
       requestBody:
         content:
-          application/json:
+          multipart/form-data:
             schema:
               $ref: '#/components/schemas/InventoryUnitRequest'
           application/x-www-form-urlencoded:
             schema:
               $ref: '#/components/schemas/InventoryUnitRequest'
-          multipart/form-data:
+          application/json:
             schema:
               $ref: '#/components/schemas/InventoryUnitRequest'
         required: true
@@ -4983,13 +5867,13 @@ paths:
       - units
       requestBody:
         content:
-          application/json:
+          multipart/form-data:
             schema:
               $ref: '#/components/schemas/InventoryUnitRequest'
           application/x-www-form-urlencoded:
             schema:
               $ref: '#/components/schemas/InventoryUnitRequest'
-          multipart/form-data:
+          application/json:
             schema:
               $ref: '#/components/schemas/InventoryUnitRequest'
         required: true
@@ -5006,9 +5890,10 @@ paths:
   /units/available/:
     get:
       operationId: units_available_list
-      description: |-
-        Public: Browse all available units (public fields), with optional filters.
-        Intended for storefront discovery pages (shop/browse/search).
+      description: 'Public: Browse all available units (public fields), with optional
+        filters.
+
+        Intended for storefront discovery pages (shop/browse/search).'
       parameters:
       - name: page
         required: false
@@ -5032,27 +5917,22 @@ paths:
   /units/bulk_update/:
     post:
       operationId: units_bulk_update_create
-      description: |-
-        Bulk update operations for inventory units (Inventory Manager only).
-        Supports: price updates, status changes, archiving (for sold units).
-
-        Request body:
-        {
-            "unit_ids": [1, 2, 3],
-            "operation": "update_price" | "update_status" | "archive",
-            "data": { ... operation-specific data ... }
-        }
+      description: "Bulk update operations for inventory units (Inventory Manager\
+        \ only).\nSupports: price updates, status changes, archiving (for sold units).\n\
+        \nRequest body:\n{\n    \"unit_ids\": [1, 2, 3],\n    \"operation\": \"update_price\"\
+        \ | \"update_status\" | \"archive\",\n    \"data\": { ... operation-specific\
+        \ data ... }\n}"
       tags:
       - units
       requestBody:
         content:
-          application/json:
+          multipart/form-data:
             schema:
               $ref: '#/components/schemas/InventoryUnitRequest'
           application/x-www-form-urlencoded:
             schema:
               $ref: '#/components/schemas/InventoryUnitRequest'
-          multipart/form-data:
+          application/json:
             schema:
               $ref: '#/components/schemas/InventoryUnitRequest'
         required: true
@@ -5069,7 +5949,13 @@ paths:
   /units/export_csv/:
     get:
       operationId: units_export_csv_retrieve
-      description: Export inventory units to CSV file.
+      description: 'Export inventory units to CSV file.
+
+
+        Always returns at least the header row (column names) so that when there is
+        no data,
+
+        the user still receives a valid CSV with column names for use as a template.'
       tags:
       - units
       security:
@@ -5085,18 +5971,30 @@ paths:
   /units/import_csv/:
     post:
       operationId: units_import_csv_create
-      description: Import inventory units from CSV file.
+      description: 'CRUD for individual physical Inventory Units.
+
+        - Inventory Manager: Full access (read/write)
+
+        - Marketing Manager: Read-only access
+
+        - Salesperson: Read-only access
+
+        - Superuser: Full access
+
+
+        NEW: Includes filtering and searching capabilities for efficient inventory
+        management.'
       tags:
       - units
       requestBody:
         content:
-          application/json:
+          multipart/form-data:
             schema:
               $ref: '#/components/schemas/InventoryUnitRequest'
           application/x-www-form-urlencoded:
             schema:
               $ref: '#/components/schemas/InventoryUnitRequest'
-          multipart/form-data:
+          application/json:
             schema:
               $ref: '#/components/schemas/InventoryUnitRequest'
         required: true
@@ -5113,9 +6011,10 @@ paths:
   /utils/discount-calculator/:
     post:
       operationId: utils_discount_calculator_create
-      description: |-
-        Utility endpoint to calculate a final price based on various discounts and rules.
-        This is a complex business logic endpoint, requiring POST data.
+      description: 'Utility endpoint to calculate a final price based on various discounts
+        and rules.
+
+        This is a complex business logic endpoint, requiring POST data.'
       tags:
       - utils
       requestBody:
@@ -5141,13 +6040,37 @@ paths:
               schema:
                 $ref: '#/components/schemas/DiscountCalculator'
           description: ''
+  /verify-email/:
+    post:
+      operationId: verify_email_create
+      description: 'POST: Verifies a customer''s email using uid and token.'
+      tags:
+      - verify-email
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /verify-email/resend/:
+    post:
+      operationId: verify_email_resend_create
+      description: 'POST: Re-send verification email for a customer.'
+      tags:
+      - verify-email
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
   /api/v1/public/accessories-link/:
     get:
       operationId: api_v1_public_accessories_link_list
-      description: |-
-        Link model between products and accessories. Admin-only write, public read.
-        Uses IsAdminOrReadOnly.
-        Allows all product types to have accessories (including accessories having accessories).
+      description: 'ProductAccessoryViewSet for public API: no auth so unauthenticated
+        clients get 200, not 401.'
       parameters:
       - in: query
         name: accessory
@@ -5165,9 +6088,6 @@ paths:
           type: integer
       tags:
       - api
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
       responses:
         '200':
           content:
@@ -5177,10 +6097,8 @@ paths:
           description: ''
     post:
       operationId: api_v1_public_accessories_link_create
-      description: |-
-        Link model between products and accessories. Admin-only write, public read.
-        Uses IsAdminOrReadOnly.
-        Allows all product types to have accessories (including accessories having accessories).
+      description: 'ProductAccessoryViewSet for public API: no auth so unauthenticated
+        clients get 200, not 401.'
       tags:
       - api
       requestBody:
@@ -5195,9 +6113,6 @@ paths:
             schema:
               $ref: '#/components/schemas/ProductAccessoryRequest'
         required: true
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
       responses:
         '201':
           content:
@@ -5208,10 +6123,8 @@ paths:
   /api/v1/public/accessories-link/{id}/:
     get:
       operationId: api_v1_public_accessories_link_retrieve
-      description: |-
-        Link model between products and accessories. Admin-only write, public read.
-        Uses IsAdminOrReadOnly.
-        Allows all product types to have accessories (including accessories having accessories).
+      description: 'ProductAccessoryViewSet for public API: no auth so unauthenticated
+        clients get 200, not 401.'
       parameters:
       - in: path
         name: id
@@ -5221,9 +6134,6 @@ paths:
         required: true
       tags:
       - api
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
       responses:
         '200':
           content:
@@ -5233,10 +6143,8 @@ paths:
           description: ''
     put:
       operationId: api_v1_public_accessories_link_update
-      description: |-
-        Link model between products and accessories. Admin-only write, public read.
-        Uses IsAdminOrReadOnly.
-        Allows all product types to have accessories (including accessories having accessories).
+      description: 'ProductAccessoryViewSet for public API: no auth so unauthenticated
+        clients get 200, not 401.'
       parameters:
       - in: path
         name: id
@@ -5258,9 +6166,6 @@ paths:
             schema:
               $ref: '#/components/schemas/ProductAccessoryRequest'
         required: true
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
       responses:
         '200':
           content:
@@ -5270,10 +6175,8 @@ paths:
           description: ''
     patch:
       operationId: api_v1_public_accessories_link_partial_update
-      description: |-
-        Link model between products and accessories. Admin-only write, public read.
-        Uses IsAdminOrReadOnly.
-        Allows all product types to have accessories (including accessories having accessories).
+      description: 'ProductAccessoryViewSet for public API: no auth so unauthenticated
+        clients get 200, not 401.'
       parameters:
       - in: path
         name: id
@@ -5294,9 +6197,6 @@ paths:
           multipart/form-data:
             schema:
               $ref: '#/components/schemas/PatchedProductAccessoryRequest'
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
       responses:
         '200':
           content:
@@ -5306,10 +6206,8 @@ paths:
           description: ''
     delete:
       operationId: api_v1_public_accessories_link_destroy
-      description: |-
-        Link model between products and accessories. Admin-only write, public read.
-        Uses IsAdminOrReadOnly.
-        Allows all product types to have accessories (including accessories having accessories).
+      description: 'ProductAccessoryViewSet for public API: no auth so unauthenticated
+        clients get 200, not 401.'
       parameters:
       - in: path
         name: id
@@ -5319,9 +6217,6 @@ paths:
         required: true
       tags:
       - api
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
       responses:
         '204':
           description: No response body
@@ -5341,8 +6236,6 @@ paths:
       tags:
       - api
       security:
-      - tokenAuth: []
-      - cookieAuth: []
       - {}
       responses:
         '200':
@@ -5365,8 +6258,6 @@ paths:
       tags:
       - api
       security:
-      - tokenAuth: []
-      - cookieAuth: []
       - {}
       responses:
         '200':
@@ -5389,8 +6280,6 @@ paths:
       tags:
       - api
       security:
-      - tokenAuth: []
-      - cookieAuth: []
       - {}
       responses:
         '200':
@@ -5416,8 +6305,6 @@ paths:
             schema:
               $ref: '#/components/schemas/CartCreateRequest'
       security:
-      - tokenAuth: []
-      - cookieAuth: []
       - {}
       responses:
         '201':
@@ -5440,8 +6327,6 @@ paths:
       tags:
       - api
       security:
-      - tokenAuth: []
-      - cookieAuth: []
       - {}
       responses:
         '200':
@@ -5475,8 +6360,6 @@ paths:
               $ref: '#/components/schemas/CartRequest'
         required: true
       security:
-      - tokenAuth: []
-      - cookieAuth: []
       - {}
       responses:
         '200':
@@ -5509,8 +6392,6 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedCartRequest'
       security:
-      - tokenAuth: []
-      - cookieAuth: []
       - {}
       responses:
         '200':
@@ -5532,8 +6413,6 @@ paths:
       tags:
       - api
       security:
-      - tokenAuth: []
-      - cookieAuth: []
       - {}
       responses:
         '204':
@@ -5564,8 +6443,6 @@ paths:
               $ref: '#/components/schemas/CartRequest'
         required: true
       security:
-      - tokenAuth: []
-      - cookieAuth: []
       - {}
       responses:
         '200':
@@ -5600,8 +6477,6 @@ paths:
               $ref: '#/components/schemas/CartRequest'
         required: true
       security:
-      - tokenAuth: []
-      - cookieAuth: []
       - {}
       responses:
         '200':
@@ -5636,8 +6511,6 @@ paths:
               $ref: '#/components/schemas/CartRequest'
         required: true
       security:
-      - tokenAuth: []
-      - cookieAuth: []
       - {}
       responses:
         '200':
@@ -5667,8 +6540,6 @@ paths:
       tags:
       - api
       security:
-      - tokenAuth: []
-      - cookieAuth: []
       - {}
       responses:
         '204':
@@ -5686,8 +6557,134 @@ paths:
       tags:
       - api
       security:
-      - tokenAuth: []
-      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/public/delivery-rates/:
+    get:
+      operationId: api_v1_public_delivery_rates_list
+      description: Public delivery rates lookup.
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - api
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPublicDeliveryRateList'
+          description: ''
+  /api/v1/public/delivery-rates/{id}/:
+    get:
+      operationId: api_v1_public_delivery_rates_retrieve
+      description: Public delivery rates lookup.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this delivery rate.
+        required: true
+      tags:
+      - api
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicDeliveryRate'
+          description: ''
+  /api/v1/public/financing/inquiry/:
+    post:
+      operationId: api_v1_public_financing_inquiry_create
+      description: Create a BNPL inquiry which is routed to Leads (Sales team).
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FinancingInquiryRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FinancingInquiryRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FinancingInquiryRequestRequest'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/public/orders/history/:
+    post:
+      operationId: api_v1_public_orders_history_create
+      description: Return orders for a customer after OTP verification.
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderHistoryRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OrderHistoryRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OrderHistoryRequestRequest'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/public/orders/otp/:
+    post:
+      operationId: api_v1_public_orders_otp_create
+      description: Send OTP for order history verification.
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderOtpRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OrderOtpRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OrderOtpRequestRequest'
+        required: true
+      security:
       - {}
       responses:
         '200':
@@ -5700,16 +6697,21 @@ paths:
   /api/v1/public/phone-search/:
     get:
       operationId: api_v1_public_phone_search_list
-      description: |-
-        GET: Allows customers to search for available phone Products
+      description: 'GET: Allows customers to search for available phone Products
+
         within a specified budget range.
+
         Returns Products (not individual units) with price ranges.
 
+
         Query Params required:
+
         - min_price (required, decimal)
+
         - max_price (required, decimal)
 
-        Example URL: /api/v1/public/phone-search/?min_price=15000&max_price=30000
+
+        Example URL: /api/v1/public/phone-search/?min_price=15000&max_price=30000'
       parameters:
       - in: query
         name: max_price
@@ -5730,8 +6732,6 @@ paths:
       tags:
       - api
       security:
-      - tokenAuth: []
-      - cookieAuth: []
       - {}
       responses:
         '200':
@@ -5749,6 +6749,18 @@ paths:
         name: brand_filter
         schema:
           type: string
+      - in: query
+        name: featured
+        schema:
+          type: boolean
+        description: If true, return only products tagged as "Featured" (for homepage;
+          use page_size=5 for fast load).
+      - in: query
+        name: homepage_videos
+        schema:
+          type: boolean
+        description: If true, return only published products tagged "Video" with a
+          product video URL or uploaded video file (homepage reel).
       - in: query
         name: max_price
         schema:
@@ -5788,8 +6800,6 @@ paths:
       tags:
       - api
       security:
-      - tokenAuth: []
-      - cookieAuth: []
       - {}
       responses:
         '200':
@@ -5812,8 +6822,6 @@ paths:
       tags:
       - api
       security:
-      - tokenAuth: []
-      - cookieAuth: []
       - {}
       responses:
         '200':
@@ -5845,6 +6853,12 @@ paths:
         description: A page number within the paginated result set.
         schema:
           type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
       - name: search
         required: false
         in: query
@@ -5854,8 +6868,6 @@ paths:
       tags:
       - api
       security:
-      - tokenAuth: []
-      - cookieAuth: []
       - {}
       responses:
         '200':
@@ -5864,9 +6876,68 @@ paths:
               schema:
                 $ref: '#/components/schemas/PaginatedPublicInventoryUnitPublicList'
           description: ''
+  /api/v1/public/products/brands/:
+    get:
+      operationId: api_v1_public_products_brands_retrieve
+      description: 'Return distinct brand names grouped by product type for menu use.
+
+        Uses a minimal queryset (values_list) to avoid N+1 and heavy get_queryset
+        pipeline.'
+      tags:
+      - api
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicProduct'
+          description: ''
+  /api/v1/public/products/by-slug/{product_slug}/article/:
+    get:
+      operationId: api_v1_public_products_by_slug_article_retrieve
+      description: Published buying guide for a product (404 if missing or draft).
+      parameters:
+      - in: path
+        name: product_slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - api
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicProductArticle'
+          description: ''
+  /api/v1/public/products/review-summary/:
+    get:
+      operationId: api_v1_public_products_review_summary_retrieve
+      description: Return review summary (count + average) for a list of product IDs.
+      tags:
+      - api
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicProduct'
+          description: ''
   /api/v1/public/promotions/:
     get:
       operationId: api_v1_public_promotions_list
+      description: 'Skip DRF authentication for public endpoints so invalid/missing
+        tokens don''t cause 401.
+
+        Use with permission_classes = [AllowAny] so unauthenticated clients can access
+        the API.'
       parameters:
       - in: query
         name: display_location
@@ -5883,8 +6954,6 @@ paths:
       tags:
       - api
       security:
-      - tokenAuth: []
-      - cookieAuth: []
       - {}
       responses:
         '200':
@@ -5896,6 +6965,11 @@ paths:
   /api/v1/public/promotions/{id}/:
     get:
       operationId: api_v1_public_promotions_retrieve
+      description: 'Skip DRF authentication for public endpoints so invalid/missing
+        tokens don''t cause 401.
+
+        Use with permission_classes = [AllowAny] so unauthenticated clients can access
+        the API.'
       parameters:
       - in: path
         name: id
@@ -5906,8 +6980,6 @@ paths:
       tags:
       - api
       security:
-      - tokenAuth: []
-      - cookieAuth: []
       - {}
       responses:
         '200':
@@ -5919,13 +6991,8 @@ paths:
   /api/v1/public/reviews/:
     get:
       operationId: api_v1_public_reviews_list
-      description: |-
-        Handles customer and admin reviews.
-        - Everyone can read (GET).
-        - Authenticated users can create (POST).
-        - Owners or Admins can update/delete (PUT/PATCH/DELETE).
-        - Uses IsReviewOwnerOrAdmin.
-        - Supports video file uploads via multipart/form-data.
+      description: 'ReviewViewSet for public API: no auth so unauthenticated clients
+        get 200, not 401.'
       parameters:
       - name: ordering
         required: false
@@ -5952,8 +7019,6 @@ paths:
       tags:
       - api
       security:
-      - tokenAuth: []
-      - cookieAuth: []
       - {}
       responses:
         '200':
@@ -5964,13 +7029,8 @@ paths:
           description: ''
     post:
       operationId: api_v1_public_reviews_create
-      description: |-
-        Handles customer and admin reviews.
-        - Everyone can read (GET).
-        - Authenticated users can create (POST).
-        - Owners or Admins can update/delete (PUT/PATCH/DELETE).
-        - Uses IsReviewOwnerOrAdmin.
-        - Supports video file uploads via multipart/form-data.
+      description: 'ReviewViewSet for public API: no auth so unauthenticated clients
+        get 200, not 401.'
       tags:
       - api
       requestBody:
@@ -5982,9 +7042,6 @@ paths:
             schema:
               $ref: '#/components/schemas/ReviewRequest'
         required: true
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
       responses:
         '201':
           content:
@@ -5995,13 +7052,8 @@ paths:
   /api/v1/public/reviews/{id}/:
     get:
       operationId: api_v1_public_reviews_retrieve
-      description: |-
-        Handles customer and admin reviews.
-        - Everyone can read (GET).
-        - Authenticated users can create (POST).
-        - Owners or Admins can update/delete (PUT/PATCH/DELETE).
-        - Uses IsReviewOwnerOrAdmin.
-        - Supports video file uploads via multipart/form-data.
+      description: 'ReviewViewSet for public API: no auth so unauthenticated clients
+        get 200, not 401.'
       parameters:
       - in: path
         name: id
@@ -6012,8 +7064,6 @@ paths:
       tags:
       - api
       security:
-      - tokenAuth: []
-      - cookieAuth: []
       - {}
       responses:
         '200':
@@ -6024,13 +7074,8 @@ paths:
           description: ''
     put:
       operationId: api_v1_public_reviews_update
-      description: |-
-        Handles customer and admin reviews.
-        - Everyone can read (GET).
-        - Authenticated users can create (POST).
-        - Owners or Admins can update/delete (PUT/PATCH/DELETE).
-        - Uses IsReviewOwnerOrAdmin.
-        - Supports video file uploads via multipart/form-data.
+      description: 'ReviewViewSet for public API: no auth so unauthenticated clients
+        get 200, not 401.'
       parameters:
       - in: path
         name: id
@@ -6049,9 +7094,6 @@ paths:
             schema:
               $ref: '#/components/schemas/ReviewRequest'
         required: true
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
       responses:
         '200':
           content:
@@ -6061,13 +7103,8 @@ paths:
           description: ''
     patch:
       operationId: api_v1_public_reviews_partial_update
-      description: |-
-        Handles customer and admin reviews.
-        - Everyone can read (GET).
-        - Authenticated users can create (POST).
-        - Owners or Admins can update/delete (PUT/PATCH/DELETE).
-        - Uses IsReviewOwnerOrAdmin.
-        - Supports video file uploads via multipart/form-data.
+      description: 'ReviewViewSet for public API: no auth so unauthenticated clients
+        get 200, not 401.'
       parameters:
       - in: path
         name: id
@@ -6085,9 +7122,6 @@ paths:
           application/x-www-form-urlencoded:
             schema:
               $ref: '#/components/schemas/PatchedReviewRequest'
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
       responses:
         '200':
           content:
@@ -6097,13 +7131,8 @@ paths:
           description: ''
     delete:
       operationId: api_v1_public_reviews_destroy
-      description: |-
-        Handles customer and admin reviews.
-        - Everyone can read (GET).
-        - Authenticated users can create (POST).
-        - Owners or Admins can update/delete (PUT/PATCH/DELETE).
-        - Uses IsReviewOwnerOrAdmin.
-        - Supports video file uploads via multipart/form-data.
+      description: 'ReviewViewSet for public API: no auth so unauthenticated clients
+        get 200, not 401.'
       parameters:
       - in: path
         name: id
@@ -6113,18 +7142,15 @@ paths:
         required: true
       tags:
       - api
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
       responses:
         '204':
           description: No response body
   /api/v1/public/reviews/bulk_action/:
     post:
       operationId: api_v1_public_reviews_bulk_action_create
-      description: |-
-        Bulk actions for reviews (approve, reject, delete, hide).
-        Content Creators can use this to moderate reviews.
+      description: 'Bulk actions for reviews (approve, reject, delete, hide).
+
+        Content Creators can use this to moderate reviews.'
       tags:
       - api
       requestBody:
@@ -6136,9 +7162,6 @@ paths:
             schema:
               $ref: '#/components/schemas/ReviewRequest'
         required: true
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
       responses:
         '200':
           content:
@@ -6146,6 +7169,187 @@ paths:
               schema:
                 $ref: '#/components/schemas/Review'
           description: ''
+  /api/v1/public/reviews/eligibility/:
+    post:
+      operationId: api_v1_public_reviews_eligibility_create
+      description: Return eligible purchased items for review.
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewEligibilityRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ReviewEligibilityRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ReviewEligibilityRequestRequest'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/public/reviews/otp/:
+    post:
+      operationId: api_v1_public_reviews_otp_create
+      description: Send OTP for review verification.
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewOtpRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ReviewOtpRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ReviewOtpRequestRequest'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/public/reviews/submit/:
+    post:
+      operationId: api_v1_public_reviews_submit_create
+      description: Create a verified review after OTP verification.
+      tags:
+      - api
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PublicReviewSubmitRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PublicReviewSubmitRequest'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublicReviewSubmitRequest'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Review'
+          description: ''
+  /api/v1/public/wishlist/:
+    get:
+      operationId: api_v1_public_wishlist_list
+      description: Override to cache GET response and avoid repeated heavy serialization.
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - api
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPublicWishlistItemList'
+          description: ''
+    post:
+      operationId: api_v1_public_wishlist_create
+      description: Public wishlist API (session or customer-phone based).
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublicWishlistItemRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PublicWishlistItemRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PublicWishlistItemRequest'
+        required: true
+      security:
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicWishlistItem'
+          description: ''
+  /api/v1/public/wishlist/{id}/:
+    get:
+      operationId: api_v1_public_wishlist_retrieve
+      description: Public wishlist API (session or customer-phone based).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this wishlist item.
+        required: true
+      tags:
+      - api
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicWishlistItem'
+          description: ''
+    delete:
+      operationId: api_v1_public_wishlist_destroy
+      description: Public wishlist API (session or customer-phone based).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this wishlist item.
+        required: true
+      tags:
+      - api
+      security:
+      - {}
+      responses:
+        '204':
+          description: No response body
+  /api/v1/public/wishlist/by-product/:
+    delete:
+      operationId: api_v1_public_wishlist_by_product_destroy
+      description: Public wishlist API (session or customer-phone based).
+      tags:
+      - api
+      security:
+      - {}
+      responses:
+        '204':
+          description: No response body
 components:
   schemas:
     ActionEnum:
@@ -6163,24 +7367,34 @@ components:
       - PC
       - SC
       type: string
-      description: |-
-        * `CR` - Create
+      description: '* `CR` - Create
+
         * `UP` - Update
+
         * `DL` - Delete
+
         * `AP` - Approve
+
         * `RJ` - Reject
+
         * `RS` - Reserve
+
         * `RL` - Release
+
         * `TR` - Transfer
+
         * `AR` - Archive
+
         * `BU` - Bulk Update
+
         * `PC` - Price Change
-        * `SC` - Status Change
+
+        * `SC` - Status Change'
     Admin:
       type: object
-      description: |-
-        Serializer for the Admin profile, extending the base User details.
-        Used for nested viewing and AdminProfileView retrieval.
+      description: 'Serializer for the Admin profile, extending the base User details.
+
+        Used for nested viewing and AdminProfileView retrieval.'
       properties:
         id:
           type: integer
@@ -6194,6 +7408,12 @@ components:
           readOnly: true
         email:
           type: string
+          readOnly: true
+        is_staff:
+          type: boolean
+          readOnly: true
+        is_superuser:
+          type: boolean
           readOnly: true
         admin_code:
           type: string
@@ -6228,10 +7448,12 @@ components:
       - admin_code
     AdminAuthToken:
       type: object
-      description: |-
-        Custom admin authentication serializer that:
-        1. Accepts both username and email (for backward compatibility, 'username' can be an email)
-        2. Checks that user has is_staff=True before allowing login
+      description: 'Custom admin authentication serializer that:
+
+        1. Accepts both username and email (for backward compatibility, ''username''
+        can be an email)
+
+        2. Checks that user has is_staff=True before allowing login'
       properties:
         username:
           type: string
@@ -6241,10 +7463,12 @@ components:
       - password
     AdminAuthTokenRequest:
       type: object
-      description: |-
-        Custom admin authentication serializer that:
-        1. Accepts both username and email (for backward compatibility, 'username' can be an email)
-        2. Checks that user has is_staff=True before allowing login
+      description: 'Custom admin authentication serializer that:
+
+        1. Accepts both username and email (for backward compatibility, ''username''
+        can be an email)
+
+        2. Checks that user has is_staff=True before allowing login'
       properties:
         username:
           type: string
@@ -6255,9 +7479,9 @@ components:
       - password
     AdminCreate:
       type: object
-      description: |-
-        Serializer for creating new Admin accounts.
-        Creates both User and Admin objects.
+      description: 'Serializer for creating new Admin accounts.
+
+        Creates both User and Admin objects.'
       properties:
         id:
           type: integer
@@ -6273,9 +7497,9 @@ components:
       - admin_code
     AdminCreateRequest:
       type: object
-      description: |-
-        Serializer for creating new Admin accounts.
-        Creates both User and Admin objects.
+      description: 'Serializer for creating new Admin accounts.
+
+        Creates both User and Admin objects.'
       properties:
         username:
           type: string
@@ -6301,9 +7525,9 @@ components:
       - username
     AdminRequest:
       type: object
-      description: |-
-        Serializer for the Admin profile, extending the base User details.
-        Used for nested viewing and AdminProfileView retrieval.
+      description: 'Serializer for the Admin profile, extending the base User details.
+
+        Used for nested viewing and AdminProfileView retrieval.'
       properties:
         admin_code:
           type: string
@@ -6726,7 +7950,32 @@ components:
         delivery_address:
           type: string
           nullable: true
+        delivery_county:
+          type: string
+          readOnly: true
+        delivery_ward:
+          type: string
+          readOnly: true
+        delivery_fee:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          readOnly: true
+        delivery_window_start:
+          type: string
+          format: date-time
+          readOnly: true
+        delivery_window_end:
+          type: string
+          format: date-time
+          readOnly: true
+        delivery_notes:
+          type: string
+          readOnly: true
         total_value:
+          type: number
+          readOnly: true
+        total_with_delivery:
           type: number
           readOnly: true
         expires_at:
@@ -6853,11 +8102,13 @@ components:
       - P
       - D
       type: string
-      description: |-
-        * `N` - New
+      description: '* `N` - New
+
         * `R` - Refurbished
+
         * `P` - Pre-owned
-        * `D` - Defective
+
+        * `D` - Defective'
     CustomerLogin:
       type: object
       description: Serializer to handle username/email and password authentication.
@@ -6889,10 +8140,11 @@ components:
       - username_or_email
     CustomerProfileUpdate:
       type: object
-      description: |-
-        Dedicated Serializer for RetrieveUpdateAPIView (CustomerProfileView).
+      description: 'Dedicated Serializer for RetrieveUpdateAPIView (CustomerProfileView).
+
         Allows authenticated users to update their personal details AND returns
-        the full name from the linked User model.
+
+        the full name from the linked User model.'
       properties:
         id:
           type: integer
@@ -6924,10 +8176,11 @@ components:
           nullable: true
     CustomerProfileUpdateRequest:
       type: object
-      description: |-
-        Dedicated Serializer for RetrieveUpdateAPIView (CustomerProfileView).
+      description: 'Dedicated Serializer for RetrieveUpdateAPIView (CustomerProfileView).
+
         Allows authenticated users to update their personal details AND returns
-        the full name from the linked User model.
+
+        the full name from the linked User model.'
       properties:
         phone_number:
           type: string
@@ -6936,9 +8189,10 @@ components:
           type: string
     CustomerRegistration:
       type: object
-      description: |-
-        NEW: Serializer to handle the creation of both a User account and its linked
-        Customer profile in one atomic transaction.
+      description: 'NEW: Serializer to handle the creation of both a User account
+        and its linked
+
+        Customer profile in one atomic transaction.'
       properties:
         username:
           type: string
@@ -6957,9 +8211,10 @@ components:
       - username
     CustomerRegistrationRequest:
       type: object
-      description: |-
-        NEW: Serializer to handle the creation of both a User account and its linked
-        Customer profile in one atomic transaction.
+      description: 'NEW: Serializer to handle the creation of both a User account
+        and its linked
+
+        Customer profile in one atomic transaction.'
       properties:
         username:
           type: string
@@ -6983,6 +8238,58 @@ components:
       - email
       - password
       - username
+    DeliveryRate:
+      type: object
+      description: Serializer for DeliveryRate model (admin).
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        county:
+          type: string
+          maxLength: 100
+        ward:
+          type: string
+          nullable: true
+          maxLength: 100
+        price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - county
+      - price
+    DeliveryRateRequest:
+      type: object
+      description: Serializer for DeliveryRate model (admin).
+      properties:
+        county:
+          type: string
+          minLength: 1
+          maxLength: 100
+        ward:
+          type: string
+          nullable: true
+          maxLength: 100
+        price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        is_active:
+          type: boolean
+      required:
+      - county
+      - price
     DiscountCalculator:
       type: object
       description: Utility serializer to calculate the discount percentage based on
@@ -7025,6 +8332,232 @@ components:
       required:
       - original_price
       - sale_price
+    FinancingInquiryRequestRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        phone:
+          type: string
+          minLength: 1
+          maxLength: 50
+        email:
+          type: string
+          format: email
+          minLength: 1
+        product_id:
+          type: integer
+        provider_id:
+          type: integer
+          nullable: true
+        offer_id:
+          type: integer
+          nullable: true
+      required:
+      - email
+      - name
+      - phone
+      - product_id
+    FinancingOffer:
+      type: object
+      description: Serializer for BNPL financing offers.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        provider:
+          type: integer
+        provider_name:
+          type: string
+          readOnly: true
+        provider_slug:
+          type: string
+          readOnly: true
+        provider_logo_url:
+          type: string
+          format: uri
+          nullable: true
+          readOnly: true
+        product:
+          type: integer
+        product_name:
+          type: string
+          readOnly: true
+        deposit_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        retail_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        term_unit:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/TermUnitEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        term_count:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          nullable: true
+        daily_payment:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+        weekly_payment:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+        monthly_payment:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+        ram_gb:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          nullable: true
+        rom_gb:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          nullable: true
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - deposit_amount
+      - product
+      - provider
+      - retail_amount
+    FinancingOfferRequest:
+      type: object
+      description: Serializer for BNPL financing offers.
+      properties:
+        provider:
+          type: integer
+        product:
+          type: integer
+        deposit_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        retail_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        term_unit:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/TermUnitEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        term_count:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          nullable: true
+        daily_payment:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+        weekly_payment:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+        monthly_payment:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+        ram_gb:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          nullable: true
+        rom_gb:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          nullable: true
+        is_active:
+          type: boolean
+      required:
+      - deposit_amount
+      - product
+      - provider
+      - retail_amount
+    FinancingProvider:
+      type: object
+      description: Serializer for BNPL financing providers.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 100
+        slug:
+          type: string
+          maxLength: 120
+          pattern: ^[-a-zA-Z0-9_]+$
+        logo:
+          type: string
+          format: uri
+          nullable: true
+        logo_url:
+          type: string
+          format: uri
+          nullable: true
+          readOnly: true
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - name
+    FinancingProviderRequest:
+      type: object
+      description: Serializer for BNPL financing providers.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        slug:
+          type: string
+          maxLength: 120
+          pattern: ^[-a-zA-Z0-9_]+$
+        logo:
+          type: string
+          format: binary
+          nullable: true
+        is_active:
+          type: boolean
+      required:
+      - name
     FixProductVisibilityRequest:
       type: object
       properties:
@@ -7035,9 +8568,9 @@ components:
       - A
       - B
       type: string
-      description: |-
-        * `A` - Grade A
-        * `B` - Grade B
+      description: '* `A` - Grade A
+
+        * `B` - Grade B'
     InitiatePaymentRequestRequest:
       type: object
       description: Request payload for initiating a Pesapal payment on an existing
@@ -7053,14 +8586,28 @@ components:
           nullable: true
         customer: {}
         billing_address: {}
+        payment_mode:
+          allOf:
+          - $ref: '#/components/schemas/PaymentModeEnum'
+          default: BOTH
+          description: 'What to pay for: cart items, delivery, or both.
+
+
+            * `ITEMS_ONLY` - ITEMS_ONLY
+
+            * `DELIVERY_ONLY` - DELIVERY_ONLY
+
+            * `BOTH` - BOTH'
       required:
       - callback_url
     InventoryUnit:
       type: object
-      description: |-
-        Serializes physical Inventory Units.
+      description: 'Serializes physical Inventory Units.
+
         - Phones/Laptops/Tablets: Unique units (serial_number/IMEI), quantity=1.
-        - Accessories: Bulk items (no unique identifier), quantity required and can be > 1.
+
+        - Accessories: Bulk items (no unique identifier), quantity required and can
+        be > 1.'
       properties:
         id:
           type: integer
@@ -7119,6 +8666,12 @@ components:
           format: decimal
           pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
           title: Current Selling Price
+        compare_at_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+          description: Original/list price used to show discounts (optional)
         quantity:
           type: integer
           maximum: 2147483647
@@ -7189,10 +8742,11 @@ components:
       - selling_price
     InventoryUnitImage:
       type: object
-      description: |-
-        Serializer for Inventory Unit images.
+      description: 'Serializer for Inventory Unit images.
+
         - Read: returns computed image_url for display
-        - Write (admin-only): accepts inventory_unit and image to create a new image
+
+        - Write (admin-only): accepts inventory_unit and image to create a new image'
       properties:
         id:
           type: integer
@@ -7217,10 +8771,11 @@ components:
           readOnly: true
     InventoryUnitImageRequest:
       type: object
-      description: |-
-        Serializer for Inventory Unit images.
+      description: 'Serializer for Inventory Unit images.
+
         - Read: returns computed image_url for display
-        - Write (admin-only): accepts inventory_unit and image to create a new image
+
+        - Write (admin-only): accepts inventory_unit and image to create a new image'
       properties:
         inventory_unit:
           type: integer
@@ -7240,10 +8795,12 @@ components:
       - inventory_unit
     InventoryUnitRequest:
       type: object
-      description: |-
-        Serializes physical Inventory Units.
+      description: 'Serializes physical Inventory Units.
+
         - Phones/Laptops/Tablets: Unique units (serial_number/IMEI), quantity=1.
-        - Accessories: Bulk items (no unique identifier), quantity required and can be > 1.
+
+        - Accessories: Bulk items (no unique identifier), quantity required and can
+        be > 1.'
       properties:
         product_template_id:
           type: integer
@@ -7284,6 +8841,12 @@ components:
           format: decimal
           pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
           title: Current Selling Price
+        compare_at_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+          description: Original/list price used to show discounts (optional)
         quantity:
           type: integer
           maximum: 2147483647
@@ -7348,6 +8911,26 @@ components:
           nullable: true
           maxLength: 254
         delivery_address:
+          type: string
+        delivery_county:
+          type: string
+          maxLength: 100
+        delivery_ward:
+          type: string
+          maxLength: 100
+        delivery_fee:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        delivery_window_start:
+          type: string
+          format: date-time
+          nullable: true
+        delivery_window_end:
+          type: string
+          format: date-time
+          nullable: true
+        delivery_notes:
           type: string
         customer:
           type: integer
@@ -7481,6 +9064,26 @@ components:
           maxLength: 254
         delivery_address:
           type: string
+        delivery_county:
+          type: string
+          maxLength: 100
+        delivery_ward:
+          type: string
+          maxLength: 100
+        delivery_fee:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        delivery_window_start:
+          type: string
+          format: date-time
+          nullable: true
+        delivery_window_end:
+          type: string
+          format: date-time
+          nullable: true
+        delivery_notes:
+          type: string
         customer:
           type: integer
           nullable: true
@@ -7524,12 +9127,15 @@ components:
       - CLOSED
       - EXPIRED
       type: string
-      description: |-
-        * `NEW` - New Lead
+      description: '* `NEW` - New Lead
+
         * `CONTACTED` - Contacted
+
         * `CONVERTED` - Order Created
+
         * `CLOSED` - Closed - No Sale
-        * `EXPIRED` - Expired - No Response
+
+        * `EXPIRED` - Expired - No Response'
     NameEnum:
       enum:
       - SP
@@ -7538,12 +9144,15 @@ components:
       - OM
       - MM
       type: string
-      description: |-
-        * `SP` - Salesperson
+      description: '* `SP` - Salesperson
+
         * `IM` - Inventory Manager
+
         * `CC` - Content Creator
+
         * `OM` - Order Manager
-        * `MM` - Marketing Manager
+
+        * `MM` - Marketing Manager'
     Notification:
       type: object
       description: Serializer for Notification model.
@@ -7630,26 +9239,35 @@ components:
       - RP
       - NL
       type: string
-      description: |-
-        * `RA` - Reservation Approved
+      description: '* `RA` - Reservation Approved
+
         * `RR` - Reservation Rejected
+
         * `RE` - Reservation Expired
+
         * `TA` - Return Approved
+
         * `TR` - Return Rejected
+
         * `FA` - Transfer Approved
+
         * `FR` - Transfer Rejected
+
         * `OC` - Order Created
+
         * `UR` - Unit Reserved
+
         * `RP` - Request Pending Approval
-        * `NL` - New Lead
+
+        * `NL` - New Lead'
     NullEnum:
       enum:
       - null
     Order:
       type: object
-      description: |-
-        Serializer for the Order model. Handles nested creation of OrderItems,
-        inventory management, and total calculation.
+      description: 'Serializer for the Order model. Handles nested creation of OrderItems,
+
+        inventory management, and total calculation.'
       properties:
         order_id:
           type: string
@@ -7673,9 +9291,39 @@ components:
         customer_email:
           type: string
           readOnly: true
+        gcr_eligible:
+          type: boolean
+          readOnly: true
+        gcr_reason:
+          type: string
+          readOnly: true
         delivery_address:
           type: string
           readOnly: true
+        delivery_county:
+          type: string
+        delivery_ward:
+          type: string
+          nullable: true
+        delivery_fee:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          readOnly: true
+        is_items_paid:
+          type: boolean
+        is_delivery_paid:
+          type: boolean
+        delivery_window_start:
+          type: string
+          format: date-time
+          nullable: true
+        delivery_window_end:
+          type: string
+          format: date-time
+          nullable: true
+        delivery_notes:
+          type: string
         created_at:
           type: string
           format: date-time
@@ -7709,6 +9357,20 @@ components:
           readOnly: true
       required:
       - order_items
+    OrderHistoryRequestRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+        otp:
+          type: string
+          minLength: 1
+          maxLength: 6
+      required:
+      - email
+      - otp
     OrderItem:
       type: object
       description: Nested serializer for displaying OrderItems.
@@ -7786,12 +9448,40 @@ components:
           description: Quantity of this item bought in the order.
       required:
       - inventory_unit_id
+    OrderOtpRequestRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+      required:
+      - email
     OrderRequest:
       type: object
-      description: |-
-        Serializer for the Order model. Handles nested creation of OrderItems,
-        inventory management, and total calculation.
+      description: 'Serializer for the Order model. Handles nested creation of OrderItems,
+
+        inventory management, and total calculation.'
       properties:
+        delivery_county:
+          type: string
+        delivery_ward:
+          type: string
+          nullable: true
+        is_items_paid:
+          type: boolean
+        is_delivery_paid:
+          type: boolean
+        delivery_window_start:
+          type: string
+          format: date-time
+          nullable: true
+        delivery_window_end:
+          type: string
+          format: date-time
+          nullable: true
+        delivery_notes:
+          type: string
         status:
           $ref: '#/components/schemas/OrderStatusEnum'
         order_source:
@@ -7810,11 +9500,13 @@ components:
       - Delivered
       - Canceled
       type: string
-      description: |-
-        * `Pending` - Pending
+      description: '* `Pending` - Pending
+
         * `Paid` - Paid
+
         * `Delivered` - Delivered
-        * `Canceled` - Canceled
+
+        * `Canceled` - Canceled'
     PaginatedAdminList:
       type: object
       required:
@@ -7976,6 +9668,75 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Color'
+    PaginatedDeliveryRateList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeliveryRate'
+    PaginatedFinancingOfferList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/FinancingOffer'
+    PaginatedFinancingProviderList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/FinancingProvider'
     PaginatedInventoryUnitImageList:
       type: object
       required:
@@ -8160,7 +9921,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ProductImage'
-    PaginatedProductList:
+    PaginatedProductListList:
       type: object
       required:
       - count
@@ -8182,7 +9943,7 @@ components:
         results:
           type: array
           items:
-            $ref: '#/components/schemas/Product'
+            $ref: '#/components/schemas/ProductList'
     PaginatedPromotionList:
       type: object
       required:
@@ -8252,6 +10013,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PublicBundle'
+    PaginatedPublicDeliveryRateList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicDeliveryRate'
     PaginatedPublicInventoryUnitAdminList:
       type: object
       required:
@@ -8367,6 +10151,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PublicPromotion'
+    PaginatedPublicWishlistItemList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicWishlistItem'
     PaginatedReservationRequestList:
       type: object
       required:
@@ -8484,9 +10291,9 @@ components:
             $ref: '#/components/schemas/UnitTransfer'
     PatchedAdminRequest:
       type: object
-      description: |-
-        Serializer for the Admin profile, extending the base User details.
-        Used for nested viewing and AdminProfileView retrieval.
+      description: 'Serializer for the Admin profile, extending the base User details.
+
+        Used for nested viewing and AdminProfileView retrieval.'
       properties:
         admin_code:
           type: string
@@ -8640,22 +10447,114 @@ components:
           maxLength: 7
     PatchedCustomerProfileUpdateRequest:
       type: object
-      description: |-
-        Dedicated Serializer for RetrieveUpdateAPIView (CustomerProfileView).
+      description: 'Dedicated Serializer for RetrieveUpdateAPIView (CustomerProfileView).
+
         Allows authenticated users to update their personal details AND returns
-        the full name from the linked User model.
+
+        the full name from the linked User model.'
       properties:
         phone_number:
           type: string
           maxLength: 15
         address:
           type: string
+    PatchedDeliveryRateRequest:
+      type: object
+      description: Serializer for DeliveryRate model (admin).
+      properties:
+        county:
+          type: string
+          minLength: 1
+          maxLength: 100
+        ward:
+          type: string
+          nullable: true
+          maxLength: 100
+        price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        is_active:
+          type: boolean
+    PatchedFinancingOfferRequest:
+      type: object
+      description: Serializer for BNPL financing offers.
+      properties:
+        provider:
+          type: integer
+        product:
+          type: integer
+        deposit_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        retail_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        term_unit:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/TermUnitEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        term_count:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          nullable: true
+        daily_payment:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+        weekly_payment:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+        monthly_payment:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+        ram_gb:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          nullable: true
+        rom_gb:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          nullable: true
+        is_active:
+          type: boolean
+    PatchedFinancingProviderRequest:
+      type: object
+      description: Serializer for BNPL financing providers.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        slug:
+          type: string
+          maxLength: 120
+          pattern: ^[-a-zA-Z0-9_]+$
+        logo:
+          type: string
+          format: binary
+          nullable: true
+        is_active:
+          type: boolean
     PatchedInventoryUnitImageRequest:
       type: object
-      description: |-
-        Serializer for Inventory Unit images.
+      description: 'Serializer for Inventory Unit images.
+
         - Read: returns computed image_url for display
-        - Write (admin-only): accepts inventory_unit and image to create a new image
+
+        - Write (admin-only): accepts inventory_unit and image to create a new image'
       properties:
         inventory_unit:
           type: integer
@@ -8672,10 +10571,12 @@ components:
           nullable: true
     PatchedInventoryUnitRequest:
       type: object
-      description: |-
-        Serializes physical Inventory Units.
+      description: 'Serializes physical Inventory Units.
+
         - Phones/Laptops/Tablets: Unique units (serial_number/IMEI), quantity=1.
-        - Accessories: Bulk items (no unique identifier), quantity required and can be > 1.
+
+        - Accessories: Bulk items (no unique identifier), quantity required and can
+        be > 1.'
       properties:
         product_template_id:
           type: integer
@@ -8716,6 +10617,12 @@ components:
           format: decimal
           pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
           title: Current Selling Price
+        compare_at_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+          description: Original/list price used to show discounts (optional)
         quantity:
           type: integer
           maximum: 2147483647
@@ -8773,6 +10680,26 @@ components:
           maxLength: 254
         delivery_address:
           type: string
+        delivery_county:
+          type: string
+          maxLength: 100
+        delivery_ward:
+          type: string
+          maxLength: 100
+        delivery_fee:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        delivery_window_start:
+          type: string
+          format: date-time
+          nullable: true
+        delivery_window_end:
+          type: string
+          format: date-time
+          nullable: true
+        delivery_notes:
+          type: string
         customer:
           type: integer
           nullable: true
@@ -8824,10 +10751,29 @@ components:
           description: Quantity of this item bought in the order.
     PatchedOrderRequest:
       type: object
-      description: |-
-        Serializer for the Order model. Handles nested creation of OrderItems,
-        inventory management, and total calculation.
+      description: 'Serializer for the Order model. Handles nested creation of OrderItems,
+
+        inventory management, and total calculation.'
       properties:
+        delivery_county:
+          type: string
+        delivery_ward:
+          type: string
+          nullable: true
+        is_items_paid:
+          type: boolean
+        is_delivery_paid:
+          type: boolean
+        delivery_window_start:
+          type: string
+          format: date-time
+          nullable: true
+        delivery_window_end:
+          type: string
+          format: date-time
+          nullable: true
+        delivery_notes:
+          type: string
         status:
           $ref: '#/components/schemas/OrderStatusEnum'
         order_source:
@@ -8853,10 +10799,11 @@ components:
           minimum: 0
     PatchedProductImageRequest:
       type: object
-      description: |-
-        Serializer for Product images.
+      description: 'Serializer for Product images.
+
         - Read: returns computed image_url for display and product ID
-        - Write (admin-only): accepts product and image to create a new image
+
+        - Write (admin-only): accepts product and image to create a new image'
       properties:
         product:
           type: integer
@@ -8884,7 +10831,9 @@ components:
       description: Serializes the generic Product template.
       properties:
         product_type:
-          $ref: '#/components/schemas/ProductTypesEnum'
+          allOf:
+          - $ref: '#/components/schemas/ProductTypesEnum'
+          default: AC
         product_name:
           type: string
           minLength: 1
@@ -8894,11 +10843,13 @@ components:
         brand:
           type: string
           minLength: 1
+          default: N/A
           description: e.g., Samsung, Apple, Dell
           maxLength: 50
         model_series:
           type: string
           minLength: 1
+          default: N/A
           description: e.g., S series, Fold, XPS
           maxLength: 100
         min_stock_threshold:
@@ -8913,6 +10864,13 @@ components:
           minimum: -2147483648
           nullable: true
           description: Stock level at which to reorder/restock
+        default_selling_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+          description: Shown on the storefront when no online/listable units have
+            a price; used when creating a unit if selling price is omitted.
         is_discontinued:
           type: boolean
           description: Mark product as discontinued (no longer in catalog)
@@ -8926,9 +10884,6 @@ components:
           maxLength: 160
         slug:
           type: string
-          description: URL-friendly slug (auto-generated from product_name if not
-            provided)
-          maxLength: 255
           pattern: ^[-a-zA-Z0-9_]+$
         keywords:
           type: string
@@ -8947,6 +10902,10 @@ components:
         is_published:
           type: boolean
           description: Whether product is published (visible on e-commerce site)
+        article:
+          allOf:
+          - $ref: '#/components/schemas/ProductArticleRequest'
+          nullable: true
         product_video_url:
           type: string
           format: uri
@@ -9002,14 +10961,14 @@ components:
           maxLength: 50
         display_locations:
           description: 'List of display locations: ''stories_carousel'', ''special_offers'',
-            ''flash_sales'''
+            ''flash_sales'', ''homepage_hero'''
         carousel_position:
           type: integer
-          maximum: 5
+          maximum: 2147483647
           minimum: 1
           nullable: true
-          description: Position in stories carousel (1-5). 1 = Large banner, 2-5 =
-            Grid positions
+          description: Display order in carousels (e.g. homepage hero). Any positive
+            integer; lower = earlier.
         discount_percentage:
           type: string
           format: decimal
@@ -9022,6 +10981,17 @@ components:
           pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
           nullable: true
           description: Fixed discount amount
+        featured_product:
+          type: integer
+          nullable: true
+          description: Product showcased in storefront promo cards like the homepage
+            hero.
+        featured_sale_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+          description: Explicit sale price to show and apply for the featured product.
         start_date:
           type: string
           format: date-time
@@ -9036,13 +11006,17 @@ components:
             type: integer
           description: Specific products this promotion applies to
         product_types:
-          description: |-
-            All products of this type (if specified, applies to all products of this type)
+          description: 'All products of this type (if specified, applies to all products
+            of this type)
+
 
             * `PH` - Phone
+
             * `LT` - Laptop
+
             * `TB` - Tablet/iPad
-            * `AC` - Accessory
+
+            * `AC` - Accessory'
           oneOf:
           - $ref: '#/components/schemas/ProductTypesEnum'
           - $ref: '#/components/schemas/BlankEnum'
@@ -9115,9 +11089,9 @@ components:
           description: Optional notes from salesperson
     PatchedReviewRequest:
       type: object
-      description: |-
-        Serializes the Review model. Handles the read-only customer relationship.
-        Supports both video file uploads and video URLs.
+      description: 'Serializes the Review model. Handles the read-only customer relationship.
+
+        Supports both video file uploads and video URLs.'
       properties:
         product:
           type: integer
@@ -9206,16 +11180,28 @@ components:
         notes:
           type: string
           description: Optional notes
+    PaymentModeEnum:
+      enum:
+      - ITEMS_ONLY
+      - DELIVERY_ONLY
+      - BOTH
+      type: string
+      description: '* `ITEMS_ONLY` - ITEMS_ONLY
+
+        * `DELIVERY_ONLY` - DELIVERY_ONLY
+
+        * `BOTH` - BOTH'
     PricingModeEnum:
       enum:
       - FX
       - PC
       - AM
       type: string
-      description: |-
-        * `FX` - Fixed Bundle Price
+      description: '* `FX` - Fixed Bundle Price
+
         * `PC` - Percentage Off Items Total
-        * `AM` - Fixed Amount Off Items Total
+
+        * `AM` - Fixed Amount Off Items Total'
     Product:
       type: object
       description: Serializes the generic Product template.
@@ -9224,7 +11210,9 @@ components:
           type: integer
           readOnly: true
         product_type:
-          $ref: '#/components/schemas/ProductTypesEnum'
+          allOf:
+          - $ref: '#/components/schemas/ProductTypesEnum'
+          default: AC
         product_type_display:
           type: string
           readOnly: true
@@ -9235,10 +11223,12 @@ components:
           type: string
         brand:
           type: string
+          default: N/A
           description: e.g., Samsung, Apple, Dell
           maxLength: 50
         model_series:
           type: string
+          default: N/A
           description: e.g., S series, Fold, XPS
           maxLength: 100
         min_stock_threshold:
@@ -9253,6 +11243,13 @@ components:
           minimum: -2147483648
           nullable: true
           description: Stock level at which to reorder/restock
+        default_selling_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+          description: Shown on the storefront when no online/listable units have
+            a price; used when creating a unit if selling price is omitted.
         is_discontinued:
           type: boolean
           description: Mark product as discontinued (no longer in catalog)
@@ -9288,9 +11285,6 @@ components:
           maxLength: 160
         slug:
           type: string
-          description: URL-friendly slug (auto-generated from product_name if not
-            provided)
-          maxLength: 255
           pattern: ^[-a-zA-Z0-9_]+$
         keywords:
           type: string
@@ -9314,6 +11308,10 @@ components:
         is_published:
           type: boolean
           description: Whether product is published (visible on e-commerce site)
+        article:
+          allOf:
+          - $ref: '#/components/schemas/ProductArticle'
+          nullable: true
         product_video_url:
           type: string
           format: uri
@@ -9348,6 +11346,9 @@ components:
         seo_score:
           type: integer
           description: Calculate SEO completion score (0-100)
+          readOnly: true
+        available_stock:
+          type: integer
           readOnly: true
       required:
       - product_name
@@ -9418,12 +11419,96 @@ components:
       required:
       - accessory
       - main_product
+    ProductArticle:
+      type: object
+      description: Full product buying guide / blog (staff).
+      properties:
+        headline:
+          type: string
+          description: Public H1 for the article page
+          maxLength: 255
+        seo_title:
+          type: string
+          description: Article page title tag (50–60 chars recommended)
+          maxLength: 60
+        seo_description:
+          type: string
+          description: Meta description (150–160 chars recommended)
+          maxLength: 160
+        body:
+          type: string
+          description: Article body (Markdown)
+        is_published:
+          type: boolean
+        published_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    ProductArticleRequest:
+      type: object
+      description: Full product buying guide / blog (staff).
+      properties:
+        headline:
+          type: string
+          description: Public H1 for the article page
+          maxLength: 255
+        seo_title:
+          type: string
+          description: Article page title tag (50–60 chars recommended)
+          maxLength: 60
+        seo_description:
+          type: string
+          description: Meta description (150–160 chars recommended)
+          maxLength: 160
+        body:
+          type: string
+          description: Article body (Markdown)
+        is_published:
+          type: boolean
+    ProductArticleSummary:
+      type: object
+      description: Lightweight article payload for product list (no body).
+      properties:
+        headline:
+          type: string
+          readOnly: true
+          description: Public H1 for the article page
+        seo_title:
+          type: string
+          readOnly: true
+          description: Article page title tag (50–60 chars recommended)
+        is_published:
+          type: boolean
+          readOnly: true
+        published_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
     ProductImage:
       type: object
-      description: |-
-        Serializer for Product images.
+      description: 'Serializer for Product images.
+
         - Read: returns computed image_url for display and product ID
-        - Write (admin-only): accepts product and image to create a new image
+
+        - Write (admin-only): accepts product and image to create a new image'
       properties:
         id:
           type: integer
@@ -9454,10 +11539,11 @@ components:
       - product
     ProductImageRequest:
       type: object
-      description: |-
-        Serializer for Product images.
+      description: 'Serializer for Product images.
+
         - Read: returns computed image_url for display and product ID
-        - Write (admin-only): accepts product and image to create a new image
+
+        - Write (admin-only): accepts product and image to create a new image'
       properties:
         product:
           type: integer
@@ -9483,26 +11569,33 @@ components:
       required:
       - image
       - product
-    ProductRequest:
+    ProductList:
       type: object
-      description: Serializes the generic Product template.
+      description: 'Product list: omit full article body (summary only).'
       properties:
+        id:
+          type: integer
+          readOnly: true
         product_type:
-          $ref: '#/components/schemas/ProductTypesEnum'
+          allOf:
+          - $ref: '#/components/schemas/ProductTypesEnum'
+          default: AC
+        product_type_display:
+          type: string
+          readOnly: true
         product_name:
           type: string
-          minLength: 1
           maxLength: 255
         product_description:
           type: string
         brand:
           type: string
-          minLength: 1
+          default: N/A
           description: e.g., Samsung, Apple, Dell
           maxLength: 50
         model_series:
           type: string
-          minLength: 1
+          default: N/A
           description: e.g., S series, Fold, XPS
           maxLength: 100
         min_stock_threshold:
@@ -9517,6 +11610,161 @@ components:
           minimum: -2147483648
           nullable: true
           description: Stock level at which to reorder/restock
+        default_selling_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+          description: Shown on the storefront when no online/listable units have
+            a price; used when creating a unit if selling price is omitted.
+        is_discontinued:
+          type: boolean
+          description: Mark product as discontinued (no longer in catalog)
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        created_by:
+          type: integer
+          readOnly: true
+          nullable: true
+        updated_by:
+          type: integer
+          readOnly: true
+          nullable: true
+        images:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+          readOnly: true
+        meta_title:
+          type: string
+          description: SEO title (50-60 chars recommended)
+          maxLength: 60
+        meta_description:
+          type: string
+          description: SEO description (150-160 chars recommended)
+          maxLength: 160
+        slug:
+          type: string
+          pattern: ^[-a-zA-Z0-9_]+$
+        keywords:
+          type: string
+          description: Comma-separated keywords for SEO
+          maxLength: 255
+        og_image:
+          type: string
+          format: uri
+          nullable: true
+          description: Social sharing image (Open Graph)
+        og_image_url:
+          type: string
+          format: uri
+          nullable: true
+          readOnly: true
+        product_highlights:
+          description: List of key features/highlights (bullet points)
+        long_description:
+          type: string
+          description: Extended product description for detailed content
+        is_published:
+          type: boolean
+          description: Whether product is published (visible on e-commerce site)
+        article:
+          allOf:
+          - $ref: '#/components/schemas/ProductArticleSummary'
+          readOnly: true
+          nullable: true
+        product_video_url:
+          type: string
+          format: uri
+          nullable: true
+          description: Link to product video (YouTube, Vimeo, etc.)
+          maxLength: 500
+        product_video_file:
+          type: string
+          format: uri
+          nullable: true
+          description: Upload product video file
+        product_video_file_url:
+          type: string
+          format: uri
+          nullable: true
+          readOnly: true
+        tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tag'
+          readOnly: true
+        brands:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+          readOnly: true
+        is_global:
+          type: boolean
+          description: If True, product is available to all brands regardless of brand
+            assignment
+        seo_score:
+          type: integer
+          description: Calculate SEO completion score (0-100)
+          readOnly: true
+        available_stock:
+          type: integer
+          readOnly: true
+      required:
+      - product_name
+    ProductRequest:
+      type: object
+      description: Serializes the generic Product template.
+      properties:
+        product_type:
+          allOf:
+          - $ref: '#/components/schemas/ProductTypesEnum'
+          default: AC
+        product_name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        product_description:
+          type: string
+        brand:
+          type: string
+          minLength: 1
+          default: N/A
+          description: e.g., Samsung, Apple, Dell
+          maxLength: 50
+        model_series:
+          type: string
+          minLength: 1
+          default: N/A
+          description: e.g., S series, Fold, XPS
+          maxLength: 100
+        min_stock_threshold:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          nullable: true
+          description: Minimum stock level before triggering low stock alert
+        reorder_point:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          nullable: true
+          description: Stock level at which to reorder/restock
+        default_selling_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+          description: Shown on the storefront when no online/listable units have
+            a price; used when creating a unit if selling price is omitted.
         is_discontinued:
           type: boolean
           description: Mark product as discontinued (no longer in catalog)
@@ -9530,9 +11778,6 @@ components:
           maxLength: 160
         slug:
           type: string
-          description: URL-friendly slug (auto-generated from product_name if not
-            provided)
-          maxLength: 255
           pattern: ^[-a-zA-Z0-9_]+$
         keywords:
           type: string
@@ -9551,6 +11796,10 @@ components:
         is_published:
           type: boolean
           description: Whether product is published (visible on e-commerce site)
+        article:
+          allOf:
+          - $ref: '#/components/schemas/ProductArticleRequest'
+          nullable: true
         product_video_url:
           type: string
           format: uri
@@ -9589,11 +11838,13 @@ components:
       - TB
       - AC
       type: string
-      description: |-
-        * `PH` - Phone
+      description: '* `PH` - Phone
+
         * `LT` - Laptop
+
         * `TB` - Tablet/iPad
-        * `AC` - Accessory
+
+        * `AC` - Accessory'
     Promotion:
       type: object
       description: Serializer for Promotion model (admin).
@@ -9636,14 +11887,14 @@ components:
           maxLength: 50
         display_locations:
           description: 'List of display locations: ''stories_carousel'', ''special_offers'',
-            ''flash_sales'''
+            ''flash_sales'', ''homepage_hero'''
         carousel_position:
           type: integer
-          maximum: 5
+          maximum: 2147483647
           minimum: 1
           nullable: true
-          description: Position in stories carousel (1-5). 1 = Large banner, 2-5 =
-            Grid positions
+          description: Display order in carousels (e.g. homepage hero). Any positive
+            integer; lower = earlier.
         discount_percentage:
           type: string
           format: decimal
@@ -9656,6 +11907,17 @@ components:
           pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
           nullable: true
           description: Fixed discount amount
+        featured_product:
+          type: integer
+          nullable: true
+          description: Product showcased in storefront promo cards like the homepage
+            hero.
+        featured_sale_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+          description: Explicit sale price to show and apply for the featured product.
         start_date:
           type: string
           format: date-time
@@ -9673,13 +11935,17 @@ components:
             type: integer
           description: Specific products this promotion applies to
         product_types:
-          description: |-
-            All products of this type (if specified, applies to all products of this type)
+          description: 'All products of this type (if specified, applies to all products
+            of this type)
+
 
             * `PH` - Phone
+
             * `LT` - Laptop
+
             * `TB` - Tablet/iPad
-            * `AC` - Accessory
+
+            * `AC` - Accessory'
           oneOf:
           - $ref: '#/components/schemas/ProductTypesEnum'
           - $ref: '#/components/schemas/BlankEnum'
@@ -9729,14 +11995,14 @@ components:
           maxLength: 50
         display_locations:
           description: 'List of display locations: ''stories_carousel'', ''special_offers'',
-            ''flash_sales'''
+            ''flash_sales'', ''homepage_hero'''
         carousel_position:
           type: integer
-          maximum: 5
+          maximum: 2147483647
           minimum: 1
           nullable: true
-          description: Position in stories carousel (1-5). 1 = Large banner, 2-5 =
-            Grid positions
+          description: Display order in carousels (e.g. homepage hero). Any positive
+            integer; lower = earlier.
         discount_percentage:
           type: string
           format: decimal
@@ -9749,6 +12015,17 @@ components:
           pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
           nullable: true
           description: Fixed discount amount
+        featured_product:
+          type: integer
+          nullable: true
+          description: Product showcased in storefront promo cards like the homepage
+            hero.
+        featured_sale_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+          description: Explicit sale price to show and apply for the featured product.
         start_date:
           type: string
           format: date-time
@@ -9763,13 +12040,17 @@ components:
             type: integer
           description: Specific products this promotion applies to
         product_types:
-          description: |-
-            All products of this type (if specified, applies to all products of this type)
+          description: 'All products of this type (if specified, applies to all products
+            of this type)
+
 
             * `PH` - Phone
+
             * `LT` - Laptop
+
             * `TB` - Tablet/iPad
-            * `AC` - Accessory
+
+            * `AC` - Accessory'
           oneOf:
           - $ref: '#/components/schemas/ProductTypesEnum'
           - $ref: '#/components/schemas/BlankEnum'
@@ -9951,6 +12232,93 @@ components:
         max_price:
           type: number
           readOnly: true
+    PublicDeliveryRate:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        county:
+          type: string
+          maxLength: 100
+        ward:
+          type: string
+          nullable: true
+          maxLength: 100
+        price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+      required:
+      - county
+      - price
+    PublicFinancingOffer:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        provider:
+          type: integer
+        provider_name:
+          type: string
+          readOnly: true
+        provider_slug:
+          type: string
+          readOnly: true
+        provider_logo_url:
+          type: string
+          format: uri
+          nullable: true
+          readOnly: true
+        deposit_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        retail_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        term_unit:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/TermUnitEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        term_count:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          nullable: true
+        daily_payment:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+        weekly_payment:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+        monthly_payment:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+        ram_gb:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          nullable: true
+        rom_gb:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          nullable: true
+      required:
+      - deposit_amount
+      - provider
+      - retail_amount
     PublicInventoryUnitAdmin:
       type: object
       properties:
@@ -10026,8 +12394,8 @@ components:
           type: string
           format: decimal
           pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
-          title: Compare-at Price
           nullable: true
+          description: Original/list price used to show discounts (optional)
         condition:
           $ref: '#/components/schemas/ConditionEnum'
         grade:
@@ -10079,6 +12447,12 @@ components:
           format: decimal
           pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
           title: Current Selling Price
+        compare_at_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+          description: Original/list price used to show discounts (optional)
         condition:
           $ref: '#/components/schemas/ConditionEnum'
         grade:
@@ -10120,14 +12494,18 @@ components:
           maxLength: 255
         brand:
           type: string
+          default: N/A
           description: e.g., Samsung, Apple, Dell
           maxLength: 50
         model_series:
           type: string
+          default: N/A
           description: e.g., S series, Fold, XPS
           maxLength: 100
         product_type:
-          $ref: '#/components/schemas/ProductTypesEnum'
+          allOf:
+          - $ref: '#/components/schemas/ProductTypesEnum'
+          default: AC
         product_description:
           type: string
         long_description:
@@ -10137,6 +12515,14 @@ components:
           type: array
           items:
             type: string
+          readOnly: true
+        financing_available:
+          type: boolean
+          readOnly: true
+        financing_offers:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicFinancingOffer'
           readOnly: true
         available_units_count:
           type: integer
@@ -10149,13 +12535,13 @@ components:
           readOnly: true
         min_price:
           type: number
-          description: Get min price for available units - use prefetched list for
-            accurate brand filtering.
+          description: Get min price for available units; fall back to Product.default_selling_price
+            when none.
           readOnly: true
         max_price:
           type: number
-          description: Get max price for available units - use prefetched list for
-            accurate brand filtering.
+          description: Get max price for available units; fall back to Product.default_selling_price
+            when none.
           readOnly: true
         compare_at_min_price:
           type: number
@@ -10167,15 +12553,12 @@ components:
           readOnly: true
         discount_percent:
           type: integer
-          description: Discount percent based on compare-at price.
           readOnly: true
         review_count:
           type: integer
-          description: Total review count for product.
           readOnly: true
         average_rating:
           type: number
-          description: Average rating for product.
           readOnly: true
         primary_image:
           type: string
@@ -10194,6 +12577,11 @@ components:
           nullable: true
           description: Link to product video (YouTube, Vimeo, etc.)
           maxLength: 500
+        product_video_file_url:
+          type: string
+          format: uri
+          nullable: true
+          readOnly: true
         tags:
           type: array
           items:
@@ -10214,8 +12602,44 @@ components:
           type: string
           description: SEO description (150-160 chars recommended)
           maxLength: 160
+        has_published_article:
+          type: boolean
+          readOnly: true
+        article_headline:
+          type: string
+          nullable: true
+          readOnly: true
       required:
       - product_name
+    PublicProductArticle:
+      type: object
+      description: Published buying guide for storefront article page (public read-only).
+      properties:
+        headline:
+          type: string
+          readOnly: true
+          description: Public H1 for the article page
+        seo_title:
+          type: string
+          readOnly: true
+          description: Article page title tag (50–60 chars recommended)
+        seo_description:
+          type: string
+          readOnly: true
+          description: Meta description (150–160 chars recommended)
+        body:
+          type: string
+          readOnly: true
+          description: Article body (Markdown)
+        published_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
     PublicProductList:
       type: object
       description: Lightweight product serializer for list endpoints.
@@ -10228,14 +12652,21 @@ components:
           maxLength: 255
         brand:
           type: string
+          default: N/A
           description: e.g., Samsung, Apple, Dell
           maxLength: 50
         model_series:
           type: string
+          default: N/A
           description: e.g., S series, Fold, XPS
           maxLength: 100
         product_type:
-          $ref: '#/components/schemas/ProductTypesEnum'
+          allOf:
+          - $ref: '#/components/schemas/ProductTypesEnum'
+          default: AC
+        financing_available:
+          type: boolean
+          readOnly: true
         available_units_count:
           type: integer
           description: Count available units for current brand - use prefetched list
@@ -10243,13 +12674,13 @@ components:
           readOnly: true
         min_price:
           type: number
-          description: Get min price for available units - use prefetched list for
-            accurate brand filtering.
+          description: Get min price for available units; fall back to Product.default_selling_price
+            when none.
           readOnly: true
         max_price:
           type: number
-          description: Get max price for available units - use prefetched list for
-            accurate brand filtering.
+          description: Get max price for available units; fall back to Product.default_selling_price
+            when none.
           readOnly: true
         compare_at_min_price:
           type: number
@@ -10261,15 +12692,12 @@ components:
           readOnly: true
         discount_percent:
           type: integer
-          description: Discount percent based on compare-at price.
           readOnly: true
         review_count:
           type: integer
-          description: Total review count for product.
           readOnly: true
         average_rating:
           type: number
-          description: Average rating for product.
           readOnly: true
         primary_image:
           type: string
@@ -10288,6 +12716,11 @@ components:
           nullable: true
           description: Link to product video (YouTube, Vimeo, etc.)
           maxLength: 500
+        product_video_file_url:
+          type: string
+          format: uri
+          nullable: true
+          readOnly: true
         has_active_bundle:
           type: boolean
           readOnly: true
@@ -10295,6 +12728,47 @@ components:
           type: number
           description: Return minimum effective bundle price for listings (if available).
           readOnly: true
+        has_published_article:
+          type: boolean
+          readOnly: true
+      required:
+      - product_name
+    PublicProductListRequest:
+      type: object
+      description: Lightweight product serializer for list endpoints.
+      properties:
+        product_name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        brand:
+          type: string
+          minLength: 1
+          default: N/A
+          description: e.g., Samsung, Apple, Dell
+          maxLength: 50
+        model_series:
+          type: string
+          minLength: 1
+          default: N/A
+          description: e.g., S series, Fold, XPS
+          maxLength: 100
+        product_type:
+          allOf:
+          - $ref: '#/components/schemas/ProductTypesEnum'
+          default: AC
+        slug:
+          type: string
+          description: URL-friendly slug (auto-generated from product_name if not
+            provided)
+          maxLength: 255
+          pattern: ^[-a-zA-Z0-9_]+$
+        product_video_url:
+          type: string
+          format: uri
+          nullable: true
+          description: Link to product video (YouTube, Vimeo, etc.)
+          maxLength: 500
       required:
       - product_name
     PublicPromotion:
@@ -10345,35 +12819,139 @@ components:
           type: boolean
           readOnly: true
         product_types:
-          description: |-
-            All products of this type (if specified, applies to all products of this type)
+          description: 'All products of this type (if specified, applies to all products
+            of this type)
+
 
             * `PH` - Phone
+
             * `LT` - Laptop
+
             * `TB` - Tablet/iPad
-            * `AC` - Accessory
+
+            * `AC` - Accessory'
           oneOf:
           - $ref: '#/components/schemas/ProductTypesEnum'
           - $ref: '#/components/schemas/BlankEnum'
         display_locations:
           description: 'List of display locations: ''stories_carousel'', ''special_offers'',
-            ''flash_sales'''
+            ''flash_sales'', ''homepage_hero'''
         carousel_position:
           type: integer
-          maximum: 5
+          maximum: 2147483647
           minimum: 1
           nullable: true
-          description: Position in stories carousel (1-5). 1 = Large banner, 2-5 =
-            Grid positions
+          description: Display order in carousels (e.g. homepage hero). Any positive
+            integer; lower = earlier.
         products:
           type: array
           items:
             type: integer
           readOnly: true
+        promo_card:
+          allOf:
+          - $ref: '#/components/schemas/PublicPromotionCard'
+          nullable: true
+          readOnly: true
       required:
       - end_date
       - start_date
       - title
+    PublicPromotionCard:
+      type: object
+      properties:
+        product_id:
+          type: integer
+        product_name:
+          type: string
+        product_slug:
+          type: string
+          nullable: true
+        product_image_url:
+          type: string
+          format: uri
+          nullable: true
+        option_summary:
+          type: string
+          nullable: true
+        original_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        promotional_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+      required:
+      - option_summary
+      - original_price
+      - product_id
+      - product_image_url
+      - product_name
+      - product_slug
+      - promotional_price
+    PublicReviewSubmitRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+        otp:
+          type: string
+          minLength: 1
+          maxLength: 6
+        product_id:
+          type: integer
+        order_item_id:
+          type: integer
+          nullable: true
+        rating:
+          type: integer
+          maximum: 5
+          minimum: 1
+        comment:
+          type: string
+          minLength: 1
+        review_image:
+          type: string
+          format: binary
+          nullable: true
+        video_url:
+          type: string
+          format: uri
+          nullable: true
+          minLength: 1
+      required:
+      - comment
+      - email
+      - otp
+      - product_id
+      - rating
+    PublicWishlistItem:
+      type: object
+      description: Public wishlist item serializer.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        product:
+          allOf:
+          - $ref: '#/components/schemas/PublicProductList'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PublicWishlistItemRequest:
+      type: object
+      description: Public wishlist item serializer.
+      properties:
+        product_id:
+          type: integer
+          writeOnly: true
+      required:
+      - product_id
     RatingEnum:
       enum:
       - 1
@@ -10382,12 +12960,15 @@ components:
       - 4
       - 5
       type: integer
-      description: |-
-        * `1` - 1
+      description: '* `1` - 1
+
         * `2` - 2
+
         * `3` - 3
+
         * `4` - 4
-        * `5` - 5
+
+        * `5` - 5'
     ReservationRequest:
       type: object
       description: Serializer for ReservationRequest model.
@@ -10495,12 +13076,15 @@ components:
       - EX
       - RT
       type: string
-      description: |-
-        * `PE` - Pending
+      description: '* `PE` - Pending
+
         * `AP` - Approved
+
         * `RE` - Rejected
+
         * `EX` - Expired
-        * `RT` - Returned
+
+        * `RT` - Returned'
     ReturnRequest:
       type: object
       description: Serializer for ReturnRequest model (bulk returns).
@@ -10523,7 +13107,8 @@ components:
           readOnly: true
         inventory_units_count:
           type: integer
-          description: Return count of units in this return request.
+          description: Return count of units in this return request (uses prefetch
+            cache when available).
           readOnly: true
         inventory_units_detail:
           type: array
@@ -10588,15 +13173,16 @@ components:
       - AP
       - RE
       type: string
-      description: |-
-        * `PE` - Pending
+      description: '* `PE` - Pending
+
         * `AP` - Approved
-        * `RE` - Rejected
+
+        * `RE` - Rejected'
     Review:
       type: object
-      description: |-
-        Serializes the Review model. Handles the read-only customer relationship.
-        Supports both video file uploads and video URLs.
+      description: 'Serializes the Review model. Handles the read-only customer relationship.
+
+        Supports both video file uploads and video URLs.'
       properties:
         id:
           type: integer
@@ -10672,11 +13258,34 @@ components:
       - comment
       - product
       - rating
+    ReviewEligibilityRequestRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+        otp:
+          type: string
+          minLength: 1
+          maxLength: 6
+      required:
+      - email
+      - otp
+    ReviewOtpRequestRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+      required:
+      - email
     ReviewRequest:
       type: object
-      description: |-
-        Serializes the Review model. Handles the read-only customer relationship.
-        Supports both video file uploads and video URLs.
+      description: 'Serializes the Review model. Handles the read-only customer relationship.
+
+        Supports both video file uploads and video URLs.'
       properties:
         product:
           type: integer
@@ -10727,18 +13336,19 @@ components:
       - SU
       - IM
       type: string
-      description: |-
-        * `BB` - Buyback (Customer)
+      description: '* `BB` - Buyback (Customer)
+
         * `SU` - External Supplier
-        * `IM` - External Import
+
+        * `IM` - External Import'
     SourceTypeEnum:
       enum:
       - SU
       - IM
       type: string
-      description: |-
-        * `SU` - Supplier
-        * `IM` - Import Partner
+      description: '* `SU` - Supplier
+
+        * `IM` - Import Partner'
     Tag:
       type: object
       description: Serializer for Tag model.
@@ -10784,6 +13394,17 @@ components:
       required:
       - name
       - slug
+    TermUnitEnum:
+      enum:
+      - day
+      - week
+      - month
+      type: string
+      description: '* `day` - Day
+
+        * `week` - Week
+
+        * `month` - Month'
     UnitAcquisitionSource:
       type: object
       description: Serializer for managing Supplier and Import Partner contact details

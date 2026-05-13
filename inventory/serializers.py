@@ -34,6 +34,7 @@ from .models import (
     OrderItem,
     Product,
     ProductAccessory,
+    ProductArticle,
     ProductImage,
     Promotion,
     ReservationRequest,
@@ -834,6 +835,50 @@ class TagSerializer(serializers.ModelSerializer):
         read_only_fields = ("id", "created_at", "updated_at")
 
 
+class ProductArticleSummarySerializer(serializers.ModelSerializer):
+    """Lightweight article payload for product list (no body)."""
+
+    class Meta:
+        model = ProductArticle
+        fields = (
+            "headline",
+            "seo_title",
+            "is_published",
+            "published_at",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = fields
+
+
+class ProductArticleSerializer(serializers.ModelSerializer):
+    """Full product buying guide / blog (staff)."""
+
+    class Meta:
+        model = ProductArticle
+        fields = (
+            "headline",
+            "seo_title",
+            "seo_description",
+            "body",
+            "is_published",
+            "published_at",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = ("published_at", "created_at", "updated_at")
+
+    def validate_seo_title(self, value):
+        if value and len(value) > 60:
+            raise serializers.ValidationError("SEO title must be 60 characters or less.")
+        return value
+
+    def validate_seo_description(self, value):
+        if value and len(value) > 160:
+            raise serializers.ValidationError("SEO description must be 160 characters or less.")
+        return value
+
+
 class ProductSerializer(serializers.ModelSerializer):
     """
     Serializes the generic Product template.
@@ -867,6 +912,7 @@ class ProductSerializer(serializers.ModelSerializer):
     # Let model-level save() resolve slug collisions by appending a suffix
     # instead of failing fast in DRF's default UniqueValidator.
     slug = serializers.SlugField(required=False, allow_blank=True, validators=[])
+    article = ProductArticleSerializer(required=False, allow_null=True)
 
     class Meta:
         model = Product
@@ -880,6 +926,7 @@ class ProductSerializer(serializers.ModelSerializer):
             "model_series",
             "min_stock_threshold",
             "reorder_point",
+            "default_selling_price",
             "is_discontinued",
             "created_at",
             "updated_at",
@@ -897,6 +944,8 @@ class ProductSerializer(serializers.ModelSerializer):
             "product_highlights",
             "long_description",
             "is_published",
+            # Buying guide / SEO article
+            "article",
             # Video Fields
             "product_video_url",
             "product_video_file",
@@ -1007,6 +1056,17 @@ class ProductSerializer(serializers.ModelSerializer):
             score += 1
         if obj.keywords:
             score += 1
+        article = getattr(obj, "article", None)
+        if (
+            article
+            and article.is_published
+            and (article.headline or "").strip()
+            and (article.seo_title or "").strip()
+            and (article.seo_description or "").strip()
+            and (article.body or "").strip()
+        ):
+            score += 1
+            total_checks += 1
 
         return round((score / total_checks) * 100)
 
@@ -1027,6 +1087,7 @@ class ProductSerializer(serializers.ModelSerializer):
         return value
 
     def create(self, validated_data):
+        article_data = validated_data.pop("article", serializers.empty)
         og_image = validated_data.pop("og_image", None)
         product_video_file = validated_data.pop("product_video_file", None)
 
@@ -1049,9 +1110,15 @@ class ProductSerializer(serializers.ModelSerializer):
         if og_image or product_video_file:
             instance.save()
 
+        if article_data is not serializers.empty:
+            ser = ProductArticleSerializer(data=article_data)
+            ser.is_valid(raise_exception=True)
+            ser.save(product=instance)
+
         return instance
 
     def update(self, instance, validated_data):
+        article_data = validated_data.pop("article", serializers.empty)
         og_image = validated_data.pop("og_image", None)
         product_video_file = validated_data.pop("product_video_file", None)
 
@@ -1080,10 +1147,25 @@ class ProductSerializer(serializers.ModelSerializer):
         if og_image is not None or product_video_file is not None:
             instance.save()
 
+        if article_data is not serializers.empty:
+            article_obj = getattr(instance, "article", None)
+            if article_obj is None:
+                ser = ProductArticleSerializer(data=article_data)
+            else:
+                ser = ProductArticleSerializer(article_obj, data=article_data, partial=True)
+            ser.is_valid(raise_exception=True)
+            ser.save(product=instance)
+
         return instance
 
 
-# --- PRODUCT ACCESSORY LINK SERIALIZER ---
+class ProductListSerializer(ProductSerializer):
+    """Product list: omit full article body (summary only)."""
+
+    article = ProductArticleSummarySerializer(read_only=True, allow_null=True)
+
+    class Meta(ProductSerializer.Meta):
+        pass
 
 
 class ProductAccessorySerializer(serializers.ModelSerializer):
@@ -1200,6 +1282,10 @@ class ProductAccessorySerializer(serializers.ModelSerializer):
         if available_units:
             prices = [float(u.selling_price) for u in available_units]
             return {"min": min(prices), "max": max(prices)}
+        default = getattr(obj.accessory, "default_selling_price", None)
+        if default is not None:
+            d = float(default)
+            return {"min": d, "max": d}
         return {"min": None, "max": None}
 
     accessory_color_variants = serializers.SerializerMethodField()
@@ -1418,6 +1504,9 @@ class InventoryUnitSerializer(serializers.ModelSerializer):
     sale_status = serializers.CharField(read_only=True)
     # available_online - whether unit can be purchased online (editable by admins)
     available_online = serializers.BooleanField(default=True, required=False)
+    selling_price = serializers.DecimalField(
+        max_digits=10, decimal_places=2, required=False, allow_null=True
+    )
 
     # Reservation fields
     reserved_by_username = serializers.CharField(source="reserved_by.user.username", read_only=True)
@@ -1560,6 +1649,11 @@ class InventoryUnitSerializer(serializers.ModelSerializer):
                 {"product_template_id": "Product template must be specified."}
             )
 
+        if self.instance is None:
+            sp = data.get("selling_price")
+            if sp is None and template.default_selling_price is not None:
+                data["selling_price"] = template.default_selling_price
+
         product_type = template.product_type
         brand = template.brand.lower()
 
@@ -1677,6 +1771,13 @@ class InventoryUnitSerializer(serializers.ModelSerializer):
                         "acquisition_source_details_id": "Acquisition source details must be blank for Buyback sources."
                     }
                 )
+
+        if self.instance is None and data.get("selling_price") is None:
+            raise serializers.ValidationError(
+                {
+                    "selling_price": "Selling price is required unless the product template has a default selling price."
+                }
+            )
 
         return data
 

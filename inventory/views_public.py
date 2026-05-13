@@ -5,6 +5,7 @@ from urllib.parse import urlencode
 
 from django.conf import settings
 from django.core.cache import cache
+from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import (
     Avg,
     Case,
@@ -44,6 +45,7 @@ from inventory.models import (
     Order,
     OrderItem,
     Product,
+    ProductArticle,
     ProductImage,
     Promotion,
     Review,
@@ -65,6 +67,7 @@ from inventory.serializers_public import (
     PublicDeliveryRateSerializer,
     PublicInventoryUnitSerializer,
     PublicOrderSerializer,
+    PublicProductArticleSerializer,
     PublicProductListSerializer,
     PublicProductSerializer,
     PublicPromotionSerializer,
@@ -235,6 +238,7 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
         context = super().get_serializer_context()
         context["brand"] = getattr(self.request, "brand", None)
         context["view_action"] = getattr(self, "action", None)
+        context["include_article_teaser"] = bool(self.request.query_params.get("slug"))
         context.setdefault("_image_url_cache", {})
         return context
 
@@ -277,6 +281,33 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
             brand_map.setdefault(product_type_value, []).append(brand_name)
 
         return Response({"results": brand_map})
+
+    @extend_schema(responses={200: PublicProductArticleSerializer})
+    @action(
+        detail=False,
+        methods=["get"],
+        permission_classes=[permissions.AllowAny],
+        url_path=r"by-slug/(?P<product_slug>[^/.]+)/article",
+    )
+    def article_by_product_slug(self, request, product_slug=None):
+        """Published buying guide for a product (404 if missing or draft)."""
+        brand = getattr(request, "brand", None)
+        qs = Product.objects.filter(
+            is_discontinued=False, is_published=True, slug=product_slug
+        )
+        if brand:
+            qs = qs.filter(Q(brands=brand) | Q(is_global=True) | Q(brands__isnull=True)).distinct()
+        product = qs.select_related("article").first()
+        if not product:
+            raise exceptions.NotFound()
+        try:
+            art = product.article
+        except ObjectDoesNotExist:
+            raise exceptions.NotFound()
+        if not art.is_published:
+            raise exceptions.NotFound()
+        ser = PublicProductArticleSerializer(art, context=self.get_serializer_context())
+        return Response(ser.data)
 
     @action(
         detail=False,
@@ -1348,6 +1379,13 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
                     bundles_prefetch,
                     reviews_prefetch_list,
                 )
+                queryset = queryset.annotate(
+                    has_published_article=Exists(
+                        ProductArticle.objects.filter(
+                            product_id=OuterRef("pk"), is_published=True
+                        )
+                    )
+                )
                 return apply_public_ordering(queryset)
 
             if is_detail:
@@ -1387,6 +1425,7 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
                     "tags",
                     "brands",
                     bundles_prefetch,
+                    "article",
                 )
                 return queryset
 

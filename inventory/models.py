@@ -241,6 +241,17 @@ class Product(models.Model):
     reorder_point = models.IntegerField(
         null=True, blank=True, help_text="Stock level at which to reorder/restock"
     )
+    default_selling_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name="Default selling price",
+        help_text=(
+            "Shown on the storefront when no online/listable units have a price; "
+            "used when creating a unit if selling price is omitted."
+        ),
+    )
     is_discontinued = models.BooleanField(
         default=False, help_text="Mark product as discontinued (no longer in catalog)"
     )
@@ -491,6 +502,54 @@ class Product(models.Model):
                     raise
                 # Retry: another transaction likely inserted the same slug.
                 continue
+
+
+class ProductArticle(models.Model):
+    """
+    SEO-oriented buying guide / blog content for a product template (one per product).
+    Public site serves this at /products/{product.slug}/blog when is_published.
+    """
+
+    product = models.OneToOneField(
+        Product,
+        on_delete=models.CASCADE,
+        related_name="article",
+        primary_key=True,
+    )
+    headline = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Public H1 for the article page",
+    )
+    seo_title = models.CharField(
+        max_length=60,
+        blank=True,
+        help_text="Article page title tag (50–60 chars recommended)",
+    )
+    seo_description = models.TextField(
+        max_length=160,
+        blank=True,
+        help_text="Meta description (150–160 chars recommended)",
+    )
+    body = models.TextField(blank=True, help_text="Article body (Markdown)")
+    is_published = models.BooleanField(default=False)
+    published_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["product_id"]
+        indexes = [
+            models.Index(fields=["is_published"]),
+        ]
+
+    def __str__(self):
+        return f"Article for {self.product_id}"
+
+    def save(self, *args, **kwargs):
+        if self.is_published and self.published_at is None:
+            self.published_at = timezone.now()
+        super().save(*args, **kwargs)
 
 
 class ProductImage(models.Model):
