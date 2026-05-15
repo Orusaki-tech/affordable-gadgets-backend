@@ -1,0 +1,4 @@
+---
+service_name: admin
+compose_file: "{{ admin_compose_file }}"
+app_port: "{{ admin_port }}"

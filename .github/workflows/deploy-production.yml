@@ -1,0 +1,39 @@
+name: Deploy API production
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Git SHA or tag to deploy (must exist in Artifact Registry)
+        required: true
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SA }}
+
+      - name: Rolling update production API MIG
+        env:
+          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          MIG_NAME: ${{ secrets.PRODUCTION_API_MIG_NAME }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          gcloud compute instance-groups managed rolling-action replace "${MIG_NAME}" \
+            --region=us-central1 \
+            --project="${PROJECT_ID}" \
+            --max-unavailable=1 \
+            --max-surge=0
+
+      - name: Smoke production health
+        env:
+          API_URL: ${{ vars.PRODUCTION_API_URL }}
+        run: |
+          curl -sf --max-time 30 "${API_URL:-https://api.affordable-gadgetske.com}/health/"

@@ -1,0 +1,36 @@
+---
+- name: Ensure local render directory
+  file:
+    path: "/tmp/ag-deploy/{{ env_name }}/shop"
+    state: directory
+    mode: "0700"
+  delegate_to: localhost
+  become: false
+
+- name: Render docker-compose.shop.yml locally
+  template:
+    src: docker-compose.shop.yml.j2
+    dest: "/tmp/ag-deploy/{{ env_name }}/shop/docker-compose.shop.yml"
+    mode: "0644"
+  delegate_to: localhost
+  become: false
+
+- name: Upload shop compose to GCS
+  command: >-
+    gsutil cp
+    /tmp/ag-deploy/{{ env_name }}/shop/docker-compose.shop.yml
+    gs://{{ deploy_config_bucket }}/{{ env_name }}/shop/docker-compose.shop.yml
+  delegate_to: localhost
+  become: false
+  when: deploy_config_bucket | length > 0
+
+- name: Rolling restart shop MIG
+  command: >-
+    gcloud compute instance-groups managed rolling-action replace {{ shop_mig_name }}
+    --region={{ gcp_region }}
+    --project={{ gcp_project_id }}
+    --max-unavailable=0
+    --max-surge=1
+  delegate_to: localhost
+  become: false
+  when: shop_mig_name | default('') | length > 0

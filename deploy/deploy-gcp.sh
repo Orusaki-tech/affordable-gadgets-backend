@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Deploy backend to GCP: Terraform (VM + firewall) + Docker on the VM.
-# No Ansible, no GCP Console. Run from backend repo root: ./deploy/deploy-gcp.sh
+# Legacy single-VM deploy (Terraform legacy.tf + Docker on VM).
+# For MIG + Cloud SQL platform use: ./deploy/scripts/migrate-to-platform.sh
+# See deploy/README-GCP-PLATFORM.md (requires platform_enabled=false, legacy_mode=true).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -18,6 +19,10 @@ if [[ -z "${SKIP_TERRAFORM}" ]]; then
   echo "==> Terraform apply..."
   cd "${TERRAFORM_DIR}"
   terraform init -input=false
+  if [[ -f environments/staging.tfvars ]] && grep -q 'platform_enabled = true' environments/staging.tfvars 2>/dev/null; then
+    echo "ERROR: platform_enabled=true in staging.tfvars. Use deploy/scripts/migrate-to-platform.sh instead." >&2
+    exit 1
+  fi
   terraform apply -auto-approve -input=false
   cd "${BACKEND_ROOT}"
 else

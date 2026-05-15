@@ -1,0 +1,22 @@
+name: Health check cron
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping staging and production API
+        run: |
+          staging="${STAGING_API_URL:-https://api-staging.affordable-gadgetske.com}"
+          prod="${PRODUCTION_API_URL:-https://api.affordable-gadgetske.com}"
+          echo "Staging: $staging/health/"
+          curl -sf --max-time 30 "$staging/health/" || true
+          echo "Production: $prod/health/"
+          curl -sf --max-time 30 "$prod/health/" || true
+        env:
+          STAGING_API_URL: ${{ vars.STAGING_API_URL }}
+          PRODUCTION_API_URL: ${{ vars.PRODUCTION_API_URL }}

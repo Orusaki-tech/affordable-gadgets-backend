@@ -1,0 +1,12 @@
+project_id       = "your-gcp-project-id"
+region           = "us-central1"
+zone             = "us-central1-a"
+name_prefix      = "affordable-gadgets"
+environment      = "production"
+platform_enabled = true
+legacy_mode      = false
+
+api_min_replicas = 2
+api_max_replicas = 25
+shop_min_replicas = 2
+shop_max_replicas = 40

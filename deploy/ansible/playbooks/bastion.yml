@@ -1,0 +1,6 @@
+---
+- name: Configure bastion (Docker optional)
+  hosts: bastion
+  become: true
+  roles:
+    - common

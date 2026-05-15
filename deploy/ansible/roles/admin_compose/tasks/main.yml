@@ -1,0 +1,36 @@
+---
+- name: Ensure local render directory
+  file:
+    path: "/tmp/ag-deploy/{{ env_name }}/admin"
+    state: directory
+    mode: "0700"
+  delegate_to: localhost
+  become: false
+
+- name: Render docker-compose.admin.yml locally
+  template:
+    src: docker-compose.admin.yml.j2
+    dest: "/tmp/ag-deploy/{{ env_name }}/admin/docker-compose.admin.yml"
+    mode: "0644"
+  delegate_to: localhost
+  become: false
+
+- name: Upload admin compose to GCS
+  command: >-
+    gsutil cp
+    /tmp/ag-deploy/{{ env_name }}/admin/docker-compose.admin.yml
+    gs://{{ deploy_config_bucket }}/{{ env_name }}/admin/docker-compose.admin.yml
+  delegate_to: localhost
+  become: false
+  when: deploy_config_bucket | length > 0
+
+- name: Rolling restart admin MIG
+  command: >-
+    gcloud compute instance-groups managed rolling-action replace {{ admin_mig_name }}
+    --region={{ gcp_region }}
+    --project={{ gcp_project_id }}
+    --max-unavailable=0
+    --max-surge=1
+  delegate_to: localhost
+  become: false
+  when: admin_mig_name | default('') | length > 0

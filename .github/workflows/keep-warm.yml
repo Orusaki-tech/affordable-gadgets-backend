@@ -16,7 +16,7 @@ jobs:
     steps:
       - name: Ping backend
         run: |
-          url="${BACKEND_URL:-https://web-production-ffde2.up.railway.app}"
+          url="${BACKEND_URL:-https://api.affordable-gadgetske.com}"
           echo "Pinging $url/health/"
           curl -sf --max-time 60 "$url/health/" || curl -sf --max-time 60 "$url/" || true
         env:

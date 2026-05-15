@@ -1,0 +1,4 @@
+---
+service_name: shop
+compose_file: "{{ shop_compose_file }}"
+app_port: "{{ shop_port }}"

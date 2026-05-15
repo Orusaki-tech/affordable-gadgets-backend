@@ -1,0 +1,3 @@
+---
+# SSH via IAP: gcloud compute ssh <bastion> --tunnel-through-iap --zone={{ gcp_zone }}
+ansible_ssh_common_args: "-o ProxyCommand='gcloud compute start-iap-tunnel %h 22 --listen-on-stdin --project={{ gcp_project_id }} --zone={{ gcp_zone }}'"

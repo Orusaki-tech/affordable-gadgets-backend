@@ -1,0 +1,14 @@
+---
+env_name: staging
+api_public_host: "{{ api_staging_host }}"
+shop_public_host: "{{ shop_staging_host }}"
+admin_public_host: "{{ admin_staging_host }}"
+frontend_base_url: "https://{{ shop_staging_host }}"
+merchant_feed_site_base_url: "https://{{ shop_staging_host }}"
+cors_allowed_origins: "https://{{ shop_staging_host }},https://{{ admin_staging_host }}"
+# Include * so GCP LB health checks (Host = instance private IP) succeed
+allowed_hosts: "{{ api_staging_host }},localhost,127.0.0.1,*"
+csrf_trusted_origins: "https://{{ shop_staging_host }},https://{{ admin_staging_host }}"
+pesapal_environment: sandbox
+api_gunicorn_workers: 4
+api_mig_min: 1

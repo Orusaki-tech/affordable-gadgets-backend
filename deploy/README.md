@@ -1,5 +1,7 @@
 # Deploy Affordable Gadgets Backend to Google Cloud
 
+> **New (all-in-GCP platform):** MIG autoscaling, Cloud SQL, Redis, CI/CD — see **[README-GCP-PLATFORM.md](README-GCP-PLATFORM.md)**. The sections below describe the **legacy single-VM** path (`platform_enabled=false`).
+
 Single VM on **Google Compute Engine**. Two options:
 
 1. **Terraform + Docker (recommended, no Ansible)** – one script does everything; firewall in Terraform (no GCP Console).

@@ -1,0 +1,11 @@
+services:
+  shop:
+    image: "{{ shop_image }}:{{ image_tag }}"
+    container_name: ag-shop
+    restart: unless-stopped
+    ports:
+      - "{{ shop_port }}:3000"
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"

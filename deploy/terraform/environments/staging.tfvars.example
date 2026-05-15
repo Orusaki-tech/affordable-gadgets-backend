@@ -1,0 +1,31 @@
+# Copy: cp environments/staging.tfvars.example environments/staging.tfvars
+# Edit project_id, then: terraform apply -var-file=environments/staging.tfvars
+project_id       = "gmail-486411"
+region           = "us-central1"
+zone             = "us-central1-a"
+name_prefix      = "affordable-gadgets"
+environment      = "staging"
+platform_enabled = true
+legacy_mode      = false
+
+api_machine_type   = "e2-standard-2"
+api_min_replicas   = 1
+api_max_replicas   = 10
+shop_machine_type  = "e2-standard-2"
+shop_min_replicas  = 1
+shop_max_replicas  = 8
+admin_machine_type = "e2-small"
+admin_min_replicas = 1
+admin_max_replicas = 3
+
+cloud_sql_tier                = "db-custom-1-3840"
+cloud_sql_deletion_protection = false
+redis_memory_size_gb          = 1
+
+# GitHub Actions WIF (Terraform creates SA + pool — no console clicks)
+github_wif_enabled = true
+github_repositories = [
+  "Orusaki-tech/affordable-gadgets-backend",
+  "Orusaki-tech/affordable-gadgets-frontend",
+  "Orusaki-tech/affordable-gadgets-admin",
+]

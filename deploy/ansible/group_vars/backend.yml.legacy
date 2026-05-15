@@ -1,0 +1,2 @@
+# DEPRECATED: use group_vars/all/00_system.yml + staging.yml|production.yml + secrets/*.vault.yml
+# Kept for reference when migrating from the old monolithic playbook.

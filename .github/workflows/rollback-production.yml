@@ -1,0 +1,34 @@
+name: Rollback API production
+
+on:
+  workflow_dispatch:
+    inputs:
+      previous_image_tag:
+        description: Git SHA to roll back to
+        required: true
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      id-token: write
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SA }}
+
+      - name: Rolling replace with previous tag
+        env:
+          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          MIG_NAME: ${{ secrets.PRODUCTION_API_MIG_NAME }}
+          TAG: ${{ inputs.previous_image_tag }}
+        run: |
+          echo "Rollback: deploy image tag ${TAG} via your MIG template update or Ansible:"
+          echo "  ansible-playbook -i inventory/production playbooks/api.yml -e image_tag=${TAG}"
+          gcloud compute instance-groups managed rolling-action replace "${MIG_NAME}" \
+            --region=us-central1 --project="${PROJECT_ID}" --max-unavailable=0 --max-surge=1
+
+      - name: Smoke health
+        run: curl -sf --max-time 30 "${{ vars.PRODUCTION_API_URL || 'https://api.affordable-gadgetske.com' }}/health/"

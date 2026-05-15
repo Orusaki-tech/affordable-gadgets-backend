@@ -1,0 +1,4 @@
+---
+service_name: api
+compose_file: "{{ api_compose_file }}"
+app_port: "{{ api_listen_port }}"

@@ -1,0 +1,6 @@
+---
+- import_playbook: bastion.yml
+- import_playbook: tunnel.yml
+- import_playbook: api.yml
+- import_playbook: shop.yml
+- import_playbook: admin.yml

@@ -1,0 +1,11 @@
+---
+env_name: production
+frontend_base_url: "https://{{ shop_public_host }}"
+merchant_feed_site_base_url: "https://{{ shop_public_host }}"
+cors_allowed_origins: "https://{{ shop_public_host }},https://www.{{ domain_root }},https://{{ admin_public_host }}"
+allowed_hosts: "{{ api_public_host }},www.{{ domain_root }},{{ domain_root }},localhost,127.0.0.1"
+csrf_trusted_origins: "https://{{ shop_public_host }},https://www.{{ domain_root }},https://{{ admin_public_host }}"
+pesapal_environment: live
+api_gunicorn_workers: 6
+api_mig_min: 2
+shop_mig_min: 2

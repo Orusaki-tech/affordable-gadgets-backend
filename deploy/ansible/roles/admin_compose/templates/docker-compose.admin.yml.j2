@@ -1,0 +1,7 @@
+services:
+  admin:
+    image: "{{ admin_image }}:{{ image_tag }}"
+    container_name: ag-admin
+    restart: unless-stopped
+    ports:
+      - "{{ admin_port }}:80"

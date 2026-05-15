@@ -1,0 +1,7 @@
+---
+# Ansible connects via gcloud IAP tunnel (no external IP needed).
+ansible_host: 127.0.0.1
+ansible_user: root
+ansible_ssh_common_args: >-
+  -o ProxyCommand='gcloud compute start-iap-tunnel {{ tunnel_instance_name }} 22 --listen-on-stdin
+  --project={{ gcp_project_id }} --zone={{ gcp_zone }}'
