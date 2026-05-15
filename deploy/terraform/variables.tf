@@ -172,3 +172,9 @@ variable "lb_ssl_domains" {
   type        = list(string)
   default     = []
 }
+
+variable "lb_ssl_certificate_name" {
+  description = "Name of existing self-managed SSL certificate (overrides managed cert creation)"
+  type        = string
+  default     = ""
+}

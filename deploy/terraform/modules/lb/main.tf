@@ -25,17 +25,19 @@ resource "google_compute_target_http_proxy" "http" {
   url_map = google_compute_url_map.url_map.id
 }
 
+locals {
+  https_cert = var.ssl_certificate_name != "" ? var.ssl_certificate_name : try(google_compute_managed_ssl_certificate.default[0].id, null)
+}
+
 resource "google_compute_target_https_proxy" "https" {
-  count   = var.enable_https ? 1 : 0
-  name    = "${local.full_name}-https-proxy"
-  url_map = google_compute_url_map.url_map.id
-  ssl_certificates = [
-    google_compute_managed_ssl_certificate.default[0].id
-  ]
+  count            = var.enable_https && local.https_cert != null ? 1 : 0
+  name             = "${local.full_name}-https-proxy"
+  url_map          = google_compute_url_map.url_map.id
+  ssl_certificates = [local.https_cert]
 }
 
 resource "google_compute_managed_ssl_certificate" "default" {
-  count = var.enable_https ? 1 : 0
+  count = var.enable_https && var.ssl_certificate_name == "" ? 1 : 0
   name  = "${local.full_name}-ssl-cert"
 
   managed {

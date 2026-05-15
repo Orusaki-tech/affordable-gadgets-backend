@@ -28,3 +28,9 @@ variable "ssl_domains" {
   type        = list(string)
   default     = []
 }
+
+variable "ssl_certificate_name" {
+  description = "Name of existing self-managed SSL certificate to use instead of creating a managed cert"
+  type        = string
+  default     = ""
+}

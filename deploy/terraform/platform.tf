@@ -90,13 +90,14 @@ module "api_lb" {
   count  = var.platform_enabled ? 1 : 0
   source = "./modules/lb"
 
-  name_prefix     = local.platform_name_prefix
-  service_name    = "api"
-  port            = 8000
-  instance_group  = module.api_mig[0].instance_group
-  health_check_id = module.api_mig[0].health_check_id
-  enable_https    = var.lb_enable_https
-  ssl_domains     = var.lb_ssl_domains
+  name_prefix          = local.platform_name_prefix
+  service_name         = "api"
+  port                 = 8000
+  instance_group       = module.api_mig[0].instance_group
+  health_check_id      = module.api_mig[0].health_check_id
+  enable_https         = var.lb_enable_https
+  ssl_domains          = var.lb_ssl_domains
+  ssl_certificate_name = var.lb_ssl_certificate_name
 }
 
 module "shop_mig" {
@@ -124,13 +125,14 @@ module "shop_lb" {
   count  = var.platform_enabled ? 1 : 0
   source = "./modules/lb"
 
-  name_prefix     = local.platform_name_prefix
-  service_name    = "shop"
-  port            = 3000
-  instance_group  = module.shop_mig[0].instance_group
-  health_check_id = module.shop_mig[0].health_check_id
-  enable_https    = var.lb_enable_https
-  ssl_domains     = var.lb_ssl_domains
+  name_prefix          = local.platform_name_prefix
+  service_name         = "shop"
+  port                 = 3000
+  instance_group       = module.shop_mig[0].instance_group
+  health_check_id      = module.shop_mig[0].health_check_id
+  enable_https         = var.lb_enable_https
+  ssl_domains          = var.lb_ssl_domains
+  ssl_certificate_name = var.lb_ssl_certificate_name
 }
 
 module "admin_mig" {
@@ -158,13 +160,14 @@ module "admin_lb" {
   count  = var.platform_enabled ? 1 : 0
   source = "./modules/lb"
 
-  name_prefix     = local.platform_name_prefix
-  service_name    = "admin"
-  port            = 80
-  instance_group  = module.admin_mig[0].instance_group
-  health_check_id = module.admin_mig[0].health_check_id
-  enable_https    = var.lb_enable_https
-  ssl_domains     = var.lb_ssl_domains
+  name_prefix          = local.platform_name_prefix
+  service_name         = "admin"
+  port                 = 80
+  instance_group       = module.admin_mig[0].instance_group
+  health_check_id      = module.admin_mig[0].health_check_id
+  enable_https         = var.lb_enable_https
+  ssl_domains          = var.lb_ssl_domains
+  ssl_certificate_name = var.lb_ssl_certificate_name
 }
 
 module "tunnel" {
