@@ -22,3 +22,9 @@ variable "enable_https" {
   type    = bool
   default = false
 }
+
+variable "ssl_domains" {
+  description = "Domains for Google-managed SSL certificate (required if enable_https=true)"
+  type        = list(string)
+  default     = []
+}

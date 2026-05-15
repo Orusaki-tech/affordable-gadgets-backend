@@ -160,3 +160,15 @@ variable "github_repository" {
   type        = string
   default     = ""
 }
+
+variable "lb_enable_https" {
+  description = "Enable HTTPS on load balancers with Google-managed SSL certs"
+  type        = bool
+  default     = false
+}
+
+variable "lb_ssl_domains" {
+  description = "Domains for Google-managed SSL certificate on load balancers"
+  type        = list(string)
+  default     = []
+}

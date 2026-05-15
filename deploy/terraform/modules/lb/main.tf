@@ -25,6 +25,24 @@ resource "google_compute_target_http_proxy" "http" {
   url_map = google_compute_url_map.url_map.id
 }
 
+resource "google_compute_target_https_proxy" "https" {
+  count   = var.enable_https ? 1 : 0
+  name    = "${local.full_name}-https-proxy"
+  url_map = google_compute_url_map.url_map.id
+  ssl_certificates = [
+    google_compute_managed_ssl_certificate.default[0].id
+  ]
+}
+
+resource "google_compute_managed_ssl_certificate" "default" {
+  count = var.enable_https ? 1 : 0
+  name  = "${local.full_name}-ssl-cert"
+
+  managed {
+    domains = var.ssl_domains
+  }
+}
+
 resource "google_compute_global_address" "lb_ip" {
   name = "${local.full_name}-lb-ip"
 }
@@ -33,6 +51,15 @@ resource "google_compute_global_forwarding_rule" "http" {
   name                  = "${local.full_name}-http-fr"
   target                = google_compute_target_http_proxy.http.id
   port_range            = "80"
+  load_balancing_scheme = "EXTERNAL_MANAGED"
+  ip_address            = google_compute_global_address.lb_ip.address
+}
+
+resource "google_compute_global_forwarding_rule" "https" {
+  count                 = var.enable_https ? 1 : 0
+  name                  = "${local.full_name}-https-fr"
+  target                = google_compute_target_https_proxy.https[0].id
+  port_range            = "443"
   load_balancing_scheme = "EXTERNAL_MANAGED"
   ip_address            = google_compute_global_address.lb_ip.address
 }

@@ -68,18 +68,18 @@ module "api_mig" {
   count  = var.platform_enabled ? 1 : 0
   source = "./modules/mig_service"
 
-  project_id        = var.project_id
-  region            = var.region
-  zone              = var.zone
-  name_prefix       = local.platform_name_prefix
-  service_name      = "api"
-  network           = module.vpc[0].network_name
-  subnetwork        = module.vpc[0].app_subnet_name
-  machine_type      = var.api_machine_type
-  tags              = ["api"]
-  port              = 8000
-  health_check_path = "/health/"
-  startup_script    = templatefile("${path.module}/scripts/api-startup.sh.tpl", local.startup_vars)
+  project_id                = var.project_id
+  region                    = var.region
+  zone                      = var.zone
+  name_prefix               = local.platform_name_prefix
+  service_name              = "api"
+  network                   = module.vpc[0].network_name
+  subnetwork                = module.vpc[0].app_subnet_name
+  machine_type              = var.api_machine_type
+  tags                      = ["api"]
+  port                      = 8000
+  health_check_path         = "/health/"
+  startup_script            = templatefile("${path.module}/scripts/api-startup.sh.tpl", local.startup_vars)
   min_replicas              = var.api_min_replicas
   max_replicas              = var.api_max_replicas
   enable_autoscaler         = true
@@ -95,24 +95,26 @@ module "api_lb" {
   port            = 8000
   instance_group  = module.api_mig[0].instance_group
   health_check_id = module.api_mig[0].health_check_id
+  enable_https    = var.lb_enable_https
+  ssl_domains     = var.lb_ssl_domains
 }
 
 module "shop_mig" {
   count  = var.platform_enabled ? 1 : 0
   source = "./modules/mig_service"
 
-  project_id        = var.project_id
-  region            = var.region
-  zone              = var.zone
-  name_prefix       = local.platform_name_prefix
-  service_name      = "shop"
-  network           = module.vpc[0].network_name
-  subnetwork        = module.vpc[0].app_subnet_name
-  machine_type      = var.shop_machine_type
-  tags              = ["shop"]
-  port              = 3000
-  health_check_path = "/"
-  startup_script    = templatefile("${path.module}/scripts/shop-startup.sh.tpl", local.startup_vars)
+  project_id                = var.project_id
+  region                    = var.region
+  zone                      = var.zone
+  name_prefix               = local.platform_name_prefix
+  service_name              = "shop"
+  network                   = module.vpc[0].network_name
+  subnetwork                = module.vpc[0].app_subnet_name
+  machine_type              = var.shop_machine_type
+  tags                      = ["shop"]
+  port                      = 3000
+  health_check_path         = "/"
+  startup_script            = templatefile("${path.module}/scripts/shop-startup.sh.tpl", local.startup_vars)
   min_replicas              = var.shop_min_replicas
   max_replicas              = var.shop_max_replicas
   distribution_policy_zones = [var.zone]
@@ -127,24 +129,26 @@ module "shop_lb" {
   port            = 3000
   instance_group  = module.shop_mig[0].instance_group
   health_check_id = module.shop_mig[0].health_check_id
+  enable_https    = var.lb_enable_https
+  ssl_domains     = var.lb_ssl_domains
 }
 
 module "admin_mig" {
   count  = var.platform_enabled ? 1 : 0
   source = "./modules/mig_service"
 
-  project_id        = var.project_id
-  region            = var.region
-  zone              = var.zone
-  name_prefix       = local.platform_name_prefix
-  service_name      = "admin"
-  network           = module.vpc[0].network_name
-  subnetwork        = module.vpc[0].app_subnet_name
-  machine_type      = var.admin_machine_type
-  tags              = ["admin"]
-  port              = 80
-  health_check_path = "/"
-  startup_script    = templatefile("${path.module}/scripts/admin-startup.sh.tpl", local.startup_vars)
+  project_id                = var.project_id
+  region                    = var.region
+  zone                      = var.zone
+  name_prefix               = local.platform_name_prefix
+  service_name              = "admin"
+  network                   = module.vpc[0].network_name
+  subnetwork                = module.vpc[0].app_subnet_name
+  machine_type              = var.admin_machine_type
+  tags                      = ["admin"]
+  port                      = 80
+  health_check_path         = "/"
+  startup_script            = templatefile("${path.module}/scripts/admin-startup.sh.tpl", local.startup_vars)
   min_replicas              = var.admin_min_replicas
   max_replicas              = var.admin_max_replicas
   distribution_policy_zones = [var.zone]
@@ -159,6 +163,8 @@ module "admin_lb" {
   port            = 80
   instance_group  = module.admin_mig[0].instance_group
   health_check_id = module.admin_mig[0].health_check_id
+  enable_https    = var.lb_enable_https
+  ssl_domains     = var.lb_ssl_domains
 }
 
 module "tunnel" {
