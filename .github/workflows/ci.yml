@@ -41,13 +41,26 @@ jobs:
           import sys
           import time
           import psycopg
+          from urllib.parse import urlparse
           
-          db_url = sys.argv[1] # Get DATABASE_URL as argument
+          db_url_str = sys.argv[1] # Get DATABASE_URL as argument
+          
+          # Parse the URL
+          url = urlparse(db_url_str)
+          
+          conn_params = {
+              "host": url.hostname,
+              "port": url.port,
+              "user": url.username,
+              "password": url.password,
+              "dbname": url.path[1:]  # Remove leading slash
+          }
           
           max_attempts = 60
           for attempt in range(1, max_attempts + 1):
               try:
-                  with psycopg.connect(db_url) as conn:
+                  # Explicitly pass connection parameters
+                  with psycopg.connect(**conn_params) as conn:
                       conn.close()
                   print(f'Database ready after {attempt} attempts.')
                   break
