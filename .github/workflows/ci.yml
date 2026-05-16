@@ -57,7 +57,7 @@ jobs:
           else:
               print(f'Database not ready after {max_attempts} attempts. Exiting.')
               sys.exit(1)
-          " ${{ env.DATABASE_URL }}
+          " ""${{ env.DATABASE_URL }}""
 
       - name: Django check
         run: python manage.py check
