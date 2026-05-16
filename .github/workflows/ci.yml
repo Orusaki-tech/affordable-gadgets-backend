@@ -35,18 +35,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Wait for Django DB
-        run: ./scripts/ci/wait-for-db.py "${{ env.DATABASE_URL }}"
-        env:
-          DATABASE_URL: postgresql://postgres:test_password@127.0.0.1:5432/test_db
-
       - name: Django check
         run: python manage.py check
         env:
           DJANGO_SETTINGS_MODULE: store.settings
           SECRET_KEY: ci-secret-key
           DEBUG: "True"
-          DATABASE_URL: postgresql://postgres:test_password@127.0.0.1:5432/test_db
+          DATABASE_URL: postgresql://postgres:test_password@postgres:5432/test_db
           FRONTEND_BASE_URL: https://shop.affordable-gadgetske.com
 
       - name: Run migrations
@@ -55,7 +50,7 @@ jobs:
           DJANGO_SETTINGS_MODULE: store.settings
           SECRET_KEY: ci-secret-key
           DEBUG: "True"
-          DATABASE_URL: postgresql://postgres:test_password@127.0.0.1:5432/test_db
+          DATABASE_URL: postgresql://postgres:test_password@postgres:5432/test_db
           FRONTEND_BASE_URL: https://shop.affordable-gadgetske.com
 
       - name: Run functional tests
@@ -66,7 +61,7 @@ jobs:
           DJANGO_SETTINGS_MODULE: store.settings
           SECRET_KEY: ci-secret-key
           DEBUG: "True"
-          DATABASE_URL: postgresql://postgres:test_password@127.0.0.1:5432/test_db
+          DATABASE_URL: postgresql://postgres:test_password@postgres:5432/test_db
           FRONTEND_BASE_URL: https://shop.affordable-gadgetske.com
 
       - name: Run contract tests
@@ -77,7 +72,7 @@ jobs:
           DJANGO_SETTINGS_MODULE: store.settings
           SECRET_KEY: ci-secret-key
           DEBUG: "True"
-          DATABASE_URL: postgresql://postgres:test_password@127.0.0.1:5432/test_db
+          DATABASE_URL: postgresql://postgres:test_password@postgres:5432/test_db
           FRONTEND_BASE_URL: https://shop.affordable-gadgetske.com
 
       - name: Run all tests
@@ -88,7 +83,7 @@ jobs:
           DJANGO_SETTINGS_MODULE: store.settings
           SECRET_KEY: ci-secret-key
           DEBUG: "True"
-          DATABASE_URL: postgresql://postgres:test_password@127.0.0.1:5432/test_db
+          DATABASE_URL: postgresql://postgres:test_password@postgres:5432/test_db
           FRONTEND_BASE_URL: https://shop.affordable-gadgetske.com
 
       - name: Build Docker image
