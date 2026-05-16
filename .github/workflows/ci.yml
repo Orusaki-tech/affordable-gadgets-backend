@@ -21,6 +21,8 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+        ports:
+          - 5432:5432
 
     steps:
       - uses: actions/checkout@v4
@@ -41,7 +43,7 @@ jobs:
           DJANGO_SETTINGS_MODULE: store.settings
           SECRET_KEY: ci-secret-key
           DEBUG: "True"
-          DATABASE_URL: postgresql://postgres:test_password@postgres:5432/test_db
+          DATABASE_URL: postgresql://postgres:test_password@127.0.0.1:5432/test_db
           FRONTEND_BASE_URL: https://shop.affordable-gadgetske.com
 
       - name: Run migrations
@@ -50,7 +52,7 @@ jobs:
           DJANGO_SETTINGS_MODULE: store.settings
           SECRET_KEY: ci-secret-key
           DEBUG: "True"
-          DATABASE_URL: postgresql://postgres:test_password@postgres:5432/test_db
+          DATABASE_URL: postgresql://postgres:test_password@127.0.0.1:5432/test_db
           FRONTEND_BASE_URL: https://shop.affordable-gadgetske.com
 
       - name: Run functional tests
@@ -61,7 +63,7 @@ jobs:
           DJANGO_SETTINGS_MODULE: store.settings
           SECRET_KEY: ci-secret-key
           DEBUG: "True"
-          DATABASE_URL: postgresql://postgres:test_password@postgres:5432/test_db
+          DATABASE_URL: postgresql://postgres:test_password@127.0.0.1:5432/test_db
           FRONTEND_BASE_URL: https://shop.affordable-gadgetske.com
 
       - name: Run contract tests
@@ -72,7 +74,7 @@ jobs:
           DJANGO_SETTINGS_MODULE: store.settings
           SECRET_KEY: ci-secret-key
           DEBUG: "True"
-          DATABASE_URL: postgresql://postgres:test_password@postgres:5432/test_db
+          DATABASE_URL: postgresql://postgres:test_password@127.0.0.1:5432/test_db
           FRONTEND_BASE_URL: https://shop.affordable-gadgetske.com
 
       - name: Run all tests
@@ -83,7 +85,7 @@ jobs:
           DJANGO_SETTINGS_MODULE: store.settings
           SECRET_KEY: ci-secret-key
           DEBUG: "True"
-          DATABASE_URL: postgresql://postgres:test_password@postgres:5432/test_db
+          DATABASE_URL: postgresql://postgres:test_password@127.0.0.1:5432/test_db
           FRONTEND_BASE_URL: https://shop.affordable-gadgetske.com
 
       - name: Build Docker image
