@@ -24,10 +24,11 @@ jobs:
         env:
           PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           MIG_NAME: ${{ secrets.PRODUCTION_API_MIG_NAME }}
+          REGION: ${{ secrets.GCP_REGION }}
           IMAGE_TAG: ${{ inputs.image_tag }}
         run: |
           gcloud compute instance-groups managed rolling-action replace "${MIG_NAME}" \
-            --region=us-central1 \
+            --region="${REGION}" \
             --project="${PROJECT_ID}" \
             --max-unavailable=1 \
             --max-surge=0
