@@ -36,41 +36,9 @@ jobs:
           pip install -r requirements.txt
 
       - name: Wait for Django DB
-        run: |
-          python -c "
-          import sys
-          import time
-          import psycopg
-          from urllib.parse import urlparse
-          
-          db_url_str = sys.argv[1] # Get DATABASE_URL as argument
-          
-          # Parse the URL
-          url = urlparse(db_url_str)
-
-          conn_params = {
-              "host": url.hostname if url.hostname else "",
-              "port": url.port if url.port else 5432,
-              "user": url.username if url.username else "",
-              "password": url.password if url.password else "",
-              "dbname": url.path[1:] if url.path else ""
-          }
-          
-          max_attempts = 60
-          for attempt in range(1, max_attempts + 1):
-              try:
-                  # Explicitly pass connection parameters
-                  with psycopg.connect(**conn_params) as conn:
-                      conn.close()
-                  print(f'Database ready after {attempt} attempts.')
-                  break
-              except psycopg.OperationalError as e:
-                  print(f'Attempt {attempt}/{max_attempts}: Database not ready yet - {e}')
-                  time.sleep(1)
-          else:
-              print(f'Database not ready after {max_attempts} attempts. Exiting.')
-              sys.exit(1)
-          " ""${{ env.DATABASE_URL }}""
+        run: ./scripts/ci/wait-for-db.py "${{ env.DATABASE_URL }}"
+        env:
+          DATABASE_URL: postgresql://postgres:test_password@127.0.0.1:5432/test_db
 
       - name: Django check
         run: python manage.py check
