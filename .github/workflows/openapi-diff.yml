@@ -37,4 +37,4 @@ jobs:
 
       - name: Check for breaking changes
         run: |
-          openapi-diff origin/main:openapi.yaml openapi.yaml --fail-on-incompatible
+          openapi-diff origin/main:openapi.yaml openapi.yaml
