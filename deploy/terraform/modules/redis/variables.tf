@@ -3,7 +3,8 @@ variable "name_prefix" {
 }
 
 variable "environment" {
-  type = string
+  type    = string
+  default = ""
 }
 
 variable "region" {

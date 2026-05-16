@@ -33,8 +33,8 @@ module "cloud_sql" {
 
   project_id          = var.project_id
   region              = var.region
-  name_prefix         = local.platform_name_prefix
-  environment         = var.environment
+  name_prefix         = var.environment == "production" ? var.name_prefix : local.platform_name_prefix
+  environment         = var.environment == "production" ? "production" : var.environment
   network_id          = module.vpc[0].network_id
   tier                = var.cloud_sql_tier
   deletion_protection = var.cloud_sql_deletion_protection
@@ -46,8 +46,8 @@ module "redis" {
   count  = var.platform_enabled ? 1 : 0
   source = "./modules/redis"
 
-  name_prefix    = local.platform_name_prefix
-  environment    = var.environment
+  name_prefix    = var.environment == "production" ? var.name_prefix : local.platform_name_prefix
+  environment    = var.environment == "production" ? "production" : var.environment
   region         = var.region
   network_id     = module.vpc[0].network_id
   memory_size_gb = var.redis_memory_size_gb
@@ -82,7 +82,8 @@ module "api_mig" {
   startup_script            = templatefile("${path.module}/scripts/api-startup.sh.tpl", local.startup_vars)
   min_replicas              = var.api_min_replicas
   max_replicas              = var.api_max_replicas
-  enable_autoscaler         = true
+  enable_autoscaler         = var.environment != "production"
+  target_size               = var.environment == "production" ? var.api_min_replicas : null
   distribution_policy_zones = [var.zone]
 }
 
@@ -118,6 +119,8 @@ module "shop_mig" {
   startup_script            = templatefile("${path.module}/scripts/shop-startup.sh.tpl", local.startup_vars)
   min_replicas              = var.shop_min_replicas
   max_replicas              = var.shop_max_replicas
+  enable_autoscaler         = var.environment != "production"
+  target_size               = var.environment == "production" ? var.shop_min_replicas : null
   distribution_policy_zones = [var.zone]
 }
 
@@ -153,6 +156,8 @@ module "admin_mig" {
   startup_script            = templatefile("${path.module}/scripts/admin-startup.sh.tpl", local.startup_vars)
   min_replicas              = var.admin_min_replicas
   max_replicas              = var.admin_max_replicas
+  enable_autoscaler         = var.environment != "production"
+  target_size               = var.environment == "production" ? var.admin_min_replicas : null
   distribution_policy_zones = [var.zone]
 }
 
