@@ -76,6 +76,17 @@ INSTALLED_APPS = [
     "inventory",
 ]
 
+# ── Observability ──────────────────────────────────────────────────────
+OBSERVABILITY_ENABLED = os.environ.get("OBSERVABILITY_ENABLED", "true").lower() == "true"
+
+if OBSERVABILITY_ENABLED:
+    from inventory.observability import init_sentry
+
+    if init_sentry():
+        import logging
+
+        logging.getLogger(__name__).info("Sentry SDK initialised")
+
 # Reviews OTP settings
 # Keep review OTPs valid for one hour (default), configurable via env.
 REVIEW_OTP_TTL_SECONDS = int(os.getenv("REVIEW_OTP_TTL_SECONDS", 60 * 60))

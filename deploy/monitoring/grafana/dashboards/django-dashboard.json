@@ -1,0 +1,115 @@
+{
+  "title": "Django API - Event Monitoring",
+  "uid": "django-api-event",
+  "version": 1,
+  "tags": ["django", "event"],
+  "timezone": "browser",
+  "editable": false,
+  "panels": [
+    {
+      "title": "Request Rate",
+      "type": "graph",
+      "gridPos": {"x": 0, "y": 0, "w": 8, "h": 8},
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total[1m]))",
+          "legendFormat": "All requests"
+        },
+        {
+          "expr": "sum(rate(http_requests_total{status_code=~\"5..\"}[1m]))",
+          "legendFormat": "5xx errors"
+        }
+      ],
+      "yaxes": [{"format": "reqps", "label": "Requests / s"}]
+    },
+    {
+      "title": "P99 / P95 / P50 Latency",
+      "type": "graph",
+      "gridPos": {"x": 8, "y": 0, "w": 8, "h": 8},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[1m])) by (le))",
+          "legendFormat": "p99"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[1m])) by (le))",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket[1m])) by (le))",
+          "legendFormat": "p50"
+        }
+      ],
+      "yaxes": [{"format": "s", "label": "Latency"}]
+    },
+    {
+      "title": "Error Rate (%)",
+      "type": "graph",
+      "gridPos": {"x": 16, "y": 0, "w": 8, "h": 8},
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{status_code=~\"5..\"}[1m])) / sum(rate(http_requests_total[1m])) * 100",
+          "legendFormat": "5xx %"
+        }
+      ],
+      "yaxes": [{"format": "percent", "label": "Error %", "max": 100}]
+    },
+    {
+      "title": "Top Endpoints by Request Count",
+      "type": "table",
+      "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+      "targets": [
+        {
+          "expr": "topk(10, sum(rate(http_requests_total[5m])) by (endpoint))",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "columns": [
+        {"text": "Endpoint", "value": "endpoint"},
+        {"text": "Req/s", "value": "Value"}
+      ]
+    },
+    {
+      "title": "Status Code Breakdown",
+      "type": "piechart",
+      "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total[5m])) by (status_code)",
+          "legendFormat": "{{status_code}}"
+        }
+      ]
+    },
+    {
+      "title": "Orders Rate",
+      "type": "graph",
+      "gridPos": {"x": 0, "y": 16, "w": 8, "h": 8},
+      "targets": [
+        {
+          "expr": "sum(rate(orders_total[5m]))",
+          "legendFormat": "Orders / 5m"
+        }
+      ]
+    },
+    {
+      "title": "Payment Rate",
+      "type": "graph",
+      "gridPos": {"x": 8, "y": 16, "w": 8, "h": 8},
+      "targets": [
+        {
+          "expr": "sum(rate(payments_total[5m]))",
+          "legendFormat": "Payments / 5m"
+        }
+      ]
+    },
+    {
+      "title": "Active Users",
+      "type": "singlestat",
+      "gridPos": {"x": 16, "y": 16, "w": 8, "h": 8},
+      "targets": [
+        {"expr": "active_users", "legendFormat": "Active users"}
+      ]
+    }
+  ]
+}

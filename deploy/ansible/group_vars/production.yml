@@ -9,3 +9,8 @@ pesapal_environment: live
 api_gunicorn_workers: 6
 api_mig_min: 2
 shop_mig_min: 2
+
+# Observability
+sentry_traces_sample_rate: 0.01
+sentry_profiles_sample_rate: 0.005
+# sentry_dsn: set in vault

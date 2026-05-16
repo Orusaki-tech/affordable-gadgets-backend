@@ -254,50 +254,93 @@ else:
         }
     }
 
-# Logging
-LOGGING = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "formatters": {
-        "verbose": {
-            "format": "{levelname} {asctime} {module} {process:d} {thread:d} {message}",
-            "style": "{",
-        },
-        "simple": {
-            "format": "{levelname} {message}",
-            "style": "{",
-        },
-    },
-    "handlers": {
-        "file": {
-            "level": "INFO",
-            "class": "logging.FileHandler",
-            "filename": os.path.join(BASE_DIR, "logs", "django.log"),  # noqa: F405
-            "formatter": "verbose",
-        },
-        "console": {
-            "level": "INFO",
-            "class": "logging.StreamHandler",
-            "formatter": "simple",
-        },
-    },
-    "root": {
-        "handlers": ["console", "file"],
-        "level": "INFO",
-    },
-    "loggers": {
-        "django": {
-            "handlers": ["console", "file"],
-            "level": "INFO",
-            "propagate": False,
-        },
-        "inventory": {
-            "handlers": ["console", "file"],
-            "level": "INFO",
-            "propagate": False,
-        },
-    },
-}
+# ── Logging ─────────────────────────────────────────────────────────
+# In production, use JSON structured logging for easier ingestion by
+# Cloud Logging / Loki / Datadog / etc.
+_use_json_logging = os.environ.get("JSON_LOGGING", "true").lower() == "true"
 
-# Ensure logs directory exists
+if _use_json_logging:
+    from inventory.observability import JSONFormatter
+
+    _json_fmt = JSONFormatter()
+    LOGGING = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "json": {"()": lambda: _json_fmt},
+            "simple": {"format": "{levelname} {message}", "style": "{"},
+        },
+        "handlers": {
+            "console": {
+                "level": "INFO",
+                "class": "logging.StreamHandler",
+                "formatter": "json",
+            },
+        },
+        "root": {
+            "handlers": ["console"],
+            "level": "INFO",
+        },
+        "loggers": {
+            "django": {
+                "handlers": ["console"],
+                "level": "INFO",
+                "propagate": False,
+            },
+            "inventory": {
+                "handlers": ["console"],
+                "level": "INFO",
+                "propagate": False,
+            },
+        },
+    }
+else:
+    LOGGING = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "verbose": {
+                "format": "{levelname} {asctime} {module} {process:d} {thread:d} {message}",
+                "style": "{",
+            },
+            "simple": {
+                "format": "{levelname} {message}",
+                "style": "{",
+            },
+        },
+        "handlers": {
+            "file": {
+                "level": "INFO",
+                "class": "logging.FileHandler",
+                "filename": os.path.join(BASE_DIR, "logs", "django.log"),  # noqa: F405
+                "formatter": "verbose",
+            },
+            "console": {
+                "level": "INFO",
+                "class": "logging.StreamHandler",
+                "formatter": "simple",
+            },
+        },
+        "root": {
+            "handlers": ["console", "file"],
+            "level": "INFO",
+        },
+        "loggers": {
+            "django": {
+                "handlers": ["console", "file"],
+                "level": "INFO",
+                "propagate": False,
+            },
+            "inventory": {
+                "handlers": ["console", "file"],
+                "level": "INFO",
+                "propagate": False,
+            },
+        },
+    }
+
 os.makedirs(os.path.join(BASE_DIR, "logs"), exist_ok=True)  # noqa: F405
+
+# ── Observability ─────────────────────────────────────────────────────
+SENTRY_DSN = os.environ.get("SENTRY_DSN", "").strip()
+OBSERVABILITY_ENABLED = os.environ.get("OBSERVABILITY_ENABLED", "true").lower() == "true"

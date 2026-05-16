@@ -9,6 +9,7 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, Spec
 
 from inventory import views as inventory_views
 from inventory.feeds import google_products_feed
+from inventory.observability import metrics_view
 
 
 def api_root(request):
@@ -40,9 +41,10 @@ def health(request):
 
 
 urlpatterns = [
-    # 0. Root and health (keep-warm / monitoring)
+    # 0. Root, health (keep-warm / monitoring), and Prometheus metrics
     path("", api_root, name="api-root"),
     path("health/", health, name="health"),
+    path("metrics/", metrics_view, name="prometheus-metrics"),
     # 0.5 Google Merchant Center feeds (public)
     path("feeds/google-products.xml", google_products_feed, name="google-products-feed"),
     # 1. Django Admin Interface

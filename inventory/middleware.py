@@ -1,27 +1,36 @@
 """
-Middleware for brand context and request timing (cold start vs in-app time).
+Middleware for brand context, request timing, and Prometheus instrumentation.
 """
 
 import logging
 import threading
 import time
+from re import compile as re_compile
 
 from django.utils.deprecation import MiddlewareMixin
 
 logger = logging.getLogger(__name__)
 
-# Guard against re-entrant brand loading (avoids "maximum recursion depth exceeded"
-# if loading Brand triggers code that runs this middleware again).
 _loading_brand = threading.local()
+
+# Patterns to normalise URL paths for metrics labels
+_PATH_PARAM_PATTERN = re_compile(r"/\d+/")
+_PATH_UUID_PATTERN = re_compile(
+    r"/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/"
+)
+
+
+def _normalise_path(path: str) -> str:
+    """Replace dynamic segments (IDs, UUIDs) with placeholders for metric labels."""
+    p = _PATH_UUID_PATTERN.sub("/:id/", path)
+    p = _PATH_PARAM_PATTERN.sub("/:id/", p)
+    return p
 
 
 class RequestTimingMiddleware(MiddlewareMixin):
     """
-    Record when the request first hits Django and add X-Processing-Ms to the response.
-    Use this to tell cold start from slow query:
-    - Browser "Waiting for server response" = total TTFB (cold start + Django).
-    - X-Processing-Ms = time spent inside Django only.
-    - Cold start ≈ TTFB - X-Processing-Ms (time before Django received the request).
+    Record Django processing time; optionally emit Prometheus metrics.
+    Adds X-Processing-Ms to every response.
     """
 
     def process_request(self, request):
@@ -29,10 +38,31 @@ class RequestTimingMiddleware(MiddlewareMixin):
         return None
 
     def process_response(self, request, response):
-        if hasattr(request, "_timing_start"):
-            ms = int((time.perf_counter() - request._timing_start) * 1000)
-            response["X-Processing-Ms"] = str(ms)
+        if not hasattr(request, "_timing_start"):
+            return response
+
+        ms = int((time.perf_counter() - request._timing_start) * 1000)
+        response["X-Processing-Ms"] = str(ms)
+
+        # Prometheus metrics
+        self._record_metrics(request, response, ms)
         return response
+
+    def _record_metrics(self, request, response, ms: int):
+        try:
+            from inventory.observability import (
+                HTTP_REQUESTS_TOTAL,
+                HTTP_REQUEST_DURATION_SECONDS,
+            )
+
+            method = request.method or "GET"
+            endpoint = _normalise_path(request.path_info)
+            status = str(response.status_code)
+
+            HTTP_REQUESTS_TOTAL.labels(method=method, endpoint=endpoint, status_code=status).inc()
+            HTTP_REQUEST_DURATION_SECONDS.labels(method=method, endpoint=endpoint).observe(ms / 1000)
+        except Exception:
+            logger.debug("Failed to record Prometheus metrics", exc_info=True)
 
 
 class BrandContextMiddleware(MiddlewareMixin):

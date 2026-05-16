@@ -29,3 +29,7 @@ gunicorn==21.2.0
 psycopg[binary]==3.2.13
 # Redis (optional: set REDIS_URL in production for persistent cache and faster repeat requests)
 redis>=5.0.0
+
+# Observability
+sentry-sdk>=2.0.0
+prometheus-client>=0.20.0

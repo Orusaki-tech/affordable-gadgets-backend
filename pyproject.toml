@@ -4,6 +4,17 @@ version = "0.1.0"
 description = "Django REST API for Affordable Gadgets e-commerce"
 readme = "README.md"
 requires-python = ">=3.10"
+dependencies = [
+    "Django>=5.2.0",
+    "djangorestframework>=3.15.0",
+    "django-cors-headers>=4.6.0",
+    "django-filter>=25.1",
+    "drf-spectacular>=0.27.0",
+    "psycopg[binary]>=3.2.0",
+    "gunicorn>=21.2.0",
+    "sentry-sdk>=2.0.0",
+    "prometheus-client>=0.20.0",
+]
 
 [tool.ruff]
 target-version = "py310"
