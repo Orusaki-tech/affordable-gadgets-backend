@@ -58,13 +58,13 @@ class TestProductListingEndpoint:
     """Test product listing endpoint - critical for storefront."""
 
     def test_products_list_returns_200(self, api_client):
-        """GET /api/products/ should return 200."""
-        response = api_client.get("/api/products/")
+        """GET /api/inventory/products/ should return 200."""
+        response = api_client.get("/api/inventory/products/")
         assert response.status_code == status.HTTP_200_OK
 
     def test_products_list_returns_paginated_data(self, api_client, sample_product):
         """Products list should return paginated data."""
-        response = api_client.get("/api/products/")
+        response = api_client.get("/api/inventory/products/")
         data = response.json()
         assert "results" in data or "data" in data or isinstance(data, list)
         results = data.get("results") or data.get("data") or data
@@ -74,7 +74,7 @@ class TestProductListingEndpoint:
         """Published products should appear in public list."""
         published = baker.make(Product, product_type=Product.ProductType.PHONE, is_published=True)
         baker.make(Product, product_type=Product.ProductType.PHONE, is_published=False, brand="UniqueBrand1")
-        response = api_client.get("/api/products/")
+        response = api_client.get("/api/inventory/products/")
         data = response.json()
         results = data.get("results") or data.get("data") or data
         product_ids = [p.get("id") for p in results]
@@ -82,7 +82,7 @@ class TestProductListingEndpoint:
 
     def test_products_list_includes_required_fields(self, api_client, sample_product):
         """Product list items should include required fields."""
-        response = api_client.get("/api/products/")
+        response = api_client.get("/api/inventory/products/")
         data = response.json()
         results = data.get("results") or data.get("data") or data
         if results:
@@ -95,7 +95,7 @@ class TestProductListingEndpoint:
         """Products list should support filtering by product_type."""
         baker.make(Product, product_type=Product.ProductType.PHONE, is_published=True)
         baker.make(Product, product_type=Product.ProductType.LAPTOP, is_published=True, brand="UniqueBrand2")
-        response = api_client.get("/api/products/?product_type=phone")
+        response = api_client.get("/api/inventory/products/?product_type=phone")
         assert response.status_code in [status.HTTP_200_OK, status.HTTP_400_BAD_REQUEST]
 
 
@@ -104,18 +104,18 @@ class TestProductDetailEndpoint:
     """Test product detail endpoint."""
 
     def test_product_detail_returns_200(self, api_client, sample_product):
-        """GET /api/products/{id}/ should return 200 for existing product."""
-        response = api_client.get(f"/api/products/{sample_product.id}/")
+        """GET /api/inventory/products/{id}/ should return 200 for existing product."""
+        response = api_client.get(f"/api/inventory/products/{sample_product.id}/")
         assert response.status_code == status.HTTP_200_OK
 
     def test_product_detail_returns_404_for_missing(self, api_client):
-        """GET /api/products/{id}/ should return 404 for missing product."""
-        response = api_client.get("/api/products/999999/")
+        """GET /api/inventory/products/{id}/ should return 404 for missing product."""
+        response = api_client.get("/api/inventory/products/999999/")
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_product_detail_includes_article(self, api_client, sample_product, sample_article):
         """Product detail should include article if present."""
-        response = api_client.get(f"/api/products/{sample_product.id}/")
+        response = api_client.get(f"/api/inventory/products/{sample_product.id}/")
         data = response.json()
         assert "id" in data
 
@@ -128,7 +128,7 @@ class TestProductArticleManagement:
         """Creating article should require authentication."""
         payload = {"article": {"headline": "New Guide", "body": "Content", "is_published": False}}
         response = api_client.patch(
-            f"/api/products/{sample_product.id}/update_content/", payload, format="json"
+            f"/api/inventory/products/{sample_product.id}/update_content/", payload, format="json"
         )
         assert response.status_code in [
             status.HTTP_401_UNAUTHORIZED,
@@ -146,7 +146,7 @@ class TestProductArticleManagement:
             }
         }
         response = api_client.patch(
-            f"/api/products/{sample_product.id}/update_content/", payload, format="json"
+            f"/api/inventory/products/{sample_product.id}/update_content/", payload, format="json"
         )
         assert response.status_code in [
             status.HTTP_200_OK,
@@ -155,7 +155,7 @@ class TestProductArticleManagement:
 
     def test_article_thumbnail_image_field_exists(self, api_client, sample_article):
         """Article should have thumbnail_image field."""
-        response = api_client.get(f"/api/products/{sample_article.product_id}/")
+        response = api_client.get(f"/api/inventory/products/{sample_article.product_id}/")
         if response.status_code == 200:
             data = response.json()
             assert isinstance(data, dict)
@@ -172,7 +172,7 @@ class TestContentCreatorPermissions:
         api_client.force_authenticate(content_creator_user)
         payload = {"article": {"headline": "Content Creator Update", "body": "New content"}}
         response = api_client.patch(
-            f"/api/products/{sample_product.id}/update_content/", payload, format="json"
+            f"/api/inventory/products/{sample_product.id}/update_content/", payload, format="json"
         )
         assert response.status_code < 500
 
@@ -183,7 +183,7 @@ class TestContentCreatorPermissions:
         api_client.force_authenticate(content_creator_user)
         payload = {"quantity": 1000}  # Should not be allowed
         response = api_client.patch(
-            f"/api/products/{sample_product.id}/update_content/", payload, format="json"
+            f"/api/inventory/products/{sample_product.id}/update_content/", payload, format="json"
         )
         assert response.status_code < 500
 
@@ -195,13 +195,13 @@ class TestAPIResponseFormats:
     def test_list_response_has_consistent_structure(self, api_client, db):
         """List endpoints should have consistent structure."""
         baker.make(Product, product_type=Product.ProductType.PHONE, is_published=True, _quantity=3, brand=baker.seq("Brand"))
-        response = api_client.get("/api/products/")
+        response = api_client.get("/api/inventory/products/")
         data = response.json()
         assert isinstance(data, (dict, list))
 
     def test_error_responses_have_message(self, api_client):
         """Error responses should include error message."""
-        response = api_client.get("/api/products/999999/")
+        response = api_client.get("/api/inventory/products/999999/")
         if response.status_code >= 400:
             data = response.json()
             assert isinstance(data, (dict, list))
@@ -225,7 +225,7 @@ class TestMultipartFormDataHandling:
             "article_thumbnail_image": test_file,
         }
         response = api_client.patch(
-            f"/api/products/{sample_product.id}/update_content/", payload, format="multipart"
+            f"/api/inventory/products/{sample_product.id}/update_content/", payload, format="multipart"
         )
         assert response.status_code < 500, f"Got {response.status_code}: {response.data}"
 
@@ -257,7 +257,7 @@ class TestCriticalBusinessFlows:
 
     def test_browse_products_to_article(self, api_client, sample_product, sample_article):
         """User should be able to browse products and view articles."""
-        list_response = api_client.get("/api/products/")
+        list_response = api_client.get("/api/inventory/products/")
         assert list_response.status_code == status.HTTP_200_OK
-        detail_response = api_client.get(f"/api/products/{sample_product.id}/")
+        detail_response = api_client.get(f"/api/inventory/products/{sample_product.id}/")
         assert detail_response.status_code == status.HTTP_200_OK
