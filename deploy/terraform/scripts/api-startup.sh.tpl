@@ -10,7 +10,7 @@ chmod +x /usr/local/bin/docker-compose
 systemctl enable docker
 systemctl start docker
 
-gcloud auth configure-docker us-central1-docker.pkg.dev --quiet 2>/dev/null || true
+gcloud auth configure-docker --quiet 2>/dev/null || true
 
 # gcloud/gsutil for deploy config sync
 if ! command -v gsutil >/dev/null 2>&1; then
@@ -27,7 +27,8 @@ mkdir -p "$${COMPOSE_ROOT}"
 PREFIX="gs://${deploy_config_bucket}/${environment}/api"
 
 if gsutil -q stat "$${PREFIX}/docker-compose.api.yml" 2>/dev/null; then
-  gsutil -m cp "$${PREFIX}/docker-compose.api.yml" "$${PREFIX}/api.env" "$${COMPOSE_ROOT}/" || true
+  gsutil cp "$${PREFIX}/docker-compose.api.yml" "$${COMPOSE_ROOT}/docker-compose.api.yml" 2>/dev/null || true
+  gsutil cp "$${PREFIX}/api.env" "$${COMPOSE_ROOT}/api.env" 2>/dev/null || true
   chmod 600 "$${COMPOSE_ROOT}/api.env" 2>/dev/null || true
 fi
 

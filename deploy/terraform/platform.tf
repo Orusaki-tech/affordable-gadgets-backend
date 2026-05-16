@@ -82,8 +82,8 @@ module "api_mig" {
   startup_script            = templatefile("${path.module}/scripts/api-startup.sh.tpl", local.startup_vars)
   min_replicas              = var.api_min_replicas
   max_replicas              = var.api_max_replicas
-  enable_autoscaler         = var.environment != "production"
-  target_size               = var.environment == "production" ? var.api_min_replicas : null
+  enable_autoscaler         = true
+  target_size               = null
   distribution_policy_zones = [var.zone]
 }
 
@@ -119,8 +119,8 @@ module "shop_mig" {
   startup_script            = templatefile("${path.module}/scripts/shop-startup.sh.tpl", local.startup_vars)
   min_replicas              = var.shop_min_replicas
   max_replicas              = var.shop_max_replicas
-  enable_autoscaler         = var.environment != "production"
-  target_size               = var.environment == "production" ? var.shop_min_replicas : null
+  enable_autoscaler         = true
+  target_size               = null
   distribution_policy_zones = [var.zone]
 }
 
@@ -156,8 +156,8 @@ module "admin_mig" {
   startup_script            = templatefile("${path.module}/scripts/admin-startup.sh.tpl", local.startup_vars)
   min_replicas              = var.admin_min_replicas
   max_replicas              = var.admin_max_replicas
-  enable_autoscaler         = var.environment != "production"
-  target_size               = var.environment == "production" ? var.admin_min_replicas : null
+  enable_autoscaler         = true
+  target_size               = null
   distribution_policy_zones = [var.zone]
 }
 
