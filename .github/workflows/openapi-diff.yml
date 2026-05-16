@@ -25,6 +25,11 @@ jobs:
       - name: Generate OpenAPI
         run: |
           python manage.py spectacular --file openapi.yaml
+        env:
+          DJANGO_SETTINGS_MODULE: store.settings
+          SECRET_KEY: ci-secret-key
+          DEBUG: "True"
+          FRONTEND_BASE_URL: https://shop.affordable-gadgetske.com
 
       - name: Install openapi-diff
         run: |

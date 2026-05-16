@@ -42,6 +42,7 @@ jobs:
           DJANGO_SETTINGS_MODULE: store.settings
           SECRET_KEY: ci-secret-key
           DEBUG: "True"
+          FRONTEND_BASE_URL: https://shop.affordable-gadgetske.com
 
       - name: Validate OpenAPI schema
         run: |
