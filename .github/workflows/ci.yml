@@ -36,7 +36,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Wait for PostgreSQL
-        run: sleep 10
+        run: sleep 30
 
       - name: Django check
         run: python manage.py check
