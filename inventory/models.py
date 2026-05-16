@@ -510,16 +510,33 @@ class ProductArticle(models.Model):
     Public site serves this at /products/{product.slug}/blog when is_published.
     """
 
+    class ArticleCategory(models.TextChoices):
+        BUYING_GUIDE = "buying_guide", "Buying Guide"
+        TECH_TIP = "tech_tip", "Tech Tip"
+        NEWS = "news", "News"
+        GENERAL = "general", "General"
+
     product = models.OneToOneField(
         Product,
         on_delete=models.CASCADE,
         related_name="article",
         primary_key=True,
     )
+    category = models.CharField(
+        max_length=50,
+        choices=ArticleCategory.choices,
+        default=ArticleCategory.BUYING_GUIDE,
+    )
+    thumbnail_image = models.ImageField(
+        upload_to="article_thumbnails/%Y/%m/",
+        null=True,
+        blank=True,
+        help_text="Featured image for blog lists and social sharing",
+    )
     headline = models.CharField(
         max_length=255,
         blank=True,
-        help_text="Public H1 for the article page",
+        help_text="Public H1 for the article page (e.g. 'Galaxy A42 5G in Kenya: who should buy it?')",
     )
     seo_title = models.CharField(
         max_length=60,
@@ -531,8 +548,8 @@ class ProductArticle(models.Model):
         blank=True,
         help_text="Meta description (150–160 chars recommended)",
     )
-    body = models.TextField(blank=True, help_text="Article body (HTML from rich text editor)")
-    is_published = models.BooleanField(default=False)
+    body = models.TextField(blank=True, help_text="Article body (Markdown supported)")
+    is_published = models.BooleanField(default=False, verbose_name="Published on storefront")
     published_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

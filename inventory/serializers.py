@@ -914,7 +914,9 @@ class ProductArticleSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductArticle
         fields = (
+            "category",
             "headline",
+            "thumbnail_image",
             "seo_title",
             "seo_description",
             "body",
@@ -935,6 +937,33 @@ class ProductArticleSerializer(serializers.ModelSerializer):
         if value and len(value) > 160:
             raise serializers.ValidationError("SEO description must be 160 characters or less.")
         return value
+
+    def create(self, validated_data):
+        thumbnail_image = validated_data.pop("thumbnail_image", None)
+        instance = super().create(validated_data)
+        if thumbnail_image:
+            from .cloudinary_utils import upload_image_to_cloudinary
+
+            saved_name, _ = upload_image_to_cloudinary(thumbnail_image, "article_thumbnails")
+            if saved_name:
+                instance.thumbnail_image.name = saved_name
+                instance.save(update_fields=["thumbnail_image"])
+        return instance
+
+    def update(self, instance, validated_data):
+        thumbnail_image = validated_data.pop("thumbnail_image", serializers.empty)
+        instance = super().update(instance, validated_data)
+        if thumbnail_image is not serializers.empty:
+            if thumbnail_image:
+                from .cloudinary_utils import upload_image_to_cloudinary
+
+                saved_name, _ = upload_image_to_cloudinary(thumbnail_image, "article_thumbnails")
+                if saved_name:
+                    instance.thumbnail_image.name = saved_name
+            else:
+                instance.thumbnail_image = None
+            instance.save(update_fields=["thumbnail_image"])
+        return instance
 
 
 class ProductSerializer(serializers.ModelSerializer):

@@ -251,6 +251,7 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     """
 
     queryset = Product.objects.all().order_by("product_name")
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
     serializer_class = ProductSerializer
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ["product_name", "brand", "model_series", "product_description"]
@@ -869,6 +870,12 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
             status=status.HTTP_200_OK,
         )
 
+    @extend_schema(
+        request={
+            "application/json": ProductSerializer,
+            "multipart/form-data": ProductSerializer,
+        }
+    )
     @action(detail=True, methods=["patch"], permission_classes=[IsContentCreatorOrInventoryManager])
     def update_content(self, request, pk=None):
         """
@@ -898,11 +905,44 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
         # Filter request data to only include content fields
         content_data = {k: v for k, v in request.data.items() if k in content_fields}
 
+        # Handle multipart form-data: reconstruct nested article dict from flattened keys
+        # DRF's MultiPartParser flattens nested keys like "article.headline" to "article_headline"
+        # We reconstruct a nested article dict and merge it with any existing article payload
+        article_data = {}
+        article_field_mapping = {
+            "article_headline": "headline",
+            "article_seo_title": "seo_title",
+            "article_seo_description": "seo_description",
+            "article_body": "body",
+            "article_is_published": "is_published",
+            "article_thumbnail_image": "thumbnail_image",
+            "article_category": "category",
+        }
+
+        for flattened_key, nested_key in article_field_mapping.items():
+            if flattened_key in request.data:
+                article_data[nested_key] = request.data[flattened_key]
+
+        # If request.FILES contains a file for the article thumbnail, prefer it
+        if "article_thumbnail_image" in request.FILES:
+            article_data["thumbnail_image"] = request.FILES["article_thumbnail_image"]
+
+        # Merge reconstructed article_data with any existing article dict coming from JSON payloads
+        existing_article = content_data.get("article")
+        if isinstance(existing_article, dict):
+            # Existing dict may already contain some keys – update with reconstructed ones
+            existing_article.update(article_data)
+            content_data["article"] = existing_article
+        elif article_data:
+            # No existing article dict – add reconstructed one
+            content_data["article"] = article_data
+
         serializer = self.get_serializer(product, data=content_data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save(updated_by=request.user)
 
         return Response(serializer.data)
+
 
     @action(
         detail=True,

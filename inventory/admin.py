@@ -1,5 +1,6 @@
 from django import forms
 from django.contrib import admin
+from django.utils.html import format_html
 
 # Importing all models needed for the Admin panel.
 # Assuming all models exist in the inventory/models.py file.
@@ -19,6 +20,8 @@ from .models import (
     PesapalRefund,
     Product,
     ProductAccessory,
+    ProductArticle,
+    ArticleImage,
     ProductImage,
     Promotion,
     Review,
@@ -48,6 +51,34 @@ class InventoryUnitImageInline(admin.TabularInline):
     model = InventoryUnitImage
     extra = 1
     fields = ["image", "is_primary"]
+
+
+class ArticleImageInline(admin.TabularInline):
+    """Inline for editing images embedded in a ProductArticle."""
+
+    model = ArticleImage
+    extra = 1
+    fields = ["image", "alt_text", "caption", "position", "markdown_snippet"]
+    readonly_fields = ["markdown_snippet"]
+
+    def markdown_snippet(self, obj):
+        """Returns a copy-pasteable markdown snippet for the image."""
+        if obj.pk and obj.image:
+            return format_html("<code>![{}]({})</code>", obj.alt_text or "image", obj.image.url)
+        return "Save to see snippet"
+
+    markdown_snippet.short_description = "Markdown Snippet"
+
+
+class ProductArticleInline(admin.StackedInline):
+    """Inline for editing the buying guide linked to a Product."""
+
+    model = ProductArticle
+    extra = 0
+    max_num = 1
+    fields = ["headline", "seo_title", "seo_description", "body", "is_published"]
+    verbose_name = "Buying Guide / Blog Content"
+    verbose_name_plural = "Buying Guide / Blog Content"
 
 
 class ProductAccessoryInline(admin.TabularInline):
@@ -97,11 +128,11 @@ class ProductAdmin(admin.ModelAdmin):
         ),
     )
 
-    # ADDED ProductImageInline to the list of inlines
-    inlines = [ProductAccessoryInline, ProductImageInline]
+    # ADDED ProductImageInline and ProductArticleInline to the list of inlines
+    inlines = [ProductAccessoryInline, ProductImageInline, ProductArticleInline]
 
-    # REMOVED: is_available_status as the logic now lives primarily on InventoryUnit.
-    # We will trust the list_display is now purely descriptive fields for the Product template.
+    class Media:
+        js = ("admin/js/char_counter.js",)
 
 
 @admin.register(InventoryUnit)
@@ -184,6 +215,97 @@ class ProductAccessoryAdmin(admin.ModelAdmin):
         return obj.accessory.get_product_type_display()
 
     accessory_type.short_description = "Accessory Type"
+
+
+@admin.register(ProductArticle)
+class ProductArticleAdmin(admin.ModelAdmin):
+    """Admin view for managing product buying guides independently."""
+
+    list_display = (
+        "product",
+        "headline",
+        "category",
+        "is_published",
+        "published_at",
+        "updated_at",
+    )
+    list_filter = ("category", "is_published", "created_at")
+    search_fields = ("product__product_name", "headline", "body")
+    inlines = [ArticleImageInline]
+    readonly_fields = ("published_at", "created_at", "updated_at", "thumbnail_preview")
+
+    fieldsets = (
+        (
+            None,
+            {
+                "fields": (
+                    "category",
+                    "headline",
+                ),
+                "classes": ("wide",),
+            },
+        ),
+        (
+            "Media",
+            {
+                "fields": (
+                    "thumbnail_image",
+                    "thumbnail_preview",
+                ),
+            },
+        ),
+        (
+            "Content",
+            {
+                "fields": ("body", "is_published"),
+            },
+        ),
+        (
+            "SEO & Meta",
+            {
+                "fields": ("seo_title", "seo_description"),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "Linkage",
+            {
+                "fields": ("product",),
+            },
+        ),
+        (
+            "Timestamps",
+            {
+                "fields": ("published_at", "created_at", "updated_at"),
+                "classes": ("collapse",),
+            },
+        ),
+    )
+
+    def thumbnail_preview(self, obj):
+        if obj.thumbnail_image:
+            return format_html(
+                '<img src="{}" style="max-height: 200px; border-radius: 8px;" />',
+                obj.thumbnail_image.url,
+            )
+        return "No thumbnail uploaded"
+
+    thumbnail_preview.short_description = "Preview"
+
+    class Media:
+        js = ("admin/js/char_counter.js",)
+        css = {
+            "all": ("admin/css/modern_blog.css",),
+        }
+
+
+@admin.register(ArticleImage)
+class ArticleImageAdmin(admin.ModelAdmin):
+    """Admin view for managing article images."""
+
+    list_display = ("id", "article", "image", "position", "created_at")
+    list_filter = ("created_at",)
+    search_fields = ("article__product__product_name", "alt_text", "caption")
 
 
 # --- SALES AND USER MANAGEMENT ---

@@ -1,15 +1,9 @@
-# Ping the production backend every 5 minutes to avoid Railway cold starts.
-# Cold starts can make the first request (e.g. login) take 30–60+ seconds or time out.
-# This workflow uses no secrets; optional: set BACKEND_URL in repo variables if your URL differs.
+# DISABLED: GCP MIGs do not cold-start. Re-enable only if moving back to Railway.
+# See ci.yml for push/PR triggers, deploy-staging.yml for staging deploys.
 
 name: Keep backend warm
-
 on:
-  schedule:
-    # Every 5 minutes
-    - cron: '*/5 * * * *'
-  workflow_dispatch: # Allow manual run
-
+  workflow_dispatch:
 jobs:
   ping:
     runs-on: ubuntu-latest
@@ -17,7 +11,6 @@ jobs:
       - name: Ping backend
         run: |
           url="${BACKEND_URL:-https://api.affordable-gadgetske.com}"
-          echo "Pinging $url/health/"
-          curl -sf --max-time 60 "$url/health/" || curl -sf --max-time 60 "$url/" || true
+          curl -sf --max-time 60 "$url/health/" || true
         env:
           BACKEND_URL: ${{ vars.BACKEND_URL }}

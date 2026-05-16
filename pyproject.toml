@@ -27,3 +27,47 @@ ignore = ["E501"]
 
 [tool.ruff.format]
 quote-style = "double"
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "store.settings"
+python_files = ["test_*.py"]
+testpaths = ["inventory/tests"]
+addopts = [
+    "--reuse-db",
+    "--strict-markers",
+    "-p", "no:cacheprovider",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "p0: highest priority critical path tests",
+    "p1: high priority business logic tests",
+    "p2: standard tests",
+]
+
+[tool.coverage.run]
+source = ["inventory"]
+omit = [
+    "*/migrations/*",
+    "*/tests/*",
+    "*/management/*",
+    "*/test*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "def __str__",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if 0:",
+]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+warn_unused_configs = true
+exclude = [
+    "migrations",
+    "venv",
+]

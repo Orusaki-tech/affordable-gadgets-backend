@@ -15,8 +15,9 @@ scrape_configs:
     metrics_path: /metrics/
     static_configs:
       - targets:
-          - 'web:8000'             # docker-compose internal
-          - 'host.docker.internal:8000'  # host-mode access
+          - '10.10.1.28:8000'
+          - '10.10.1.29:8000'
+          - '10.10.1.30:8000'
     # Relabel to add a `service` label
     relabel_configs:
       - source_labels: [__address__]

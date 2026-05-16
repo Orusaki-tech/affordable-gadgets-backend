@@ -305,7 +305,9 @@ class PublicProductArticleSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductArticle
         fields = (
+            "category",
             "headline",
+            "thumbnail_image",
             "seo_title",
             "seo_description",
             "body",
