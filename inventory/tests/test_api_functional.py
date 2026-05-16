@@ -73,7 +73,7 @@ class TestProductListingEndpoint:
     def test_products_list_includes_published_only(self, api_client, db):
         """Published products should appear in public list."""
         published = baker.make(Product, product_type=Product.ProductType.PHONE, is_published=True)
-        unpublished = baker.make(Product, product_type=Product.ProductType.PHONE, is_published=False)
+        baker.make(Product, product_type=Product.ProductType.PHONE, is_published=False, brand="UniqueBrand1")
         response = api_client.get("/api/products/")
         data = response.json()
         results = data.get("results") or data.get("data") or data
@@ -94,7 +94,7 @@ class TestProductListingEndpoint:
     def test_products_list_supports_filtering(self, api_client, db):
         """Products list should support filtering by product_type."""
         baker.make(Product, product_type=Product.ProductType.PHONE, is_published=True)
-        baker.make(Product, product_type=Product.ProductType.LAPTOP, is_published=True)
+        baker.make(Product, product_type=Product.ProductType.LAPTOP, is_published=True, brand="UniqueBrand2")
         response = api_client.get("/api/products/?product_type=phone")
         assert response.status_code in [status.HTTP_200_OK, status.HTTP_400_BAD_REQUEST]
 
@@ -194,7 +194,7 @@ class TestAPIResponseFormats:
 
     def test_list_response_has_consistent_structure(self, api_client, db):
         """List endpoints should have consistent structure."""
-        baker.make(Product, product_type=Product.ProductType.PHONE, is_published=True, _quantity=3)
+        baker.make(Product, product_type=Product.ProductType.PHONE, is_published=True, _quantity=3, brand=baker.seq("Brand"))
         response = api_client.get("/api/products/")
         data = response.json()
         assert isinstance(data, (dict, list))
