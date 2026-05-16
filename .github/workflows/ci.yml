@@ -14,7 +14,7 @@ jobs:
         image: postgres:16
         env:
           POSTGRES_DB: test_db
-          POSTGRES_USER: test_user
+          POSTGRES_USER: postgres
           POSTGRES_PASSWORD: test_password
         options: >-
           --health-cmd pg_isready
@@ -45,7 +45,7 @@ jobs:
           DJANGO_SETTINGS_MODULE: store.settings
           SECRET_KEY: ci-secret-key
           DEBUG: "True"
-          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+          DATABASE_URL: postgresql://postgres:test_password@localhost:5432/test_db
           FRONTEND_BASE_URL: https://shop.affordable-gadgetske.com
 
       - name: Run migrations
@@ -54,7 +54,7 @@ jobs:
           DJANGO_SETTINGS_MODULE: store.settings
           SECRET_KEY: ci-secret-key
           DEBUG: "True"
-          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+          DATABASE_URL: postgresql://postgres:test_password@localhost:5432/test_db
           FRONTEND_BASE_URL: https://shop.affordable-gadgetske.com
 
       - name: Run functional tests
@@ -65,7 +65,7 @@ jobs:
           DJANGO_SETTINGS_MODULE: store.settings
           SECRET_KEY: ci-secret-key
           DEBUG: "True"
-          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+          DATABASE_URL: postgresql://postgres:test_password@localhost:5432/test_db
           FRONTEND_BASE_URL: https://shop.affordable-gadgetske.com
 
       - name: Run contract tests
@@ -76,7 +76,7 @@ jobs:
           DJANGO_SETTINGS_MODULE: store.settings
           SECRET_KEY: ci-secret-key
           DEBUG: "True"
-          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+          DATABASE_URL: postgresql://postgres:test_password@localhost:5432/test_db
           FRONTEND_BASE_URL: https://shop.affordable-gadgetske.com
 
       - name: Run all tests
@@ -87,7 +87,7 @@ jobs:
           DJANGO_SETTINGS_MODULE: store.settings
           SECRET_KEY: ci-secret-key
           DEBUG: "True"
-          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+          DATABASE_URL: postgresql://postgres:test_password@localhost:5432/test_db
           FRONTEND_BASE_URL: https://shop.affordable-gadgetske.com
 
       - name: Build Docker image
