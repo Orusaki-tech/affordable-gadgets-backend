@@ -47,13 +47,19 @@ jobs:
           
           # Parse the URL
           url = urlparse(db_url_str)
-          
+
+          host = url.hostname or ""
+          port = url.port or 5432
+          user = url.username or ""
+          password = url.password or ""
+          dbname = url.path[1:] if url.path else ""
+
           conn_params = {
-              "host": url.hostname,
-              "port": url.port,
-              "user": url.username,
-              "password": url.password,
-              "dbname": url.path[1:]  # Remove leading slash
+              "host": host,
+              "port": port,
+              "user": user,
+              "password": password,
+              "dbname": dbname
           }
           
           max_attempts = 60
