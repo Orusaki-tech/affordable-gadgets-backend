@@ -38,8 +38,11 @@ class RequestTimingMiddleware(MiddlewareMixin):
 class BrandContextMiddleware(MiddlewareMixin):
     """
     Middleware to set brand context from X-Brand-Code header.
+    Falls back to the default brand (AFFORDABLE_GADGETS) when no header is provided.
     Sets request.brand to the Brand instance if found and active.
     """
+
+    DEFAULT_BRAND_CODE = "AFFORDABLE_GADGETS"
 
     def process_request(self, request):
         """Set brand context from X-Brand-Code header."""
@@ -47,7 +50,7 @@ class BrandContextMiddleware(MiddlewareMixin):
         request.brand = None
 
         if not brand_code:
-            return None
+            brand_code = self.DEFAULT_BRAND_CODE
 
         # Avoid re-entrancy: if we're already loading brand (e.g. import/ORM triggered middleware again), skip
         if getattr(_loading_brand, "active", False):
@@ -58,6 +61,11 @@ class BrandContextMiddleware(MiddlewareMixin):
             from inventory.models import Brand
 
             brand = Brand.objects.filter(code=brand_code, is_active=True).first()
+            if not brand and brand_code == self.DEFAULT_BRAND_CODE:
+                brand, _ = Brand.objects.get_or_create(
+                    code=self.DEFAULT_BRAND_CODE,
+                    defaults={"name": "Affordable Gadgets KE", "is_active": True},
+                )
             if brand:
                 request.brand = brand
         except RecursionError:
