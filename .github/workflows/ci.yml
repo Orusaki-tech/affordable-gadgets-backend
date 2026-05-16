@@ -36,7 +36,15 @@ jobs:
           pip install -r requirements.txt
 
       - name: Wait for PostgreSQL
-        run: sleep 30
+        run: |
+          for i in $(seq 1 30); do
+            nc -z localhost 5432 && echo "PostgreSQL is up!" && exit 0
+            echo "Waiting for PostgreSQL... ($i/30)"
+            sleep 1
+          done
+          echo "PostgreSQL did not start in time!"
+          exit 1
+
 
       - name: Django check
         run: python manage.py check
