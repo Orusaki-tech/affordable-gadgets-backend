@@ -9,7 +9,8 @@ curl -fsSL "https://github.com/docker/compose/releases/download/$${COMPOSE_VER}/
 chmod +x /usr/local/bin/docker-compose
 systemctl enable docker
 systemctl start docker
-gcloud auth configure-docker --quiet 2>/dev/null || true
+gcloud auth configure-docker us-central1-docker.pkg.dev --quiet 2>/dev/null || true
+gcloud auth configure-docker us-east1-docker.pkg.dev --quiet 2>/dev/null || true
 
 if ! command -v gsutil >/dev/null 2>&1; then
   echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" \

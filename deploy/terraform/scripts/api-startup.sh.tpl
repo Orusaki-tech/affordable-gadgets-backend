@@ -10,7 +10,8 @@ chmod +x /usr/local/bin/docker-compose
 systemctl enable docker
 systemctl start docker
 
-gcloud auth configure-docker --quiet 2>/dev/null || true
+gcloud auth configure-docker us-central1-docker.pkg.dev --quiet 2>/dev/null || true
+gcloud auth configure-docker us-east1-docker.pkg.dev --quiet 2>/dev/null || true
 
 # gcloud/gsutil for deploy config sync
 if ! command -v gsutil >/dev/null 2>&1; then
