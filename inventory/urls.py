@@ -12,6 +12,7 @@ router = DefaultRouter()
 # Core Inventory and Catalog Endpoints (Read-Only/Admin)
 router.register(r"products", views.ProductViewSet, basename="product")
 router.register(r"images", views.ProductImageViewSet, basename="product-image")
+router.register(r"article-images", views.ArticleImageViewSet, basename="article-image")
 router.register(r"unit-images", views.InventoryUnitImageViewSet, basename="unit-image")
 router.register(r"units", views.InventoryUnitViewSet, basename="inventory-unit")  # Admin-only
 
@@ -117,5 +118,11 @@ urlpatterns = [
         "admin/fix-product-visibility/",
         views.FixProductVisibilityView.as_view(),
         name="fix-product-visibility",
+    ),
+    # --- Article Image Upload (lightweight, no model association) ---
+    path(
+        "article-images/upload/",
+        views.ArticleImageUploadView.as_view(),
+        name="article-image-upload",
     ),
 ]

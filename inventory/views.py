@@ -64,6 +64,7 @@ class FixProductVisibilitySerializer(serializers.Serializer):
 from .models import (  # noqa: E402
     Admin,
     AdminRole,
+    ArticleImage,
     AuditLog,
     Brand,
     FinancingOffer,
@@ -123,6 +124,8 @@ from .serializers import (  # noqa: E402
     AdminCreateSerializer,
     AdminRoleSerializer,
     AdminSerializer,
+    ArticleImageSerializer,
+    ArticleImageUploadSerializer,
     AuditLogSerializer,
     BrandSerializer,
     BundleItemSerializer,
@@ -989,6 +992,18 @@ class ProductImageViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
 
     queryset = ProductImage.objects.all().select_related("product")
     serializer_class = ProductImageSerializer
+    permission_classes = [IsContentCreatorOrInventoryManagerOrReadOnly]
+    parser_classes = [MultiPartParser, FormParser]
+
+
+class ArticleImageViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
+    """
+    CRUD for images embedded within a product buying guide / article body.
+    Only Content Creators and Inventory Managers can add/manage images.
+    """
+
+    queryset = ArticleImage.objects.all().select_related("article__product")
+    serializer_class = ArticleImageSerializer
     permission_classes = [IsContentCreatorOrInventoryManagerOrReadOnly]
     parser_classes = [MultiPartParser, FormParser]
 
@@ -6747,3 +6762,24 @@ class PesapalIPNView(APIView):
         """Handle POST IPN (if Pesapal sends POST instead of GET)."""
         print("[PESAPAL] IPN POST request received, forwarding to GET handler")
         return self.get(request)
+
+
+class ArticleImageUploadView(generics.GenericAPIView):
+    """
+    Upload an image for embedding in a buying guide / article body.
+    Returns the Cloudinary URL. Does NOT create a persistent ArticleImage record.
+    """
+
+    permission_classes = [IsContentCreatorOrInventoryManagerOrReadOnly]
+    parser_classes = [MultiPartParser, FormParser]
+    serializer_class = ArticleImageUploadSerializer
+
+    @extend_schema(
+        request=ArticleImageUploadSerializer,
+        responses={200: ArticleImageUploadSerializer},
+    )
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result = serializer.save()
+        return Response(result, status=status.HTTP_201_CREATED)

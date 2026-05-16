@@ -14,6 +14,7 @@ from rest_framework.authtoken.models import Token  # NEW: For generating auth to
 from .models import (
     Admin,
     AdminRole,
+    ArticleImage,
     AuditLog,
     Brand,
     FinancingOffer,
@@ -739,6 +740,60 @@ class ProductImageSerializer(serializers.ModelSerializer):
         return value
 
 
+class ArticleImageUploadSerializer(serializers.Serializer):
+    """Lightweight serializer for uploading an article image and getting back a URL."""
+
+    image = serializers.ImageField(write_only=True)
+    image_url = serializers.URLField(read_only=True)
+
+    def create(self, validated_data):
+        image = validated_data["image"]
+        from .cloudinary_utils import upload_image_to_cloudinary
+        saved_name, url = upload_image_to_cloudinary(image, "article_images")
+        if not saved_name:
+            raise serializers.ValidationError("Failed to upload image")
+        return {"image_url": url}
+
+
+class ArticleImageSerializer(serializers.ModelSerializer):
+    """Serializer for article images embedded in buying guide body."""
+
+    image_url = serializers.SerializerMethodField(read_only=True)
+    article = serializers.PrimaryKeyRelatedField(queryset=ProductArticle.objects.all(), read_only=False)
+    image = serializers.ImageField(write_only=True)
+
+    class Meta:
+        model = ArticleImage
+        fields = (
+            "id",
+            "article",
+            "image",
+            "image_url",
+            "alt_text",
+            "caption",
+            "position",
+        )
+        read_only_fields = ("id",)
+
+    @extend_schema_field(serializers.URLField(allow_null=True))
+    def get_image_url(self, obj):
+        if obj.image:
+            from .cloudinary_utils import get_optimized_image_url
+            return get_optimized_image_url(obj.image)
+        return None
+
+    def create(self, validated_data):
+        image = validated_data.pop("image", None)
+        instance = super().create(validated_data)
+        if image:
+            from .cloudinary_utils import upload_image_to_cloudinary
+            saved_name, _ = upload_image_to_cloudinary(image, "article_images")
+            if saved_name:
+                instance.image.name = saved_name
+                instance.save()
+        return instance
+
+
 class InventoryUnitImageSerializer(serializers.ModelSerializer):
     """
     Serializer for Inventory Unit images.
@@ -854,6 +909,8 @@ class ProductArticleSummarySerializer(serializers.ModelSerializer):
 class ProductArticleSerializer(serializers.ModelSerializer):
     """Full product buying guide / blog (staff)."""
 
+    images = ArticleImageSerializer(many=True, read_only=True)
+
     class Meta:
         model = ProductArticle
         fields = (
@@ -865,8 +922,9 @@ class ProductArticleSerializer(serializers.ModelSerializer):
             "published_at",
             "created_at",
             "updated_at",
+            "images",
         )
-        read_only_fields = ("published_at", "created_at", "updated_at")
+        read_only_fields = ("published_at", "created_at", "updated_at", "images")
 
     def validate_seo_title(self, value):
         if value and len(value) > 60:

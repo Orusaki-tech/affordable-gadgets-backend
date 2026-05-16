@@ -531,7 +531,7 @@ class ProductArticle(models.Model):
         blank=True,
         help_text="Meta description (150–160 chars recommended)",
     )
-    body = models.TextField(blank=True, help_text="Article body (Markdown)")
+    body = models.TextField(blank=True, help_text="Article body (HTML from rich text editor)")
     is_published = models.BooleanField(default=False)
     published_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -550,6 +550,36 @@ class ProductArticle(models.Model):
         if self.is_published and self.published_at is None:
             self.published_at = timezone.now()
         super().save(*args, **kwargs)
+
+
+class ArticleImage(models.Model):
+    """Images uploaded for embedding within a ProductArticle body."""
+
+    article = models.ForeignKey(
+        ProductArticle,
+        on_delete=models.CASCADE,
+        related_name="images",
+    )
+    image = models.ImageField(upload_to="article_images/%Y/%m/")
+    alt_text = models.CharField(
+        max_length=255, blank=True, help_text="Required for SEO and accessibility"
+    )
+    caption = models.CharField(
+        max_length=500, blank=True, help_text="Optional caption for the image"
+    )
+    position = models.IntegerField(
+        default=0, help_text="Order in which images should be displayed (lower numbers first)"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["position", "id"]
+        indexes = [
+            models.Index(fields=["article"]),
+        ]
+
+    def __str__(self):
+        return f"Article image for product {self.article.product_id} (ID: {self.id})"
 
 
 class ProductImage(models.Model):
