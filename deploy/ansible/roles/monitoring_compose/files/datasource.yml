@@ -18,11 +18,6 @@ datasources:
       authenticationType: gce
       defaultProject: gmail-486411
 
-  - name: Google Cloud Trace
-    type: googlecloudtrace-datasource
-    access: proxy
-    isDefault: false
-    editable: false
-    jsonData:
-      authenticationType: gce
-      defaultProject: gmail-486411
+  # Google Cloud Trace is not available as a built-in / community datasource
+  # in Grafana OSS. View traces at:
+  # https://console.cloud.google.com/traces?project=gmail-486411
