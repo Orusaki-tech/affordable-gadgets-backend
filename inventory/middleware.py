@@ -7,11 +7,35 @@ import threading
 import time
 from re import compile as re_compile
 
+# Active user tracking: {user_id: last_seen_timestamp}
+# Process-local; Prometheus sums across workers for a reasonable approximation.
+_ACTIVE_USERS: dict[int, float] = {}
+_ACTIVE_USER_TTL = 300  # 5 minutes
+
 from django.utils.deprecation import MiddlewareMixin
 
 logger = logging.getLogger(__name__)
 
 _loading_brand = threading.local()
+
+
+def _purge_stale_users():
+    """Remove users whose last activity exceeds the TTL."""
+    now = time.time()
+    stale = [uid for uid, ts in list(_ACTIVE_USERS.items()) if now - ts > _ACTIVE_USER_TTL]
+    for uid in stale:
+        _ACTIVE_USERS.pop(uid, None)
+
+
+def refresh_active_users_metric():
+    """Set the active_users Prometheus gauge (called from metrics_view)."""
+    _purge_stale_users()
+    try:
+        from inventory.observability import ACTIVE_USERS
+        ACTIVE_USERS.set(len(_ACTIVE_USERS))
+    except Exception:
+        pass
+
 
 # Patterns to normalise URL paths for metrics labels
 _PATH_PARAM_PATTERN = re_compile(r"/\d+/")
@@ -61,6 +85,10 @@ class RequestTimingMiddleware(MiddlewareMixin):
 
             HTTP_REQUESTS_TOTAL.labels(method=method, endpoint=endpoint, status_code=status).inc()
             HTTP_REQUEST_DURATION_SECONDS.labels(method=method, endpoint=endpoint).observe(ms / 1000)
+
+            # Track authenticated users
+            if getattr(request, "user", None) and request.user.is_authenticated:
+                _ACTIVE_USERS[request.user.id] = time.time()
         except Exception:
             logger.debug("Failed to record Prometheus metrics", exc_info=True)
 

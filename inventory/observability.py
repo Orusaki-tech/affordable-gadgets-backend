@@ -53,6 +53,12 @@ def metrics_view(request):
     """GET /metrics/ → Prometheus scrape endpoint."""
     from django.http import HttpResponse
 
+    try:
+        from inventory.middleware import refresh_active_users_metric
+        refresh_active_users_metric()
+    except Exception:
+        pass
+
     return HttpResponse(
         generate_latest(REGISTRY),
         content_type="text/plain; version=0.0.4; charset=utf-8",
