@@ -208,6 +208,7 @@ jobs:
           gcloud logging write production-deployment \
             "{\"event\":\"deployment_complete\",\"commit\":\"${{ github.sha }}\",\"workflow\":\"${{ github.run_id }}\",\"status\":\"success\"}" \
             --project="${{ secrets.GCP_PROJECT_ID }}" \
-            --severity=NOTICE
+            --severity=NOTICE \
+            --payload-type=json
 
 
