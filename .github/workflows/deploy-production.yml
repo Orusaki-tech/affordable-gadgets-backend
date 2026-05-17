@@ -30,13 +30,15 @@ jobs:
         env:
           CONNECTION: ${{ secrets.CLOUD_SQL_CONNECTION_NAME }}
           DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          SECRET_KEY: ci-migrate-key
+          FRONTEND_BASE_URL: https://shop.affordable-gadgetske.com
         run: |
           curl -o cloud-sql-proxy https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.14.3/cloud-sql-proxy.linux.amd64
           chmod +x cloud-sql-proxy
           ./cloud-sql-proxy "${CONNECTION}" &
           sleep 5
           pip install -r requirements.txt
-           python manage.py migrate --noinput
+          python manage.py migrate --noinput
 
   promote:
     needs: migrate
