@@ -78,6 +78,11 @@ product_bulk_destroy = path(
 urlpatterns = [
     # IMPORTANT: Explicit routes for custom actions must come BEFORE router.urls
     # to ensure they match before the router's generic routes
+    # Public endpoints must also come before the router to avoid being
+    # matched as a detail pk by the router's {pk} pattern.
+    path(
+        "units/available/", views.PublicAvailableUnitsView.as_view(), name="public-available-units"
+    ),
     # --- Order Receipt Endpoint (Clean implementation) ---
     receipt_pattern,
     product_bulk_destroy,
@@ -106,10 +111,6 @@ urlpatterns = [
         "utils/discount-calculator/",
         views.DiscountCalculatorView.as_view(),
         name="discount-calculator",
-    ),
-    # Public available units (global discovery)
-    path(
-        "units/available/", views.PublicAvailableUnitsView.as_view(), name="public-available-units"
     ),
     # --- Pesapal Payment Endpoints ---
     path("pesapal/ipn/", views.PesapalIPNView.as_view(), name="pesapal-ipn"),

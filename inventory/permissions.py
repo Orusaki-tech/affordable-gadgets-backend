@@ -564,6 +564,37 @@ class IsInventoryManagerOrMarketingManagerReadOnly(permissions.BasePermission):
         return admin.is_inventory_manager
 
 
+class IsMarketingManagerOrInventoryManagerReadOnly(permissions.BasePermission):
+    """
+    Permission for Promotions:
+    - Marketing Manager: Full access
+    - Inventory Manager: Read-only access
+    - Superuser: Full access
+    - Others: No access (return False)
+    """
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        if request.user.is_superuser:
+            return True
+
+        if not request.user.is_staff:
+            return False
+
+        admin = get_admin_from_user(request.user)
+        if not admin:
+            return False
+
+        # Read access for inventory manager or marketing manager
+        if request.method in permissions.SAFE_METHODS:
+            return admin.is_inventory_manager or admin.is_marketing_manager
+
+        # Write access only for marketing manager or superuser
+        return admin.is_marketing_manager
+
+
 class IsBundleManagerOrReadOnly(permissions.BasePermission):
     """
     Bundles:
@@ -715,6 +746,10 @@ class IsInventoryManagerOrReadOnly(permissions.BasePermission):
     """
 
     def has_permission(self, request, view):
+        # Read access for everyone (including unauthenticated)
+        if request.method in permissions.SAFE_METHODS:
+            return True
+
         if not request.user or not request.user.is_authenticated:
             return False
 
@@ -723,10 +758,6 @@ class IsInventoryManagerOrReadOnly(permissions.BasePermission):
 
         if not request.user.is_staff:
             return False
-
-        # Read access for all staff users
-        if request.method in permissions.SAFE_METHODS:
-            return True
 
         # Write access only for inventory manager
         admin = get_admin_from_user(request.user)

@@ -18,6 +18,16 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractUser
 from rest_framework.test import APIClient
 
+from inventory.models import (
+    Admin,
+    AdminRole,
+    Brand,
+    Product,
+    ProductArticle,
+    InventoryUnit,
+    UnitAcquisitionSource,
+)
+
 @pytest.fixture(autouse=True)
 def disable_security_redirects(settings):
     """Disable HTTPS redirect and HSTS during tests to avoid 301 redirects."""
@@ -48,22 +58,26 @@ UserModel: type[AbstractUser] = get_user_model()
 
 @pytest.fixture
 def brand() -> Brand:
-    return Brand.objects.create(
+    return Brand.objects.get_or_create(
         code="AFFORDABLE_GADGETS",
-        name="Affordable Gadgets",
-        ecommerce_domain="affordable-gadgetske.com",
-        is_active=True,
-    )
+        defaults=dict(
+            name="Affordable Gadgets",
+            ecommerce_domain="affordable-gadgetske.com",
+            is_active=True,
+        ),
+    )[0]
 
 
 @pytest.fixture
 def other_brand() -> Brand:
-    return Brand.objects.create(
+    return Brand.objects.get_or_create(
         code="SHWARI",
-        name="Shwari Phones",
-        ecommerce_domain="shwariphones.com",
-        is_active=True,
-    )
+        defaults=dict(
+            name="Shwari Phones",
+            ecommerce_domain="shwariphones.com",
+            is_active=True,
+        ),
+    )[0]
 
 
 # ---------------------------------------------------------------------------
@@ -153,8 +167,8 @@ def _make_admin(username: str, roles: list[AdminRole], brand: Brand | None = Non
 
 
 @pytest.fixture
-def sales_user(sales_role: AdminRole) -> AbstractUser:
-    user, _ = _make_admin("salesperson", [sales_role])
+def sales_user(sales_role: AdminRole, brand: Brand) -> AbstractUser:
+    user, _ = _make_admin("salesperson", [sales_role], brand=brand)
     return user
 
 
@@ -346,7 +360,18 @@ def product_with_article(product: Product) -> Product:
 
 
 @pytest.fixture
-def available_unit(product: Product) -> InventoryUnit:
+def acquisition_source() -> UnitAcquisitionSource:
+    return UnitAcquisitionSource.objects.create(
+        source_type=UnitAcquisitionSource.SourceType.SUPPLIER,
+        name="Test Supplier",
+        phone_number="+254700000000",
+    )
+
+
+@pytest.fixture
+def available_unit(
+    product: Product, acquisition_source: UnitAcquisitionSource
+) -> InventoryUnit:
     return InventoryUnit.objects.create(
         product_template=product,
         selling_price=Decimal("55000.00"),
@@ -355,11 +380,20 @@ def available_unit(product: Product) -> InventoryUnit:
         sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
         available_online=True,
         condition=InventoryUnit.ConditionChoices.NEW,
+        grade="A",
+        source=InventoryUnit.SourceChoices.EXTERNAL_SUPPLIER,
+        acquisition_source_details=acquisition_source,
+        storage_gb=128,
+        ram_gb=8,
+        serial_number="SN-AVAILABLE-001",
+        imei="357865098741236",
     )
 
 
 @pytest.fixture
-def sold_unit(product: Product) -> InventoryUnit:
+def sold_unit(
+    product: Product, acquisition_source: UnitAcquisitionSource
+) -> InventoryUnit:
     return InventoryUnit.objects.create(
         product_template=product,
         selling_price=Decimal("55000.00"),
@@ -367,11 +401,19 @@ def sold_unit(product: Product) -> InventoryUnit:
         quantity=1,
         sale_status=InventoryUnit.SaleStatusChoices.SOLD,
         available_online=False,
+        condition=InventoryUnit.ConditionChoices.NEW,
+        grade="A",
+        source=InventoryUnit.SourceChoices.EXTERNAL_SUPPLIER,
+        acquisition_source_details=acquisition_source,
+        storage_gb=128,
+        ram_gb=8,
+        serial_number="SN-SOLD-001",
+        imei="357865098741237",
     )
 
 
 @pytest.fixture
-def reserved_unit(product: Product) -> InventoryUnit:
+def reserved_unit(product: Product, acquisition_source: UnitAcquisitionSource) -> InventoryUnit:
     return InventoryUnit.objects.create(
         product_template=product,
         selling_price=Decimal("55000.00"),
@@ -379,11 +421,19 @@ def reserved_unit(product: Product) -> InventoryUnit:
         quantity=1,
         sale_status=InventoryUnit.SaleStatusChoices.RESERVED,
         available_online=False,
+        condition=InventoryUnit.ConditionChoices.NEW,
+        grade="A",
+        source=InventoryUnit.SourceChoices.EXTERNAL_SUPPLIER,
+        acquisition_source_details=acquisition_source,
+        storage_gb=128,
+        ram_gb=8,
+        serial_number="SN-RESERVED-001",
+        imei="357865098741242",
     )
 
 
 @pytest.fixture
-def pending_payment_unit(product: Product) -> InventoryUnit:
+def pending_payment_unit(product: Product, acquisition_source: UnitAcquisitionSource) -> InventoryUnit:
     return InventoryUnit.objects.create(
         product_template=product,
         selling_price=Decimal("55000.00"),
@@ -391,6 +441,14 @@ def pending_payment_unit(product: Product) -> InventoryUnit:
         quantity=1,
         sale_status=InventoryUnit.SaleStatusChoices.PENDING_PAYMENT,
         available_online=False,
+        condition=InventoryUnit.ConditionChoices.NEW,
+        grade="A",
+        source=InventoryUnit.SourceChoices.EXTERNAL_SUPPLIER,
+        acquisition_source_details=acquisition_source,
+        storage_gb=128,
+        ram_gb=8,
+        serial_number="SN-PENDINGPMT-001",
+        imei="357865098741243",
     )
 
 
@@ -497,5 +555,34 @@ def make_product(brand: Brand) -> Callable[..., Product]:
         if overrides:
             defaults.update(overrides)
         return Product.objects.create(**defaults)
+
+    return _make
+
+
+@pytest.fixture
+def make_unit(make_product: Callable[..., Product], acquisition_source: UnitAcquisitionSource) -> Callable[..., InventoryUnit]:
+    """Fixture factory that creates a bare InventoryUnit with required fields."""
+    counter = [0]
+
+    def _make(product: Product | None = None) -> InventoryUnit:
+        counter[0] += 1
+        if product is None:
+            product = make_product()
+        return InventoryUnit.objects.create(
+            product_template=product,
+            selling_price=Decimal("55000.00"),
+            cost_of_unit=Decimal("40000.00"),
+            quantity=1,
+            sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+            available_online=True,
+            condition=InventoryUnit.ConditionChoices.NEW,
+            grade="A",
+            source=InventoryUnit.SourceChoices.EXTERNAL_SUPPLIER,
+            acquisition_source_details=acquisition_source,
+            storage_gb=128,
+            ram_gb=8,
+            serial_number=f"SN-MAKE-{counter[0]:04d}",
+            imei=f"35786509874{counter[0]:04d}",
+        )
 
     return _make

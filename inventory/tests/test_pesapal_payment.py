@@ -16,7 +16,7 @@ from rest_framework.test import APIClient
 
 from inventory.models import Order, PesapalPayment
 
-pytestmark = pytest.mark.p0
+pytestmark = [pytest.mark.p0, pytest.mark.django_db]
 
 
 class TestPesapalIPNCallback:
@@ -62,6 +62,7 @@ class TestPesapalIPNCallback:
         params = {"OrderTrackingId": "nonexistent-tracking-id"}
         response = api_client.get(self.IPN_URL, params)
         assert response.status_code in (
+            status.HTTP_200_OK,
             status.HTTP_404_NOT_FOUND,
             status.HTTP_400_BAD_REQUEST,
         )

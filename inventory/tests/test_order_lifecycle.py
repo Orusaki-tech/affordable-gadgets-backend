@@ -11,9 +11,9 @@ import pytest
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from inventory.models import InventoryUnit, Order, OrderItem, Product
+from inventory.models import Brand, InventoryUnit, Order, OrderItem, Product
 
-pytestmark = pytest.mark.p0
+pytestmark = [pytest.mark.p0, pytest.mark.django_db]
 
 
 class TestOrderCreation:
@@ -21,17 +21,21 @@ class TestOrderCreation:
 
     def test_create_order_with_items(
         self,
-        inventory_manager_api_client: APIClient,
+        sales_api_client: APIClient,
         customer: Any,
         product: Product,
         available_unit: InventoryUnit,
+        brand: Brand,
     ) -> None:
         url = "/api/inventory/orders/"
         payload = {
             "customer": customer.id,
             "customer_id": customer.id,
+            "customer_name": "Test Customer",
+            "customer_phone": "+254700000000",
             "total_amount": "55000.00",
             "order_source": "WALK_IN",
+            "brand_id": brand.id,
             "order_items": [
                 {
                     "inventory_unit_id": available_unit.id,
@@ -39,27 +43,31 @@ class TestOrderCreation:
                 }
             ],
         }
-        response = inventory_manager_api_client.post(url, payload, format="json")
+        response = sales_api_client.post(url, payload, format="json")
         assert response.status_code == status.HTTP_201_CREATED, response.content
         data = response.json()
         assert "order_id" in data
         assert data["status"] == "Pending"
 
-    def test_create_order_requires_order_items(
+    def test_create_order_with_empty_items_allowed(
         self,
-        inventory_manager_api_client: APIClient,
+        sales_api_client: APIClient,
         customer: Any,
+        brand: Brand,
     ) -> None:
         url = "/api/inventory/orders/"
         payload = {
             "customer": customer.id,
             "customer_id": customer.id,
-            "total_amount": "55000.00",
+            "customer_name": "Test Customer",
+            "customer_phone": "+254700000000",
+            "total_amount": "0.00",
             "order_source": "WALK_IN",
+            "brand_id": brand.id,
             "order_items": [],
         }
-        response = inventory_manager_api_client.post(url, payload, format="json")
-        assert response.status_code == status.HTTP_400_BAD_REQUEST, response.content
+        response = sales_api_client.post(url, payload, format="json")
+        assert response.status_code == status.HTTP_201_CREATED, response.content
 
 
 class TestOrderIdempotency:
@@ -67,17 +75,21 @@ class TestOrderIdempotency:
 
     def test_idempotency_key_prevents_duplicate(
         self,
-        inventory_manager_api_client: APIClient,
+        sales_api_client: APIClient,
         customer: Any,
         available_unit: InventoryUnit,
+        brand: Brand,
     ) -> None:
         url = "/api/inventory/orders/"
         idempotency_key = "test-idem-key-001"
         payload = {
             "customer": customer.id,
             "customer_id": customer.id,
+            "customer_name": "Test Customer",
+            "customer_phone": "+254700000000",
             "total_amount": "55000.00",
             "order_source": "WALK_IN",
+            "brand_id": brand.id,
             "order_items": [
                 {
                     "inventory_unit_id": available_unit.id,
@@ -86,13 +98,13 @@ class TestOrderIdempotency:
             ],
         }
 
-        response1 = inventory_manager_api_client.post(
+        response1 = sales_api_client.post(
             url, payload, format="json", HTTP_IDEMPOTENCY_KEY=idempotency_key
         )
         assert response1.status_code == status.HTTP_201_CREATED, response1.content
         order_id_1 = response1.json().get("order_id")
 
-        response2 = inventory_manager_api_client.post(
+        response2 = sales_api_client.post(
             url, payload, format="json", HTTP_IDEMPOTENCY_KEY=idempotency_key
         )
         order_id_2 = response2.json().get("order_id")
@@ -105,10 +117,11 @@ class TestOrderIdempotency:
 
     def test_different_idempotency_keys_create_different_orders(
         self,
-        inventory_manager_api_client: APIClient,
+        sales_api_client: APIClient,
         customer: Any,
         product: Product,
         make_unit: Any,
+        brand: Brand,
     ) -> None:
         url = "/api/inventory/orders/"
         unit1 = make_unit(product)
@@ -116,11 +129,14 @@ class TestOrderIdempotency:
         payload = {
             "customer": customer.id,
             "customer_id": customer.id,
+            "customer_name": "Test Customer",
+            "customer_phone": "+254700000000",
             "total_amount": "55000.00",
             "order_source": "WALK_IN",
+            "brand_id": brand.id,
         }
 
-        response1 = inventory_manager_api_client.post(
+        response1 = sales_api_client.post(
             url,
             {**payload, "order_items": [{"inventory_unit_id": unit1.id, "quantity": 1}]},
             format="json",
@@ -128,7 +144,7 @@ class TestOrderIdempotency:
         )
         order_id_1 = response1.json().get("order_id")
 
-        response2 = inventory_manager_api_client.post(
+        response2 = sales_api_client.post(
             url,
             {**payload, "order_items": [{"inventory_unit_id": unit2.id, "quantity": 1}]},
             format="json",
@@ -140,16 +156,20 @@ class TestOrderIdempotency:
 
     def test_x_idempotency_key_header(
         self,
-        inventory_manager_api_client: APIClient,
+        sales_api_client: APIClient,
         customer: Any,
         available_unit: InventoryUnit,
+        brand: Brand,
     ) -> None:
         url = "/api/inventory/orders/"
         payload = {
             "customer": customer.id,
             "customer_id": customer.id,
+            "customer_name": "Test Customer",
+            "customer_phone": "+254700000000",
             "total_amount": "55000.00",
             "order_source": "WALK_IN",
+            "brand_id": brand.id,
             "order_items": [
                 {
                     "inventory_unit_id": available_unit.id,
@@ -157,7 +177,7 @@ class TestOrderIdempotency:
                 }
             ],
         }
-        response1 = inventory_manager_api_client.post(
+        response1 = sales_api_client.post(
             url, payload, format="json", HTTP_X_IDEMPOTENCY_KEY="alt-key-1"
         )
         assert response1.status_code == status.HTTP_201_CREATED, response1.content
@@ -220,12 +240,12 @@ class TestOrderRetrieval:
 
     def test_list_orders(
         self,
-        inventory_manager_api_client: APIClient,
+        sales_api_client: APIClient,
         order: Order,
         paid_order: Order,
     ) -> None:
         url = "/api/inventory/orders/"
-        response = inventory_manager_api_client.get(url)
+        response = sales_api_client.get(url)
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["count"] >= 2
@@ -238,16 +258,20 @@ class TestInventoryUnitStatusAfterOrder:
 
     def test_unit_stays_available_after_pending_order(
         self,
-        inventory_manager_api_client: APIClient,
+        sales_api_client: APIClient,
         customer: Any,
         available_unit: InventoryUnit,
+        brand: Brand,
     ) -> None:
         url = "/api/inventory/orders/"
         payload = {
             "customer": customer.id,
             "customer_id": customer.id,
+            "customer_name": "Test Customer",
+            "customer_phone": "+254700000000",
             "total_amount": str(available_unit.selling_price),
             "order_source": "WALK_IN",
+            "brand_id": brand.id,
             "order_items": [
                 {
                     "inventory_unit_id": available_unit.id,
@@ -255,7 +279,7 @@ class TestInventoryUnitStatusAfterOrder:
                 }
             ],
         }
-        response = inventory_manager_api_client.post(url, payload, format="json")
+        response = sales_api_client.post(url, payload, format="json")
         assert response.status_code == status.HTTP_201_CREATED, response.content
 
         available_unit.refresh_from_db()

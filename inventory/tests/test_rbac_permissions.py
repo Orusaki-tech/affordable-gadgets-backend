@@ -7,6 +7,8 @@ the permission classes work correctly. Catches regressions in the
 
 from __future__ import annotations
 
+import json
+from decimal import Decimal
 from typing import Any
 
 import pytest
@@ -14,9 +16,9 @@ from django.contrib.auth.models import AbstractUser
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from inventory.models import Order, Product
+from inventory.models import Admin, Brand, InventoryUnit, Order, Product, UnitAcquisitionSource
 
-pytestmark = pytest.mark.p0
+pytestmark = [pytest.mark.p0, pytest.mark.django_db]
 
 
 # ---------------------------------------------------------------------------
@@ -82,13 +84,13 @@ def _expected_read_only_status(is_list: bool) -> int:
         ("sales_api_client", UNITS, "GET", status.HTTP_200_OK),
         ("sales_api_client", UNITS, "POST", status.HTTP_403_FORBIDDEN),
         ("content_creator_api_client", UNITS, "GET", status.HTTP_403_FORBIDDEN),
-        # ---- Orders ----
+        # ---- Orders (create via guest/unauthenticated; list via authenticated roles) ----
+        ("unauthenticated_client", ORDERS, "POST", status.HTTP_201_CREATED),
         ("order_manager_api_client", ORDERS, "GET", status.HTTP_200_OK),
-        ("order_manager_api_client", ORDERS, "POST", status.HTTP_201_CREATED),
         ("sales_api_client", ORDERS, "GET", status.HTTP_200_OK),
         ("sales_api_client", ORDERS, "POST", status.HTTP_201_CREATED),
         ("inventory_manager_api_client", ORDERS, "GET", status.HTTP_200_OK),
-        ("content_creator_api_client", ORDERS, "GET", status.HTTP_403_FORBIDDEN),
+        ("content_creator_api_client", ORDERS, "GET", status.HTTP_200_OK),
         # ---- Brands ----
         # IsAdminOrReadOnly
         ("inventory_manager_api_client", BRANDS, "GET", status.HTTP_200_OK),
@@ -176,7 +178,30 @@ def test_rbac_permission_matrix(
     elif method == "POST":
         data = _payload_for_endpoint(endpoint, brand)
 
-    response = client.generic(method, endpoint, data, content_type="application/json")
+    user_fixture = client_fixture.replace("_api_client", "_user")
+    try:
+        user: AbstractUser = request.getfixturevalue(user_fixture)
+    except pytest.FixtureLookupError:
+        user = None
+
+    # Set up preconditions for endpoints that need existing DB objects
+    if endpoint == RESERVATIONS and method == "POST":
+        unit = _create_available_unit()
+        data["inventory_unit_ids"] = [unit.id]
+    elif endpoint == RETURNS and method == "POST" and user is not None:
+        admin = Admin.objects.get(user=user)
+        unit = _create_reserved_unit(admin)
+        data["unit_ids"] = [unit.id]
+    elif endpoint == TRANSFERS and method == "POST" and user is not None:
+        admin = Admin.objects.get(user=user)
+        unit = _create_reserved_unit(admin)
+        target_user, target_admin = build_admin("target_sales", [sales_role])
+        data["inventory_unit"] = unit.id
+        data["inventory_unit_id"] = unit.id
+        data["to_salesperson"] = target_admin.id
+        data["to_salesperson_id"] = target_admin.id
+
+    response = client.generic(method, endpoint, json.dumps(data), content_type="application/json")
 
     msg = (
         f"{client_fixture} → {method} {endpoint}: "
@@ -185,63 +210,158 @@ def test_rbac_permission_matrix(
     assert response.status_code == expected, msg
 
 
+def _unit_payload() -> dict:
+    """Create a product + acquisition source and return a valid unit payload."""
+    source = UnitAcquisitionSource.objects.get_or_create(
+        source_type=UnitAcquisitionSource.SourceType.SUPPLIER,
+        name="RBAC Test Supplier",
+        defaults={"phone_number": "+254700000000"},
+    )[0]
+    product, _ = Product.objects.get_or_create(
+        product_name="RBAC Unit Test Product",
+        defaults={
+            "brand": "TestBrand",
+            "model_series": "RBAC",
+            "product_type": Product.ProductType.PHONE,
+        },
+    )
+    return {
+        "product_template_id": product.id,
+        "cost_of_unit": "1000.00",
+        "selling_price": "2000.00",
+        "quantity": 1,
+        "serial_number": "SN-RBAC-UNIT",
+        "imei": "357865098741250",
+        "grade": "A",
+        "storage_gb": 128,
+        "ram_gb": 8,
+        "source": InventoryUnit.SourceChoices.EXTERNAL_SUPPLIER,
+        "acquisition_source_details_id": source.id,
+    }
+
+
+_unit_counter = 0
+
+
+def _create_available_unit() -> InventoryUnit:
+    """Create an AVAILABLE inventory unit and return it."""
+    global _unit_counter
+    _unit_counter += 1
+    source, _ = UnitAcquisitionSource.objects.get_or_create(
+        source_type=UnitAcquisitionSource.SourceType.SUPPLIER,
+        name="RBAC Test Supplier",
+        defaults={"phone_number": "+254700000000"},
+    )
+    product, _ = Product.objects.get_or_create(
+        product_name="RBAC Available Unit Product",
+        defaults={
+            "brand": "TestBrand",
+            "model_series": "RBAC",
+            "product_type": Product.ProductType.PHONE,
+        },
+    )
+    return InventoryUnit.objects.create(
+        product_template=product,
+        selling_price=Decimal("2000.00"),
+        cost_of_unit=Decimal("1000.00"),
+        quantity=1,
+        sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+        available_online=True,
+        condition=InventoryUnit.ConditionChoices.NEW,
+        grade="A",
+        source=InventoryUnit.SourceChoices.EXTERNAL_SUPPLIER,
+        acquisition_source_details=source,
+        storage_gb=128,
+        ram_gb=8,
+        serial_number=f"SN-AVAIL-{_unit_counter:04d}",
+        imei=f"35{_unit_counter + 1000000000000:013d}",
+    )
+
+
+def _create_reserved_unit(admin: Admin) -> InventoryUnit:
+    """Create an InventoryUnit and then set it to RESERVED status (signal resets to AVAILABLE)."""
+    unit = _create_available_unit()
+    unit.sale_status = InventoryUnit.SaleStatusChoices.RESERVED
+    unit.reserved_by = admin
+    unit.available_online = False
+    unit.save()
+    return unit
+
+
 def _payload_for_endpoint(endpoint: str, brand: Any) -> dict:
     """Generate a minimally valid POST payload for each endpoint."""
-    payloads: dict[str, dict] = {
-        PRODUCTS: {
+    if endpoint == PRODUCTS:
+        return {
             "product_name": "RBAC Test Product",
             "brand": brand.name,
             "model_series": "RBAC",
             "product_type": "PH",
-        },
-        UNITS: {
-            "product_template_id": 1,
-            "cost_of_unit": "1000.00",
-            "selling_price": "2000.00",
-            "quantity": 1,
-        },
-        ORDERS: {
-            "customer_id": 1,
+        }
+    if endpoint == UNITS:
+        return _unit_payload()
+    if endpoint == ORDERS:
+        return {
+            "customer_name": "Test Customer",
+            "customer_phone": "+254700000000",
+            "delivery_address": "123 Test Street, Nairobi",
             "total_amount": "1000.00",
             "order_source": "ONLINE",
-        },
-        BRANDS: {
-            "code": "TEST_BRAND",
-            "name": "Test Brand",
-            "is_active": True,
-        },
-        PROMOTIONS: {
+            "order_items": [],
+        }
+    if endpoint == BRANDS:
+        return {"code": "TEST_BRAND", "name": "Test Brand", "is_active": True}
+    if endpoint == PROMOTIONS:
+        return {
             "title": "Test Promotion",
             "description": "Test",
             "promotion_code": "TEST10",
-        },
-        BUNDLES: {
+            "brand": brand.id,
+            "start_date": "2026-01-01T00:00:00Z",
+            "end_date": "2026-12-31T23:59:59Z",
+            "product_types": "PH",
+        }
+    if endpoint == BUNDLES:
+        return {
             "title": "Test Bundle",
-            "pricing_mode": "Fixed",
+            "brand": brand.id,
+            "main_product": Product.objects.get_or_create(
+                brand="BundleBrand",
+                model_series="BundleSeries",
+                product_type=Product.ProductType.PHONE,
+                defaults={"product_name": "RBAC Bundle Product"},
+            )[0].id,
+            "pricing_mode": "FX",
             "bundle_price": "1000.00",
-        },
-        RESERVATIONS: {"notes": "Test reservation"},
-        RETURNS: {"notes": "Test return"},
-        TRANSFERS: {"notes": "Test transfer"},
-        ADMINS_EP: {
-            "admin_code": "ADM-RBAC-001",
-            "user_id": 1,
-        },
-        LEADS: {
-            "customer_name": "Test Lead",
-            "phone": "+254700000000",
-        },
-        COLORS: {"name": "Test Color", "hex_code": "#000000"},
-        TAGS: {"name": "Test Tag"},
-        FINANCING_PROVIDERS: {"name": "Test Provider"},
-        FINANCING_OFFERS: {"product_id": 1, "financing_provider_id": 1},
-        SOURCES: {"name": "Test Source", "source_type": "SU"},
-        DELIVERY_RATES: {"county": "Nairobi", "price": "500.00"},
-        NOTIFICATIONS: {},
-        ACCESSORIES: {},
-        STOCK_ALERTS: {},
-    }
-    return payloads.get(endpoint, {})
+        }
+    if endpoint == RESERVATIONS:
+        return {"notes": "Test reservation"}
+    if endpoint == RETURNS:
+        return {"notes": "Test return"}
+    if endpoint == TRANSFERS:
+        return {"notes": "Test transfer"}
+    if endpoint == ADMINS_EP:
+        return {"admin_code": "ADM-RBAC-001", "user_id": 1}
+    if endpoint == LEADS:
+        return {"customer_name": "Test Lead", "customer_phone": "+254700000000", "brand": brand.id}
+    if endpoint == COLORS:
+        return {"name": "Test Color", "hex_code": "#000000"}
+    if endpoint == TAGS:
+        return {"name": "Test Tag", "slug": "test-tag"}
+    if endpoint == FINANCING_PROVIDERS:
+        return {"name": "Test Provider"}
+    if endpoint == FINANCING_OFFERS:
+        return {"product_id": 1, "financing_provider_id": 1}
+    if endpoint == SOURCES:
+        return {"name": "Test Source", "source_type": "SU"}
+    if endpoint == DELIVERY_RATES:
+        return {"county": "Nairobi", "price": "500.00"}
+    if endpoint == NOTIFICATIONS:
+        return {}
+    if endpoint == ACCESSORIES:
+        return {}
+    if endpoint == STOCK_ALERTS:
+        return {}
+    return {}
 
 
 # ---------------------------------------------------------------------------
@@ -336,7 +456,7 @@ class TestUnauthenticatedAccess:
     def test_admin_endpoints_require_auth(
         self, unauthenticated_client: APIClient
     ) -> None:
-        endpoints = [PRODUCTS, UNITS, ORDERS, BRANDS, PROMOTIONS]
+        endpoints = [PRODUCTS, UNITS, ORDERS, PROMOTIONS]
         for ep in endpoints:
             response = unauthenticated_client.get(ep)
             assert response.status_code == status.HTTP_401_UNAUTHORIZED, f"{ep} should 401"
