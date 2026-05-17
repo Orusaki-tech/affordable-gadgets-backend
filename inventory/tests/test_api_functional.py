@@ -9,10 +9,17 @@ from django.contrib.auth import get_user_model
 from model_bakery import baker
 from rest_framework.test import APIClient
 from rest_framework import status
+from django.core.cache import cache
 
 from inventory.models import Product, ProductArticle, Order, InventoryUnit, Brand
 
 User = get_user_model()
+
+
+@pytest.fixture(autouse=True)
+def clear_cache(db):
+    """Clear cache before each test to ensure fresh results."""
+    cache.clear()
 
 
 @pytest.fixture
@@ -49,8 +56,19 @@ def sample_product(db, default_brand):
         product_type=Product.ProductType.PHONE,
         is_published=True,
         is_global=True,
+        is_discontinued=False,
     )
     p.brands.add(default_brand)
+    # Create available unit to ensure it shows up if there's any hidden filtering
+    baker.make(
+        InventoryUnit,
+        product_template=p,
+        sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+        available_online=True,
+        quantity=1,
+        selling_price=500,
+        cost_of_unit=400,
+    )
     return p
 
 
@@ -89,24 +107,19 @@ class TestProductListingEndpoint:
 
     def test_products_list_returns_paginated_data(self, api_client, sample_product, db):
         """Products list should return paginated data."""
-        from inventory.models import Product
-        print(f"DEBUG: Product count={Product.objects.count()}")
-        print(f"DEBUG: Published products={[p.id for p in Product.objects.filter(is_published=True)]}")
-        
         response = api_client.get("/api/v1/public/products/")
         data = response.json()
         results = get_results(data)
-        if not results:
-            pytest.fail(f"DEBUG: Empty results. Response data={data}")
-        assert "results" in data, f"Expected 'results' in response, got {data.keys()}"
-        assert len(results) > 0, "Expected at least one product in results"
+        assert "results" in data, f"Expected 'results' in response keys: {data.keys()}"
+        assert len(results) > 0, f"Expected at least one product in results. Results: {results}"
 
     def test_products_list_includes_published_only(self, api_client, db, default_brand):
         """Published products should appear in public list."""
-        published = baker.make(Product, product_type=Product.ProductType.PHONE, is_published=True, is_global=True)
+        published = baker.make(Product, product_type=Product.ProductType.PHONE, is_published=True, is_global=True, is_discontinued=False)
         published.brands.add(default_brand)
+        baker.make(InventoryUnit, product_template=published, sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE, available_online=True, quantity=1, selling_price=500, cost_of_unit=400)
         
-        unpublished = baker.make(Product, product_type=Product.ProductType.PHONE, is_published=False, brand="UniqueBrand1", is_global=True)
+        unpublished = baker.make(Product, product_type=Product.ProductType.PHONE, is_published=False, brand="UniqueBrand1", is_global=True, is_discontinued=False)
         unpublished.brands.add(default_brand)
         
         response = api_client.get("/api/v1/public/products/")
@@ -128,21 +141,22 @@ class TestProductListingEndpoint:
             assert field in product, f"Product missing required field: {field}. Keys: {product.keys()}"
 
     def test_products_list_supports_filtering(self, api_client, db, default_brand):
-        """Products list should support filtering by product_type (using 'type' param)."""
-        phone = baker.make(Product, product_type=Product.ProductType.PHONE, is_published=True, is_global=True)
+        """Products list should support filtering by product_type (using 'type' param with code)."""
+        phone = baker.make(Product, product_type=Product.ProductType.PHONE, is_published=True, is_global=True, is_discontinued=False)
         phone.brands.add(default_brand)
+        baker.make(InventoryUnit, product_template=phone, sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE, available_online=True, quantity=1, selling_price=500, cost_of_unit=400)
         
-        laptop = baker.make(Product, product_type=Product.ProductType.LAPTOP, is_published=True, brand="UniqueBrand2", is_global=True)
+        laptop = baker.make(Product, product_type=Product.ProductType.LAPTOP, is_published=True, brand="UniqueBrand2", is_global=True, is_discontinued=False)
         laptop.brands.add(default_brand)
+        baker.make(InventoryUnit, product_template=laptop, sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE, available_online=True, quantity=1, selling_price=500, cost_of_unit=400)
         
-        response = api_client.get("/api/v1/public/products/?type=phone")
+        # Use choice value "PH" instead of "phone"
+        response = api_client.get("/api/v1/public/products/?type=PH")
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         results = get_results(data)
         product_ids = [p.get("id") for p in results if isinstance(p, dict)]
-        assert phone.id in product_ids
-        # Note: Depending on backend implementation, laptop might still be in results if filtering is broad,
-        # but the primary goal here is to ensure the request succeeds and returns the intended item.
+        assert phone.id in product_ids, f"Phone product {phone.id} not found in results {product_ids}"
 
 
 @pytest.mark.django_db
@@ -245,9 +259,10 @@ class TestAPIResponseFormats:
 
     def test_list_response_has_consistent_structure(self, api_client, db, default_brand):
         """List endpoints should have consistent structure."""
-        products = baker.make(Product, product_type=Product.ProductType.PHONE, is_published=True, _quantity=3, brand=baker.seq("Brand"), is_global=True)
+        products = baker.make(Product, product_type=Product.ProductType.PHONE, is_published=True, _quantity=3, brand=baker.seq("Brand"), is_global=True, is_discontinued=False)
         for p in products:
             p.brands.add(default_brand)
+            baker.make(InventoryUnit, product_template=p, sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE, available_online=True, quantity=1, selling_price=500, cost_of_unit=400)
             
         response = api_client.get("/api/v1/public/products/")
         data = response.json()
