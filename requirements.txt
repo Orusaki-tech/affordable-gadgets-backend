@@ -45,7 +45,7 @@ opentelemetry-exporter-gcp-trace>=1.8.0
 pytest==9.0.3
 pytest-django==4.12.0
 pytest-cov==7.1.0
-factory-boy==3.3.3
+pytest-xdist==3.6.1
 model-bakery==1.23.4
 responses==0.26.0
 # OpenAPI/Contract testing

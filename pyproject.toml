@@ -19,7 +19,7 @@ dependencies = [
 [tool.ruff]
 target-version = "py310"
 line-length = 100
-exclude = ["venv", ".git", "migrations", "__pycache__", "build", "dist", "scripts/adhoc"]
+exclude = ["venv", ".git", "migrations", "__pycache__", "build", "dist"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP"]
