@@ -97,7 +97,7 @@ class TestProductListingEndpoint:
         data = response.json()
         results = get_results(data)
         if not results:
-            print(f"DEBUG: Response data={data}")
+            pytest.fail(f"DEBUG: Empty results. Response data={data}")
         assert "results" in data, f"Expected 'results' in response, got {data.keys()}"
         assert len(results) > 0, "Expected at least one product in results"
 
