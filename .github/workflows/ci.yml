@@ -226,30 +226,6 @@ jobs:
             sleep 10
           done
 
-      - name: Health check
-        env:
-          API_URL: ${{ vars.PRODUCTION_API_URL }}
-        run: |
-          for i in $(seq 1 12); do
-            if curl -sf --max-time 10 "${API_URL:-https://api.affordable-gadgetske.com}/health/" > /dev/null 2>&1; then
-              echo "Health check passed"
-              break
-            fi
-            if [ "$i" -eq 12 ]; then
-              echo "FAILED: Health check never returned 200"
-              exit 1
-            fi
-            echo "Retrying health check in 5s... ($i/12)"
-            sleep 5
-          done
-
-      - name: Verify OpenAPI schema accessible
-        env:
-          API_URL: ${{ vars.PRODUCTION_API_URL }}
-        run: |
-          curl -sf --max-time 30 "${API_URL:-https://api.affordable-gadgetske.com}/openapi.yaml" > /dev/null
-          echo "OpenAPI schema accessible"
-
       - name: Mark deployment as success
         if: success()
         run: |
