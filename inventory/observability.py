@@ -98,6 +98,52 @@ def get_logger(name: str) -> StructLoggerAdapter:
     return StructLoggerAdapter(logging.getLogger(name), {})
 
 
+# ── OpenTelemetry Initialisation ────────────────────────────────────────
+
+
+def init_opentelemetry() -> bool:
+    """Initialise OpenTelemetry tracing (export to GCP Cloud Trace).
+
+    Environment variables:
+      OTEL_ENABLED          — set to "true" to enable (default: true)
+      OTEL_SERVICE_NAME     — service name in traces (default: "ag-api")
+      OTEL_SAMPLE_RATE      — trace sample rate 0-1 (default: 0.1)
+    """
+    if os.environ.get("OTEL_ENABLED", "true").lower() != "true":
+        return False
+    try:
+        from opentelemetry import trace
+        from opentelemetry.exporter.gcp_trace import CloudTraceSpanExporter
+        from opentelemetry.sdk.resources import Resource
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor
+        from opentelemetry.instrumentation.django import DjangoInstrumentor
+        from opentelemetry.instrumentation.requests import RequestsInstrumentor
+
+        project_id = os.environ.get(
+            "OTEL_GCP_PROJECT_ID"
+        ) or os.environ.get("GOOGLE_CLOUD_PROJECT")
+        service_name = os.environ.get("OTEL_SERVICE_NAME", "ag-api")
+        sample_rate = float(os.environ.get("OTEL_SAMPLE_RATE", "0.1"))
+
+        provider = TracerProvider(
+            resource=Resource.create({"service.name": service_name}),
+            sampler=trace.sampling.ParentBased(
+                trace.sampling.TraceIdRatioBased(sample_rate)
+            ),
+        )
+        exporter = CloudTraceSpanExporter(project_id=project_id)
+        provider.add_span_processor(BatchSpanProcessor(exporter))
+        trace.set_tracer_provider(provider)
+
+        DjangoInstrumentor().instrument()
+        RequestsInstrumentor().instrument()
+        return True
+    except Exception as exc:
+        logging.getLogger(__name__).warning("OpenTelemetry init failed: %s", exc)
+        return False
+
+
 # ── Sentry Initialisation ──────────────────────────────────────────────
 
 

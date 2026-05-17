@@ -1,4 +1,11 @@
 ---
+- name: Check if Docker is already installed
+  command: docker --version
+  register: docker_check
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
 - name: Install Docker
   apt:
     name:
@@ -7,6 +14,7 @@
       - curl
     state: present
     update_cache: true
+  when: docker_check.rc != 0 or common_force_docker_install | default(false)
 
 - name: Enable Docker
   systemd:

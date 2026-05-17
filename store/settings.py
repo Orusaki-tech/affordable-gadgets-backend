@@ -80,12 +80,17 @@ INSTALLED_APPS = [
 OBSERVABILITY_ENABLED = os.environ.get("OBSERVABILITY_ENABLED", "true").lower() == "true"
 
 if OBSERVABILITY_ENABLED:
-    from inventory.observability import init_sentry
+    from inventory.observability import init_sentry, init_opentelemetry
 
     if init_sentry():
         import logging
 
         logging.getLogger(__name__).info("Sentry SDK initialised")
+
+    if init_opentelemetry():
+        import logging
+
+        logging.getLogger(__name__).info("OpenTelemetry tracing initialised")
 
 # Reviews OTP settings
 # Keep review OTPs valid for one hour (default), configurable via env.

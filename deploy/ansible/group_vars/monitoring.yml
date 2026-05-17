@@ -1,0 +1,8 @@
+---
+monitoring_instance_name: affordable-gadgets-production-monitoring
+ansible_host: 127.0.0.1
+ansible_user: affordablegadgetske_gmail_com
+ansible_private_key_file: ~/.ssh/id_ed25519
+ansible_ssh_common_args: >-
+  -o ProxyCommand='gcloud compute start-iap-tunnel {{ monitoring_instance_name }} 22 --listen-on-stdin
+  --project={{ gcp_project_id }} --zone=us-east1-b'

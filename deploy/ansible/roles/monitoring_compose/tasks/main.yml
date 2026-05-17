@@ -1,0 +1,52 @@
+---
+- name: Create monitoring directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ compose_root }}/monitoring/prometheus"
+    - "{{ compose_root }}/monitoring/grafana/datasources"
+    - "{{ compose_root }}/monitoring/grafana/dashboards"
+
+- name: Deploy prometheus.yml
+  template:
+    src: prometheus.yml.j2
+    dest: "{{ compose_root }}/monitoring/prometheus/prometheus.yml"
+    mode: "0644"
+
+- name: Deploy Grafana datasource
+  copy:
+    src: datasource.yml
+    dest: "{{ compose_root }}/monitoring/grafana/datasources/datasource.yml"
+    mode: "0644"
+
+- name: Deploy Grafana dashboard provider
+  copy:
+    src: dashboards.yml
+    dest: "{{ compose_root }}/monitoring/grafana/dashboards/dashboards.yml"
+    mode: "0644"
+
+- name: Deploy Django dashboard
+  copy:
+    src: django-dashboard.json
+    dest: "{{ compose_root }}/monitoring/grafana/dashboards/django-dashboard.json"
+    mode: "0644"
+
+- name: Deploy grafana.env
+  template:
+    src: grafana.env.j2
+    dest: "{{ compose_root }}/monitoring/grafana.env"
+    mode: "0600"
+  no_log: true
+
+- name: Deploy docker-compose.monitoring.yml
+  template:
+    src: docker-compose.monitoring.yml.j2
+    dest: "{{ compose_root }}/docker-compose.monitoring.yml"
+    mode: "0644"
+
+- name: Start monitoring stack
+  command: docker compose -f {{ compose_root }}/docker-compose.monitoring.yml --env-file {{ compose_root }}/monitoring/grafana.env up -d --force-recreate
+  args:
+    chdir: "{{ compose_root }}"
