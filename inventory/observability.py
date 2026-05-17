@@ -67,8 +67,15 @@ def metrics_view(request):
 # ── Structured Logging ────────────────────────────────────────────────
 
 
+_REQUEST_FIELDS = ("request_id", "user_id", "brand_code", "method", "path")
+
+
 class JSONFormatter(logging.Formatter):
-    """Output log records as newline-delimited JSON."""
+    """Output log records as newline-delimited JSON.
+
+    Includes request context fields (request_id, user_id, brand_code, method, path)
+    when the RequestContextFilter is active.
+    """
 
     def format(self, record: logging.LogRecord) -> str:
         payload = {
@@ -82,6 +89,10 @@ class JSONFormatter(logging.Formatter):
             "process": record.process,
             "thread": record.thread,
         }
+        for field in _REQUEST_FIELDS:
+            val = getattr(record, field, None)
+            if val is not None:
+                payload[field] = val
         if record.exc_info and record.exc_info[0]:
             payload["exception"] = self.formatException(record.exc_info)
         if hasattr(record, "extra_fields"):

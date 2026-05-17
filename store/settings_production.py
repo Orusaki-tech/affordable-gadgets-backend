@@ -261,11 +261,15 @@ _use_json_logging = os.environ.get("JSON_LOGGING", "true").lower() == "true"
 
 if _use_json_logging:
     from inventory.observability import JSONFormatter
+    from inventory.middleware import RequestContextFilter
 
     _json_fmt = JSONFormatter()
     LOGGING = {
         "version": 1,
         "disable_existing_loggers": False,
+        "filters": {
+            "request_context": {"()": RequestContextFilter},
+        },
         "formatters": {
             "json": {"()": lambda: _json_fmt},
             "simple": {"format": "{levelname} {message}", "style": "{"},
@@ -275,6 +279,7 @@ if _use_json_logging:
                 "level": "INFO",
                 "class": "logging.StreamHandler",
                 "formatter": "json",
+                "filters": ["request_context"],
             },
         },
         "root": {

@@ -1,11 +1,12 @@
 """
-Middleware for brand context, request timing, and Prometheus instrumentation.
+Middleware for brand context, request timing, structured logging, and Prometheus instrumentation.
 """
 
 import logging
 import threading
 import time
 from re import compile as re_compile
+from uuid import uuid4
 
 # Active user tracking: {user_id: last_seen_timestamp}
 # Process-local; Prometheus sums across workers for a reasonable approximation.
@@ -15,6 +16,53 @@ _ACTIVE_USER_TTL = 300  # 5 minutes
 from django.utils.deprecation import MiddlewareMixin
 
 logger = logging.getLogger(__name__)
+
+# ── Structured logging context ────────────────────────────────────────
+
+_request_context = threading.local()
+
+
+class RequestContextFilter(logging.Filter):
+    """Injects request context (request_id, user_id, brand, etc.) into every log record."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        ctx = getattr(_request_context, "current", None)
+        record.request_id = ctx.get("request_id") if ctx else None
+        record.user_id = ctx.get("user_id") if ctx else None
+        record.brand_code = ctx.get("brand_code") if ctx else None
+        record.method = ctx.get("method") if ctx else None
+        record.path = ctx.get("path") if ctx else None
+        return True
+
+
+class LogContextMiddleware:
+    """Attaches request_id, user_id, brand to every structured log record for this request."""
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        request.request_id = str(uuid4())
+        _request_context.current = {
+            "request_id": request.request_id,
+            "method": request.method,
+            "path": request.path_info,
+        }
+
+        response = self.get_response(request)
+
+        ctx = _request_context.current
+        if ctx:
+            if getattr(request, "user", None) and request.user.is_authenticated:
+                ctx["user_id"] = request.user.id
+            if getattr(request, "brand", None):
+                ctx["brand_code"] = request.brand.code
+            logger.info("request_completed", extra={"extra_fields": {
+                "status_code": response.status_code,
+            }})
+
+        _request_context.current = None
+        return response
 
 _loading_brand = threading.local()
 
