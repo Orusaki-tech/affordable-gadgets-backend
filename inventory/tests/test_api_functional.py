@@ -53,6 +53,7 @@ def sample_article(db, sample_product):
     )
 
 
+@pytest.mark.django_db
 @pytest.mark.p0
 class TestProductListingEndpoint:
     """Test product listing endpoint - critical for storefront."""

@@ -18,6 +18,14 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractUser
 from rest_framework.test import APIClient
 
+@pytest.fixture(autouse=True)
+def disable_security_redirects(settings):
+    """Disable HTTPS redirect and HSTS during tests to avoid 301 redirects."""
+    settings.SECURE_SSL_REDIRECT = False
+    settings.SECURE_HSTS_SECONDS = 0
+    settings.SESSION_COOKIE_SECURE = False
+    settings.CSRF_COOKIE_SECURE = False
+
 from inventory.models import (
     Admin,
     AdminRole,

@@ -39,7 +39,7 @@ def test_mixed_multipart_and_json_payload(api_client, admin_user, sample_product
     }
 
     response = api_client.patch(
-        f'/api/products/{sample_product.id}/update_content/',
+        f'/api/inventory/products/{sample_product.id}/update_content/',
         payload,
         format='multipart',
     )
