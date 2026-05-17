@@ -156,8 +156,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
-      contents: read
+      contents: write
+      deployments: write
     steps:
+      - uses: actions/checkout@v4
+
       - uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
@@ -173,6 +176,31 @@ jobs:
             --project="${PROJECT_ID}" \
             --max-unavailable=1 \
             --max-surge=0
+
+      - name: Create GitHub Deployment
+        id: deployment
+        run: |
+          DEPLOY_ID=$(gh api \
+            -X POST "repos/${{ github.repository }}/deployments" \
+            -F "ref=${{ github.sha }}" \
+            -F "environment=production" \
+            -F "auto_merge=false" \
+            -F "required_contexts[]=" \
+            -F "description=API rolling update via CI/CD" \
+            --jq '.id')
+          echo "deploy_id=$DEPLOY_ID" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Mark deployment as success
+        run: |
+          gh api \
+            -X POST "repos/${{ github.repository }}/deployments/${{ steps.deployment.outputs.deploy_id }}/statuses" \
+            -F "state=success" \
+            -F "environment=production" \
+            -F "description=API rolling update completed"
+        env:
+          GH_TOKEN: ${{ github.token }}
 
   smoke:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
