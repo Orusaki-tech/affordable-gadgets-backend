@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: Git SHA or tag already in Artifact Registry (default: production-latest)
+        description: 'Git SHA or tag already in Artifact Registry (default: production-latest)'
         required: false
-        default: production-latest
+        default: 'production-latest'
 
 env:
   REGION: us-east1
