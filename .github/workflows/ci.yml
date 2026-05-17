@@ -166,7 +166,8 @@ jobs:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_DEPLOY_SA }}
 
-      - name: Rolling update production API MIG
+      - name: Trigger rolling replace on MIG
+        id: roll
         env:
           PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           MIG_NAME: ${{ secrets.PRODUCTION_API_MIG_NAME }}
@@ -177,7 +178,7 @@ jobs:
             --max-unavailable=1 \
             --max-surge=0
 
-      - name: Create GitHub Deployment
+      - name: Create GitHub Deployment (in_progress)
         id: deployment
         run: |
           DEPLOY_ID=$(gh api \
@@ -186,32 +187,61 @@ jobs:
             -F "environment=production" \
             -F "auto_merge=false" \
             -F "required_contexts[]=" \
-            -F "description=API rolling update via CI/CD" \
+            -F "description=Deploying API rolling update..." \
             --jq '.id')
           echo "deploy_id=$DEPLOY_ID" >> "$GITHUB_OUTPUT"
-        env:
-          GH_TOKEN: ${{ github.token }}
-
-      - name: Mark deployment as success
-        run: |
           gh api \
-            -X POST "repos/${{ github.repository }}/deployments/${{ steps.deployment.outputs.deploy_id }}/statuses" \
-            -F "state=success" \
-            -F "environment=production" \
-            -F "description=API rolling update completed"
+            -X POST "repos/${{ github.repository }}/deployments/$DEPLOY_ID/statuses" \
+            -F "state=in_progress" \
+            -F "description=Rolling replace triggered, waiting for MIG to stabilise..."
+          echo "Created deployment $DEPLOY_ID"
         env:
           GH_TOKEN: ${{ github.token }}
 
-  smoke:
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    needs: deploy
-    runs-on: ubuntu-latest
-    steps:
+      - name: Wait for MIG rollout to complete
+        env:
+          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          MIG_NAME: ${{ secrets.PRODUCTION_API_MIG_NAME }}
+        run: |
+          echo "Polling MIG until all instances are HEALTHY and stable..."
+          for i in $(seq 1 60); do
+            STATUS=$(gcloud compute instance-groups managed list-instances "${MIG_NAME}" \
+              --region="${{ env.REGION }}" \
+              --project="${PROJECT_ID}" \
+              --format="value(HEALTH_STATE)" 2>/dev/null || echo "")
+            UNHEALTHY=$(echo "$STATUS" | grep -cv "HEALTHY" || true)
+            if [ "$UNHEALTHY" -eq 0 ] && [ -n "$STATUS" ]; then
+              echo "All instances HEALTHY after ${i}0s"
+              break
+            fi
+            if [ "$i" -eq 60 ]; then
+              echo "TIMEOUT: MIG not stable after 10 minutes"
+              gh api \
+                -X POST "repos/${{ github.repository }}/deployments/${{ steps.deployment.outputs.deploy_id }}/statuses" \
+                -F "state=failure" \
+                -F "description=Rolling replace timed out"
+              exit 1
+            fi
+            echo "Waiting... ($i/60, unhealthy=$UNHEALTHY)"
+            sleep 10
+          done
+
       - name: Health check
         env:
           API_URL: ${{ vars.PRODUCTION_API_URL }}
         run: |
-          curl -sf --max-time 30 "${API_URL:-https://api.affordable-gadgetske.com}/health/" || exit 0
+          for i in $(seq 1 12); do
+            if curl -sf --max-time 10 "${API_URL:-https://api.affordable-gadgetske.com}/health/" > /dev/null 2>&1; then
+              echo "Health check passed"
+              break
+            fi
+            if [ "$i" -eq 12 ]; then
+              echo "FAILED: Health check never returned 200"
+              exit 1
+            fi
+            echo "Retrying health check in 5s... ($i/12)"
+            sleep 5
+          done
 
       - name: Verify OpenAPI schema accessible
         env:
@@ -219,3 +249,27 @@ jobs:
         run: |
           curl -sf --max-time 30 "${API_URL:-https://api.affordable-gadgetske.com}/openapi.yaml" > /dev/null
           echo "OpenAPI schema accessible"
+
+      - name: Mark deployment as success
+        if: success()
+        run: |
+          gh api \
+            -X POST "repos/${{ github.repository }}/deployments/${{ steps.deployment.outputs.deploy_id }}/statuses" \
+            -F "state=success" \
+            -F "environment=production" \
+            -F "description=API deployed and healthy"
+          echo "Deployment ${{ steps.deployment.outputs.deploy_id }} marked success"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Mark deployment as failure
+        if: failure() || cancelled()
+        run: |
+          gh api \
+            -X POST "repos/${{ github.repository }}/deployments/${{ steps.deployment.outputs.deploy_id }}/statuses" \
+            -F "state=failure" \
+            -F "environment=production" \
+            -F "description=Deployment failed"
+          echo "Deployment ${{ steps.deployment.outputs.deploy_id }} marked failure"
+        env:
+          GH_TOKEN: ${{ github.token }}
