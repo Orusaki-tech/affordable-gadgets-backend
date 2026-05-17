@@ -1,5 +1,10 @@
 name: Validate and Generate OpenAPI Schema
 
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
 on:
   pull_request:
     branches: [main, master]
