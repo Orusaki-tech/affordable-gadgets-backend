@@ -7,3 +7,22 @@ datasources:
     url: http://prometheus:9090
     isDefault: true
     editable: false
+
+  - name: Google Cloud Logging
+    type: stackdriver
+    access: proxy
+    withCredentials: false
+    isDefault: false
+    editable: false
+    jsonData:
+      authenticationType: gce
+      defaultProject: gmail-486411
+
+  - name: Google Cloud Trace
+    type: googlecloudtrace-datasource
+    access: proxy
+    isDefault: false
+    editable: false
+    jsonData:
+      authenticationType: gce
+      defaultProject: gmail-486411

@@ -22,6 +22,7 @@ services:
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_INSTALL_PLUGINS: googlecloudtrace-datasource
     volumes:
       - {{ compose_root }}/monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
       - {{ compose_root }}/monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
