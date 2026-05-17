@@ -99,6 +99,7 @@ REVIEW_OTP_TTL_SECONDS = int(os.getenv("REVIEW_OTP_TTL_SECONDS", 60 * 60))
 MIDDLEWARE = [
     *(["silk.middleware.SilkyMiddleware"] if SILKY_ENABLED else []),
     "corsheaders.middleware.CorsMiddleware",  # <--- ADDED: Must be near top, before CommonMiddleware
+    "inventory.middleware.LogContextMiddleware",  # Generates request_id, attaches structured log context
     "inventory.middleware.RequestTimingMiddleware",  # Early: adds X-Processing-Ms to compare TTFB vs cold start
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -191,7 +192,7 @@ AUTH_PASSWORD_VALIDATORS = [
 REST_FRAMEWORK = {
     # 1. DEFAULT AUTHENTICATION: Prioritize Token for API clients
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework.authentication.TokenAuthentication",
+        "inventory.auth.TrackingTokenAuthentication",
         "rest_framework.authentication.SessionAuthentication",
     ],
     # 2. DEFAULT PERMISSION CLASSES: Secure by default
