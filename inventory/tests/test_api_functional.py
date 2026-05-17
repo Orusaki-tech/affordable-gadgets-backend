@@ -116,11 +116,11 @@ class TestProductListingEndpoint:
 
     def test_products_list_includes_published_only(self, api_client, db, default_brand):
         """Published products should appear in public list."""
-        published = baker.make(Product, product_name=baker.seq("Pub "), product_type=Product.ProductType.PHONE, is_published=True, is_global=True, is_discontinued=False)
+        published = baker.make(Product, product_name=baker.seq("Pub "), brand=baker.seq("Brand-P"), model_series=baker.seq("Series-P"), product_type=Product.ProductType.PHONE, is_published=True, is_global=True, is_discontinued=False)
         published.brands.add(default_brand)
         baker.make(InventoryUnit, product_template=published, sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE, available_online=True, quantity=1, selling_price=500, cost_of_unit=400)
         
-        unpublished = baker.make(Product, product_name=baker.seq("Unpub "), product_type=Product.ProductType.PHONE, is_published=False, is_global=True, is_discontinued=False)
+        unpublished = baker.make(Product, product_name=baker.seq("Unpub "), brand=baker.seq("Brand-U"), model_series=baker.seq("Series-U"), product_type=Product.ProductType.PHONE, is_published=False, is_global=True, is_discontinued=False)
         unpublished.brands.add(default_brand)
         
         response = api_client.get("/api/v1/public/products/")
@@ -260,8 +260,19 @@ class TestAPIResponseFormats:
 
     def test_list_response_has_consistent_structure(self, api_client, db, default_brand):
         """List endpoints should have consistent structure."""
-        products = baker.make(Product, product_name=baker.seq("Format "), product_type=Product.ProductType.PHONE, is_published=True, _quantity=3, is_global=True, is_discontinued=False)
+        products = baker.make(
+            Product, 
+            product_name=baker.seq("Format "), 
+            brand=baker.seq("Brand-F"),
+            model_series=baker.seq("Series-F"),
+            product_type=Product.ProductType.PHONE, 
+            is_published=True, 
+            _quantity=3, 
+            is_global=True, 
+            is_discontinued=False
+        )
         for p in products:
+
             p.brands.add(default_brand)
             baker.make(InventoryUnit, product_template=p, sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE, available_online=True, quantity=1, selling_price=500, cost_of_unit=400)
             
