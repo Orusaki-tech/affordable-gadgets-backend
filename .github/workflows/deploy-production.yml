@@ -1,55 +1,18 @@
-name: Deploy API production
+name: Deploy API production (manual fallback)
 
 on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: Git SHA or tag to deploy (must exist in Artifact Registry)
-        required: true
+        description: Git SHA or tag already in Artifact Registry (default: production-latest)
+        required: false
+        default: production-latest
 
 env:
-  REGION: us-central1
-  REPOSITORY: ag-api
+  REGION: us-east1
 
 jobs:
-  build-and-push:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-    outputs:
-      image_tag: ${{ steps.set-outputs.outputs.image_tag }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - id: auth
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
-          service_account: ${{ secrets.GCP_DEPLOY_SA }}
-
-      - name: Configure Docker for Artifact Registry
-        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
-
-      - name: Set image tag
-        id: set-outputs
-        env:
-          INPUT_TAG: ${{ inputs.image_tag || github.sha }}
-        run: |
-          echo "image_tag=${INPUT_TAG}" >> "$GITHUB_OUTPUT"
-
-      - name: Build and push production image
-        env:
-          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-          IMAGE_TAG: ${{ steps.set-outputs.outputs.image_tag }}
-        run: |
-          IMAGE="${{ env.REGION }}-docker.pkg.dev/${PROJECT_ID}/${{ env.REPOSITORY }}/ag-api"
-          docker build -t "${IMAGE}:${IMAGE_TAG}" -t "${IMAGE}:production-latest" .
-          docker push "${IMAGE}:${IMAGE_TAG}"
-          docker push "${IMAGE}:production-latest"
-
   migrate:
-    needs: build-and-push
     runs-on: ubuntu-latest
     if: ${{ vars.ENABLE_CLOUD_SQL_MIGRATE == 'true' }}
     permissions:
@@ -78,7 +41,7 @@ jobs:
         continue-on-error: true
 
   promote:
-    needs: [build-and-push, migrate]
+    needs: migrate
     runs-on: ubuntu-latest
     environment: production
     permissions:
@@ -94,7 +57,6 @@ jobs:
         env:
           PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           MIG_NAME: ${{ secrets.PRODUCTION_API_MIG_NAME }}
-          IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
         run: |
           gcloud compute instance-groups managed rolling-action replace "${MIG_NAME}" \
             --region="${{ env.REGION }}" \
