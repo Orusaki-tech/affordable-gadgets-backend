@@ -203,4 +203,11 @@ jobs:
             sleep 10
           done
 
+      - name: Log deployment completion to Cloud Logging
+        run: |
+          gcloud logging write production-deployment \
+            "{\"event\":\"deployment_complete\",\"commit\":\"${{ github.sha }}\",\"workflow\":\"${{ github.run_id }}\",\"status\":\"success\"}" \
+            --project="${{ secrets.GCP_PROJECT_ID }}" \
+            --severity=NOTICE
+
 
