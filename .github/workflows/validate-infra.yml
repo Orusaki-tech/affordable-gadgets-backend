@@ -1,0 +1,85 @@
+name: Validate Infrastructure
+on:
+  pull_request:
+    paths:
+      - 'deploy/**'
+      - 'scripts/validate-monitoring-configs.sh'
+  push:
+    branches: [main]
+    paths:
+      - 'deploy/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-monitoring:
+    name: Validate Monitoring Configs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install validation tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq yamllint
+          # Download promtool
+          wget -q https://github.com/prometheus/prometheus/releases/download/v2.53.0/prometheus-2.53.0.linux-amd64.tar.gz
+          tar xzf prometheus-2.53.0.linux-amd64.tar.gz
+          sudo mv prometheus-2.53.0.linux-amd64/promtool /usr/local/bin/promtool
+          rm -rf prometheus-2.53.0.linux-amd64*
+
+      - name: Validate monitoring configs
+        run: bash scripts/validate-monitoring-configs.sh
+
+  validate-ansible:
+    name: Validate Ansible Playbooks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Ansible
+        run: |
+          pip install ansible-lint
+          ansible --version
+
+      - name: Validate Ansible syntax
+        run: |
+          for playbook in deploy/ansible/playbooks/*.yml; do
+            echo "Checking: $playbook"
+            ansible-playbook --syntax-check "$playbook" --list-tasks 2>&1 | head -20
+          done
+
+      - name: Lint Ansible roles
+        run: |
+          ansible-lint deploy/ansible/playbooks/ --exclude deploy/ansible/secrets/ 2>&1 || true
+        continue-on-error: true
+
+  deploy-monitoring:
+    name: Deploy Monitoring Stack
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [validate-monitoring, validate-ansible]
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Install Ansible
+        run: pip install ansible
+
+      - name: Deploy monitoring via Ansible
+        run: |
+          ansible-playbook deploy/ansible/playbooks/monitoring.yml \
+            -i deploy/ansible/inventory/production.yml \
+            --vault-password-file <(echo "${{ secrets.ANSIBLE_VAULT_PASSWORD }}")
+        env:
+          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
