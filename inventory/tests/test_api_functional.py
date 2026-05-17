@@ -89,10 +89,16 @@ class TestProductListingEndpoint:
 
     def test_products_list_returns_paginated_data(self, api_client, sample_product, db):
         """Products list should return paginated data."""
+        from inventory.models import Product
+        print(f"DEBUG: Product count={Product.objects.count()}")
+        print(f"DEBUG: Published products={[p.id for p in Product.objects.filter(is_published=True)]}")
+        
         response = api_client.get("/api/v1/public/products/")
         data = response.json()
-        assert "results" in data, f"Expected 'results' in response, got {data.keys()}"
         results = get_results(data)
+        if not results:
+            print(f"DEBUG: Response data={data}")
+        assert "results" in data, f"Expected 'results' in response, got {data.keys()}"
         assert len(results) > 0, "Expected at least one product in results"
 
     def test_products_list_includes_published_only(self, api_client, db, default_brand):
