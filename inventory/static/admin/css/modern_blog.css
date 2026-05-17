@@ -1,0 +1,53 @@
+/* Modern Blog Admin Styles */
+
+#productarticle_form .field-headline input {
+    font-size: 24px;
+    font-weight: bold;
+    padding: 10px;
+    width: 90%;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+#productarticle_form .field-category select {
+    font-size: 16px;
+    padding: 5px;
+    margin-bottom: 20px;
+}
+
+#productarticle_form .field-body textarea {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 14px;
+    line-height: 1.6;
+    min-height: 400px;
+}
+
+#productarticle_form fieldset {
+    border-radius: 8px;
+    border: 1px solid #eee;
+    margin-bottom: 20px;
+    background: #fdfdfd;
+}
+
+#productarticle_form fieldset h2 {
+    background: #79aec8;
+    color: white;
+    border-radius: 4px 4px 0 0;
+}
+
+/* Character counter styling */
+.char-counter {
+    font-weight: bold;
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: #eee;
+}
+
+/* Responsive improvements */
+@media (max-width: 768px) {
+    #productarticle_form .field-headline input {
+        width: 100%;
+        font-size: 18px;
+    }
+}

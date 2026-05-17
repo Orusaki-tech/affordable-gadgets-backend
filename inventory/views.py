@@ -109,10 +109,12 @@ from .permissions import (  # noqa: E402
     IsContentCreatorOrInventoryManagerOrReadOnly,
     IsCustomerOwnerOrAdmin,
     IsInventoryManager,
+    IsInventoryManagerOrReadOnly,
     IsInventoryManagerOrSuperuser,
     IsInventoryManagerOrMarketingManagerReadOnly,
     IsInventoryManagerOrSalespersonReadOnly,
     IsMarketingManager,
+    IsMarketingManagerOrInventoryManagerReadOnly,
     IsOrderManager,
     IsReviewOwnerOrAdmin,
     IsSalesperson,
@@ -251,6 +253,7 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     """
 
     queryset = Product.objects.all().order_by("product_name")
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
     serializer_class = ProductSerializer
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ["product_name", "brand", "model_series", "product_description"]
@@ -869,6 +872,12 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
             status=status.HTTP_200_OK,
         )
 
+    @extend_schema(
+        request={
+            "application/json": ProductSerializer,
+            "multipart/form-data": ProductSerializer,
+        }
+    )
     @action(detail=True, methods=["patch"], permission_classes=[IsContentCreatorOrInventoryManager])
     def update_content(self, request, pk=None):
         """
@@ -898,11 +907,53 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
         # Filter request data to only include content fields
         content_data = {k: v for k, v in request.data.items() if k in content_fields}
 
+        # Handle multipart form-data: reconstruct nested article dict from flattened keys
+        # DRF's MultiPartParser flattens nested keys like "article.headline" to "article_headline"
+        # We reconstruct a nested article dict and merge it with any existing article payload
+        article_data = {}
+        article_field_mapping = {
+            "article_headline": "headline",
+            "article_seo_title": "seo_title",
+            "article_seo_description": "seo_description",
+            "article_body": "body",
+            "article_is_published": "is_published",
+            "article_thumbnail_image": "thumbnail_image",
+            "article_category": "category",
+        }
+
+        for flattened_key, nested_key in article_field_mapping.items():
+            if flattened_key in request.data:
+                article_data[nested_key] = request.data[flattened_key]
+
+        # If request.FILES contains a file for the article thumbnail, prefer it
+        if "article_thumbnail_image" in request.FILES:
+            article_data["thumbnail_image"] = request.FILES["article_thumbnail_image"]
+
+        # Merge reconstructed article_data with any existing article dict coming from JSON payloads
+        existing_article = content_data.get("article")
+        
+        # If it's a string (e.g. from multipart form data), try to parse it
+        if isinstance(existing_article, str):
+            import json
+            try:
+                existing_article = json.loads(existing_article)
+            except json.JSONDecodeError:
+                pass
+                
+        if isinstance(existing_article, dict):
+            # Existing dict may already contain some keys – update with reconstructed ones
+            existing_article.update(article_data)
+            content_data["article"] = existing_article
+        elif article_data:
+            # No existing article dict – add reconstructed one
+            content_data["article"] = article_data
+
         serializer = self.get_serializer(product, data=content_data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save(updated_by=request.user)
 
         return Response(serializer.data)
+
 
     @action(
         detail=True,
@@ -915,7 +966,7 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
         Custom action to retrieve the available inventory count, min price, and max price
         for a specific Product (template). Accessible by staff users (read-only).
 
-        Example URL: /api/products/{product_id}/stock-summary/
+        Example URL: /api/inventory/products/{product_id}/stock-summary/
         """
         try:
             # 1. Get the specific Product Template
@@ -2010,6 +2061,8 @@ class OrderViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
         """
         if self.action in ["create", "initiate_payment", "payment_status", "receipt", "retrieve"]:
             return [permissions.AllowAny()]
+        if self.action in ["update", "partial_update"]:
+            return [(IsOrderManager | IsInventoryManager)()]
         return [permissions.IsAuthenticated()]
 
     def get_queryset(self):
@@ -3408,6 +3461,8 @@ class OrderViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
             print("[PESAPAL] ========== VIEW: PAYMENT STATUS SUCCESS ==========\n")
             return Response(result, status=status.HTTP_200_OK)
 
+        except exceptions.NotFound:
+            raise
         except Exception as e:
             print("[PESAPAL] ========== VIEW: PAYMENT STATUS EXCEPTION ==========")
             print(f"[PESAPAL] ERROR: {str(e)}")
@@ -3435,11 +3490,11 @@ class OrderItemViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
 
 
 class DeliveryRateViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
-    """Manage delivery rates (order manager only)."""
+    """Manage delivery rates (order manager write; IM, SP, OM read)."""
 
     queryset = DeliveryRate.objects.all().order_by("county", "ward")
     serializer_class = DeliveryRateSerializer
-    permission_classes = [IsOrderManager]
+    permission_classes = [IsOrderManager | IsAdminOrReadOnly]
 
 
 # --- LOOKUP TABLES VIEWSETS ---
@@ -3447,13 +3502,12 @@ class DeliveryRateViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
 
 class ColorViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     """
-    Color lookup table. Admin-only write, public read.
-    Uses IsAdminOrReadOnly.
+    Color lookup table. Inventory Manager write, all staff read.
     """
 
     queryset = Color.objects.all()
     serializer_class = ColorSerializer
-    permission_classes = [IsAdminOrReadOnly]
+    permission_classes = [IsInventoryManagerOrReadOnly]
 
 
 class UnitAcquisitionSourceViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
@@ -4041,6 +4095,8 @@ class ReservationRequestViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                     pass
             # For approval/rejection, require CanApproveRequests
             return [CanApproveRequests()]
+        elif self.action == "list":
+            return [CanReserveUnits()]
         return [IsAdminUser()]
 
     def create(self, request, *args, **kwargs):
@@ -4595,7 +4651,7 @@ class ReturnRequestViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     def get_permissions(self):
         """Apply role-based permissions."""
         if self.action == "create":
-            return [IsSalesperson()]
+            return [(IsSalesperson | IsInventoryManager)()]
         elif self.action in ["update", "partial_update"]:
             return [CanApproveRequests()]
         return [IsAdminUser()]
@@ -4850,7 +4906,7 @@ class UnitTransferViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     def get_permissions(self):
         """Apply role-based permissions."""
         if self.action == "create":
-            return [IsSalesperson()]
+            return [(IsSalesperson | IsInventoryManager)()]
         elif self.action in ["update", "partial_update"]:
             return [CanApproveRequests()]
         return [IsAdminUser()]
@@ -5334,11 +5390,14 @@ class BrandViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
 
     queryset = Brand.objects.all()
     serializer_class = BrandSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsInventoryManagerOrReadOnly]
 
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
+
+        if not user or user.is_anonymous:
+            return queryset
 
         # Superuser sees all brands
         if user.is_superuser:
@@ -5418,9 +5477,9 @@ class LeadViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     permission_classes = [IsAdminUser]  # Base permission, refined in get_permissions
 
     def get_permissions(self):
-        """Restrict all lead actions to salespersons only."""
-        # For all actions (list, retrieve, create, update, delete, and custom actions),
-        # only salespersons should have access
+        """Restrict lead access: salespersons full access, IMs read-only."""
+        if self.action == "list":
+            return [(IsSalesperson | IsInventoryManager)()]
         return [IsSalesperson()]
 
     def get_queryset(self):
@@ -5837,7 +5896,7 @@ class PromotionViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
 
     queryset = Promotion.objects.all()
     serializer_class = PromotionSerializer
-    permission_classes = [IsAdminUser | IsMarketingManager | IsContentCreator]
+    permission_classes = [IsMarketingManagerOrInventoryManagerReadOnly | IsContentCreator]
     parser_classes = [MultiPartParser, FormParser, JSONParser]  # Support file uploads
 
     def get_queryset(self):

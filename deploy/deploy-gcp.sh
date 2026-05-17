@@ -132,6 +132,14 @@ else
 fi
 unset _ipn
 
+# 3.5. Regenerate OpenAPI schema to ensure it's up to date for frontends
+echo "==> Regenerating OpenAPI schema..."
+if command -v python3 &>/dev/null; then
+  python3 manage.py spectacular --file openapi.yaml || echo "Warning: Schema generation failed, using existing openapi.yaml"
+elif command -v python &>/dev/null; then
+  python manage.py spectacular --file openapi.yaml || echo "Warning: Schema generation failed, using existing openapi.yaml"
+fi
+
 # 4. Tarball backend (exclude git, venv, cache, local env, and the tarball itself)
 TARBALL="backend-deploy.tar.gz"
 echo "==> Creating tarball..."

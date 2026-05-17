@@ -117,5 +117,11 @@ python manage.py fix_product_visibility --fix || {
     echo "⚠️  Product visibility fix encountered an error. Continuing build..."
 }
 
+# Regenerate OpenAPI schema to ensure it's up to date for frontends
+echo "📜 Regenerating OpenAPI schema..."
+python manage.py spectacular --file openapi.yaml || {
+    echo "⚠️  Schema generation encountered an error. Continuing build..."
+}
+
 echo "✅ Build complete!"
 

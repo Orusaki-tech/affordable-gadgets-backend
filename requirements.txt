@@ -33,3 +33,19 @@ redis>=5.0.0
 # Observability
 sentry-sdk>=2.0.0
 prometheus-client>=0.20.0
+
+# Testing
+pytest==9.0.3
+pytest-django==4.12.0
+pytest-cov==7.1.0
+factory-boy==3.3.3
+model-bakery==1.23.4
+responses==0.26.0
+# OpenAPI/Contract testing
+openapi-spec-validator==0.8.5
+jsonschema==4.26.0
+hypothesis==6.152.7
+
+# Linting / type checking
+ruff>=0.4.0
+mypy>=1.8.0

@@ -1,5 +1,7 @@
+from io import BytesIO
 from unittest.mock import patch
 
+from PIL import Image
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
@@ -7,6 +9,12 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from inventory.models import Admin, AdminRole, Product
+
+
+def _valid_image_bytes():
+    buf = BytesIO()
+    Image.new("RGB", (1, 1), color="red").save(buf, "JPEG")
+    return buf.getvalue()
 
 
 class ProductImagePermissionTests(APITestCase):
@@ -61,7 +69,7 @@ class ProductImagePermissionTests(APITestCase):
 
         self.image_file = SimpleUploadedFile(
             "test-image.jpg",
-            b"\x47\x49\x46\x38\x39\x61",
+            _valid_image_bytes(),
             content_type="image/jpeg",
         )
 

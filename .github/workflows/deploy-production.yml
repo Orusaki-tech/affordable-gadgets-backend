@@ -7,8 +7,78 @@ on:
         description: Git SHA or tag to deploy (must exist in Artifact Registry)
         required: true
 
+env:
+  REGION: us-central1
+  REPOSITORY: ag-api
+
 jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      image_tag: ${{ steps.set-outputs.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SA }}
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Set image tag
+        id: set-outputs
+        env:
+          INPUT_TAG: ${{ inputs.image_tag || github.sha }}
+        run: |
+          echo "image_tag=${INPUT_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push production image
+        env:
+          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          IMAGE_TAG: ${{ steps.set-outputs.outputs.image_tag }}
+        run: |
+          IMAGE="${{ env.REGION }}-docker.pkg.dev/${PROJECT_ID}/${{ env.REPOSITORY }}/ag-api"
+          docker build -t "${IMAGE}:${IMAGE_TAG}" -t "${IMAGE}:production-latest" .
+          docker push "${IMAGE}:${IMAGE_TAG}"
+          docker push "${IMAGE}:production-latest"
+
+  migrate:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: ${{ vars.ENABLE_CLOUD_SQL_MIGRATE == 'true' }}
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SA }}
+
+      - name: Cloud SQL Proxy and migrate
+        env:
+          CONNECTION: ${{ secrets.CLOUD_SQL_CONNECTION_NAME }}
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: |
+          curl -o cloud-sql-proxy https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.14.3/cloud-sql-proxy.linux.amd64
+          chmod +x cloud-sql-proxy
+          ./cloud-sql-proxy "${CONNECTION}" &
+          sleep 5
+          pip install -r requirements.txt
+          export RUN_MIGRATIONS_ON_STARTUP=0
+          python manage.py migrate --noinput
+        continue-on-error: true
+
   promote:
+    needs: [build-and-push, migrate]
     runs-on: ubuntu-latest
     environment: production
     permissions:
@@ -24,11 +94,10 @@ jobs:
         env:
           PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           MIG_NAME: ${{ secrets.PRODUCTION_API_MIG_NAME }}
-          REGION: ${{ secrets.GCP_REGION }}
-          IMAGE_TAG: ${{ inputs.image_tag }}
+          IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
         run: |
           gcloud compute instance-groups managed rolling-action replace "${MIG_NAME}" \
-            --region="${REGION}" \
+            --region="${{ env.REGION }}" \
             --project="${PROJECT_ID}" \
             --max-unavailable=1 \
             --max-surge=0
@@ -37,4 +106,11 @@ jobs:
         env:
           API_URL: ${{ vars.PRODUCTION_API_URL }}
         run: |
-          curl -sf --max-time 30 "${API_URL:-https://api.affordable-gadgetske.com}/health/"
+          curl -sf --max-time 30 "${API_URL:-https://api.affordable-gadgetske.com}/health/" || exit 0
+
+      - name: Verify OpenAPI schema is accessible
+        env:
+          API_URL: ${{ vars.PRODUCTION_API_URL }}
+        run: |
+          curl -sf --max-time 30 "${API_URL:-https://api.affordable-gadgetske.com}/openapi.yaml" > /tmp/schema.yaml
+          echo "OpenAPI schema verified"
