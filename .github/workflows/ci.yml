@@ -159,7 +159,6 @@ jobs:
     permissions:
       id-token: write
       contents: write
-      deployments: write
     steps:
       - uses: actions/checkout@v4
 
@@ -180,26 +179,6 @@ jobs:
             --max-unavailable=1 \
             --max-surge=0
 
-      - name: Create GitHub Deployment (in_progress)
-        id: deployment
-        run: |
-          DEPLOY_ID=$(gh api \
-            -X POST "repos/${{ github.repository }}/deployments" \
-            -F "ref=${{ github.sha }}" \
-            -F "environment=production" \
-            -F "auto_merge=false" \
-            -F "required_contexts[]=" \
-            -F "description=Deploying API rolling update..." \
-            --jq '.id')
-          echo "deploy_id=$DEPLOY_ID" >> "$GITHUB_OUTPUT"
-          gh api \
-            -X POST "repos/${{ github.repository }}/deployments/$DEPLOY_ID/statuses" \
-            -F "state=in_progress" \
-            -F "description=Rolling replace triggered, waiting for MIG to stabilise..."
-          echo "Created deployment $DEPLOY_ID"
-        env:
-          GH_TOKEN: ${{ github.token }}
-
       - name: Wait for MIG rollout to complete
         env:
           PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
@@ -218,36 +197,10 @@ jobs:
             fi
             if [ "$i" -eq 60 ]; then
               echo "TIMEOUT: MIG not stable after 10 minutes"
-              gh api \
-                -X POST "repos/${{ github.repository }}/deployments/${{ steps.deployment.outputs.deploy_id }}/statuses" \
-                -F "state=failure" \
-                -F "description=Rolling replace timed out"
               exit 1
             fi
             echo "Waiting... ($i/60, unhealthy=$UNHEALTHY)"
             sleep 10
           done
 
-      - name: Mark deployment as success
-        if: success()
-        run: |
-          gh api \
-            -X POST "repos/${{ github.repository }}/deployments/${{ steps.deployment.outputs.deploy_id }}/statuses" \
-            -F "state=success" \
-            -F "environment=production" \
-            -F "description=API deployed and healthy"
-          echo "Deployment ${{ steps.deployment.outputs.deploy_id }} marked success"
-        env:
-          GH_TOKEN: ${{ github.token }}
 
-      - name: Mark deployment as failure
-        if: failure() || cancelled()
-        run: |
-          gh api \
-            -X POST "repos/${{ github.repository }}/deployments/${{ steps.deployment.outputs.deploy_id }}/statuses" \
-            -F "state=failure" \
-            -F "environment=production" \
-            -F "description=Deployment failed"
-          echo "Deployment ${{ steps.deployment.outputs.deploy_id }} marked failure"
-        env:
-          GH_TOKEN: ${{ github.token }}
