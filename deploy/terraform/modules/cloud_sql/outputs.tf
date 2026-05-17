@@ -18,7 +18,4 @@ output "db_user" {
   value = var.db_user
 }
 
-output "db_password" {
-  value     = random_password.db_password.result
-  sensitive = true
-}
+

@@ -15,19 +15,9 @@ fi
 
 cp "${EXAMPLE}" "${VAULT}"
 
-if command -v terraform >/dev/null 2>&1 && [[ -d "${TF_DIR}" ]]; then
-  if pw="$(cd "${TF_DIR}" && terraform output -raw cloud_sql_db_password 2>/dev/null)"; then
-    if [[ -n "${pw}" && "${pw}" != "null" ]]; then
-      # macOS/BSD sed
-      if sed --version 2>/dev/null | grep -q GNU; then
-        sed -i "s/db_password: \"CHANGE_ME\"/db_password: \"${pw}\"/" "${VAULT}"
-      else
-        sed -i '' "s/db_password: \"CHANGE_ME\"/db_password: \"${pw}\"/" "${VAULT}"
-      fi
-      echo "Injected cloud_sql_db_password from terraform output."
-    fi
-  fi
-fi
+# Password is managed externally via deploy/env/api.*.env files.
+# Set db_password in the vault manually, or use gcloud to set/retrieve it:
+#   gcloud sql users set-password affordable --instance=<instance> --password=<pw>
 
 echo ""
 echo "Next:"

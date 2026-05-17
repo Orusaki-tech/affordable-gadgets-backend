@@ -90,11 +90,6 @@ output "deploy_config_bucket" {
   value = try(google_storage_bucket.deploy_config[0].name, null)
 }
 
-output "cloud_sql_db_password" {
-  value     = try(module.cloud_sql[0].db_password, null)
-  sensitive = true
-}
-
 output "shop_mig_name" {
   value = try(module.shop_mig[0].mig_name, null)
 }

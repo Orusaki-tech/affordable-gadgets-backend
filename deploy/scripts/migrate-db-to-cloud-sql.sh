@@ -40,7 +40,9 @@ sleep 5
 
 DB_PASSWORD="${DB_PASSWORD:-}"
 if [[ -z "${DB_PASSWORD}" ]]; then
-  DB_PASSWORD="$(cd "${TF_DIR}" && terraform output -raw cloud_sql_db_password)"
+  echo "ERROR: DB_PASSWORD not set. Provide it via env or set in deploy/env/api.*.env" >&2
+  echo "  gcloud sql users set-password affordable --instance=<instance> --password=<pw>" >&2
+  exit 1
 fi
 export PGPASSWORD="${DB_PASSWORD}"
 

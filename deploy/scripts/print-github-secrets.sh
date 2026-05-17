@@ -37,8 +37,8 @@ GCP_WIF_PROVIDER            = ${WIF:-<run terraform apply with github_repository
 GCP_DEPLOY_SA               = ${DEPLOY_SA:-<from terraform output gcp_deploy_sa_email>}
 
 # Optional: for migrate job in deploy-staging.yml
-STAGING_DATABASE_URL        = postgresql://affordable:***@CLOUD_SQL_PRIVATE_IP:5432/affordable_gadgets
-  (password: terraform output -raw cloud_sql_db_password)
+STAGING_DATABASE_URL        = postgresql://affordable:PASSWORD@CLOUD_SQL_PRIVATE_IP:5432/affordable_gadgets
+  (password: managed via deploy/env/api.*.env; set with: gcloud sql users set-password ...)
 
 === GitHub repository variables ===
 STAGING_API_URL             = https://api-staging.affordable-gadgetske.com
