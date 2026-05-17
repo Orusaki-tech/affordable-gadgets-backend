@@ -148,9 +148,7 @@ jobs:
           ./cloud-sql-proxy "${CONNECTION}" &
           sleep 5
           pip install -r requirements.txt
-          export RUN_MIGRATIONS_ON_STARTUP=0
           python manage.py migrate --noinput
-        continue-on-error: true
 
   deploy:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
