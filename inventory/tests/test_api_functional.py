@@ -50,16 +50,17 @@ def default_brand(db):
 
 @pytest.fixture
 def sample_product(db, default_brand):
+    # Use short explicit names to avoid slug DataError (max 255 chars)
     p = baker.make(
         Product,
-        product_name="Test Product",
+        product_name=baker.seq("Product "),
         product_type=Product.ProductType.PHONE,
         is_published=True,
         is_global=True,
         is_discontinued=False,
     )
     p.brands.add(default_brand)
-    # Create available unit to ensure it shows up if there's any hidden filtering
+    # Create available unit to ensure it shows up in storefront listings
     baker.make(
         InventoryUnit,
         product_template=p,
@@ -111,15 +112,15 @@ class TestProductListingEndpoint:
         data = response.json()
         results = get_results(data)
         assert "results" in data, f"Expected 'results' in response keys: {data.keys()}"
-        assert len(results) > 0, f"Expected at least one product in results. Results: {results}"
+        assert len(results) > 0, "Expected at least one product in results"
 
     def test_products_list_includes_published_only(self, api_client, db, default_brand):
         """Published products should appear in public list."""
-        published = baker.make(Product, product_type=Product.ProductType.PHONE, is_published=True, is_global=True, is_discontinued=False)
+        published = baker.make(Product, product_name=baker.seq("Pub "), product_type=Product.ProductType.PHONE, is_published=True, is_global=True, is_discontinued=False)
         published.brands.add(default_brand)
         baker.make(InventoryUnit, product_template=published, sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE, available_online=True, quantity=1, selling_price=500, cost_of_unit=400)
         
-        unpublished = baker.make(Product, product_type=Product.ProductType.PHONE, is_published=False, brand="UniqueBrand1", is_global=True, is_discontinued=False)
+        unpublished = baker.make(Product, product_name=baker.seq("Unpub "), product_type=Product.ProductType.PHONE, is_published=False, is_global=True, is_discontinued=False)
         unpublished.brands.add(default_brand)
         
         response = api_client.get("/api/v1/public/products/")
@@ -141,16 +142,16 @@ class TestProductListingEndpoint:
             assert field in product, f"Product missing required field: {field}. Keys: {product.keys()}"
 
     def test_products_list_supports_filtering(self, api_client, db, default_brand):
-        """Products list should support filtering by product_type (using 'type' param with code)."""
-        phone = baker.make(Product, product_type=Product.ProductType.PHONE, is_published=True, is_global=True, is_discontinued=False)
+        """Products list should support filtering by product_type (using choice codes)."""
+        phone = baker.make(Product, product_name=baker.seq("Phone "), product_type=Product.ProductType.PHONE, is_published=True, is_global=True, is_discontinued=False)
         phone.brands.add(default_brand)
         baker.make(InventoryUnit, product_template=phone, sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE, available_online=True, quantity=1, selling_price=500, cost_of_unit=400)
         
-        laptop = baker.make(Product, product_type=Product.ProductType.LAPTOP, is_published=True, brand="UniqueBrand2", is_global=True, is_discontinued=False)
+        laptop = baker.make(Product, product_name=baker.seq("Laptop "), product_type=Product.ProductType.LAPTOP, is_published=True, is_global=True, is_discontinued=False)
         laptop.brands.add(default_brand)
         baker.make(InventoryUnit, product_template=laptop, sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE, available_online=True, quantity=1, selling_price=500, cost_of_unit=400)
         
-        # Use choice value "PH" instead of "phone"
+        # Use choice value "PH" instead of human-readable "phone"
         response = api_client.get("/api/v1/public/products/?type=PH")
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -259,7 +260,7 @@ class TestAPIResponseFormats:
 
     def test_list_response_has_consistent_structure(self, api_client, db, default_brand):
         """List endpoints should have consistent structure."""
-        products = baker.make(Product, product_type=Product.ProductType.PHONE, is_published=True, _quantity=3, brand=baker.seq("Brand"), is_global=True, is_discontinued=False)
+        products = baker.make(Product, product_name=baker.seq("Format "), product_type=Product.ProductType.PHONE, is_published=True, _quantity=3, is_global=True, is_discontinued=False)
         for p in products:
             p.brands.add(default_brand)
             baker.make(InventoryUnit, product_template=p, sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE, available_online=True, quantity=1, selling_price=500, cost_of_unit=400)
