@@ -46,6 +46,26 @@
     dest: "{{ compose_root }}/docker-compose.monitoring.yml"
     mode: "0644"
 
+- name: Deploy exec report script
+  copy:
+    src: exec_report.py
+    dest: "{{ compose_root }}/monitoring/exec_report.py"
+    mode: "0755"
+
+- name: Deploy .env for exec report (grafana creds for local use)
+  template:
+    src: monitoring.env.j2
+    dest: "{{ compose_root }}/monitoring/.env.exec_report"
+    mode: "0600"
+
+- name: Install daily cron for exec report
+  cron:
+    name: daily-exec-report
+    job: "{{ compose_root }}/monitoring/exec_report.py --prometheus http://localhost:9090 --format text > /tmp/exec_report_daily.log 2>&1"
+    hour: 8
+    minute: 0
+    user: root
+
 - name: Start monitoring stack
   command: docker compose -f {{ compose_root }}/docker-compose.monitoring.yml --env-file {{ compose_root }}/monitoring/grafana.env up -d --force-recreate
   args:

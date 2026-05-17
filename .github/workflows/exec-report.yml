@@ -1,0 +1,31 @@
+name: Daily Exec Report
+
+on:
+  schedule:
+    - cron: "0 8 * * *"   # 8 AM UTC daily
+  workflow_dispatch:       # allow manual trigger
+
+jobs:
+  generate-report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Generate exec report
+        run: |
+          gcloud compute ssh affordable-gadgets-production-monitoring \
+            --zone=us-east1-b \
+            --tunnel-through-iap \
+            --command="sudo /opt/affordable-gadgets/monitoring/exec_report.py \
+              --prometheus http://localhost:9090 \
+              --format slack" \
+            -- \
+            -o StrictHostKeyChecking=no
