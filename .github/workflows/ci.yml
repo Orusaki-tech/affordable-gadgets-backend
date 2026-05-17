@@ -62,7 +62,7 @@ jobs:
       - name: Run functional tests
         run: |
           pytest inventory/tests/test_api_functional.py -v --tb=short -m "p0 or p1" \
-            --cov=inventory --cov-report=term-missing --cov-report=xml
+            --cov=inventory --cov-report=term-missing
         env:
           DJANGO_SETTINGS_MODULE: store.settings
           SECRET_KEY: ci-secret-key
@@ -73,7 +73,7 @@ jobs:
       - name: Run contract tests
         run: |
           pytest inventory/tests/test_openapi_contract.py -v --tb=short -m "p0 or p1" \
-            --cov=inventory --cov-report=term-missing --cov-report=xml
+            --cov=inventory --cov-report=term-missing
         env:
           DJANGO_SETTINGS_MODULE: store.settings
           SECRET_KEY: ci-secret-key
@@ -83,7 +83,7 @@ jobs:
 
       - name: Run all tests
         run: |
-          pytest inventory/tests/ -v --tb=short \
+          pytest inventory/tests/ -v --tb=short -n auto \
             --cov=inventory --cov-report=term-missing --cov-report=xml
         env:
           DJANGO_SETTINGS_MODULE: store.settings
