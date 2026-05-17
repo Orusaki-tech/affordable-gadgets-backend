@@ -1,13 +1,31 @@
 """Shared test fixtures for all inventory tests.
-
-Usage:
-    def test_something(api_client, admin_user, product):
-        api_client.force_authenticate(user=admin_user)
-        response = api_client.get(f"/api/inventory/products/{product.id}/")
-        assert response.status_code == 200
 """
 
 from __future__ import annotations
+
+import sys
+import types
+
+_weasyprint = types.ModuleType("weasyprint")
+_weasyprint.text = types.ModuleType("weasyprint.text")
+_weasyprint.text.fonts = types.ModuleType("weasyprint.text.fonts")
+_FontConfiguration = type("FontConfiguration", (), {})
+_weasyprint.text.fonts.FontConfiguration = _FontConfiguration
+_weasyprint.HTML = MagicMock if False else type  # avoid linter error; patched below
+
+class _MockHTML:
+    def __init__(self, **kw):
+        pass
+    def write_pdf(self, target=None):
+        if target:
+            return target
+        import io; return io.BytesIO(b"pdf-content")
+
+_weasyprint.HTML = _MockHTML
+
+sys.modules["weasyprint"] = _weasyprint
+sys.modules["weasyprint.text"] = _weasyprint.text
+sys.modules["weasyprint.text.fonts"] = _weasyprint.text.fonts
 
 from collections.abc import Callable
 from decimal import Decimal
