@@ -929,6 +929,15 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
 
         # Merge reconstructed article_data with any existing article dict coming from JSON payloads
         existing_article = content_data.get("article")
+        
+        # If it's a string (e.g. from multipart form data), try to parse it
+        if isinstance(existing_article, str):
+            import json
+            try:
+                existing_article = json.loads(existing_article)
+            except json.JSONDecodeError:
+                pass
+                
         if isinstance(existing_article, dict):
             # Existing dict may already contain some keys – update with reconstructed ones
             existing_article.update(article_data)

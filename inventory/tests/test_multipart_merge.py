@@ -13,11 +13,13 @@ def api_client():
 
 @pytest.fixture
 def admin_user(db):
-    return baker.make('auth.User', is_staff=True, is_superuser=True)
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    return baker.make(User, is_staff=True, is_superuser=True)
 
 @pytest.fixture
 def sample_product(db):
-    return baker.make(Product, product_name='Test Product', is_published=True)
+    return baker.make(Product, product_name='Test Product', product_type=Product.ProductType.PHONE, is_published=True)
 
 @pytest.mark.django_db
 def test_mixed_multipart_and_json_payload(api_client, admin_user, sample_product):
@@ -27,8 +29,9 @@ def test_mixed_multipart_and_json_payload(api_client, admin_user, sample_product
     """
     api_client.force_authenticate(admin_user)
 
-    # Simulate a file upload for thumbnail
-    thumb_file = SimpleUploadedFile('thumb.jpg', b'fake-image-data', content_type='image/jpeg')
+    # Simulate a file upload for thumbnail (valid 1x1 gif)
+    gif = b'GIF89a\x01\x00\x01\x00\x00\x00\x00!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;'
+    thumb_file = SimpleUploadedFile('thumb.gif', gif, content_type='image/gif')
 
     # Build multipart payload: flattened keys for headline & thumbnail, and a nested JSON article dict for body
     payload = {
