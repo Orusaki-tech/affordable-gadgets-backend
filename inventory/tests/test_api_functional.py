@@ -10,7 +10,7 @@ from model_bakery import baker
 from rest_framework.test import APIClient
 from rest_framework import status
 
-from inventory.models import Product, ProductArticle, Order, InventoryUnit
+from inventory.models import Product, ProductArticle, Order, InventoryUnit, Brand
 
 User = get_user_model()
 
@@ -33,14 +33,25 @@ def content_creator_user(db):
 
 
 @pytest.fixture
-def sample_product(db):
-    return baker.make(
+def default_brand(db):
+    brand, _ = Brand.objects.get_or_create(
+        code="AFFORDABLE_GADGETS",
+        defaults={"name": "Affordable Gadgets", "is_active": True}
+    )
+    return brand
+
+
+@pytest.fixture
+def sample_product(db, default_brand):
+    p = baker.make(
         Product,
         product_name="Test Product",
         product_type=Product.ProductType.PHONE,
         is_published=True,
         is_global=True,
     )
+    p.brands.add(default_brand)
+    return p
 
 
 @pytest.fixture
@@ -54,51 +65,78 @@ def sample_article(db, sample_product):
     )
 
 
+def get_results(data):
+    """Helper to extract results list from DRF paginated or non-paginated response."""
+    if isinstance(data, dict):
+        if "results" in data and isinstance(data["results"], list):
+            return data["results"]
+        if "data" in data and isinstance(data["data"], list):
+            return data["data"]
+    if isinstance(data, list):
+        return data
+    return []
+
+
 @pytest.mark.django_db
 @pytest.mark.p0
 class TestProductListingEndpoint:
     """Test product listing endpoint - critical for storefront."""
 
-    def test_products_list_returns_200(self, api_client):
+    def test_products_list_returns_200(self, api_client, db):
         """GET /api/v1/public/products/ should return 200."""
         response = api_client.get("/api/v1/public/products/")
         assert response.status_code == status.HTTP_200_OK
 
-    def test_products_list_returns_paginated_data(self, api_client, sample_product):
+    def test_products_list_returns_paginated_data(self, api_client, sample_product, db):
         """Products list should return paginated data."""
         response = api_client.get("/api/v1/public/products/")
         data = response.json()
-        assert "results" in data or "data" in data or isinstance(data, list)
-        results = data.get("results") or data.get("data") or data
-        assert len(results) >= 0
+        assert "results" in data, f"Expected 'results' in response, got {data.keys()}"
+        results = get_results(data)
+        assert len(results) > 0, "Expected at least one product in results"
 
-    def test_products_list_includes_published_only(self, api_client, db):
+    def test_products_list_includes_published_only(self, api_client, db, default_brand):
         """Published products should appear in public list."""
         published = baker.make(Product, product_type=Product.ProductType.PHONE, is_published=True, is_global=True)
-        baker.make(Product, product_type=Product.ProductType.PHONE, is_published=False, brand="UniqueBrand1", is_global=True)
+        published.brands.add(default_brand)
+        
+        unpublished = baker.make(Product, product_type=Product.ProductType.PHONE, is_published=False, brand="UniqueBrand1", is_global=True)
+        unpublished.brands.add(default_brand)
+        
         response = api_client.get("/api/v1/public/products/")
         data = response.json()
-        results = data.get("results") or data.get("data") or data
-        product_ids = [p.get("id") for p in results]
-        assert published.id in product_ids
+        results = get_results(data)
+        product_ids = [p.get("id") for p in results if isinstance(p, dict)]
+        assert published.id in product_ids, f"Published product {published.id} not found in {product_ids}"
+        assert unpublished.id not in product_ids
 
-    def test_products_list_includes_required_fields(self, api_client, sample_product):
+    def test_products_list_includes_required_fields(self, api_client, sample_product, db):
         """Product list items should include required fields."""
         response = api_client.get("/api/v1/public/products/")
         data = response.json()
-        results = data.get("results") or data.get("data") or data
-        if results:
-            product = results[0]
-            required_fields = ["id", "product_name", "product_type"]
-            for field in required_fields:
-                assert field in product, f"Product missing required field: {field}"
+        results = get_results(data)
+        assert len(results) > 0
+        product = results[0]
+        required_fields = ["id", "product_name", "product_type"]
+        for field in required_fields:
+            assert field in product, f"Product missing required field: {field}. Keys: {product.keys()}"
 
-    def test_products_list_supports_filtering(self, api_client, db):
-        """Products list should support filtering by product_type."""
-        baker.make(Product, product_type=Product.ProductType.PHONE, is_published=True, is_global=True)
-        baker.make(Product, product_type=Product.ProductType.LAPTOP, is_published=True, brand="UniqueBrand2", is_global=True)
-        response = api_client.get("/api/v1/public/products/?product_type=phone")
-        assert response.status_code in [status.HTTP_200_OK, status.HTTP_400_BAD_REQUEST]
+    def test_products_list_supports_filtering(self, api_client, db, default_brand):
+        """Products list should support filtering by product_type (using 'type' param)."""
+        phone = baker.make(Product, product_type=Product.ProductType.PHONE, is_published=True, is_global=True)
+        phone.brands.add(default_brand)
+        
+        laptop = baker.make(Product, product_type=Product.ProductType.LAPTOP, is_published=True, brand="UniqueBrand2", is_global=True)
+        laptop.brands.add(default_brand)
+        
+        response = api_client.get("/api/v1/public/products/?type=phone")
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        results = get_results(data)
+        product_ids = [p.get("id") for p in results if isinstance(p, dict)]
+        assert phone.id in product_ids
+        # Note: Depending on backend implementation, laptop might still be in results if filtering is broad,
+        # but the primary goal here is to ensure the request succeeds and returns the intended item.
 
 
 @pytest.mark.django_db
@@ -106,19 +144,20 @@ class TestProductListingEndpoint:
 class TestProductDetailEndpoint:
     """Test product detail endpoint."""
 
-    def test_product_detail_returns_200(self, api_client, sample_product):
+    def test_product_detail_returns_200(self, api_client, sample_product, db):
         """GET /api/v1/public/products/{id}/ should return 200 for existing product."""
         response = api_client.get(f"/api/v1/public/products/{sample_product.id}/")
         assert response.status_code == status.HTTP_200_OK
 
-    def test_product_detail_returns_404_for_missing(self, api_client):
+    def test_product_detail_returns_404_for_missing(self, api_client, db):
         """GET /api/v1/public/products/{id}/ should return 404 for missing product."""
         response = api_client.get("/api/v1/public/products/999999/")
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_product_detail_includes_article(self, api_client, sample_product, sample_article):
+    def test_product_detail_includes_article(self, api_client, sample_product, sample_article, db):
         """Product detail should include article if present."""
         response = api_client.get(f"/api/v1/public/products/{sample_product.id}/")
+        assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert "id" in data
 
@@ -128,7 +167,7 @@ class TestProductDetailEndpoint:
 class TestProductArticleManagement:
     """Test product article (buying guide) management."""
 
-    def test_create_article_requires_auth(self, api_client, sample_product):
+    def test_create_article_requires_auth(self, api_client, sample_product, db):
         """Creating article should require authentication."""
         payload = {"article": {"headline": "New Guide", "body": "Content", "is_published": False}}
         response = api_client.patch(
@@ -139,7 +178,7 @@ class TestProductArticleManagement:
             status.HTTP_403_FORBIDDEN,
         ]
 
-    def test_update_article_with_json(self, api_client, sample_product, admin_user):
+    def test_update_article_with_json(self, api_client, sample_product, admin_user, db):
         """Update article via JSON should work."""
         api_client.force_authenticate(admin_user)
         payload = {
@@ -157,7 +196,7 @@ class TestProductArticleManagement:
             status.HTTP_400_BAD_REQUEST,  # Validation error is acceptable
         ]
 
-    def test_article_thumbnail_image_field_exists(self, api_client, sample_article):
+    def test_article_thumbnail_image_field_exists(self, api_client, sample_article, db):
         """Article should have thumbnail_image field."""
         response = api_client.get(f"/api/v1/public/products/{sample_article.product_id}/")
         if response.status_code == 200:
@@ -182,7 +221,7 @@ class TestContentCreatorPermissions:
         assert response.status_code < 500
 
     def test_content_creator_cannot_modify_inventory(
-        self, api_client, sample_product, content_creator_user
+        self, api_client, sample_product, content_creator_user, db
     ):
         """Content creator should not be able to modify inventory fields."""
         api_client.force_authenticate(content_creator_user)
@@ -198,19 +237,24 @@ class TestContentCreatorPermissions:
 class TestAPIResponseFormats:
     """Test API response format consistency."""
 
-    def test_list_response_has_consistent_structure(self, api_client, db):
+    def test_list_response_has_consistent_structure(self, api_client, db, default_brand):
         """List endpoints should have consistent structure."""
-        baker.make(Product, product_type=Product.ProductType.PHONE, is_published=True, _quantity=3, brand=baker.seq("Brand"), is_global=True)
+        products = baker.make(Product, product_type=Product.ProductType.PHONE, is_published=True, _quantity=3, brand=baker.seq("Brand"), is_global=True)
+        for p in products:
+            p.brands.add(default_brand)
+            
         response = api_client.get("/api/v1/public/products/")
         data = response.json()
         assert isinstance(data, (dict, list))
+        if isinstance(data, dict):
+            assert "results" in data
 
-    def test_error_responses_have_message(self, api_client):
+    def test_error_responses_have_message(self, api_client, db):
         """Error responses should include error message."""
         response = api_client.get("/api/v1/public/products/999999/")
         if response.status_code >= 400:
             data = response.json()
-            assert isinstance(data, (dict, list))
+            assert isinstance(data, dict)
 
 
 @pytest.mark.django_db
@@ -219,7 +263,7 @@ class TestMultipartFormDataHandling:
     """Test multipart/form-data handling for file uploads."""
 
     def test_update_content_accepts_multipart_with_file(
-        self, api_client, sample_product, admin_user
+        self, api_client, sample_product, admin_user, db
     ):
         """update_content should accept multipart with file via __request."""
         api_client.force_authenticate(admin_user)
@@ -242,17 +286,17 @@ class TestMultipartFormDataHandling:
 class TestAPIDocumentation:
     """Test that API is properly documented."""
 
-    def test_swagger_ui_endpoint_accessible(self, api_client):
+    def test_swagger_ui_endpoint_accessible(self, api_client, db):
         """Swagger UI should be accessible."""
         response = api_client.get("/api/schema/swagger-ui/")
         assert response.status_code < 500
 
-    def test_redoc_endpoint_accessible(self, api_client):
+    def test_redoc_endpoint_accessible(self, api_client, db):
         """ReDoc should be accessible."""
         response = api_client.get("/api/schema/redoc/")
         assert response.status_code < 500
 
-    def test_openapi_yaml_endpoint_accessible(self, api_client):
+    def test_openapi_yaml_endpoint_accessible(self, api_client, db):
         """OpenAPI YAML endpoint should be accessible."""
         response = api_client.get("/openapi.yaml")
         assert response.status_code == status.HTTP_200_OK
@@ -264,9 +308,10 @@ class TestAPIDocumentation:
 class TestCriticalBusinessFlows:
     """Test critical end-to-end flows."""
 
-    def test_browse_products_to_article(self, api_client, sample_product, sample_article):
+    def test_browse_products_to_article(self, api_client, sample_product, sample_article, db):
         """User should be able to browse products and view articles."""
         list_response = api_client.get("/api/v1/public/products/")
         assert list_response.status_code == status.HTTP_200_OK
+        
         detail_response = api_client.get(f"/api/v1/public/products/{sample_product.id}/")
         assert detail_response.status_code == status.HTTP_200_OK
