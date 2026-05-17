@@ -7,6 +7,7 @@ services:
       - "9090:9090"
     volumes:
       - {{ compose_root }}/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - {{ compose_root }}/monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
       - prometheus_data:/prometheus
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
@@ -19,9 +20,8 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
-    environment:
-      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+    env_file:
+      - {{ compose_root }}/monitoring/grafana.env
     volumes:
       - {{ compose_root }}/monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
       - {{ compose_root }}/monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro

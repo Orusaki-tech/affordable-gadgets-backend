@@ -56,6 +56,11 @@ class CartService:
             cart = Cart.objects.create(
                 session_key=session_key or "", customer_phone=customer_phone or "", brand=brand
             )
+            from inventory.observability import CARTS_TOTAL
+            try:
+                CARTS_TOTAL.labels(brand=brand.code if brand else "unknown", status="total").inc()
+            except Exception:
+                pass
 
         # Clean up expired cart
         if cart.is_expired():
@@ -343,6 +348,13 @@ class CartService:
             # Link cart to lead
             cart.lead = lead
             cart.save()
+
+            # Track cart→lead conversion
+            from inventory.observability import CARTS_TOTAL
+            try:
+                CARTS_TOTAL.labels(brand=cart.brand.code if cart.brand else "unknown", status="submitted").inc()
+            except Exception:
+                pass
 
             # Notify all salespersons associated with this brand
             from django.contrib.contenttypes.models import ContentType

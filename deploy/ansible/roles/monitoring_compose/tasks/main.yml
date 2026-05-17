@@ -33,6 +33,18 @@
     dest: "{{ compose_root }}/monitoring/grafana/dashboards/django-dashboard.json"
     mode: "0644"
 
+- name: Deploy Executive KPI dashboard
+  copy:
+    src: executive-kpi-dashboard.json
+    dest: "{{ compose_root }}/monitoring/grafana/dashboards/executive-kpi-dashboard.json"
+    mode: "0644"
+
+- name: Deploy Prometheus alert rules
+  copy:
+    src: alerts.yml
+    dest: "{{ compose_root }}/monitoring/prometheus/alerts.yml"
+    mode: "0644"
+
 - name: Deploy grafana.env
   template:
     src: grafana.env.j2

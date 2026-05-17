@@ -1,0 +1,43 @@
+groups:
+  - name: django-api-alerts
+    interval: 30s
+    rules:
+      - alert: APIInstanceDown
+        expr: up{job="django-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Django API instance {{ $labels.instance }} down"
+
+      - alert: HighErrorRate
+        expr: (sum(rate(http_requests_total{status_code=~"5.."}[5m])) / sum(rate(http_requests_total[5m]))) * 100 > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Error rate > 2% over 5m"
+
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 1.0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "p95 latency > 1s"
+
+      - alert: LowPaymentSuccess
+        expr: (sum(rate(payments_total{status="completed"}[1h])) / sum(rate(payments_total[1h]))) * 100 < 90
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Payment success rate < 90%"
+
+      - alert: LeadBacklog
+        expr: sum(increase(leads_total[1h])) - sum(increase(lead_conversion_total[1h])) > 50
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Lead backlog > 50 unconverted"
