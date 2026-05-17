@@ -955,7 +955,7 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
         Custom action to retrieve the available inventory count, min price, and max price
         for a specific Product (template). Accessible by staff users (read-only).
 
-        Example URL: /api/products/{product_id}/stock-summary/
+        Example URL: /api/inventory/products/{product_id}/stock-summary/
         """
         try:
             # 1. Get the specific Product Template

@@ -3558,7 +3558,7 @@ paths:
         Custom action to retrieve the available inventory count, min price, and max price
         for a specific Product (template). Accessible by staff users (read-only).
 
-        Example URL: /api/products/{product_id}/stock-summary/
+        Example URL: /api/inventory/products/{product_id}/stock-summary/
       parameters:
       - in: path
         name: id
