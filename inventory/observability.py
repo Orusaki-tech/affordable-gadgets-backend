@@ -48,8 +48,8 @@ CUSTOMERS_REGISTERED = Counter(
     ["brand"],
 )
 
-ORDERS_CREATED = Counter(
-    "orders_created_total",
+ORDER_CREATIONS = Counter(
+    "order_creations_total",
     "Total orders created",
     ["brand", "order_source"],
 )
@@ -200,50 +200,62 @@ def refresh_business_metrics():
             CARTS_TOTAL.labels(brand=bc, status="submitted").set(submitted)
 
             # Customers
-            cust_cnt = (
-                Customer.objects.filter(Q(orders__brand__code=bc) | Q(lead__brand__code=bc))
-                .distinct()
-                .count()
-            )
-            CUSTOMERS_TOTAL.labels(brand=bc).set(cust_cnt)
+            try:
+                cust_cnt = (
+                    Customer.objects.filter(Q(orders__brand__code=bc) | Q(leads__brand__code=bc))
+                    .distinct()
+                    .count()
+                )
+                CUSTOMERS_TOTAL.labels(brand=bc).set(cust_cnt)
+            except Exception:
+                pass
 
             # Inventory value by status
-            for status_code in ["AV", "SD", "RS", "RT", "PP"]:
-                val = InventoryUnit.objects.filter(
-                    sale_status=status_code, product_template__brand=brand_name
-                ).aggregate(total=Coalesce(Sum("selling_price"), Decimal("0")))["total"]
-                INVENTORY_VALUE.labels(brand=bc, status=status_code).set(float(val))
+            try:
+                for status_code in ["AV", "SD", "RS", "RT", "PP"]:
+                    val = InventoryUnit.objects.filter(
+                        sale_status=status_code, product_template__brand=brand_name
+                    ).aggregate(total=Coalesce(Sum("selling_price"), Decimal("0")))["total"]
+                    INVENTORY_VALUE.labels(brand=bc, status=status_code).set(float(val))
+            except Exception:
+                pass
 
             # Delivery SLA
-            delivered_orders = Order.objects.filter(brand__code=bc, status="Delivered")
-            total_delivered = delivered_orders.count()
-            on_time = (
-                delivered_orders.filter(delivered_at__lte=F("delivery_window_end")).count()
-                if hasattr(Order, "delivered_at")
-                else 0
-            )
-            late = total_delivered - on_time
-            DELIVERY_SLA_TOTAL.labels(brand=bc, result="on_time").set(on_time)
-            DELIVERY_SLA_TOTAL.labels(brand=bc, result="late").set(late)
+            try:
+                delivered_orders = Order.objects.filter(brand__code=bc, status="Delivered")
+                total_delivered = delivered_orders.count()
+                on_time = (
+                    delivered_orders.filter(delivered_at__lte=F("delivery_window_end")).count()
+                    if hasattr(Order, "delivered_at")
+                    else 0
+                )
+                late = total_delivered - on_time
+                DELIVERY_SLA_TOTAL.labels(brand=bc, result="on_time").set(on_time)
+                DELIVERY_SLA_TOTAL.labels(brand=bc, result="late").set(late)
+            except Exception:
+                pass
 
             # Salesperson performance
-            from inventory.reports import get_salesperson_performance
+            try:
+                from inventory.reports import get_salesperson_performance
 
-            perf = get_salesperson_performance(days=30)
-            for sp in perf:
-                sp_name = sp.get("salesperson_name", "unknown")
-                SALESPERSON_TOTAL.labels(
-                    brand=bc, salesperson=sp_name, metric="reservations_requested"
-                ).set(sp.get("reservations_requested", 0))
-                SALESPERSON_TOTAL.labels(
-                    brand=bc, salesperson=sp_name, metric="reservations_approved"
-                ).set(sp.get("reservations_approved", 0))
-                SALESPERSON_TOTAL.labels(brand=bc, salesperson=sp_name, metric="approval_rate").set(
-                    sp.get("approval_rate", 0)
-                )
+                perf = get_salesperson_performance(days=30)
+                for sp in perf:
+                    sp_name = sp.get("salesperson_name", "unknown")
+                    SALESPERSON_TOTAL.labels(
+                        brand=bc, salesperson=sp_name, metric="reservations_requested"
+                    ).set(sp.get("reservations_requested", 0))
+                    SALESPERSON_TOTAL.labels(
+                        brand=bc, salesperson=sp_name, metric="reservations_approved"
+                    ).set(sp.get("reservations_approved", 0))
+                    SALESPERSON_TOTAL.labels(brand=bc, salesperson=sp_name, metric="approval_rate").set(
+                        sp.get("approval_rate", 0)
+                    )
+            except Exception:
+                pass
     except Exception:
         logger = logging.getLogger(__name__)
-        logger.debug("Failed to refresh business metrics", exc_info=True)
+        logger.debug("Fatal error in refresh_business_metrics", exc_info=True)
     finally:
         _refresh_lock.release()
 
