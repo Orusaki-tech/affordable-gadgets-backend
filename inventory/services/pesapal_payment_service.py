@@ -266,9 +266,12 @@ class PesapalPaymentService:
 
                 # Track payment initiation
                 from inventory.observability import PAYMENTS_TOTAL
+
                 try:
                     brand_code = order.brand.code if order.brand else "unknown"
-                    PAYMENTS_TOTAL.labels(method="pesapal", status="PENDING", brand=brand_code).inc()
+                    PAYMENTS_TOTAL.labels(
+                        method="pesapal", status="PENDING", brand=brand_code
+                    ).inc()
                 except Exception:
                     pass
 
@@ -455,9 +458,7 @@ class PesapalPaymentService:
                             if pesapal_amount_str:
                                 try:
                                     pesapal_amount = Decimal(str(pesapal_amount_str))
-                                    if abs(pesapal_amount - payment.amount) > Decimal(
-                                        "0.01"
-                                    ):
+                                    if abs(pesapal_amount - payment.amount) > Decimal("0.01"):
                                         error_msg = f"SECURITY ALERT: Final amount check failed for order {payment.order.order_id}"
                                         logger.error(error_msg)
                                         payment.status = PesapalPayment.StatusChoices.FAILED
@@ -483,25 +484,41 @@ class PesapalPaymentService:
                             payment.order.is_delivery_paid = True
                         if payment.order.is_items_paid and payment.order.is_delivery_paid:
                             payment.order.status = Order.StatusChoices.PAID
-                            print("[PESAPAL] ✓ Payment verified - Order marked as PAID (items + delivery paid)")
+                            print(
+                                "[PESAPAL] ✓ Payment verified - Order marked as PAID (items + delivery paid)"
+                            )
                         else:
                             print(
                                 "[PESAPAL] ✓ Payment verified - Order is PARTIALLY paid "
                                 f"(items_paid={payment.order.is_items_paid}, delivery_paid={payment.order.is_delivery_paid})"
                             )
-                        payment.order.save(update_fields=["is_items_paid", "is_delivery_paid", "status"])
+                        payment.order.save(
+                            update_fields=["is_items_paid", "is_delivery_paid", "status"]
+                        )
                         logger.info(
                             f"Payment completed and verified for order {payment.order.order_id}"
                         )
 
                         # Track payment and revenue metrics
-                        from inventory.observability import PAYMENTS_TOTAL, ORDERS_TOTAL
+                        from inventory.observability import (
+                            ORDERS_TOTAL,
+                            PAYMENTS_TOTAL,
+                            REVENUE_EARNED,
+                        )
+
                         try:
-                            brand_code = payment.order.brand.code if payment.order.brand else "unknown"
+                            brand_code = (
+                                payment.order.brand.code if payment.order.brand else "unknown"
+                            )
                             pm = payment.payment_method or "pesapal"
-                            PAYMENTS_TOTAL.labels(method=pm, status=payment.status, brand=brand_code).inc()
+                            PAYMENTS_TOTAL.labels(
+                                method=pm, status=payment.status, brand=brand_code
+                            ).inc()
+                            REVENUE_EARNED.labels(brand=brand_code).inc(float(payment.amount))
                             if payment.order.status == Order.StatusChoices.PAID:
-                                ORDERS_TOTAL.labels(status="Paid", payment_method=pm, brand=brand_code).inc()
+                                ORDERS_TOTAL.labels(
+                                    status="Paid", payment_method=pm, brand=brand_code
+                                ).inc()
                         except Exception:
                             pass
 
@@ -855,13 +872,17 @@ class PesapalPaymentService:
                             payment.order.is_delivery_paid = True
                         if payment.order.is_items_paid and payment.order.is_delivery_paid:
                             payment.order.status = Order.StatusChoices.PAID
-                            print("[PESAPAL] ✓ Payment verified - Order marked as PAID (items + delivery paid)")
+                            print(
+                                "[PESAPAL] ✓ Payment verified - Order marked as PAID (items + delivery paid)"
+                            )
                         else:
                             print(
                                 "[PESAPAL] ✓ Payment verified - Order is PARTIALLY paid "
                                 f"(items_paid={payment.order.is_items_paid}, delivery_paid={payment.order.is_delivery_paid})"
                             )
-                        payment.order.save(update_fields=["is_items_paid", "is_delivery_paid", "status"])
+                        payment.order.save(
+                            update_fields=["is_items_paid", "is_delivery_paid", "status"]
+                        )
 
                         # Transition units from PENDING_PAYMENT to SOLD
                         for order_item in payment.order.order_items.all():
@@ -875,13 +896,25 @@ class PesapalPaymentService:
                                 unit.save(update_fields=["sale_status"])
 
                         # Track payment completion via callback
-                        from inventory.observability import PAYMENTS_TOTAL, ORDERS_TOTAL
+                        from inventory.observability import (
+                            ORDERS_TOTAL,
+                            PAYMENTS_TOTAL,
+                            REVENUE_EARNED,
+                        )
+
                         try:
-                            brand_code = payment.order.brand.code if payment.order.brand else "unknown"
+                            brand_code = (
+                                payment.order.brand.code if payment.order.brand else "unknown"
+                            )
                             pm = payment.payment_method or "pesapal"
-                            PAYMENTS_TOTAL.labels(method=pm, status=new_status, brand=brand_code).inc()
+                            PAYMENTS_TOTAL.labels(
+                                method=pm, status=new_status, brand=brand_code
+                            ).inc()
+                            REVENUE_EARNED.labels(brand=brand_code).inc(float(payment.amount))
                             if payment.order.status == Order.StatusChoices.PAID:
-                                ORDERS_TOTAL.labels(status="Paid", payment_method=pm, brand=brand_code).inc()
+                                ORDERS_TOTAL.labels(
+                                    status="Paid", payment_method=pm, brand=brand_code
+                                ).inc()
                         except Exception:
                             pass
 

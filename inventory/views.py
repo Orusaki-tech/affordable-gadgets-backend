@@ -67,8 +67,6 @@ from .models import (  # noqa: E402
     ArticleImage,
     AuditLog,
     Brand,
-    FinancingOffer,
-    FinancingProvider,
     Bundle,
     BundleItem,
     Cart,
@@ -76,6 +74,8 @@ from .models import (  # noqa: E402
     Color,
     Customer,
     DeliveryRate,
+    FinancingOffer,
+    FinancingProvider,
     InventoryUnitImage,
     Lead,
     LeadItem,
@@ -109,10 +109,10 @@ from .permissions import (  # noqa: E402
     IsContentCreatorOrInventoryManagerOrReadOnly,
     IsCustomerOwnerOrAdmin,
     IsInventoryManager,
-    IsInventoryManagerOrReadOnly,
-    IsInventoryManagerOrSuperuser,
     IsInventoryManagerOrMarketingManagerReadOnly,
+    IsInventoryManagerOrReadOnly,
     IsInventoryManagerOrSalespersonReadOnly,
+    IsInventoryManagerOrSuperuser,
     IsMarketingManager,
     IsMarketingManagerOrInventoryManagerReadOnly,
     IsOrderManager,
@@ -568,7 +568,9 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
 
         start_display_order = request.data.get("start_display_order", None)
         try:
-            start_display_order_int = int(start_display_order) if start_display_order is not None else None
+            start_display_order_int = (
+                int(start_display_order) if start_display_order is not None else None
+            )
         except (TypeError, ValueError):
             return Response(
                 {"start_display_order": "Must be an integer."},
@@ -663,7 +665,9 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
         qs.delete()
 
         if was_primary_deleted:
-            next_img = ProductImage.objects.filter(product=product).order_by("display_order", "id").first()
+            next_img = (
+                ProductImage.objects.filter(product=product).order_by("display_order", "id").first()
+            )
             if next_img:
                 next_img.is_primary = True
                 next_img.save(update_fields=["is_primary"])
@@ -931,15 +935,16 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
 
         # Merge reconstructed article_data with any existing article dict coming from JSON payloads
         existing_article = content_data.get("article")
-        
+
         # If it's a string (e.g. from multipart form data), try to parse it
         if isinstance(existing_article, str):
             import json
+
             try:
                 existing_article = json.loads(existing_article)
             except json.JSONDecodeError:
                 pass
-                
+
         if isinstance(existing_article, dict):
             # Existing dict may already contain some keys – update with reconstructed ones
             existing_article.update(article_data)
@@ -953,7 +958,6 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
         serializer.save(updated_by=request.user)
 
         return Response(serializer.data)
-
 
     @action(
         detail=True,
@@ -1251,6 +1255,17 @@ class InventoryUnitViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                         status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     )
 
+                # Track order creation
+                try:
+                    from inventory.observability import ORDERS_CREATED
+
+                    ORDERS_CREATED.labels(
+                        brand=brand.code if brand else "unknown",
+                        order_source=Order.OrderSourceChoices.WALK_IN,
+                    ).inc()
+                except Exception:
+                    pass
+
                 # Create order item
                 try:
                     OrderItem.objects.create(
@@ -1432,7 +1447,9 @@ class InventoryUnitViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                     raw_selling = (row.get("Selling Price") or "").strip().replace(",", "")
                     try:
                         selling_price = (
-                            Decimal(raw_selling) if raw_selling and raw_selling != "None" else Decimal("0.00")
+                            Decimal(raw_selling)
+                            if raw_selling and raw_selling != "None"
+                            else Decimal("0.00")
                         )
                     except Exception:
                         selling_price = Decimal("0.00")
@@ -1442,8 +1459,10 @@ class InventoryUnitViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
 
                     # Cost Price: use "Cost Price", "Cost", or "Cost of Unit" if present; else use selling price
                     raw_cost = (
-                        row.get("Cost Price") or row.get("Cost") or row.get("Cost of Unit") or ""
-                    ).strip().replace(",", "")
+                        (row.get("Cost Price") or row.get("Cost") or row.get("Cost of Unit") or "")
+                        .strip()
+                        .replace(",", "")
+                    )
                     if raw_cost and raw_cost != "None":
                         try:
                             cost_of_unit = Decimal(raw_cost)
@@ -3092,6 +3111,7 @@ class OrderViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
 
         # Track order status changes
         from inventory.observability import ORDERS_TOTAL
+
         try:
             brand_code = instance.brand.code if instance.brand else "unknown"
             pm = getattr(instance, "payment_method_used", "unknown")
@@ -3258,9 +3278,12 @@ class OrderViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
 
             # Track payment metric
             from inventory.observability import ORDERS_TOTAL
+
             try:
                 brand_code = order.brand.code if order.brand else "unknown"
-                ORDERS_TOTAL.labels(status="Paid", payment_method=payment_method, brand=brand_code).inc()
+                ORDERS_TOTAL.labels(
+                    status="Paid", payment_method=payment_method, brand=brand_code
+                ).inc()
             except Exception:
                 pass
 

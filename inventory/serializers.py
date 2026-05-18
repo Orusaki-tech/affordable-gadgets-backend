@@ -17,8 +17,6 @@ from .models import (
     ArticleImage,
     AuditLog,
     Brand,
-    FinancingOffer,
-    FinancingProvider,
     Bundle,
     BundleItem,
     Cart,
@@ -26,6 +24,8 @@ from .models import (
     Color,
     Customer,
     DeliveryRate,
+    FinancingOffer,
+    FinancingProvider,
     InventoryUnit,
     InventoryUnitImage,
     Lead,
@@ -437,6 +437,14 @@ class CustomerRegistrationSerializer(serializers.Serializer):
             **validated_data,  # This includes phone_number, address
         )
 
+        # Track customer registration
+        try:
+            from inventory.observability import CUSTOMERS_REGISTERED
+
+            CUSTOMERS_REGISTERED.labels(brand="all").inc()
+        except Exception:
+            pass
+
         # 4. Generate email verification token + send email
         customer.issue_email_verification()
         send_verification_email(customer)
@@ -749,6 +757,7 @@ class ArticleImageUploadSerializer(serializers.Serializer):
     def create(self, validated_data):
         image = validated_data["image"]
         from .cloudinary_utils import upload_image_to_cloudinary
+
         saved_name, url = upload_image_to_cloudinary(image, "article_images")
         if not saved_name:
             raise serializers.ValidationError("Failed to upload image")
@@ -759,7 +768,9 @@ class ArticleImageSerializer(serializers.ModelSerializer):
     """Serializer for article images embedded in buying guide body."""
 
     image_url = serializers.SerializerMethodField(read_only=True)
-    article = serializers.PrimaryKeyRelatedField(queryset=ProductArticle.objects.all(), read_only=False)
+    article = serializers.PrimaryKeyRelatedField(
+        queryset=ProductArticle.objects.all(), read_only=False
+    )
     image = serializers.ImageField(write_only=True)
 
     class Meta:
@@ -779,6 +790,7 @@ class ArticleImageSerializer(serializers.ModelSerializer):
     def get_image_url(self, obj):
         if obj.image:
             from .cloudinary_utils import get_optimized_image_url
+
             return get_optimized_image_url(obj.image)
         return None
 
@@ -787,6 +799,7 @@ class ArticleImageSerializer(serializers.ModelSerializer):
         instance = super().create(validated_data)
         if image:
             from .cloudinary_utils import upload_image_to_cloudinary
+
             saved_name, _ = upload_image_to_cloudinary(image, "article_images")
             if saved_name:
                 instance.image.name = saved_name
@@ -2432,6 +2445,17 @@ class OrderSerializer(serializers.ModelSerializer):
                 customer=customer, user=user, status=Order.StatusChoices.PENDING, **validated_data
             )
 
+            # Track order creation
+            try:
+                from inventory.observability import ORDERS_CREATED
+
+                ORDERS_CREATED.labels(
+                    brand=order.brand.code if order.brand else "unknown",
+                    order_source=validated_data.get("order_source", "unknown"),
+                ).inc()
+            except Exception:
+                pass
+
             delivery_fee, _ = get_delivery_fee(
                 validated_data.get("delivery_county"), validated_data.get("delivery_ward")
             )
@@ -3849,7 +3873,9 @@ class PromotionSerializer(serializers.ModelSerializer):
 
         if featured_sale_price is not None and featured_product is None:
             raise serializers.ValidationError(
-                {"featured_sale_price": "Select a featured product before setting a featured sale price."}
+                {
+                    "featured_sale_price": "Select a featured product before setting a featured sale price."
+                }
             )
 
         if featured_product and product_types and featured_product.product_type != product_types:

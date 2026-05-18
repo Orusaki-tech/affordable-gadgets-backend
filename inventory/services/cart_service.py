@@ -57,6 +57,7 @@ class CartService:
                 session_key=session_key or "", customer_phone=customer_phone or "", brand=brand
             )
             from inventory.observability import CARTS_TOTAL
+
             try:
                 CARTS_TOTAL.labels(brand=brand.code if brand else "unknown", status="total").inc()
             except Exception:
@@ -333,6 +334,14 @@ class CartService:
                 status=Lead.StatusChoices.NEW,
             )
 
+            # Track lead creation
+            try:
+                from inventory.observability import LEADS_CREATED
+
+                LEADS_CREATED.labels(brand=cart.brand.code if cart.brand else "unknown").inc()
+            except Exception:
+                pass
+
             # Create LeadItems with stored promotion prices
             for cart_item in cart.items.all():
                 unit_price = cart_item.get_unit_price()  # Use stored promotion price
@@ -351,8 +360,11 @@ class CartService:
 
             # Track cart→lead conversion
             from inventory.observability import CARTS_TOTAL
+
             try:
-                CARTS_TOTAL.labels(brand=cart.brand.code if cart.brand else "unknown", status="submitted").inc()
+                CARTS_TOTAL.labels(
+                    brand=cart.brand.code if cart.brand else "unknown", status="submitted"
+                ).inc()
             except Exception:
                 pass
 

@@ -37,8 +37,11 @@ class LeadService:
             lead.assigned_salesperson = assigned_salesperson
             lead.save(update_fields=["assigned_salesperson"])
             from inventory.observability import LEADS_TOTAL
+
             try:
-                LEADS_TOTAL.labels(brand=lead.brand.code if lead.brand else "unknown", status="assigned").inc()
+                LEADS_TOTAL.labels(
+                    brand=lead.brand.code if lead.brand else "unknown", status="assigned"
+                ).inc()
             except Exception:
                 pass
 
@@ -83,10 +86,15 @@ class LeadService:
             lead.order = order
             lead.save()
 
-            # Track lead conversion
-            from inventory.observability import LEAD_CONVERSION_TOTAL
+            # Track lead conversion and order creation
+            from inventory.observability import LEADS_CONVERTED, ORDERS_CREATED
+
             try:
-                LEAD_CONVERSION_TOTAL.labels(brand=lead.brand.code if lead.brand else "unknown").inc()
+                LEADS_CONVERTED.labels(brand=lead.brand.code if lead.brand else "unknown").inc()
+                ORDERS_CREATED.labels(
+                    brand=lead.brand.code if lead.brand else "unknown",
+                    order_source=Order.OrderSourceChoices.ONLINE,
+                ).inc()
             except Exception:
                 pass
 

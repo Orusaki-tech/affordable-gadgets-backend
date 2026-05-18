@@ -67,9 +67,10 @@ class CustomerService:
 
         # Track new customer registration
         if created:
-            from inventory.observability import CUSTOMERS_TOTAL
+            from inventory.observability import CUSTOMERS_REGISTERED
+
             try:
-                CUSTOMERS_TOTAL.labels(brand="all").inc()
+                CUSTOMERS_REGISTERED.labels(brand="all").inc()
             except Exception:
                 pass
 

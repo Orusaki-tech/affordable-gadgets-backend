@@ -2,14 +2,14 @@
 Observability module: Prometheus metrics, structured logging helpers, Sentry init.
 """
 
-import os
 import json
 import logging
+import os
 import time
 from functools import wraps
 from threading import Lock
 
-from prometheus_client import Counter, Histogram, Gauge, generate_latest, REGISTRY
+from prometheus_client import REGISTRY, Counter, Gauge, Histogram, generate_latest
 
 # ── Prometheus Metrics ────────────────────────────────────────────
 
@@ -26,12 +26,38 @@ HTTP_REQUEST_DURATION_SECONDS = Histogram(
     buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10),
 )
 
-ORDERS_TOTAL = Counter(
-    "orders_total", "Total orders placed", ["status", "payment_method", "brand"]
+ORDERS_TOTAL = Counter("orders_total", "Total orders placed", ["status", "payment_method", "brand"])
+
+PAYMENTS_TOTAL = Counter("payments_total", "Total payment attempts", ["method", "status", "brand"])
+
+REVENUE_EARNED = Counter(
+    "revenue_earned_total",
+    "Cumulative revenue earned from completed payments",
+    ["brand"],
 )
 
-PAYMENTS_TOTAL = Counter(
-    "payments_total", "Total payment attempts", ["method", "status", "brand"]
+LEADS_CREATED = Counter(
+    "leads_created_total",
+    "Total leads created",
+    ["brand"],
+)
+
+CUSTOMERS_REGISTERED = Counter(
+    "customers_registered_total",
+    "Total customers registered",
+    ["brand"],
+)
+
+ORDERS_CREATED = Counter(
+    "orders_created_total",
+    "Total orders created",
+    ["brand", "order_source"],
+)
+
+LEADS_CONVERTED = Counter(
+    "leads_converted_total",
+    "Total leads converted to orders",
+    ["brand"],
 )
 
 ACTIVE_USERS = Gauge("active_users", "Number of active / recently-seen users")
@@ -73,7 +99,7 @@ CARTS_TOTAL = Gauge(
 
 CUSTOMERS_TOTAL = Gauge(
     "customers_total",
-    "Total customers registered",
+    "Total customers registered (snapshot — use customers_registered_total for rate)",
     ["brand"],
 )
 
@@ -104,7 +130,7 @@ _REFRESH_COOLDOWN = 60  # seconds — max once per 60s per worker
 
 def refresh_business_metrics():
     """Refresh business metric gauges from the database.
-    
+
     Rate-limited to once per 60 seconds per worker process.
     Reuses existing queries from reports.py where possible.
     """
@@ -116,12 +142,19 @@ def refresh_business_metrics():
         return
     try:
         _last_refresh = now
-        from django.db.models import Sum, Count, Q, F, DecimalField
-        from django.db.models.functions import Coalesce
         from decimal import Decimal
+
+        from django.db.models import F, Q, Sum
+        from django.db.models.functions import Coalesce
+
         from inventory.models import (
-            Brand, Order, Cart, Customer, Lead,
-            InventoryUnit, PesapalPayment, Product,
+            Brand,
+            Cart,
+            Customer,
+            InventoryUnit,
+            Lead,
+            Order,
+            PesapalPayment,
         )
 
         brand_codes = list(Brand.objects.filter(is_active=True).values_list("code", flat=True))
@@ -136,24 +169,18 @@ def refresh_business_metrics():
                 brand_name = bc.title()
 
             # Revenue from COMPLETED payments
-            rev = (
-                PesapalPayment.objects.filter(
-                    order__brand__code=bc, status="COMPLETED"
-                ).aggregate(total=Coalesce(Sum("amount"), Decimal("0")))["total"]
-            )
+            rev = PesapalPayment.objects.filter(
+                order__brand__code=bc, status="COMPLETED"
+            ).aggregate(total=Coalesce(Sum("amount"), Decimal("0")))["total"]
             REVENUE_TOTAL.labels(brand=bc, product_type="all").set(float(rev))
 
             # Gross margin: revenue - cost of goods sold for SOLD units
-            sold_cost = (
-                InventoryUnit.objects.filter(
-                    sale_status="SD", product_template__brand=brand_name
-                ).aggregate(total=Coalesce(Sum("cost_of_unit"), Decimal("0")))["total"]
-            )
-            sold_revenue = (
-                InventoryUnit.objects.filter(
-                    sale_status="SD", product_template__brand=brand_name
-                ).aggregate(total=Coalesce(Sum("selling_price"), Decimal("0")))["total"]
-            )
+            sold_cost = InventoryUnit.objects.filter(
+                sale_status="SD", product_template__brand=brand_name
+            ).aggregate(total=Coalesce(Sum("cost_of_unit"), Decimal("0")))["total"]
+            sold_revenue = InventoryUnit.objects.filter(
+                sale_status="SD", product_template__brand=brand_name
+            ).aggregate(total=Coalesce(Sum("selling_price"), Decimal("0")))["total"]
             margin = float(sold_revenue) - float(sold_cost)
             GROSS_MARGIN_TOTAL.labels(brand=bc, product_type="all").set(margin)
 
@@ -173,34 +200,35 @@ def refresh_business_metrics():
             CARTS_TOTAL.labels(brand=bc, status="submitted").set(submitted)
 
             # Customers
-            cust_cnt = Customer.objects.filter(
-                Q(orders__brand__code=bc) | Q(lead__brand__code=bc)
-            ).distinct().count()
+            cust_cnt = (
+                Customer.objects.filter(Q(orders__brand__code=bc) | Q(lead__brand__code=bc))
+                .distinct()
+                .count()
+            )
             CUSTOMERS_TOTAL.labels(brand=bc).set(cust_cnt)
 
             # Inventory value by status
             for status_code in ["AV", "SD", "RS", "RT", "PP"]:
-                val = (
-                    InventoryUnit.objects.filter(
-                        sale_status=status_code, product_template__brand=brand_name
-                    ).aggregate(total=Coalesce(Sum("selling_price"), Decimal("0")))["total"]
-                )
+                val = InventoryUnit.objects.filter(
+                    sale_status=status_code, product_template__brand=brand_name
+                ).aggregate(total=Coalesce(Sum("selling_price"), Decimal("0")))["total"]
                 INVENTORY_VALUE.labels(brand=bc, status=status_code).set(float(val))
 
             # Delivery SLA
-            delivered_orders = Order.objects.filter(
-                brand__code=bc, status="Delivered"
-            )
+            delivered_orders = Order.objects.filter(brand__code=bc, status="Delivered")
             total_delivered = delivered_orders.count()
-            on_time = delivered_orders.filter(
-                delivered_at__lte=F("delivery_window_end")
-            ).count() if hasattr(Order, "delivered_at") else 0
+            on_time = (
+                delivered_orders.filter(delivered_at__lte=F("delivery_window_end")).count()
+                if hasattr(Order, "delivered_at")
+                else 0
+            )
             late = total_delivered - on_time
             DELIVERY_SLA_TOTAL.labels(brand=bc, result="on_time").set(on_time)
             DELIVERY_SLA_TOTAL.labels(brand=bc, result="late").set(late)
 
             # Salesperson performance
             from inventory.reports import get_salesperson_performance
+
             perf = get_salesperson_performance(days=30)
             for sp in perf:
                 sp_name = sp.get("salesperson_name", "unknown")
@@ -210,9 +238,9 @@ def refresh_business_metrics():
                 SALESPERSON_TOTAL.labels(
                     brand=bc, salesperson=sp_name, metric="reservations_approved"
                 ).set(sp.get("reservations_approved", 0))
-                SALESPERSON_TOTAL.labels(
-                    brand=bc, salesperson=sp_name, metric="approval_rate"
-                ).set(sp.get("approval_rate", 0))
+                SALESPERSON_TOTAL.labels(brand=bc, salesperson=sp_name, metric="approval_rate").set(
+                    sp.get("approval_rate", 0)
+                )
     except Exception:
         logger = logging.getLogger(__name__)
         logger.debug("Failed to refresh business metrics", exc_info=True)
@@ -222,12 +250,14 @@ def refresh_business_metrics():
 
 # ── Metrics View ────────────────────────────────────────────────────
 
+
 def metrics_view(request):
     """GET /metrics/ → Prometheus scrape endpoint."""
     from django.http import HttpResponse
 
     try:
         from inventory.middleware import refresh_active_users_metric
+
         refresh_active_users_metric()
     except Exception:
         pass
@@ -241,6 +271,7 @@ def metrics_view(request):
         generate_latest(REGISTRY),
         content_type="text/plain; version=0.0.4; charset=utf-8",
     )
+
 
 # ── Structured Logging ────────────────────────────────────────────────
 
@@ -309,23 +340,19 @@ def init_opentelemetry() -> bool:
     try:
         from opentelemetry import trace
         from opentelemetry.exporter.gcp_trace import CloudTraceSpanExporter
+        from opentelemetry.instrumentation.django import DjangoInstrumentor
+        from opentelemetry.instrumentation.requests import RequestsInstrumentor
         from opentelemetry.sdk.resources import Resource
         from opentelemetry.sdk.trace import TracerProvider
         from opentelemetry.sdk.trace.export import BatchSpanProcessor
-        from opentelemetry.instrumentation.django import DjangoInstrumentor
-        from opentelemetry.instrumentation.requests import RequestsInstrumentor
 
-        project_id = os.environ.get(
-            "OTEL_GCP_PROJECT_ID"
-        ) or os.environ.get("GOOGLE_CLOUD_PROJECT")
+        project_id = os.environ.get("OTEL_GCP_PROJECT_ID") or os.environ.get("GOOGLE_CLOUD_PROJECT")
         service_name = os.environ.get("OTEL_SERVICE_NAME", "ag-api")
         sample_rate = float(os.environ.get("OTEL_SAMPLE_RATE", "0.1"))
 
         provider = TracerProvider(
             resource=Resource.create({"service.name": service_name}),
-            sampler=trace.sampling.ParentBased(
-                trace.sampling.TraceIdRatioBased(sample_rate)
-            ),
+            sampler=trace.sampling.ParentBased(trace.sampling.TraceIdRatioBased(sample_rate)),
         )
         exporter = CloudTraceSpanExporter(project_id=project_id)
         provider.add_span_processor(BatchSpanProcessor(exporter))

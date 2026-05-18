@@ -292,9 +292,7 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
     def article_by_product_slug(self, request, product_slug=None):
         """Published buying guide for a product (404 if missing or draft)."""
         brand = getattr(request, "brand", None)
-        qs = Product.objects.filter(
-            is_discontinued=False, is_published=True, slug=product_slug
-        )
+        qs = Product.objects.filter(is_discontinued=False, is_published=True, slug=product_slug)
         if brand:
             qs = qs.filter(Q(brands=brand) | Q(is_global=True) | Q(brands__isnull=True)).distinct()
         product = qs.select_related("article").first()
@@ -1381,9 +1379,7 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
                 )
                 queryset = queryset.annotate(
                     has_published_article=Exists(
-                        ProductArticle.objects.filter(
-                            product_id=OuterRef("pk"), is_published=True
-                        )
+                        ProductArticle.objects.filter(product_id=OuterRef("pk"), is_published=True)
                     )
                 )
                 return apply_public_ordering(queryset)
@@ -2694,6 +2690,14 @@ class PublicFinancingInquiryView(_PublicAPIMixin, APIView):
             total_value=(offer.retail_amount if offer else Decimal("0.00")),
         )
 
+        # Track lead creation
+        try:
+            from inventory.observability import LEADS_CREATED
+
+            LEADS_CREATED.labels(brand=brand.code if brand else "unknown").inc()
+        except Exception:
+            pass
+
         # Auto-assign to a salesperson for this brand when possible.
         try:
             LeadService.auto_assign_lead(lead)
@@ -2749,9 +2753,7 @@ class PublicOrderHistoryView(_PublicAPIMixin, APIView):
         customer = Customer.objects.filter(email__iexact=email).first()
         if not customer:
             customer = (
-                Customer.objects.filter(user__email__iexact=email)
-                .select_related("user")
-                .first()
+                Customer.objects.filter(user__email__iexact=email).select_related("user").first()
             )
         if not customer:
             return Response({"orders": []})
@@ -2789,9 +2791,7 @@ class ReviewEligibilityView(_PublicAPIMixin, APIView):
         customer = Customer.objects.filter(email__iexact=email).first()
         if not customer:
             customer = (
-                Customer.objects.filter(user__email__iexact=email)
-                .select_related("user")
-                .first()
+                Customer.objects.filter(user__email__iexact=email).select_related("user").first()
             )
         if not customer:
             return Response({"customer": None, "eligible_items": []})
@@ -2867,14 +2867,18 @@ class PublicReviewSubmitView(_PublicAPIMixin, APIView):
         customer = Customer.objects.filter(email__iexact=email).first()
         if not customer:
             customer = (
-                Customer.objects.filter(user__email__iexact=email)
-                .select_related("user")
-                .first()
+                Customer.objects.filter(user__email__iexact=email).select_related("user").first()
             )
         if not customer:
             # Allow OTP-verified first-time reviewers without purchase history.
             local_part = email.split("@")[0] if "@" in email else "Customer"
             customer = Customer.objects.create(name=local_part[:255], email=email, phone="")
+            try:
+                from inventory.observability import CUSTOMERS_REGISTERED
+
+                CUSTOMERS_REGISTERED.labels(brand="all").inc()
+            except Exception:
+                pass
 
         order_item = None
         if data.get("order_item_id"):
@@ -2892,7 +2896,8 @@ class PublicReviewSubmitView(_PublicAPIMixin, APIView):
             product = order_item.inventory_unit.product_template
             if not product or product.id != data["product_id"]:
                 return Response(
-                    {"error": "Order item does not match product."}, status=status.HTTP_400_BAD_REQUEST
+                    {"error": "Order item does not match product."},
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
         else:
             product = Product.objects.filter(id=data["product_id"]).first()
@@ -3294,7 +3299,9 @@ class PublicPromotionViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOn
 
         now = timezone.now()
         queryset = (
-            Promotion.objects.filter(brand=brand, is_active=True, start_date__lte=now, end_date__gte=now)
+            Promotion.objects.filter(
+                brand=brand, is_active=True, start_date__lte=now, end_date__gte=now
+            )
             .select_related("featured_product")
             .prefetch_related(
                 "products",
@@ -3375,4 +3382,4 @@ class PublicReviewViewSet(_PublicAPIMixin, inventory_views.ReviewViewSet):
 class PublicProductAccessoryViewSet(_PublicAPIMixin, inventory_views.ProductAccessoryViewSet):
     """ProductAccessoryViewSet for public API: no auth so unauthenticated clients get 200, not 401."""
 
-    pass
+    permission_classes = [permissions.AllowAny]
