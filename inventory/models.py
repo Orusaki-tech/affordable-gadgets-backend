@@ -1934,6 +1934,7 @@ class CartItem(models.Model):
         help_text="Promotion applied to this item (if any)",
     )
     added_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         unique_together = ["cart", "inventory_unit", "bundle_group_id"]

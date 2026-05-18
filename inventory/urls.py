@@ -78,6 +78,9 @@ product_bulk_destroy = path(
 )
 
 urlpatterns = [
+    # Cart Analytics Endpoint (Internal)
+    path('observability/cart-analytics/', views.CartAnalyticsView.as_view(), name='cart-analytics'),
+    
     # IMPORTANT: Explicit routes for custom actions must come BEFORE router.urls
     # to ensure they match before the router's generic routes
     # Public endpoints must also come before the router to avoid being

@@ -52,6 +52,67 @@ from .serializers import (
 
 
 # --- Schema helpers (drf-spectacular) ---
+from django.db.models import Sum, Count, F
+from django.utils import timezone
+from datetime import timedelta
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+
+class CartAnalyticsView(APIView):
+    """
+    Internal API endpoint for Grafana JSON API datasource.
+    Provides snapshot analytics of current active (unsubmitted) carts.
+    """
+    # Requires authentication to prevent public scraping.
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        brand_code = getattr(request, 'brand', None)
+        brand_code = brand_code.code if brand_code else "AFFORDABLE_GADGETS"
+
+        # 1. Base Queryset: Active (unsubmitted) carts for the brand
+        active_carts = Cart.objects.filter(brand__code=brand_code, is_submitted=False)
+
+        # 2. Total active carts
+        total_active_carts = active_carts.count()
+
+        # 3. Total items currently in those active carts
+        total_items_in_carts = CartItem.objects.filter(cart__in=active_carts).aggregate(
+            total_qty=Sum('quantity')
+        )['total_qty'] or 0
+
+        # 4. Popular Items: Top 10 products currently in active carts
+        popular_items = CartItem.objects.filter(cart__in=active_carts).values(
+            product_name=F('inventory_unit__product_template__product_name')
+        ).annotate(
+            quantity_in_carts=Sum('quantity')
+        ).order_by('-quantity_in_carts')[:10]
+
+        # 5. Stale Carts: Carts not updated in the last 2 hours
+        two_hours_ago = timezone.now() - timedelta(hours=2)
+        
+        # A cart is stale if it hasn't been updated in 2 hours.
+        stale_carts_qs = active_carts.filter(updated_at__lt=two_hours_ago)
+        
+        total_stale_carts = stale_carts_qs.count()
+        
+        # Stale Items: Items in stale carts
+        total_stale_items = CartItem.objects.filter(cart__in=stale_carts_qs).aggregate(
+            total_qty=Sum('quantity')
+        )['total_qty'] or 0
+
+        # Format the response
+        return Response({
+            "metrics": {
+                "active_carts_total": total_active_carts,
+                "active_items_total": total_items_in_carts,
+                "stale_carts_total": total_stale_carts,
+                "stale_items_total": total_stale_items
+            },
+            "popular_products": list(popular_items)
+        })
+
 class EmptySerializer(serializers.Serializer):
     pass
 
