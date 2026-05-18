@@ -4,10 +4,12 @@ on:
     paths:
       - 'deploy/**'
       - 'scripts/validate-monitoring-configs.sh'
+      - '.github/workflows/validate-infra.yml'
   push:
     branches: [main]
     paths:
       - 'deploy/**'
+      - '.github/workflows/validate-infra.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
