@@ -74,22 +74,44 @@ _loading_brand = threading.local()
 
 
 def _purge_stale_users():
-    """Remove users whose last activity exceeds the TTL."""
-    now = time.time()
-    stale = [uid for uid, ts in list(_ACTIVE_USERS.items()) if now - ts > _ACTIVE_USER_TTL]
-    for uid in stale:
-        _ACTIVE_USERS.pop(uid, None)
-
+    """Remove users whose last activity exceeds the TTL (No-op when using Redis)."""
+    pass
 
 def refresh_active_users_metric():
     """Set the active_users Prometheus gauge (called from metrics_view)."""
-    _purge_stale_users()
     try:
+        from django.core.cache import cache
+        from django.conf import settings
         from inventory.observability import ACTIVE_USERS
+        
+        # Count all keys starting with 'active_user:'
+        # In a real Redis setup this might use SCAN, but for a simple cache we can just count
+        if hasattr(cache, 'client') and hasattr(cache.client, 'get_client'):
+            # Redis cache
+            redis_client = cache.client.get_client()
+            active_count = 0
+            
+            # The key prefix might include the KEY_PREFIX setting and the version '1'
+            # Typically: <KEY_PREFIX>:1:active_user:*
+            prefix = getattr(settings, "CACHES", {}).get("default", {}).get("KEY_PREFIX", "")
+            match_pattern = f"{prefix}:1:active_user:*" if prefix else "*:1:active_user:*"
+            if not prefix:
+                 match_pattern = "*active_user:*"
 
-        ACTIVE_USERS.set(len(_ACTIVE_USERS))
-    except Exception:
-        pass
+            for _ in redis_client.scan_iter(match=match_pattern):
+                active_count += 1
+            ACTIVE_USERS.set(active_count)
+        else:
+            # Fallback for local dev/dummy cache if needed
+            # We'll just rely on the existing _ACTIVE_USERS dict if redis isn't configured
+            now = time.time()
+            stale = [uid for uid, ts in list(_ACTIVE_USERS.items()) if now - ts > _ACTIVE_USER_TTL]
+            for uid in stale:
+                _ACTIVE_USERS.pop(uid, None)
+            ACTIVE_USERS.set(len(_ACTIVE_USERS))
+    except Exception as e:
+        logger.debug(f"Failed to refresh active users metric from cache: {e}")
+
 
 
 # Patterns to normalise URL paths for metrics labels
@@ -147,6 +169,11 @@ class RequestTimingMiddleware(MiddlewareMixin):
 
             # Track authenticated users
             if getattr(request, "user", None) and request.user.is_authenticated:
+                from django.core.cache import cache
+                
+                # Store in Redis with TTL to auto-expire
+                cache.set(f"active_user:{request.user.id}", True, timeout=_ACTIVE_USER_TTL)
+                # Keep local memory fallback just in case
                 _ACTIVE_USERS[request.user.id] = time.time()
         except Exception:
             logger.debug("Failed to record Prometheus metrics", exc_info=True)
