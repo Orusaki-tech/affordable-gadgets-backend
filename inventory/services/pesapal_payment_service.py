@@ -264,6 +264,14 @@ class PesapalPaymentService:
                     expired_at=timezone.now() + timedelta(hours=self.payment_expiry_hours),
                 )
 
+                # Track payment initiation
+                from inventory.observability import PAYMENTS_TOTAL
+                try:
+                    brand_code = order.brand.code if order.brand else "unknown"
+                    PAYMENTS_TOTAL.labels(method="pesapal", status="PENDING", brand=brand_code).inc()
+                except Exception:
+                    pass
+
                 print("[PESAPAL] ========== INITIATE PAYMENT SUCCESS ==========")
                 print(f"[PESAPAL] Payment record created - ID: {payment.id}")
                 print(f"[PESAPAL] Order Tracking ID: {order_tracking_id}")
@@ -485,6 +493,17 @@ class PesapalPaymentService:
                         logger.info(
                             f"Payment completed and verified for order {payment.order.order_id}"
                         )
+
+                        # Track payment and revenue metrics
+                        from inventory.observability import PAYMENTS_TOTAL, ORDERS_TOTAL
+                        try:
+                            brand_code = payment.order.brand.code if payment.order.brand else "unknown"
+                            pm = payment.payment_method or "pesapal"
+                            PAYMENTS_TOTAL.labels(method=pm, status=payment.status, brand=brand_code).inc()
+                            if payment.order.status == Order.StatusChoices.PAID:
+                                ORDERS_TOTAL.labels(status="Paid", payment_method=pm, brand=brand_code).inc()
+                        except Exception:
+                            pass
 
                         # Update inventory units: For accessories, decrement quantity and mark as SOLD if quantity reaches 0
                         # For unique items, mark as SOLD
@@ -854,6 +873,17 @@ class PesapalPaymentService:
                             ):
                                 unit.sale_status = InventoryUnit.SaleStatusChoices.SOLD
                                 unit.save(update_fields=["sale_status"])
+
+                        # Track payment completion via callback
+                        from inventory.observability import PAYMENTS_TOTAL, ORDERS_TOTAL
+                        try:
+                            brand_code = payment.order.brand.code if payment.order.brand else "unknown"
+                            pm = payment.payment_method or "pesapal"
+                            PAYMENTS_TOTAL.labels(method=pm, status=new_status, brand=brand_code).inc()
+                            if payment.order.status == Order.StatusChoices.PAID:
+                                ORDERS_TOTAL.labels(status="Paid", payment_method=pm, brand=brand_code).inc()
+                        except Exception:
+                            pass
 
                         print("[PESAPAL] ✓ Payment verified as completed - Order marked as PAID")
 

@@ -130,9 +130,11 @@ class RequestTimingMiddleware(MiddlewareMixin):
             method = request.method or "GET"
             endpoint = _normalise_path(request.path_info)
             status = str(response.status_code)
+            brand = getattr(request, "brand", None)
+            brand_code = brand.code if brand else "unknown"
 
-            HTTP_REQUESTS_TOTAL.labels(method=method, endpoint=endpoint, status_code=status).inc()
-            HTTP_REQUEST_DURATION_SECONDS.labels(method=method, endpoint=endpoint).observe(ms / 1000)
+            HTTP_REQUESTS_TOTAL.labels(method=method, endpoint=endpoint, status_code=status, brand=brand_code).inc()
+            HTTP_REQUEST_DURATION_SECONDS.labels(method=method, endpoint=endpoint, brand=brand_code).observe(ms / 1000)
 
             # Track authenticated users
             if getattr(request, "user", None) and request.user.is_authenticated:

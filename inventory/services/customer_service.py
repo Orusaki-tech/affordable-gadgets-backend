@@ -65,6 +65,14 @@ class CustomerService:
             defaults={"name": name, "email": email, "delivery_address": delivery_address},
         )
 
+        # Track new customer registration
+        if created:
+            from inventory.observability import CUSTOMERS_TOTAL
+            try:
+                CUSTOMERS_TOTAL.labels(brand="all").inc()
+            except Exception:
+                pass
+
         # Update fields if customer exists
         if not created:
             customer.name = name

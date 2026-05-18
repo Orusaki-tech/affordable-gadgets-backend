@@ -3090,6 +3090,15 @@ class OrderViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
             instance.status = serializer.validated_data["status"]
             instance.save(update_fields=["status"])
 
+        # Track order status changes
+        from inventory.observability import ORDERS_TOTAL
+        try:
+            brand_code = instance.brand.code if instance.brand else "unknown"
+            pm = getattr(instance, "payment_method_used", "unknown")
+            ORDERS_TOTAL.labels(status=instance.status, payment_method=pm, brand=brand_code).inc()
+        except Exception:
+            pass
+
     @action(detail=True, methods=["post"])
     def confirm_payment(self, request, pk=None, order_id=None):
         """Confirm payment for an order - transitions units from PENDING_PAYMENT to SOLD and status to PAID."""
@@ -3246,6 +3255,14 @@ class OrderViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
             except Exception as e:
                 # Log but don't fail payment confirmation if cart deletion fails
                 print(f"Warning: Could not delete cart after payment confirmation: {e}")
+
+            # Track payment metric
+            from inventory.observability import ORDERS_TOTAL
+            try:
+                brand_code = order.brand.code if order.brand else "unknown"
+                ORDERS_TOTAL.labels(status="Paid", payment_method=payment_method, brand=brand_code).inc()
+            except Exception:
+                pass
 
             message = f"Payment confirmed. {len(units_updated)} unit(s) marked as SOLD. Order is now visible to Order Managers."
             if cart_cleared:

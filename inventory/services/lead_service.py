@@ -36,6 +36,11 @@ class LeadService:
         if assigned_salesperson:
             lead.assigned_salesperson = assigned_salesperson
             lead.save(update_fields=["assigned_salesperson"])
+            from inventory.observability import LEADS_TOTAL
+            try:
+                LEADS_TOTAL.labels(brand=lead.brand.code if lead.brand else "unknown", status="assigned").inc()
+            except Exception:
+                pass
 
     @staticmethod
     def convert_lead_to_order(lead, salesperson):
@@ -77,6 +82,13 @@ class LeadService:
             lead.converted_at = timezone.now()
             lead.order = order
             lead.save()
+
+            # Track lead conversion
+            from inventory.observability import LEAD_CONVERSION_TOTAL
+            try:
+                LEAD_CONVERSION_TOTAL.labels(brand=lead.brand.code if lead.brand else "unknown").inc()
+            except Exception:
+                pass
 
             # Clear the associated cart now that lead is converted to order
             # The cart has served its purpose - items are now in the order

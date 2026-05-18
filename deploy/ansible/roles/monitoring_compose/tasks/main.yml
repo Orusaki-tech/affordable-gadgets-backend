@@ -8,6 +8,7 @@
     - "{{ compose_root }}/monitoring/prometheus"
     - "{{ compose_root }}/monitoring/grafana/datasources"
     - "{{ compose_root }}/monitoring/grafana/dashboards"
+    - "{{ compose_root }}/monitoring/tunnel"
 
 - name: Deploy prometheus.yml
   template:
@@ -33,6 +34,18 @@
     dest: "{{ compose_root }}/monitoring/grafana/dashboards/django-dashboard.json"
     mode: "0644"
 
+- name: Deploy Executive KPI dashboard
+  copy:
+    src: executive-kpi-dashboard.json
+    dest: "{{ compose_root }}/monitoring/grafana/dashboards/executive-kpi-dashboard.json"
+    mode: "0644"
+
+- name: Deploy Prometheus alert rules
+  copy:
+    src: alerts.yml
+    dest: "{{ compose_root }}/monitoring/prometheus/alerts.yml"
+    mode: "0644"
+
 - name: Deploy grafana.env
   template:
     src: grafana.env.j2
@@ -46,7 +59,25 @@
     dest: "{{ compose_root }}/docker-compose.monitoring.yml"
     mode: "0644"
 
+- name: Deploy tunnel.env
+  template:
+    src: tunnel.env.j2
+    dest: "{{ compose_root }}/monitoring/tunnel/tunnel.env"
+    mode: "0600"
+  no_log: true
+
+- name: Deploy tunnel-compose.yml
+  template:
+    src: tunnel-compose.yml.j2
+    dest: "{{ compose_root }}/docker-compose.tunnel.yml"
+    mode: "0644"
+
 - name: Start monitoring stack
-  command: docker compose -f {{ compose_root }}/docker-compose.monitoring.yml --env-file {{ compose_root }}/monitoring/grafana.env up -d --force-recreate
+  command: docker compose -f {{ compose_root }}/docker-compose.monitoring.yml --env-file {{ compose_root }}/monitoring/grafana.env up -d --remove-orphans
+  args:
+    chdir: "{{ compose_root }}"
+
+- name: Start tunnel
+  command: docker compose -f {{ compose_root }}/docker-compose.tunnel.yml --env-file {{ compose_root }}/monitoring/tunnel/tunnel.env up -d
   args:
     chdir: "{{ compose_root }}"
