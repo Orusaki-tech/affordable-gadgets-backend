@@ -85,7 +85,4 @@ jobs:
       - name: Deploy monitoring via Ansible
         run: |
           ansible-playbook deploy/ansible/playbooks/monitoring.yml \
-            -i deploy/ansible/inventory/production \
-            --vault-password-file <(echo "${{ secrets.ANSIBLE_VAULT_PASSWORD }}")
-        env:
-          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
+            -i deploy/ansible/inventory/production
