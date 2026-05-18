@@ -13,8 +13,8 @@ ExecStart={{ venv_path }}/bin/gunicorn store.wsgi:application \
   --bind {{ gunicorn_bind }} \
   --workers {{ gunicorn_workers }} \
   --timeout {{ gunicorn_timeout }} \
-  --access-logfile /var/log/gunicorn-access.log \
-  --error-logfile /var/log/gunicorn-error.log
+  --access-logfile - \
+  --error-logfile -
 Restart=always
 RestartSec=5
 
