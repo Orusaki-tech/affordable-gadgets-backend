@@ -79,37 +79,38 @@ def _purge_stale_users():
 
 def refresh_active_users_metric():
     """Set the active_users Prometheus gauge (called from metrics_view)."""
-    try:
-        from django.core.cache import cache
-        from django.conf import settings
-        from inventory.observability import ACTIVE_USERS
-        
-        # Count all keys starting with 'active_user:'
-        # In a real Redis setup this might use SCAN, but for a simple cache we can just count
-        if hasattr(cache, 'client') and hasattr(cache.client, 'get_client'):
-            # Redis cache
-            redis_client = cache.client.get_client()
-            active_count = 0
+        try:
+            from django.core.cache import cache
+            from django.conf import settings
+            from inventory.observability import ACTIVE_USERS
             
-            # The key prefix might include the KEY_PREFIX setting and the version '1'
-            # Typically: <KEY_PREFIX>:1:active_user:*
-            prefix = getattr(settings, "CACHES", {}).get("default", {}).get("KEY_PREFIX", "")
-            match_pattern = f"{prefix}:1:active_user:*" if prefix else "*:1:active_user:*"
-            if not prefix:
-                 match_pattern = "*active_user:*"
-
-            for _ in redis_client.scan_iter(match=match_pattern):
-                active_count += 1
-            ACTIVE_USERS.set(active_count)
-        else:
-            # Fallback for local dev/dummy cache if needed
-            # We'll just rely on the existing _ACTIVE_USERS dict if redis isn't configured
-            now = time.time()
-            stale = [uid for uid, ts in list(_ACTIVE_USERS.items()) if now - ts > _ACTIVE_USER_TTL]
-            for uid in stale:
-                _ACTIVE_USERS.pop(uid, None)
-            ACTIVE_USERS.set(len(_ACTIVE_USERS))
-    except Exception as e:
+            if hasattr(cache, 'client') and hasattr(cache.client, 'get_client'):
+                # Redis cache
+                redis_client = cache.client.get_client()
+                
+                # The sorted set key
+                prefix = getattr(settings, "CACHES", {}).get("default", {}).get("KEY_PREFIX", "")
+                zset_key = f"{prefix}:1:active_users_zset" if prefix else "active_users_zset"
+                
+                now = time.time()
+                cutoff = now - _ACTIVE_USER_TTL
+                
+                # Remove stale entries from the sorted set
+                redis_client.zremrangebyscore(zset_key, "-inf", cutoff)
+                
+                # Get the count of unique active users
+                active_count = redis_client.zcard(zset_key)
+                
+                ACTIVE_USERS.set(active_count)
+            else:
+                # Fallback for local dev/dummy cache if needed
+                # We'll just rely on the existing _ACTIVE_USERS dict if redis isn't configured
+                now = time.time()
+                stale = [uid for uid, ts in list(_ACTIVE_USERS.items()) if now - ts > _ACTIVE_USER_TTL]
+                for uid in stale:
+                    _ACTIVE_USERS.pop(uid, None)
+                ACTIVE_USERS.set(len(_ACTIVE_USERS))
+        except Exception as e:
         logger.debug(f"Failed to refresh active users metric from cache: {e}")
 
 
@@ -170,9 +171,19 @@ class RequestTimingMiddleware(MiddlewareMixin):
             # Track authenticated users
             if getattr(request, "user", None) and request.user.is_authenticated:
                 from django.core.cache import cache
+                from django.conf import settings
                 
-                # Store in Redis with TTL to auto-expire
-                cache.set(f"active_user:{request.user.id}", True, timeout=_ACTIVE_USER_TTL)
+                if hasattr(cache, 'client') and hasattr(cache.client, 'get_client'):
+                    try:
+                        redis_client = cache.client.get_client()
+                        prefix = getattr(settings, "CACHES", {}).get("default", {}).get("KEY_PREFIX", "")
+                        zset_key = f"{prefix}:1:active_users_zset" if prefix else "active_users_zset"
+                        
+                        # Add/Update the user in the sorted set with the current timestamp as the score
+                        redis_client.zadd(zset_key, {str(request.user.id): time.time()})
+                    except Exception as e:
+                        logger.debug(f"Failed to record active user in Redis: {e}")
+                
                 # Keep local memory fallback just in case
                 _ACTIVE_USERS[request.user.id] = time.time()
         except Exception:
