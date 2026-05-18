@@ -87,11 +87,11 @@ class LeadService:
             lead.save()
 
             # Track lead conversion and order creation
-            from inventory.observability import LEADS_CONVERTED, ORDERS_CREATED
+            from inventory.observability import LEADS_CONVERTED, ORDER_CREATIONS
 
             try:
                 LEADS_CONVERTED.labels(brand=lead.brand.code if lead.brand else "unknown").inc()
-                ORDERS_CREATED.labels(
+                ORDER_CREATIONS.labels(
                     brand=lead.brand.code if lead.brand else "unknown",
                     order_source=Order.OrderSourceChoices.ONLINE,
                 ).inc()
