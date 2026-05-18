@@ -21,13 +21,26 @@
       "targets": [
         {
           "expr": "sum(rate(http_requests_total[1m]))",
-          "legendFormat": "All requests"
+          "legendFormat": "All requests",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "expr": "sum(rate(http_requests_total{status_code=~\"5..\"}[1m]))",
-          "legendFormat": "5xx errors"
+          "legendFormat": "5xx errors",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         }
-      ]
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "id": 1
     },
     {
       "title": "P99 / P95 / P50 Latency",
@@ -41,17 +54,34 @@
       "targets": [
         {
           "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[1m])) by (le))",
-          "legendFormat": "p99"
+          "legendFormat": "p99",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[1m])) by (le))",
-          "legendFormat": "p95"
+          "legendFormat": "p95",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket[1m])) by (le))",
-          "legendFormat": "p50"
+          "legendFormat": "p50",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         }
-      ]
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "id": 2
     },
     {
       "title": "Error Rate (%)",
@@ -65,9 +95,18 @@
       "targets": [
         {
           "expr": "sum(rate(http_requests_total{status_code=~\"5..\"}[1m])) / sum(rate(http_requests_total[1m])) * 100",
-          "legendFormat": "5xx %"
+          "legendFormat": "5xx %",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         }
-      ]
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "id": 3
     },
     {
       "title": "Top Endpoints by Request Count",
@@ -82,7 +121,11 @@
         {
           "expr": "topk(10, sum(rate(http_requests_total[5m])) by (endpoint))",
           "format": "table",
-          "instant": true
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         }
       ],
       "columns": [
@@ -94,7 +137,12 @@
           "text": "Req/s",
           "value": "Value"
         }
-      ]
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "id": 4
     },
     {
       "title": "Status Code Breakdown",
@@ -108,9 +156,18 @@
       "targets": [
         {
           "expr": "sum(rate(http_requests_total[5m])) by (status_code)",
-          "legendFormat": "{{status_code}}"
+          "legendFormat": "{{status_code}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         }
-      ]
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "id": 5
     },
     {
       "title": "Orders Rate",
@@ -124,9 +181,18 @@
       "targets": [
         {
           "expr": "sum(rate(orders_total[5m]))",
-          "legendFormat": "Orders / 5m"
+          "legendFormat": "Orders / 5m",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         }
-      ]
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "id": 6
     },
     {
       "title": "Payment Rate",
@@ -140,9 +206,18 @@
       "targets": [
         {
           "expr": "sum(rate(payments_total[5m]))",
-          "legendFormat": "Payments / 5m"
+          "legendFormat": "Payments / 5m",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         }
-      ]
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "id": 7
     },
     {
       "title": "Active Users",
@@ -156,9 +231,24 @@
       "targets": [
         {
           "expr": "active_users",
-          "legendFormat": "Active users"
+          "legendFormat": "Active users",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         }
-      ]
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "id": 8
     }
-  ]
+  ],
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "refresh": "5m",
+  "schemaVersion": 38
 }

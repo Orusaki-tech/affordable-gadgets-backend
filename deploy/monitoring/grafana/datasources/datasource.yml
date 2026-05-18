@@ -3,6 +3,7 @@ apiVersion: 1
 datasources:
   - name: Prometheus
     type: prometheus
+    uid: prometheus
     access: proxy
     url: http://prometheus:9090
     isDefault: true
@@ -10,6 +11,7 @@ datasources:
 
   - name: Google Cloud Logging
     type: stackdriver
+    uid: stackdriver
     access: proxy
     withCredentials: false
     isDefault: false
@@ -20,17 +22,16 @@ datasources:
 
   - name: JSON API
     type: marcusolsson-json-datasource
+    uid: json-api
     url: http://web:8000
     access: proxy
     basicAuth: false
     isDefault: false
     editable: true
     jsonData:
-      queryParams: ""
+      httpHeaderName1: "Authorization"
     secureJsonData:
       httpHeaderValue1: "Token ${GF_JSON_API_TOKEN}"
-    jsonData:
-      httpHeaderName1: "Authorization"
 
   # Google Cloud Trace is not available as a built-in / community datasource
   # in Grafana OSS. View traces at:

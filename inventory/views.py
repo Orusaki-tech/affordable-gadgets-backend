@@ -57,7 +57,29 @@ from django.utils import timezone
 from datetime import timedelta
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from .observability import WHATSAPP_CLICKS_TOTAL
+
+class RecordObservabilityEventView(APIView):
+    """
+    Public-facing endpoint to record discrete business events, like button clicks.
+    """
+    permission_classes = [AllowAny] # Allow clicks from anonymous users
+
+    def post(self, request):
+        event_type = request.data.get('event_type')
+        if event_type == 'whatsapp_click':
+            product_id = request.data.get('product_id')
+            if not product_id:
+                return Response({"error": "product_id required for whatsapp_click"}, status=status.HTTP_400_BAD_REQUEST)
+
+            brand_code = getattr(request, 'brand', None)
+            brand_code = brand_code.code if brand_code else "AFFORDABLE_GADGETS"
+
+            WHATSAPP_CLICKS_TOTAL.labels(product_id=str(product_id), brand=brand_code).inc()
+            return Response({"status": "ok"}, status=status.HTTP_202_ACCEPTED)
+
+        return Response({"error": "invalid event_type"}, status=status.HTTP_400_BAD_REQUEST)
 
 class CartAnalyticsView(APIView):
     """

@@ -134,6 +134,13 @@ LEADS_CONVERTED = _counter(
     ["brand"],
 )
 
+WHATSAPP_CLICKS_TOTAL = _counter(
+    "whatsapp_clicks_total",
+    "Total inquiries via WhatsApp button clicks",
+    ["product_id", "brand"],
+)
+
+
 ORDERS_CANCELLED_TOTAL = _counter(
     "orders_cancelled_total",
     "Total orders cancelled",
