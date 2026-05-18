@@ -63,7 +63,7 @@
           "legendFormat": "Revenue",
           "instant": true,
           "datasource": {
-            "type": "prometheus",
+            "type": "datasource",
             "uid": "prometheus"
           }
         }
@@ -84,11 +84,11 @@
           "noValue": "0"
         }
       },
+      "id": 1,
       "datasource": {
-        "type": "prometheus",
+        "type": "datasource",
         "uid": "prometheus"
-      },
-      "id": 1
+      }
     },
     {
       "title": "Orders Created (Net, ${period})",
@@ -105,7 +105,7 @@
           "legendFormat": "Net Orders",
           "instant": true,
           "datasource": {
-            "type": "prometheus",
+            "type": "datasource",
             "uid": "prometheus"
           }
         }
@@ -125,11 +125,11 @@
           "noValue": "0"
         }
       },
+      "id": 2,
       "datasource": {
-        "type": "prometheus",
+        "type": "datasource",
         "uid": "prometheus"
-      },
-      "id": 2
+      }
     },
     {
       "title": "New Leads (${period})",
@@ -146,7 +146,7 @@
           "legendFormat": "Leads",
           "instant": true,
           "datasource": {
-            "type": "prometheus",
+            "type": "datasource",
             "uid": "prometheus"
           }
         }
@@ -166,11 +166,11 @@
           "noValue": "0"
         }
       },
+      "id": 3,
       "datasource": {
-        "type": "prometheus",
+        "type": "datasource",
         "uid": "prometheus"
-      },
-      "id": 3
+      }
     },
     {
       "title": "Conversions (${period})",
@@ -187,7 +187,7 @@
           "legendFormat": "Conversions",
           "instant": true,
           "datasource": {
-            "type": "prometheus",
+            "type": "datasource",
             "uid": "prometheus"
           }
         }
@@ -207,11 +207,11 @@
           "noValue": "0"
         }
       },
+      "id": 4,
       "datasource": {
-        "type": "prometheus",
+        "type": "datasource",
         "uid": "prometheus"
-      },
-      "id": 4
+      }
     },
     {
       "title": "New Customers (${period})",
@@ -228,7 +228,7 @@
           "legendFormat": "Customers",
           "instant": true,
           "datasource": {
-            "type": "prometheus",
+            "type": "datasource",
             "uid": "prometheus"
           }
         }
@@ -248,11 +248,11 @@
           "noValue": "0"
         }
       },
+      "id": 5,
       "datasource": {
-        "type": "prometheus",
+        "type": "datasource",
         "uid": "prometheus"
-      },
-      "id": 5
+      }
     },
     {
       "title": "Lead Conv. Rate (${period})",
@@ -269,7 +269,7 @@
           "legendFormat": "Rate",
           "instant": true,
           "datasource": {
-            "type": "prometheus",
+            "type": "datasource",
             "uid": "prometheus"
           }
         }
@@ -296,11 +296,11 @@
           "noValue": "0"
         }
       },
+      "id": 6,
       "datasource": {
-        "type": "prometheus",
+        "type": "datasource",
         "uid": "prometheus"
-      },
-      "id": 6
+      }
     },
     {
       "title": "Revenue Trend (${period})",
@@ -316,7 +316,7 @@
           "expr": "sum(increase(revenue_earned_total[$period])) by (brand) or vector(0)",
           "legendFormat": "{{brand}}",
           "datasource": {
-            "type": "prometheus",
+            "type": "datasource",
             "uid": "prometheus"
           }
         }
@@ -330,11 +330,11 @@
           }
         }
       },
+      "id": 7,
       "datasource": {
-        "type": "prometheus",
+        "type": "datasource",
         "uid": "prometheus"
-      },
-      "id": 7
+      }
     },
     {
       "title": "Orders by Status (${period})",
@@ -350,7 +350,7 @@
           "expr": "sum(increase(orders_total[$period])) by (status) or vector(0)",
           "legendFormat": "{{status}}",
           "datasource": {
-            "type": "prometheus",
+            "type": "datasource",
             "uid": "prometheus"
           }
         }
@@ -366,11 +366,11 @@
           }
         }
       },
+      "id": 8,
       "datasource": {
-        "type": "prometheus",
+        "type": "datasource",
         "uid": "prometheus"
-      },
-      "id": 8
+      }
     },
     {
       "title": "Gross Margin (current)",
@@ -386,7 +386,7 @@
           "expr": "sum(gross_margin_total)",
           "legendFormat": "Margin",
           "datasource": {
-            "type": "prometheus",
+            "type": "datasource",
             "uid": "prometheus"
           }
         }
@@ -406,11 +406,11 @@
           }
         }
       },
+      "id": 9,
       "datasource": {
-        "type": "prometheus",
+        "type": "datasource",
         "uid": "prometheus"
-      },
-      "id": 9
+      }
     },
     {
       "title": "Active Users (current)",
@@ -426,7 +426,7 @@
           "expr": "active_users",
           "legendFormat": "Active",
           "datasource": {
-            "type": "prometheus",
+            "type": "datasource",
             "uid": "prometheus"
           }
         }
@@ -445,11 +445,11 @@
           }
         }
       },
+      "id": 10,
       "datasource": {
-        "type": "prometheus",
+        "type": "datasource",
         "uid": "prometheus"
-      },
-      "id": 10
+      }
     },
     {
       "title": "App Instances (current)",
@@ -465,7 +465,7 @@
           "expr": "app_instances_active",
           "legendFormat": "Instances",
           "datasource": {
-            "type": "prometheus",
+            "type": "datasource",
             "uid": "prometheus"
           }
         }
@@ -484,11 +484,11 @@
           }
         }
       },
+      "id": 11,
       "datasource": {
-        "type": "prometheus",
+        "type": "datasource",
         "uid": "prometheus"
-      },
-      "id": 11
+      }
     },
     {
       "title": "Inventory Value AV (current)",
@@ -504,7 +504,7 @@
           "expr": "sum(inventory_value_total{status=\"AV\"})",
           "legendFormat": "Available",
           "datasource": {
-            "type": "prometheus",
+            "type": "datasource",
             "uid": "prometheus"
           }
         }
@@ -524,11 +524,11 @@
           }
         }
       },
+      "id": 12,
       "datasource": {
-        "type": "prometheus",
+        "type": "datasource",
         "uid": "prometheus"
-      },
-      "id": 12
+      }
     },
     {
       "title": "Customers (current)",
@@ -544,7 +544,7 @@
           "expr": "customers_total",
           "legendFormat": "Customers",
           "datasource": {
-            "type": "prometheus",
+            "type": "datasource",
             "uid": "prometheus"
           }
         }
@@ -563,11 +563,11 @@
           }
         }
       },
+      "id": 13,
       "datasource": {
-        "type": "prometheus",
+        "type": "datasource",
         "uid": "prometheus"
-      },
-      "id": 13
+      }
     },
     {
       "title": "Unique Active Carts",
@@ -710,7 +710,7 @@
           "expr": "sum(delivery_sla_total{result=\"on_time\"}) / (sum(delivery_sla_total{result=\"on_time\"}) + sum(delivery_sla_total{result=\"late\"})) * 100",
           "legendFormat": "On-time",
           "datasource": {
-            "type": "prometheus",
+            "type": "datasource",
             "uid": "prometheus"
           }
         }
@@ -738,11 +738,11 @@
           }
         }
       },
+      "id": 17,
       "datasource": {
-        "type": "prometheus",
+        "type": "datasource",
         "uid": "prometheus"
-      },
-      "id": 17
+      }
     },
     {
       "title": "Sell-Through Rate",
@@ -758,7 +758,7 @@
           "expr": "sum(inventory_value_total{status=\"SD\"}) / (sum(inventory_value_total{status=\"AV\"}) + sum(inventory_value_total{status=\"SD\"})) * 100",
           "legendFormat": "Sell-through",
           "datasource": {
-            "type": "prometheus",
+            "type": "datasource",
             "uid": "prometheus"
           }
         }
@@ -787,11 +787,11 @@
           }
         }
       },
+      "id": 18,
       "datasource": {
-        "type": "prometheus",
+        "type": "datasource",
         "uid": "prometheus"
-      },
-      "id": 18
+      }
     },
     {
       "title": "Inventory Value by Status",
@@ -807,7 +807,7 @@
           "expr": "inventory_value_total",
           "legendFormat": "{{status}}",
           "datasource": {
-            "type": "prometheus",
+            "type": "datasource",
             "uid": "prometheus"
           }
         }
@@ -817,11 +817,11 @@
           "unit": "currencyKES"
         }
       },
+      "id": 19,
       "datasource": {
-        "type": "prometheus",
+        "type": "datasource",
         "uid": "prometheus"
-      },
-      "id": 19
+      }
     },
     {
       "title": "Leads (${period}) vs Conversions (${period})",
@@ -837,7 +837,7 @@
           "expr": "sum(increase(leads_created_total[$period])) by (brand) or vector(0)",
           "legendFormat": "Leads {{brand}}",
           "datasource": {
-            "type": "prometheus",
+            "type": "datasource",
             "uid": "prometheus"
           }
         },
@@ -845,7 +845,7 @@
           "expr": "sum(increase(leads_converted_total[$period])) by (brand) or vector(0)",
           "legendFormat": "Conversions {{brand}}",
           "datasource": {
-            "type": "prometheus",
+            "type": "datasource",
             "uid": "prometheus"
           }
         }
@@ -858,11 +858,11 @@
           }
         }
       },
+      "id": 20,
       "datasource": {
-        "type": "prometheus",
+        "type": "datasource",
         "uid": "prometheus"
-      },
-      "id": 20
+      }
     },
     {
       "title": "Customers (${period}) & Revenue (${period})",
@@ -878,7 +878,7 @@
           "expr": "sum(increase(customers_registered_total[$period])) or vector(0)",
           "legendFormat": "Customers",
           "datasource": {
-            "type": "prometheus",
+            "type": "datasource",
             "uid": "prometheus"
           }
         },
@@ -886,7 +886,7 @@
           "expr": "sum(increase(revenue_earned_total[$period])) or vector(0)",
           "legendFormat": "Revenue",
           "datasource": {
-            "type": "prometheus",
+            "type": "datasource",
             "uid": "prometheus"
           }
         }
@@ -900,11 +900,11 @@
           }
         }
       },
+      "id": 21,
       "datasource": {
-        "type": "prometheus",
+        "type": "datasource",
         "uid": "prometheus"
-      },
-      "id": 21
+      }
     },
     {
       "title": "Salesperson Performance",
@@ -922,7 +922,7 @@
           "format": "table",
           "instant": true,
           "datasource": {
-            "type": "prometheus",
+            "type": "datasource",
             "uid": "prometheus"
           }
         }
@@ -934,11 +934,11 @@
           }
         }
       },
+      "id": 22,
       "datasource": {
-        "type": "prometheus",
+        "type": "datasource",
         "uid": "prometheus"
-      },
-      "id": 22
+      }
     },
     {
       "title": "Error Rate (1h)",
@@ -955,7 +955,7 @@
           "legendFormat": "Error",
           "instant": true,
           "datasource": {
-            "type": "prometheus",
+            "type": "datasource",
             "uid": "prometheus"
           }
         }
@@ -982,11 +982,11 @@
           "noValue": "0"
         }
       },
+      "id": 23,
       "datasource": {
-        "type": "prometheus",
+        "type": "datasource",
         "uid": "prometheus"
-      },
-      "id": 23
+      }
     },
     {
       "title": "p95 Latency (5m)",
@@ -1002,7 +1002,7 @@
           "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
           "legendFormat": "p95",
           "datasource": {
-            "type": "prometheus",
+            "type": "datasource",
             "uid": "prometheus"
           }
         }
@@ -1028,11 +1028,11 @@
           }
         }
       },
+      "id": 24,
       "datasource": {
-        "type": "prometheus",
+        "type": "datasource",
         "uid": "prometheus"
-      },
-      "id": 24
+      }
     },
     {
       "title": "Uptime (30d)",
@@ -1048,7 +1048,7 @@
           "expr": "avg(up{job=\"django\"}) * 100",
           "legendFormat": "Uptime",
           "datasource": {
-            "type": "prometheus",
+            "type": "datasource",
             "uid": "prometheus"
           }
         }
@@ -1074,11 +1074,11 @@
           }
         }
       },
+      "id": 25,
       "datasource": {
-        "type": "prometheus",
+        "type": "datasource",
         "uid": "prometheus"
-      },
-      "id": 25
+      }
     },
     {
       "title": "Most Popular Items in Carts",

@@ -36,11 +36,11 @@
           }
         }
       ],
+      "id": 1,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
-      },
-      "id": 1
+      }
     },
     {
       "title": "P99 / P95 / P50 Latency",
@@ -77,11 +77,11 @@
           }
         }
       ],
+      "id": 2,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
-      },
-      "id": 2
+      }
     },
     {
       "title": "Error Rate (%)",
@@ -102,11 +102,11 @@
           }
         }
       ],
+      "id": 3,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
-      },
-      "id": 3
+      }
     },
     {
       "title": "Top Endpoints by Request Count",
@@ -138,11 +138,11 @@
           "value": "Value"
         }
       ],
+      "id": 4,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
-      },
-      "id": 4
+      }
     },
     {
       "title": "Status Code Breakdown",
@@ -163,11 +163,11 @@
           }
         }
       ],
+      "id": 5,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
-      },
-      "id": 5
+      }
     },
     {
       "title": "Orders Rate",
@@ -188,11 +188,11 @@
           }
         }
       ],
+      "id": 6,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
-      },
-      "id": 6
+      }
     },
     {
       "title": "Payment Rate",
@@ -213,11 +213,11 @@
           }
         }
       ],
+      "id": 7,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
-      },
-      "id": 7
+      }
     },
     {
       "title": "Active Users",
@@ -238,11 +238,11 @@
           }
         }
       ],
+      "id": 8,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
-      },
-      "id": 8
+      }
     }
   ],
   "time": {
