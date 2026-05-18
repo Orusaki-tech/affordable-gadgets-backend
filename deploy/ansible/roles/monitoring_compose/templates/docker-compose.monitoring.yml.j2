@@ -27,15 +27,6 @@ services:
       - {{ compose_root }}/monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
       - grafana_data:/var/lib/grafana
 
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    container_name: ag-cloudflared
-    restart: unless-stopped
-    network_mode: host
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
-    environment:
-      CLOUDFLARE_TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
-
 volumes:
   prometheus_data:
   grafana_data:
