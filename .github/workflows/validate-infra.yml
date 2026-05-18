@@ -84,8 +84,17 @@ jobs:
       - name: Install Ansible
         run: pip install ansible
 
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/ci_deploy_key
+          chmod 600 ~/.ssh/ci_deploy_key
+
       - name: Deploy monitoring via Ansible
         working-directory: deploy/ansible
         run: |
           ansible-playbook playbooks/monitoring.yml \
-            -i inventory/production/hosts.yml
+            -i inventory/production/hosts.yml \
+            -e ansible_user=affordablegadgetske_gmail_com \
+            -e ansible_private_key_file=~/.ssh/ci_deploy_key \
+            -e 'ansible_ssh_common_args=-o ProxyCommand="gcloud compute start-iap-tunnel affordable-gadgets-production-monitoring 22 --listen-on-stdin --project=gmail-486411 --zone=us-east1-b"'
