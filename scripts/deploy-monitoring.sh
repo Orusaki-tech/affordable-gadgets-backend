@@ -20,10 +20,15 @@ GRAFANA_SMTP_FROM="${GRAFANA_SMTP_FROM:-noreply@affordable-gadgetske.com}"
 GRAFANA_SMTP_USER="${GRAFANA_SMTP_USER:-}"
 GRAFANA_SMTP_PASSWORD="${GRAFANA_SMTP_PASSWORD:-}"
 
-SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ProxyCommand='gcloud compute start-iap-tunnel $MONITORING_INSTANCE 22 --listen-on-stdin --project=$GCP_PROJECT_ID --zone=$GCP_ZONE' -i $SSH_KEY_PATH"
+SSH_OPTS=(
+  -o StrictHostKeyChecking=no
+  -o UserKnownHostsFile=/dev/null
+  -o ProxyCommand='gcloud compute start-iap-tunnel '"$MONITORING_INSTANCE"' 22 --listen-on-stdin --project='"$GCP_PROJECT_ID"' --zone='"$GCP_ZONE"'' 
+  -i "$SSH_KEY_PATH"
+)
 
 ssh_cmd() {
-  ssh $SSH_OPTS "$SSH_USER@127.0.0.1" "$@"
+  ssh "${SSH_OPTS[@]}" "$SSH_USER@127.0.0.1" "$@"
 }
 
 # ── create directories ───────────────────────────────────────────────────────
@@ -46,16 +51,16 @@ python3 "$DEPLOY_DIR/../scripts/render_monitoring_templates.py" \
   "$CLOUDFLARE_TUNNEL_TOKEN"
 
 # ── copy files to VM ─────────────────────────────────────────────────────────
-scp $SSH_OPTS "$WORK_DIR/prometheus.yml"                "$SSH_USER@127.0.0.1:$COMPOSE_ROOT/monitoring/prometheus/prometheus.yml"
-scp $SSH_OPTS "$WORK_DIR/grafana.env"                   "$SSH_USER@127.0.0.1:$COMPOSE_ROOT/monitoring/grafana.env"
-scp $SSH_OPTS "$WORK_DIR/tunnel.env"                    "$SSH_USER@127.0.0.1:$COMPOSE_ROOT/monitoring/tunnel/tunnel.env"
-scp $SSH_OPTS "$WORK_DIR/docker-compose.monitoring.yml" "$SSH_USER@127.0.0.1:$COMPOSE_ROOT/docker-compose.monitoring.yml"
-scp $SSH_OPTS "$WORK_DIR/docker-compose.tunnel.yml"     "$SSH_USER@127.0.0.1:$COMPOSE_ROOT/docker-compose.tunnel.yml"
-scp $SSH_OPTS "$WORK_DIR/datasource.yml"                "$SSH_USER@127.0.0.1:$COMPOSE_ROOT/monitoring/grafana/datasources/datasource.yml"
-scp $SSH_OPTS "$WORK_DIR/dashboards.yml"                "$SSH_USER@127.0.0.1:$COMPOSE_ROOT/monitoring/grafana/dashboards/dashboards.yml"
-scp $SSH_OPTS "$WORK_DIR/alerts.yml"                    "$SSH_USER@127.0.0.1:$COMPOSE_ROOT/monitoring/prometheus/alerts.yml"
-scp $SSH_OPTS "$WORK_DIR/django-dashboard.json"         "$SSH_USER@127.0.0.1:$COMPOSE_ROOT/monitoring/grafana/dashboards/django-dashboard.json"
-scp $SSH_OPTS "$WORK_DIR/executive-kpi-dashboard.json"  "$SSH_USER@127.0.0.1:$COMPOSE_ROOT/monitoring/grafana/dashboards/executive-kpi-dashboard.json"
+scp "${SSH_OPTS[@]}" "$WORK_DIR/prometheus.yml"                "$SSH_USER@127.0.0.1:$COMPOSE_ROOT/monitoring/prometheus/prometheus.yml"
+scp "${SSH_OPTS[@]}" "$WORK_DIR/grafana.env"                   "$SSH_USER@127.0.0.1:$COMPOSE_ROOT/monitoring/grafana.env"
+scp "${SSH_OPTS[@]}" "$WORK_DIR/tunnel.env"                    "$SSH_USER@127.0.0.1:$COMPOSE_ROOT/monitoring/tunnel/tunnel.env"
+scp "${SSH_OPTS[@]}" "$WORK_DIR/docker-compose.monitoring.yml" "$SSH_USER@127.0.0.1:$COMPOSE_ROOT/docker-compose.monitoring.yml"
+scp "${SSH_OPTS[@]}" "$WORK_DIR/docker-compose.tunnel.yml"     "$SSH_USER@127.0.0.1:$COMPOSE_ROOT/docker-compose.tunnel.yml"
+scp "${SSH_OPTS[@]}" "$WORK_DIR/datasource.yml"                "$SSH_USER@127.0.0.1:$COMPOSE_ROOT/monitoring/grafana/datasources/datasource.yml"
+scp "${SSH_OPTS[@]}" "$WORK_DIR/dashboards.yml"                "$SSH_USER@127.0.0.1:$COMPOSE_ROOT/monitoring/grafana/dashboards/dashboards.yml"
+scp "${SSH_OPTS[@]}" "$WORK_DIR/alerts.yml"                    "$SSH_USER@127.0.0.1:$COMPOSE_ROOT/monitoring/prometheus/alerts.yml"
+scp "${SSH_OPTS[@]}" "$WORK_DIR/django-dashboard.json"         "$SSH_USER@127.0.0.1:$COMPOSE_ROOT/monitoring/grafana/dashboards/django-dashboard.json"
+scp "${SSH_OPTS[@]}" "$WORK_DIR/executive-kpi-dashboard.json"  "$SSH_USER@127.0.0.1:$COMPOSE_ROOT/monitoring/grafana/dashboards/executive-kpi-dashboard.json"
 
 # ── restart containers ───────────────────────────────────────────────────────
 ssh_cmd "docker compose -f $COMPOSE_ROOT/docker-compose.monitoring.yml --env-file $COMPOSE_ROOT/monitoring/grafana.env up -d --remove-orphans"
