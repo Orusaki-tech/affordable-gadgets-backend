@@ -16,7 +16,8 @@ python manage.py collectstatic --noinput
 if [ -n "${PROMETHEUS_MULTIPROC_DIR:-}" ]; then
   echo "🧹 Cleaning Prometheus multiproc directory: ${PROMETHEUS_MULTIPROC_DIR}..."
   mkdir -p "${PROMETHEUS_MULTIPROC_DIR}"
-  rm -rf "${PROMETHEUS_MULTIPROC_DIR:?}/*"
+  # Remove all files from the directory (but not subdirectories)
+  find "${PROMETHEUS_MULTIPROC_DIR}" -maxdepth 1 -type f -delete 2>/dev/null || true
 fi
 
 WORKERS="${GUNICORN_WORKERS:-2}"

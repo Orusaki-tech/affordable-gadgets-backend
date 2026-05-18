@@ -45,12 +45,21 @@ services:
   # Cloudflare Tunnel (replaces ngrok). Run this on the VM to expose the API over HTTPS
   # without opening inbound ports. Requires CLOUDFLARE_TUNNEL_TOKEN in the environment.
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    image: cloudflare/cloudflared:2024.2.1
     container_name: affordable-gadgets-cloudflared
-    restart: unless-stopped
+    restart: always
     depends_on:
-      - web
+      web:
+        condition: service_started
+    environment:
+      CLOUDFLARE_TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
     command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    healthcheck:
+      test: ["CMD", "cloudflared", "tunnel", "info"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   # ── Observability Stack (optional, enable via --profile monitoring) ──
   prometheus:
