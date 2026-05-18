@@ -134,9 +134,17 @@ LEADS_CONVERTED = _counter(
     ["brand"],
 )
 
-ACTIVE_USERS = Gauge("active_users", "Number of active / recently-seen users")
+ACTIVE_USERS = Gauge(
+    "active_users",
+    "Number of active / recently-seen users",
+    multiprocess_mode="livemostrecent",
+)
 
-INSTANCES_ACTIVE = Gauge("app_instances_active", "Number of Django app instances")
+INSTANCES_ACTIVE = Gauge(
+    "app_instances_active",
+    "Number of Django app instances",
+    multiprocess_mode="livesum",
+)
 INSTANCES_ACTIVE.set(1)
 
 # ── Business Metrics ────────────────────────────────────────────────────
@@ -145,54 +153,63 @@ REVENUE_TOTAL = Gauge(
     "revenue_total",
     "Total revenue from completed payments",
     ["brand", "product_type"],
+    multiprocess_mode="livemostrecent",
 )
 
 GROSS_MARGIN_TOTAL = Gauge(
     "gross_margin_total",
     "Gross margin (revenue - cost of goods sold)",
     ["brand", "product_type"],
+    multiprocess_mode="livemostrecent",
 )
 
 LEADS_TOTAL = Gauge(
     "leads_total",
     "Total leads count by status",
     ["brand", "status"],
+    multiprocess_mode="livemostrecent",
 )
 
 LEAD_CONVERSION_TOTAL = Gauge(
     "lead_conversion_total",
     "Total lead conversions",
     ["brand"],
+    multiprocess_mode="livemostrecent",
 )
 
 CARTS_TOTAL = Gauge(
     "carts_total",
     "Total carts by status",
     ["brand", "status"],
+    multiprocess_mode="livemostrecent",
 )
 
 CUSTOMERS_TOTAL = Gauge(
     "customers_total",
     "Total customers registered (snapshot — use customers_registered_total for rate)",
     ["brand"],
+    multiprocess_mode="livemostrecent",
 )
 
 INVENTORY_VALUE = Gauge(
     "inventory_value_total",
     "Total inventory value by status",
     ["brand", "status"],
+    multiprocess_mode="livemostrecent",
 )
 
 DELIVERY_SLA_TOTAL = Gauge(
     "delivery_sla_total",
     "Delivery SLA (on-time vs late)",
     ["brand", "result"],
+    multiprocess_mode="livemostrecent",
 )
 
 SALESPERSON_TOTAL = Gauge(
     "salesperson_performance_total",
     "Salesperson performance metrics",
     ["brand", "salesperson", "metric"],
+    multiprocess_mode="livemostrecent",
 )
 
 # ── Gauge Refresh ────────────────────────────────────────────────────────

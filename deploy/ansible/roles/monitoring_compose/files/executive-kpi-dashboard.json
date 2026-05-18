@@ -64,7 +64,7 @@
       "title": "Lead Conv. Rate (${period})",
       "type": "stat",
       "gridPos": {"x": 20, "y": 0, "w": 4, "h": 3},
-      "targets": [{"expr": "(sum(increase(leads_converted_total[$period])) or 0) / ((sum(increase(leads_created_total[$period])) or 0) + (sum(increase(leads_converted_total[$period])) or 0) > 0 or 1) * 100", "legendFormat": "Rate", "instant": true}],
+      "targets": [{"expr": "(sum(increase(leads_converted_total[$period])) or vector(0)) / ((sum(increase(leads_created_total[$period])) or vector(0)) + (sum(increase(leads_converted_total[$period])) or vector(0)) > 0 or vector(1)) * 100", "legendFormat": "Rate", "instant": true}],
       "fieldConfig": {"defaults": {"unit": "percent", "thresholds": {"steps": [{"color": "red", "value": 0}, {"color": "yellow", "value": 20}, {"color": "green", "value": 40}]}, "noValue": "0"}}
     },
     {
