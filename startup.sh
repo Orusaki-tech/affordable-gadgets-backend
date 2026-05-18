@@ -12,6 +12,13 @@ python manage.py create_default_brand --skip-checks 2>/dev/null || true
 echo "📤 Collecting static files..."
 python manage.py collectstatic --noinput
 
+# Ensure Prometheus multi-process directory is clean
+if [ -n "${PROMETHEUS_MULTIPROC_DIR:-}" ]; then
+  echo "🧹 Cleaning Prometheus multiproc directory: ${PROMETHEUS_MULTIPROC_DIR}..."
+  mkdir -p "${PROMETHEUS_MULTIPROC_DIR}"
+  rm -rf "${PROMETHEUS_MULTIPROC_DIR:?}/*"
+fi
+
 WORKERS="${GUNICORN_WORKERS:-2}"
 TIMEOUT="${GUNICORN_TIMEOUT:-120}"
 echo "🚀 Starting Gunicorn (workers=${WORKERS}, timeout=${TIMEOUT})..."

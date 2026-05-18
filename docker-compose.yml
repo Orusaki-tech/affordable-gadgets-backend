@@ -34,6 +34,7 @@ services:
       PORT: "8000"
       DJANGO_SETTINGS_MODULE: store.settings_production
       DJANGO_ENV: production
+      PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus_metrics
     ports:
       - "8000:8000"
     depends_on:
@@ -68,7 +69,7 @@ services:
       - "--storage.tsdb.retention.time=15d"
 
   grafana:
-    image: grafana/grafana:11.0.0
+    image: grafana/grafana:13.0.1
     container_name: ag-grafana
     profiles: ["monitoring"]
     restart: unless-stopped

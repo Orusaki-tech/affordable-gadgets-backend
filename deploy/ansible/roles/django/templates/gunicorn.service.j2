@@ -8,6 +8,7 @@ Group={{ app_group }}
 WorkingDirectory={{ app_dir }}/app
 EnvironmentFile={{ app_dir }}/app/.env
 Environment=PORT=8000
+Environment=PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_metrics
 ExecStart={{ venv_path }}/bin/gunicorn store.wsgi:application \
   --bind {{ gunicorn_bind }} \
   --workers {{ gunicorn_workers }} \

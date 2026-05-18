@@ -9,7 +9,15 @@ import time
 from functools import wraps
 from threading import Lock
 
-from prometheus_client import REGISTRY, Counter, Gauge, Histogram, generate_latest
+from prometheus_client import (
+    REGISTRY,
+    CollectorRegistry,
+    Counter,
+    Gauge,
+    Histogram,
+    generate_latest,
+    multiprocess,
+)
 
 
 _registry_names: set | None = None
@@ -34,6 +42,50 @@ def _gauge(name, documentation, labelnames=()):
 
 
 # ── Prometheus Metrics ────────────────────────────────────────────
+
+
+_multiproc_registry: CollectorRegistry | None = None
+
+
+def get_multiproc_registry() -> CollectorRegistry:
+    """Get or create the multi-process registry if enabled by env var."""
+    global _multiproc_registry
+    multiproc_dir = os.environ.get("PROMETHEUS_MULTIPROC_DIR")
+    if not multiproc_dir:
+        return REGISTRY
+
+    if _multiproc_registry is None:
+        _multiproc_registry = CollectorRegistry()
+        multiprocess.MultiProcessCollector(_multiproc_registry)
+    return _multiproc_registry
+
+
+def clear_prometheus_multiproc_dir():
+    """Clear stale metrics from the shared directory. Call on app startup."""
+    multiproc_dir = os.environ.get("PROMETHEUS_MULTIPROC_DIR")
+    if not multiproc_dir:
+        return
+
+    logger = logging.getLogger(__name__)
+    if not os.path.exists(multiproc_dir):
+        logger.warning(
+            f"PROMETHEUS_MULTIPROC_DIR '{multiproc_dir}' does not exist. Metrics may not work."
+        )
+        return
+
+    try:
+        count = 0
+        for filename in os.listdir(multiproc_dir):
+            filepath = os.path.join(multiproc_dir, filename)
+            if os.path.isfile(filepath):
+                os.remove(filepath)
+                count += 1
+        logger.info(f"Cleared {count} stale prometheus multiproc files from {multiproc_dir}")
+    except Exception as exc:
+        logger.error(
+            f"Failed to clear prometheus multiproc dir {multiproc_dir}: {exc}", exc_info=True
+        )
+
 
 HTTP_REQUESTS_TOTAL = _counter(
     "http_requests_total",
@@ -286,7 +338,10 @@ def refresh_business_metrics():
 
 
 def metrics_view(request):
-    """GET /metrics/ → Prometheus scrape endpoint."""
+    """GET /metrics/ → Prometheus scrape endpoint.
+
+    Aggregates metrics from all worker processes if PROMETHEUS_MULTIPROC_DIR is set.
+    """
     from django.http import HttpResponse
 
     try:
@@ -301,8 +356,9 @@ def metrics_view(request):
     except Exception:
         pass
 
+    registry = get_multiproc_registry()
     return HttpResponse(
-        generate_latest(REGISTRY),
+        generate_latest(registry),
         content_type="text/plain; version=0.0.4; charset=utf-8",
     )
 

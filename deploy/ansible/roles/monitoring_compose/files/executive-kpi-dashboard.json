@@ -1,7 +1,7 @@
 {
   "title": "Affordable Gadgets — Executive KPIs",
   "uid": "ag-exec-kpi",
-  "version": 4,
+  "version": 6,
   "tags": ["django", "business", "executive"],
   "timezone": "browser",
   "editable": false,
@@ -9,19 +9,17 @@
     "list": [
       {
         "name": "period",
-        "type": "custom",
+        "type": "interval",
         "label": "Time Window",
-        "allValues": null,
-        "includeAll": false,
-        "multi": false,
+        "auto": false,
         "options": [
-          {"text": "Hourly", "value": "1h", "selected": false},
-          {"text": "Daily", "value": "24h", "selected": true},
-          {"text": "Weekly", "value": "7d", "selected": false},
-          {"text": "Monthly", "value": "30d", "selected": false}
+          {"text": "1h", "value": "1h", "selected": false},
+          {"text": "24h", "value": "24h", "selected": true},
+          {"text": "7d", "value": "7d", "selected": false},
+          {"text": "30d", "value": "30d", "selected": false}
         ],
-        "current": {"text": "Daily", "value": "24h"},
-        "query": "1h : Hourly, 24h : Daily, 7d : Weekly, 30d : Monthly",
+        "current": {"text": "24h", "value": "24h"},
+        "query": "1h,24h,7d,30d",
         "hide": 0
       }
     ]
@@ -31,56 +29,56 @@
       "title": "Revenue (${period})",
       "type": "stat",
       "gridPos": {"x": 0, "y": 0, "w": 4, "h": 3},
-      "targets": [{"expr": "sum(increase(revenue_earned_total[$period])) or vector(0)", "legendFormat": "Revenue"}],
-      "fieldConfig": {"defaults": {"unit": "currencyKES", "color": {"mode": "none"}, "thresholds": {"steps": [{"color": "green"}]}}}
+      "targets": [{"expr": "sum(increase(revenue_earned_total[$period])) or vector(0)", "legendFormat": "Revenue", "instant": true}],
+      "fieldConfig": {"defaults": {"unit": "currencyKES", "color": {"mode": "none"}, "thresholds": {"steps": [{"color": "green"}]}, "noValue": "0"}}
     },
     {
       "title": "Orders Created (${period})",
       "type": "stat",
       "gridPos": {"x": 4, "y": 0, "w": 4, "h": 3},
-      "targets": [{"expr": "sum(increase(new_orders_total[$period])) or vector(0)", "legendFormat": "Orders"}],
-      "fieldConfig": {"defaults": {"color": {"mode": "none"}, "thresholds": {"steps": [{"color": "green"}]}}}
+      "targets": [{"expr": "sum(increase(new_orders_total[$period])) or vector(0)", "legendFormat": "Orders", "instant": true}],
+      "fieldConfig": {"defaults": {"color": {"mode": "none"}, "thresholds": {"steps": [{"color": "green"}]}, "noValue": "0"}}
     },
     {
       "title": "New Leads (${period})",
       "type": "stat",
       "gridPos": {"x": 8, "y": 0, "w": 4, "h": 3},
-      "targets": [{"expr": "sum(increase(leads_created_total[$period])) or vector(0)", "legendFormat": "Leads"}],
-      "fieldConfig": {"defaults": {"color": {"mode": "none"}, "thresholds": {"steps": [{"color": "green"}]}}}
+      "targets": [{"expr": "sum(increase(leads_created_total[$period])) or vector(0)", "legendFormat": "Leads", "instant": true}],
+      "fieldConfig": {"defaults": {"color": {"mode": "none"}, "thresholds": {"steps": [{"color": "green"}]}, "noValue": "0"}}
     },
     {
       "title": "Conversions (${period})",
       "type": "stat",
       "gridPos": {"x": 12, "y": 0, "w": 4, "h": 3},
-      "targets": [{"expr": "sum(increase(leads_converted_total[$period])) or vector(0)", "legendFormat": "Conversions"}],
-      "fieldConfig": {"defaults": {"color": {"mode": "none"}, "thresholds": {"steps": [{"color": "green"}]}}}
+      "targets": [{"expr": "sum(increase(leads_converted_total[$period])) or vector(0)", "legendFormat": "Conversions", "instant": true}],
+      "fieldConfig": {"defaults": {"color": {"mode": "none"}, "thresholds": {"steps": [{"color": "green"}]}, "noValue": "0"}}
     },
     {
       "title": "New Customers (${period})",
       "type": "stat",
       "gridPos": {"x": 16, "y": 0, "w": 4, "h": 3},
-      "targets": [{"expr": "sum(increase(customers_registered_total[$period])) or vector(0)", "legendFormat": "Customers"}],
-      "fieldConfig": {"defaults": {"color": {"mode": "none"}, "thresholds": {"steps": [{"color": "green"}]}}}
+      "targets": [{"expr": "sum(increase(customers_registered_total[$period])) or vector(0)", "legendFormat": "Customers", "instant": true}],
+      "fieldConfig": {"defaults": {"color": {"mode": "none"}, "thresholds": {"steps": [{"color": "green"}]}, "noValue": "0"}}
     },
     {
       "title": "Lead Conv. Rate (${period})",
       "type": "stat",
       "gridPos": {"x": 20, "y": 0, "w": 4, "h": 3},
-      "targets": [{"expr": "(sum(increase(leads_converted_total[$period])) or 0) / ((sum(increase(leads_created_total[$period])) or 0) + (sum(increase(leads_converted_total[$period])) or 0) > 0 or 1) * 100", "legendFormat": "Rate"}],
-      "fieldConfig": {"defaults": {"unit": "percent", "thresholds": {"steps": [{"color": "red", "value": 0}, {"color": "yellow", "value": 20}, {"color": "green", "value": 40}]}}}
+      "targets": [{"expr": "(sum(increase(leads_converted_total[$period])) or 0) / ((sum(increase(leads_created_total[$period])) or 0) + (sum(increase(leads_converted_total[$period])) or 0) > 0 or 1) * 100", "legendFormat": "Rate", "instant": true}],
+      "fieldConfig": {"defaults": {"unit": "percent", "thresholds": {"steps": [{"color": "red", "value": 0}, {"color": "yellow", "value": 20}, {"color": "green", "value": 40}]}, "noValue": "0"}}
     },
     {
       "title": "Revenue Trend (${period})",
       "type": "timeseries",
       "gridPos": {"x": 0, "y": 3, "w": 12, "h": 6},
-      "targets": [{"expr": "sum(increase(revenue_earned_total[$period])) by (brand)", "legendFormat": "{{brand}}"}],
+      "targets": [{"expr": "sum(increase(revenue_earned_total[$period])) by (brand) or vector(0)", "legendFormat": "{{brand}}"}],
       "fieldConfig": {"defaults": {"unit": "currencyKES", "custom": {"drawStyle": "line", "fillOpacity": 10}}}
     },
     {
       "title": "Orders by Status (${period})",
       "type": "timeseries",
       "gridPos": {"x": 12, "y": 3, "w": 12, "h": 6},
-      "targets": [{"expr": "sum(increase(orders_total[$period])) by (status)", "legendFormat": "{{status}}"}],
+      "targets": [{"expr": "sum(increase(orders_total[$period])) by (status) or vector(0)", "legendFormat": "{{status}}"}],
       "fieldConfig": {"defaults": {"custom": {"drawStyle": "line", "fillOpacity": 10, "stacking": {"mode": "normal"}}}}
     },
     {
@@ -151,8 +149,8 @@
       "type": "timeseries",
       "gridPos": {"x": 8, "y": 12, "w": 8, "h": 7},
       "targets": [
-        {"expr": "sum(increase(leads_created_total[$period])) by (brand)", "legendFormat": "Leads {{brand}}"},
-        {"expr": "sum(increase(leads_converted_total[$period])) by (brand)", "legendFormat": "Conversions {{brand}}"}
+        {"expr": "sum(increase(leads_created_total[$period])) by (brand) or vector(0)", "legendFormat": "Leads {{brand}}"},
+        {"expr": "sum(increase(leads_converted_total[$period])) by (brand) or vector(0)", "legendFormat": "Conversions {{brand}}"}
       ],
       "fieldConfig": {"defaults": {"custom": {"drawStyle": "line", "fillOpacity": 10}}}
     },
@@ -161,8 +159,8 @@
       "type": "timeseries",
       "gridPos": {"x": 16, "y": 12, "w": 8, "h": 7},
       "targets": [
-        {"expr": "sum(increase(customers_registered_total[$period]))", "legendFormat": "Customers"},
-        {"expr": "sum(increase(revenue_earned_total[$period]))", "legendFormat": "Revenue"}
+        {"expr": "sum(increase(customers_registered_total[$period])) or vector(0)", "legendFormat": "Customers"},
+        {"expr": "sum(increase(revenue_earned_total[$period])) or vector(0)", "legendFormat": "Revenue"}
       ],
       "fieldConfig": {"defaults": {"unit": "short", "custom": {"drawStyle": "line", "fillOpacity": 10}}}
     },
@@ -177,8 +175,8 @@
       "title": "Error Rate (1h)",
       "type": "stat",
       "gridPos": {"x": 12, "y": 19, "w": 3, "h": 3},
-      "targets": [{"expr": "sum(rate(http_requests_total{status_code=~\"5..\"}[1h])) / (sum(rate(http_requests_total[1h])) > 0 or 1) * 100", "legendFormat": "Error"}],
-      "fieldConfig": {"defaults": {"unit": "percent", "thresholds": {"steps": [{"color": "green", "value": 0}, {"color": "yellow", "value": 1}, {"color": "red", "value": 5}]}}}
+      "targets": [{"expr": "(sum(rate(http_requests_total{status_code=~\"5..\"}[1h])) or vector(0)) / sum(rate(http_requests_total[1h])) * 100", "legendFormat": "Error", "instant": true}],
+      "fieldConfig": {"defaults": {"unit": "percent", "thresholds": {"steps": [{"color": "green", "value": 0}, {"color": "yellow", "value": 1}, {"color": "red", "value": 5}]}, "noValue": "0"}}
     },
     {
       "title": "p95 Latency (5m)",

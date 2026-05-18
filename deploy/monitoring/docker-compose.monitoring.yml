@@ -26,7 +26,7 @@ services:
       - "--storage.tsdb.retention.time=15d"
 
   grafana:
-    image: grafana/grafana:11.0.0
+    image: grafana/grafana:13.0.1
     container_name: ag-grafana
     restart: unless-stopped
     ports:
