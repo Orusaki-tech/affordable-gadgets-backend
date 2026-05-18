@@ -3076,6 +3076,9 @@ class OrderViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
             new_status == Order.StatusChoices.CANCELED
             and old_status != Order.StatusChoices.CANCELED
         ):
+            from inventory.observability import ORDERS_CANCELLED_TOTAL
+            brand_code = instance.brand.code if instance.brand else "unknown"
+            ORDERS_CANCELLED_TOTAL.labels(brand=brand_code).inc()
             with transaction.atomic():
                 # Restore all inventory units in this order
                 for order_item in instance.order_items.all():

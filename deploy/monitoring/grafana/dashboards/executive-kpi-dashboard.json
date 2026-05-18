@@ -33,10 +33,10 @@
       "fieldConfig": {"defaults": {"unit": "currencyKES", "color": {"mode": "none"}, "thresholds": {"steps": [{"color": "green"}]}, "noValue": "0"}}
     },
     {
-      "title": "Orders Created (${period})",
+      "title": "Orders Created (Net, ${period})",
       "type": "stat",
       "gridPos": {"x": 4, "y": 0, "w": 4, "h": 3},
-      "targets": [{"expr": "sum(increase(new_orders_total[$period])) or vector(0)", "legendFormat": "Orders", "instant": true}],
+      "targets": [{"expr": "(sum(increase(new_orders_total[$period])) or vector(0)) - (sum(increase(orders_cancelled_total[$period])) or vector(0))", "legendFormat": "Net Orders", "instant": true}],
       "fieldConfig": {"defaults": {"color": {"mode": "none"}, "thresholds": {"steps": [{"color": "green"}]}, "noValue": "0"}}
     },
     {
@@ -64,7 +64,7 @@
       "title": "Lead Conv. Rate (${period})",
       "type": "stat",
       "gridPos": {"x": 20, "y": 0, "w": 4, "h": 3},
-      "targets": [{"expr": "(sum(increase(leads_converted_total[$period])) or vector(0)) / ((sum(increase(leads_created_total[$period])) or vector(0)) + (sum(increase(leads_converted_total[$period])) or vector(0)) > 0 or vector(1)) * 100", "legendFormat": "Rate", "instant": true}],
+      "targets": [{"expr": "(sum(increase(leads_converted_total[$period])) or vector(0)) / (sum(increase(leads_created_total[$period])) > 0 or vector(1)) * 100", "legendFormat": "Rate", "instant": true}],
       "fieldConfig": {"defaults": {"unit": "percent", "thresholds": {"steps": [{"color": "red", "value": 0}, {"color": "yellow", "value": 20}, {"color": "green", "value": 40}]}, "noValue": "0"}}
     },
     {

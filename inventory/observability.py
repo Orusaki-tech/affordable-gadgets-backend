@@ -134,6 +134,12 @@ LEADS_CONVERTED = _counter(
     ["brand"],
 )
 
+ORDERS_CANCELLED_TOTAL = _counter(
+    "orders_cancelled_total",
+    "Total orders cancelled",
+    ["brand"],
+)
+
 ACTIVE_USERS = Gauge(
     "active_users",
     "Number of active / recently-seen users",
