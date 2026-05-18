@@ -31,8 +31,14 @@ ssh_cmd() {
   ssh "${SSH_OPTS[@]}" "$SSH_USER@127.0.0.1" "$@"
 }
 
-# ── create directories ───────────────────────────────────────────────────────
-ssh_cmd "mkdir -p $COMPOSE_ROOT/monitoring/prometheus $COMPOSE_ROOT/monitoring/grafana/datasources $COMPOSE_ROOT/monitoring/grafana/dashboards $COMPOSE_ROOT/monitoring/tunnel"
+sudo_cmd() {
+  ssh "${SSH_OPTS[@]}" "$SSH_USER@127.0.0.1" "sudo bash -c '$*'"
+}
+
+TMP_DIR="/tmp/monitoring-deploy"
+
+# ── clean temp dir on VM ─────────────────────────────────────────────────────
+ssh_cmd "rm -rf $TMP_DIR && mkdir -p $TMP_DIR"
 
 # ── render configs via Python ─────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -51,20 +57,36 @@ python3 "$SCRIPT_DIR/render_monitoring_templates.py" \
   "$GRAFANA_SMTP_FROM" \
   "$CLOUDFLARE_TUNNEL_TOKEN"
 
-# ── copy files to VM ─────────────────────────────────────────────────────────
-scp "${SSH_OPTS[@]}" "$WORK_DIR/prometheus.yml"                "$SSH_USER@127.0.0.1:$COMPOSE_ROOT/monitoring/prometheus/prometheus.yml"
-scp "${SSH_OPTS[@]}" "$WORK_DIR/grafana.env"                   "$SSH_USER@127.0.0.1:$COMPOSE_ROOT/monitoring/grafana.env"
-scp "${SSH_OPTS[@]}" "$WORK_DIR/tunnel.env"                    "$SSH_USER@127.0.0.1:$COMPOSE_ROOT/monitoring/tunnel/tunnel.env"
-scp "${SSH_OPTS[@]}" "$WORK_DIR/docker-compose.monitoring.yml" "$SSH_USER@127.0.0.1:$COMPOSE_ROOT/docker-compose.monitoring.yml"
-scp "${SSH_OPTS[@]}" "$WORK_DIR/docker-compose.tunnel.yml"     "$SSH_USER@127.0.0.1:$COMPOSE_ROOT/docker-compose.tunnel.yml"
-scp "${SSH_OPTS[@]}" "$WORK_DIR/datasource.yml"                "$SSH_USER@127.0.0.1:$COMPOSE_ROOT/monitoring/grafana/datasources/datasource.yml"
-scp "${SSH_OPTS[@]}" "$WORK_DIR/dashboards.yml"                "$SSH_USER@127.0.0.1:$COMPOSE_ROOT/monitoring/grafana/dashboards/dashboards.yml"
-scp "${SSH_OPTS[@]}" "$WORK_DIR/alerts.yml"                    "$SSH_USER@127.0.0.1:$COMPOSE_ROOT/monitoring/prometheus/alerts.yml"
-scp "${SSH_OPTS[@]}" "$WORK_DIR/django-dashboard.json"         "$SSH_USER@127.0.0.1:$COMPOSE_ROOT/monitoring/grafana/dashboards/django-dashboard.json"
-scp "${SSH_OPTS[@]}" "$WORK_DIR/executive-kpi-dashboard.json"  "$SSH_USER@127.0.0.1:$COMPOSE_ROOT/monitoring/grafana/dashboards/executive-kpi-dashboard.json"
+# ── copy files to temp dir on VM ──────────────────────────────────────────────
+scp "${SSH_OPTS[@]}" "$WORK_DIR/prometheus.yml"                "$SSH_USER@127.0.0.1:$TMP_DIR/"
+scp "${SSH_OPTS[@]}" "$WORK_DIR/grafana.env"                   "$SSH_USER@127.0.0.1:$TMP_DIR/"
+scp "${SSH_OPTS[@]}" "$WORK_DIR/tunnel.env"                    "$SSH_USER@127.0.0.1:$TMP_DIR/"
+scp "${SSH_OPTS[@]}" "$WORK_DIR/docker-compose.monitoring.yml" "$SSH_USER@127.0.0.1:$TMP_DIR/"
+scp "${SSH_OPTS[@]}" "$WORK_DIR/docker-compose.tunnel.yml"     "$SSH_USER@127.0.0.1:$TMP_DIR/"
+scp "${SSH_OPTS[@]}" "$WORK_DIR/datasource.yml"                "$SSH_USER@127.0.0.1:$TMP_DIR/"
+scp "${SSH_OPTS[@]}" "$WORK_DIR/dashboards.yml"                "$SSH_USER@127.0.0.1:$TMP_DIR/"
+scp "${SSH_OPTS[@]}" "$WORK_DIR/alerts.yml"                    "$SSH_USER@127.0.0.1:$TMP_DIR/"
+scp "${SSH_OPTS[@]}" "$WORK_DIR/django-dashboard.json"         "$SSH_USER@127.0.0.1:$TMP_DIR/"
+scp "${SSH_OPTS[@]}" "$WORK_DIR/executive-kpi-dashboard.json"  "$SSH_USER@127.0.0.1:$TMP_DIR/"
+
+# ── move files to compose_root via sudo ───────────────────────────────────────
+sudo_cmd "mkdir -p $COMPOSE_ROOT/monitoring/prometheus $COMPOSE_ROOT/monitoring/grafana/datasources $COMPOSE_ROOT/monitoring/grafana/dashboards $COMPOSE_ROOT/monitoring/tunnel"
+sudo_cmd "cp $TMP_DIR/prometheus.yml                $COMPOSE_ROOT/monitoring/prometheus/prometheus.yml"
+sudo_cmd "cp $TMP_DIR/grafana.env                   $COMPOSE_ROOT/monitoring/grafana.env"
+sudo_cmd "cp $TMP_DIR/tunnel.env                    $COMPOSE_ROOT/monitoring/tunnel/tunnel.env"
+sudo_cmd "cp $TMP_DIR/docker-compose.monitoring.yml $COMPOSE_ROOT/docker-compose.monitoring.yml"
+sudo_cmd "cp $TMP_DIR/docker-compose.tunnel.yml     $COMPOSE_ROOT/docker-compose.tunnel.yml"
+sudo_cmd "cp $TMP_DIR/datasource.yml                $COMPOSE_ROOT/monitoring/grafana/datasources/datasource.yml"
+sudo_cmd "cp $TMP_DIR/dashboards.yml                $COMPOSE_ROOT/monitoring/grafana/dashboards/dashboards.yml"
+sudo_cmd "cp $TMP_DIR/alerts.yml                    $COMPOSE_ROOT/monitoring/prometheus/alerts.yml"
+sudo_cmd "cp $TMP_DIR/django-dashboard.json         $COMPOSE_ROOT/monitoring/grafana/dashboards/django-dashboard.json"
+sudo_cmd "cp $TMP_DIR/executive-kpi-dashboard.json  $COMPOSE_ROOT/monitoring/grafana/dashboards/executive-kpi-dashboard.json"
+
+# ── clean up temp dir ────────────────────────────────────────────────────────
+ssh_cmd "rm -rf $TMP_DIR"
 
 # ── restart containers ───────────────────────────────────────────────────────
-ssh_cmd "docker compose -f $COMPOSE_ROOT/docker-compose.monitoring.yml --env-file $COMPOSE_ROOT/monitoring/grafana.env up -d --remove-orphans"
-ssh_cmd "docker compose -f $COMPOSE_ROOT/docker-compose.tunnel.yml --env-file $COMPOSE_ROOT/monitoring/tunnel/tunnel.env up -d"
+sudo_cmd "docker compose -f $COMPOSE_ROOT/docker-compose.monitoring.yml --env-file $COMPOSE_ROOT/monitoring/grafana.env up -d --remove-orphans"
+sudo_cmd "docker compose -f $COMPOSE_ROOT/docker-compose.tunnel.yml --env-file $COMPOSE_ROOT/monitoring/tunnel/tunnel.env up -d"
 
 echo "✓ Monitoring stack deployed successfully"
