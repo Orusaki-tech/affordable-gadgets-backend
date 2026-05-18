@@ -84,9 +84,14 @@ def refresh_active_users_metric():
             from django.conf import settings
             from inventory.observability import ACTIVE_USERS
             
+            redis_client = None
             if hasattr(cache, 'client') and hasattr(cache.client, 'get_client'):
+                redis_client = cache.client.get_client()  # django-redis
+            elif hasattr(cache, '_cache') and hasattr(cache._cache, 'get_client'):
+                redis_client = cache._cache.get_client()  # Django 4.0+ built-in RedisCache
+
+            if redis_client:
                 # Redis cache
-                redis_client = cache.client.get_client()
                 
                 # The sorted set key
                 prefix = getattr(settings, "CACHES", {}).get("default", {}).get("KEY_PREFIX", "")
@@ -173,9 +178,14 @@ class RequestTimingMiddleware(MiddlewareMixin):
                 from django.core.cache import cache
                 from django.conf import settings
                 
+                redis_client = None
                 if hasattr(cache, 'client') and hasattr(cache.client, 'get_client'):
+                    redis_client = cache.client.get_client()
+                elif hasattr(cache, '_cache') and hasattr(cache._cache, 'get_client'):
+                    redis_client = cache._cache.get_client()
+
+                if redis_client:
                     try:
-                        redis_client = cache.client.get_client()
                         prefix = getattr(settings, "CACHES", {}).get("default", {}).get("KEY_PREFIX", "")
                         zset_key = f"{prefix}:1:active_users_zset" if prefix else "active_users_zset"
                         
