@@ -79,43 +79,43 @@ def _purge_stale_users():
 
 def refresh_active_users_metric():
     """Set the active_users Prometheus gauge (called from metrics_view)."""
-        try:
-            from django.core.cache import cache
-            from django.conf import settings
-            from inventory.observability import ACTIVE_USERS
-            
-            redis_client = None
-            if hasattr(cache, 'client') and hasattr(cache.client, 'get_client'):
-                redis_client = cache.client.get_client()  # django-redis
-            elif hasattr(cache, '_cache') and hasattr(cache._cache, 'get_client'):
-                redis_client = cache._cache.get_client()  # Django 4.0+ built-in RedisCache
+    try:
+        from django.core.cache import cache
+        from django.conf import settings
+        from inventory.observability import ACTIVE_USERS
+        
+        redis_client = None
+        if hasattr(cache, 'client') and hasattr(cache.client, 'get_client'):
+            redis_client = cache.client.get_client()  # django-redis
+        elif hasattr(cache, '_cache') and hasattr(cache._cache, 'get_client'):
+            redis_client = cache._cache.get_client()  # Django 4.0+ built-in RedisCache
 
-            if redis_client:
-                # Redis cache
-                
-                # The sorted set key
-                prefix = getattr(settings, "CACHES", {}).get("default", {}).get("KEY_PREFIX", "")
-                zset_key = f"{prefix}:1:active_users_zset" if prefix else "active_users_zset"
-                
-                now = time.time()
-                cutoff = now - _ACTIVE_USER_TTL
-                
-                # Remove stale entries from the sorted set
-                redis_client.zremrangebyscore(zset_key, "-inf", cutoff)
-                
-                # Get the count of unique active users
-                active_count = redis_client.zcard(zset_key)
-                
-                ACTIVE_USERS.set(active_count)
-            else:
-                # Fallback for local dev/dummy cache if needed
-                # We'll just rely on the existing _ACTIVE_USERS dict if redis isn't configured
-                now = time.time()
-                stale = [uid for uid, ts in list(_ACTIVE_USERS.items()) if now - ts > _ACTIVE_USER_TTL]
-                for uid in stale:
-                    _ACTIVE_USERS.pop(uid, None)
-                ACTIVE_USERS.set(len(_ACTIVE_USERS))
-        except Exception as e:
+        if redis_client:
+            # Redis cache
+            
+            # The sorted set key
+            prefix = getattr(settings, "CACHES", {}).get("default", {}).get("KEY_PREFIX", "")
+            zset_key = f"{prefix}:1:active_users_zset" if prefix else "active_users_zset"
+            
+            now = time.time()
+            cutoff = now - _ACTIVE_USER_TTL
+            
+            # Remove stale entries from the sorted set
+            redis_client.zremrangebyscore(zset_key, "-inf", cutoff)
+            
+            # Get the count of unique active users
+            active_count = redis_client.zcard(zset_key)
+            
+            ACTIVE_USERS.set(active_count)
+        else:
+            # Fallback for local dev/dummy cache if needed
+            # We'll just rely on the existing _ACTIVE_USERS dict if redis isn't configured
+            now = time.time()
+            stale = [uid for uid, ts in list(_ACTIVE_USERS.items()) if now - ts > _ACTIVE_USER_TTL]
+            for uid in stale:
+                _ACTIVE_USERS.pop(uid, None)
+            ACTIVE_USERS.set(len(_ACTIVE_USERS))
+    except Exception as e:
         logger.debug(f"Failed to refresh active users metric from cache: {e}")
 
 
