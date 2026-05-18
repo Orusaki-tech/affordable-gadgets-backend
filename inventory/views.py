@@ -60,11 +60,14 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from .observability import WHATSAPP_CLICKS_TOTAL
 
+from rest_framework.throttling import AnonRateThrottle
+
 class RecordObservabilityEventView(APIView):
     """
     Public-facing endpoint to record discrete business events, like button clicks.
     """
     permission_classes = [AllowAny] # Allow clicks from anonymous users
+    throttle_classes = [AnonRateThrottle]
 
     def post(self, request):
         event_type = request.data.get('event_type')

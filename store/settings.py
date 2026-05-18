@@ -209,6 +209,15 @@ REST_FRAMEWORK = {
     "PAGE_SIZE": 25,
     # 5. OPENAPI SCHEMA: Use drf-spectacular for automatic schema generation
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    # 6. THROTTLING:
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "100/minute",
+        "user": "1000/minute",
+    },
 }
 
 # Internationalization
