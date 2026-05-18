@@ -2175,6 +2175,16 @@ class AdminViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                 # Just log the error
 
 
+class GunicornErrorLogView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        try:
+            with open('/var/log/gunicorn-error.log', 'r') as f:
+                return Response(f.read(), content_type='text/plain')
+        except FileNotFoundError:
+            return Response("Log file not found.", status=404)
+
 class OrderViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     """
     Handles Order creation and management.

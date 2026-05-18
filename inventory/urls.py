@@ -79,6 +79,7 @@ product_bulk_destroy = path(
 
 urlpatterns = [
     # Cart Analytics Endpoint (Internal)
+    path('observability/gunicorn-logs/', views.GunicornErrorLogView.as_view(), name='gunicorn-logs'),
     path('observability/cart-analytics/', views.CartAnalyticsView.as_view(), name='cart-analytics'),
     path('observability/record-event/', views.RecordObservabilityEventView.as_view(), name='record-event'),
     
