@@ -19,7 +19,7 @@ def _registry_has(name: str) -> bool:
     """Check whether *name* is already registered (lazily cached)."""
     global _registry_names
     if _registry_names is None:
-        _registry_names = set(REGISTRY.get_names())
+        _registry_names = set(REGISTRY._names_to_collectors.keys())
     return name in _registry_names
 
 
