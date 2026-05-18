@@ -114,6 +114,14 @@
   environment: "{{ django_env }}"
   ignore_errors: true
 
+- name: Create Prometheus metrics directory
+  file:
+    path: /tmp/prometheus_metrics
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0755"
+
 - name: Create Gunicorn log files
   file:
     path: "{{ item }}"
