@@ -16,7 +16,7 @@ from django.contrib.auth.models import AbstractUser
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from inventory.models import Admin, Brand, InventoryUnit, Order, Product, UnitAcquisitionSource
+from inventory.models import Admin, InventoryUnit, Product, UnitAcquisitionSource
 
 pytestmark = [pytest.mark.p0, pytest.mark.django_db]
 
@@ -376,7 +376,9 @@ class TestProductPermissionsByRole:
         self, inventory_manager_api_client: APIClient, product: Product
     ) -> None:
         url = f"/api/inventory/products/{product.id}/"
-        response = inventory_manager_api_client.patch(url, {"product_name": "Updated"}, format="json")
+        response = inventory_manager_api_client.patch(
+            url, {"product_name": "Updated"}, format="json"
+        )
         assert response.status_code == status.HTTP_200_OK
         product.refresh_from_db()
         assert product.product_name == "Updated"
@@ -421,6 +423,7 @@ class TestProductContentPermissionsByRole:
         self, content_creator_api_client: APIClient, product: Product
     ) -> None:
         from django.urls import reverse
+
         url = reverse("product-update-content", args=[product.id])
         response = content_creator_api_client.patch(
             url, {"product_description": "CC content"}, format="json"
@@ -433,6 +436,7 @@ class TestProductContentPermissionsByRole:
         self, sales_api_client: APIClient, product: Product
     ) -> None:
         from django.urls import reverse
+
         url = reverse("product-update-content", args=[product.id])
         response = sales_api_client.patch(url, {"product_description": "No"}, format="json")
         assert response.status_code == status.HTTP_403_FORBIDDEN
@@ -441,6 +445,7 @@ class TestProductContentPermissionsByRole:
         self, inventory_manager_api_client: APIClient, product: Product
     ) -> None:
         from django.urls import reverse
+
         url = reverse("product-update-content", args=[product.id])
         response = inventory_manager_api_client.patch(
             url, {"product_description": "IM content"}, format="json"
@@ -453,17 +458,13 @@ class TestProductContentPermissionsByRole:
 class TestUnauthenticatedAccess:
     """Verify unauthenticated users get 401 on admin endpoints and 200 on public."""
 
-    def test_admin_endpoints_require_auth(
-        self, unauthenticated_client: APIClient
-    ) -> None:
+    def test_admin_endpoints_require_auth(self, unauthenticated_client: APIClient) -> None:
         endpoints = [PRODUCTS, UNITS, ORDERS, PROMOTIONS]
         for ep in endpoints:
             response = unauthenticated_client.get(ep)
             assert response.status_code == status.HTTP_401_UNAUTHORIZED, f"{ep} should 401"
 
-    def test_public_endpoints_allow_anonymous(
-        self, unauthenticated_client: APIClient
-    ) -> None:
+    def test_public_endpoints_allow_anonymous(self, unauthenticated_client: APIClient) -> None:
         public_endpoints = [
             "/api/v1/public/products/",
             "/api/v1/public/promotions/",

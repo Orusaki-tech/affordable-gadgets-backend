@@ -1,4 +1,3 @@
-import pytest
 from inventory.services.whatsapp_service import WhatsAppService
 
 

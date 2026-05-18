@@ -6,6 +6,7 @@ from django.utils.html import format_html
 # Assuming all models exist in the inventory/models.py file.
 from .models import (
     Admin,
+    ArticleImage,
     Brand,
     Color,
     Customer,
@@ -21,7 +22,6 @@ from .models import (
     Product,
     ProductAccessory,
     ProductArticle,
-    ArticleImage,
     ProductImage,
     Promotion,
     Review,

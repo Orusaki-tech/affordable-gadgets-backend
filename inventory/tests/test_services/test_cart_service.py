@@ -1,9 +1,10 @@
-import pytest
 from decimal import Decimal
-from django.utils import timezone
-from inventory.models import Cart, CartItem, InventoryUnit, Notification, AdminRole
-from inventory.services.cart_service import CartService
 
+import pytest
+from django.utils import timezone
+
+from inventory.models import AdminRole, Cart, CartItem, InventoryUnit, Notification
+from inventory.services.cart_service import CartService
 
 pytestmark = pytest.mark.django_db
 
@@ -92,7 +93,9 @@ class TestAddItemToCart:
 
 class TestCheckoutCart:
     def _checkout(self, cart, **kw):
-        defaults = dict(customer_name="John", customer_phone="+254700000001", delivery_address="123 Main St")
+        defaults = dict(
+            customer_name="John", customer_phone="+254700000001", delivery_address="123 Main St"
+        )
         defaults.update(kw)
         return CartService.checkout_cart(cart, **defaults)
 

@@ -1,5 +1,4 @@
-"""Shared test fixtures for all inventory tests.
-"""
+"""Shared test fixtures for all inventory tests."""
 
 from __future__ import annotations
 
@@ -13,13 +12,18 @@ _FontConfiguration = type("FontConfiguration", (), {})
 _weasyprint.text.fonts.FontConfiguration = _FontConfiguration
 _weasyprint.HTML = MagicMock if False else type  # avoid linter error; patched below
 
+
 class _MockHTML:
     def __init__(self, **kw):
         pass
+
     def write_pdf(self, target=None):
         if target:
             return target
-        import io; return io.BytesIO(b"pdf-content")
+        import io
+
+        return io.BytesIO(b"pdf-content")
+
 
 _weasyprint.HTML = _MockHTML
 
@@ -40,11 +44,12 @@ from inventory.models import (
     Admin,
     AdminRole,
     Brand,
+    InventoryUnit,
     Product,
     ProductArticle,
-    InventoryUnit,
     UnitAcquisitionSource,
 )
+
 
 @pytest.fixture(autouse=True)
 def disable_security_redirects(settings):
@@ -54,16 +59,11 @@ def disable_security_redirects(settings):
     settings.SESSION_COOKIE_SECURE = False
     settings.CSRF_COOKIE_SECURE = False
 
+
 from inventory.models import (
-    Admin,
-    AdminRole,
-    Brand,
     Customer,
-    InventoryUnit,
     Order,
     OrderItem,
-    Product,
-    ProductArticle,
 )
 
 UserModel: type[AbstractUser] = get_user_model()
@@ -107,7 +107,10 @@ def other_brand() -> Brand:
 def sales_role() -> AdminRole:
     role, _ = AdminRole.objects.get_or_create(
         name=AdminRole.RoleChoices.SALESPERSON,
-        defaults={"display_name": "Salesperson", "description": "Can view inventory and create orders"},
+        defaults={
+            "display_name": "Salesperson",
+            "description": "Can view inventory and create orders",
+        },
     )
     return role
 
@@ -143,7 +146,10 @@ def order_manager_role() -> AdminRole:
 def marketing_manager_role() -> AdminRole:
     role, _ = AdminRole.objects.get_or_create(
         name=AdminRole.RoleChoices.MARKETING_MANAGER,
-        defaults={"display_name": "Marketing Manager", "description": "Manages promotions and bundles"},
+        defaults={
+            "display_name": "Marketing Manager",
+            "description": "Manages promotions and bundles",
+        },
     )
     return role
 
@@ -170,7 +176,9 @@ def unauthenticated_client() -> APIClient:
 _AdminUserFixture = tuple[AbstractUser, Admin]
 
 
-def _make_admin(username: str, roles: list[AdminRole], brand: Brand | None = None) -> _AdminUserFixture:
+def _make_admin(
+    username: str, roles: list[AdminRole], brand: Brand | None = None
+) -> _AdminUserFixture:
     user = UserModel.objects.create_user(
         username=username,
         email=f"{username}@example.com",
@@ -295,9 +303,7 @@ def content_creator_api_client(
 
 
 @pytest.fixture
-def order_manager_api_client(
-    api_client: APIClient, order_manager_user: AbstractUser
-) -> APIClient:
+def order_manager_api_client(api_client: APIClient, order_manager_user: AbstractUser) -> APIClient:
     api_client.force_authenticate(user=order_manager_user)
     return api_client
 
@@ -387,9 +393,7 @@ def acquisition_source() -> UnitAcquisitionSource:
 
 
 @pytest.fixture
-def available_unit(
-    product: Product, acquisition_source: UnitAcquisitionSource
-) -> InventoryUnit:
+def available_unit(product: Product, acquisition_source: UnitAcquisitionSource) -> InventoryUnit:
     return InventoryUnit.objects.create(
         product_template=product,
         selling_price=Decimal("55000.00"),
@@ -409,9 +413,7 @@ def available_unit(
 
 
 @pytest.fixture
-def sold_unit(
-    product: Product, acquisition_source: UnitAcquisitionSource
-) -> InventoryUnit:
+def sold_unit(product: Product, acquisition_source: UnitAcquisitionSource) -> InventoryUnit:
     return InventoryUnit.objects.create(
         product_template=product,
         selling_price=Decimal("55000.00"),
@@ -451,7 +453,9 @@ def reserved_unit(product: Product, acquisition_source: UnitAcquisitionSource) -
 
 
 @pytest.fixture
-def pending_payment_unit(product: Product, acquisition_source: UnitAcquisitionSource) -> InventoryUnit:
+def pending_payment_unit(
+    product: Product, acquisition_source: UnitAcquisitionSource
+) -> InventoryUnit:
     return InventoryUnit.objects.create(
         product_template=product,
         selling_price=Decimal("55000.00"),
@@ -498,9 +502,7 @@ def paid_order(product: Product, customer: Customer, brand: Brand) -> Order:
 
 
 @pytest.fixture
-def order_with_units(
-    order: Order, available_unit: InventoryUnit
-) -> Order:
+def order_with_units(order: Order, available_unit: InventoryUnit) -> Order:
     OrderItem.objects.create(
         order=order,
         inventory_unit=available_unit,
@@ -518,6 +520,7 @@ def order_with_units(
 @pytest.fixture
 def reverse() -> Callable:
     from django.urls import reverse as _reverse
+
     return _reverse
 
 
@@ -578,7 +581,9 @@ def make_product(brand: Brand) -> Callable[..., Product]:
 
 
 @pytest.fixture
-def make_unit(make_product: Callable[..., Product], acquisition_source: UnitAcquisitionSource) -> Callable[..., InventoryUnit]:
+def make_unit(
+    make_product: Callable[..., Product], acquisition_source: UnitAcquisitionSource
+) -> Callable[..., InventoryUnit]:
     """Fixture factory that creates a bare InventoryUnit with required fields."""
     counter = [0]
 

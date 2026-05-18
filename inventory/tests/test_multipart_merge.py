@@ -1,25 +1,35 @@
 # Test multipart merge handling
 
-import io
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
-from rest_framework.test import APIClient
 from model_bakery import baker
-from inventory.models import Product, ProductArticle
+from rest_framework.test import APIClient
+
+from inventory.models import Product
+
 
 @pytest.fixture
 def api_client():
     return APIClient()
 
+
 @pytest.fixture
 def admin_user(db):
     from django.contrib.auth import get_user_model
+
     User = get_user_model()
     return baker.make(User, is_staff=True, is_superuser=True)
 
+
 @pytest.fixture
 def sample_product(db):
-    return baker.make(Product, product_name='Test Product', product_type=Product.ProductType.PHONE, is_published=True)
+    return baker.make(
+        Product,
+        product_name="Test Product",
+        product_type=Product.ProductType.PHONE,
+        is_published=True,
+    )
+
 
 @pytest.mark.django_db
 def test_mixed_multipart_and_json_payload(api_client, admin_user, sample_product):
@@ -30,32 +40,32 @@ def test_mixed_multipart_and_json_payload(api_client, admin_user, sample_product
     api_client.force_authenticate(admin_user)
 
     # Simulate a file upload for thumbnail (valid 1x1 gif)
-    gif = b'GIF89a\x01\x00\x01\x00\x00\x00\x00!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;'
-    thumb_file = SimpleUploadedFile('thumb.gif', gif, content_type='image/gif')
+    gif = b"GIF89a\x01\x00\x01\x00\x00\x00\x00!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;"
+    thumb_file = SimpleUploadedFile("thumb.gif", gif, content_type="image/gif")
 
     # Build multipart payload: flattened keys for headline & thumbnail, and a nested JSON article dict for body
     payload = {
-        'article_headline': 'Flattened Headline',
-        'article_thumbnail_image': thumb_file,
+        "article_headline": "Flattened Headline",
+        "article_thumbnail_image": thumb_file,
         # Provide a JSON article dict as a string – DRF will treat it as a regular field
-        'article': '{"body": "JSON body", "seo_title": "JSON SEO"}',
+        "article": '{"body": "JSON body", "seo_title": "JSON SEO"}',
     }
 
     response = api_client.patch(
-        f'/api/inventory/products/{sample_product.id}/update_content/',
+        f"/api/inventory/products/{sample_product.id}/update_content/",
         payload,
-        format='multipart',
+        format="multipart",
     )
 
     assert response.status_code == 200, response.content
     data = response.json()
     # The response should reflect merged article data
-    article = data.get('article')
+    article = data.get("article")
     assert article is not None
     # Flattened headline should win over any JSON value (none in JSON)
-    assert article.get('headline') == 'Flattened Headline'
+    assert article.get("headline") == "Flattened Headline"
     # Thumbnail should be present (URL string) – ensure file handling didn't error
-    assert 'thumbnail_image' in article and isinstance(article['thumbnail_image'], str)
+    assert "thumbnail_image" in article and isinstance(article["thumbnail_image"], str)
     # JSON-provided fields should be present as they were not overridden
-    assert article.get('body') == 'JSON body'
-    assert article.get('seo_title') == 'JSON SEO'
+    assert article.get("body") == "JSON body"
+    assert article.get("seo_title") == "JSON SEO"

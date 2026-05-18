@@ -80,7 +80,7 @@ INSTALLED_APPS = [
 OBSERVABILITY_ENABLED = os.environ.get("OBSERVABILITY_ENABLED", "true").lower() == "true"
 
 if OBSERVABILITY_ENABLED:
-    from inventory.observability import init_sentry, init_opentelemetry
+    from inventory.observability import init_opentelemetry, init_sentry
 
     if init_sentry():
         import logging

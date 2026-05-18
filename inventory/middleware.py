@@ -57,12 +57,18 @@ class LogContextMiddleware:
                 ctx["user_id"] = request.user.id
             if getattr(request, "brand", None):
                 ctx["brand_code"] = request.brand.code
-            logger.info("request_completed", extra={"extra_fields": {
-                "status_code": response.status_code,
-            }})
+            logger.info(
+                "request_completed",
+                extra={
+                    "extra_fields": {
+                        "status_code": response.status_code,
+                    }
+                },
+            )
 
         _request_context.current = None
         return response
+
 
 _loading_brand = threading.local()
 
@@ -80,6 +86,7 @@ def refresh_active_users_metric():
     _purge_stale_users()
     try:
         from inventory.observability import ACTIVE_USERS
+
         ACTIVE_USERS.set(len(_ACTIVE_USERS))
     except Exception:
         pass
@@ -87,9 +94,7 @@ def refresh_active_users_metric():
 
 # Patterns to normalise URL paths for metrics labels
 _PATH_PARAM_PATTERN = re_compile(r"/\d+/")
-_PATH_UUID_PATTERN = re_compile(
-    r"/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/"
-)
+_PATH_UUID_PATTERN = re_compile(r"/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/")
 
 
 def _normalise_path(path: str) -> str:
@@ -123,8 +128,8 @@ class RequestTimingMiddleware(MiddlewareMixin):
     def _record_metrics(self, request, response, ms: int):
         try:
             from inventory.observability import (
-                HTTP_REQUESTS_TOTAL,
                 HTTP_REQUEST_DURATION_SECONDS,
+                HTTP_REQUESTS_TOTAL,
             )
 
             method = request.method or "GET"
@@ -133,8 +138,12 @@ class RequestTimingMiddleware(MiddlewareMixin):
             brand = getattr(request, "brand", None)
             brand_code = brand.code if brand else "unknown"
 
-            HTTP_REQUESTS_TOTAL.labels(method=method, endpoint=endpoint, status_code=status, brand=brand_code).inc()
-            HTTP_REQUEST_DURATION_SECONDS.labels(method=method, endpoint=endpoint, brand=brand_code).observe(ms / 1000)
+            HTTP_REQUESTS_TOTAL.labels(
+                method=method, endpoint=endpoint, status_code=status, brand=brand_code
+            ).inc()
+            HTTP_REQUEST_DURATION_SECONDS.labels(
+                method=method, endpoint=endpoint, brand=brand_code
+            ).observe(ms / 1000)
 
             # Track authenticated users
             if getattr(request, "user", None) and request.user.is_authenticated:

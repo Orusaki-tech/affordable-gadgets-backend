@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Optional
 from urllib.parse import urljoin
 
 from django.conf import settings
@@ -46,7 +45,7 @@ def _absolute_url(base_url: str, value: str) -> str:
     return urljoin(base_url.rstrip("/") + "/", raw.lstrip("/"))
 
 
-def _get_site_base_url(request: HttpRequest, brand: Optional[Brand]) -> str:
+def _get_site_base_url(request: HttpRequest, brand: Brand | None) -> str:
     # Optional hard override so feeds fetched from ngrok still point to canonical domain.
     forced = _normalize_site_url(getattr(settings, "MERCHANT_FEED_SITE_BASE_URL", ""))
     if forced:
@@ -92,10 +91,9 @@ def _cloudinary_url_from_name(name: str) -> str:
     path like `/media/...` which Merchant Center rejects. Our DB typically stores a
     Cloudinary public-id-ish path in `image.name` (e.g. `media/product_photos/<public_id>`).
     """
-    cloud_name = (
-        (getattr(settings, "CLOUDINARY_CLOUD_NAME", "") or "").strip()
-        or (getattr(settings, "CLOUDINARY_STORAGE", {}) or {}).get("CLOUD_NAME", "").strip()
-    )
+    cloud_name = (getattr(settings, "CLOUDINARY_CLOUD_NAME", "") or "").strip() or (
+        getattr(settings, "CLOUDINARY_STORAGE", {}) or {}
+    ).get("CLOUD_NAME", "").strip()
     raw = (name or "").strip().lstrip("/")
     if not cloud_name or not raw:
         return ""
@@ -149,7 +147,7 @@ def _get_request_base_url(request: HttpRequest) -> str:
     return _normalize_site_url(request.build_absolute_uri("/"))
 
 
-def _get_brand_for_feed(request: HttpRequest) -> Optional[Brand]:
+def _get_brand_for_feed(request: HttpRequest) -> Brand | None:
     header = request.headers.get("X-Brand-Code") or request.headers.get("x-brand-code")
     default_code = getattr(settings, "MERCHANT_FEED_BRAND_CODE", "") or "AFFORDABLE_GADGETS"
     brand_code = (header or default_code).strip()
@@ -224,7 +222,9 @@ def _pick_image_url(site_base_url: str, unit: InventoryUnit) -> str:
         except Exception:
             product_images = []
 
-    primary_product = next((img for img in product_images if getattr(img, "is_primary", False)), None)
+    primary_product = next(
+        (img for img in product_images if getattr(img, "is_primary", False)), None
+    )
     chosen_product = primary_product or (product_images[0] if product_images else None)
     if chosen_product and chosen_product.image:
         try:
@@ -354,4 +354,3 @@ def google_products_feed(request: HttpRequest) -> HttpResponse:
     generator.endDocument()
 
     return response
-

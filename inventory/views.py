@@ -1257,9 +1257,9 @@ class InventoryUnitViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
 
                 # Track order creation
                 try:
-                    from inventory.observability import ORDER_CREATIONS
+                    from inventory.observability import ORDERS_CREATED
 
-                    ORDER_CREATIONS.labels(
+                    ORDERS_CREATED.labels(
                         brand=brand.code if brand else "unknown",
                         order_source=Order.OrderSourceChoices.WALK_IN,
                     ).inc()

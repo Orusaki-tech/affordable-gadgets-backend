@@ -3,7 +3,7 @@ from decimal import Decimal
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from inventory.models import InventoryUnit, UnitAcquisitionSource, Product
+from inventory.models import InventoryUnit, Product, UnitAcquisitionSource
 
 
 class Command(BaseCommand):
@@ -35,7 +35,10 @@ class Command(BaseCommand):
                     "source_type": UnitAcquisitionSource.SourceType.SUPPLIER,
                 },
             )
-            if not created and supplier_source.source_type != UnitAcquisitionSource.SourceType.SUPPLIER:
+            if (
+                not created
+                and supplier_source.source_type != UnitAcquisitionSource.SourceType.SUPPLIER
+            ):
                 supplier_source.source_type = UnitAcquisitionSource.SourceType.SUPPLIER
                 supplier_source.save(update_fields=["source_type"])
 
@@ -62,4 +65,3 @@ class Command(BaseCommand):
                     f"to selling_price={self.TARGET_PRICE} and supplier='{self.SUPPLIER_NAME}'."
                 )
             )
-

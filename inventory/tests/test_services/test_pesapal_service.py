@@ -1,7 +1,7 @@
 import pytest
 import responses
-from inventory.services.pesapal_service import PesapalService
 
+from inventory.services.pesapal_service import PesapalService
 
 pytestmark = pytest.mark.django_db
 
@@ -78,7 +78,10 @@ class TestSubmitOrderRequest:
             )
             rsps.post(
                 "https://pay.pesapal.com/v3/api/Transactions/SubmitOrderRequest",
-                json={"order_tracking_id": "TRACK-001", "redirect_url": "https://pay.pesapal.com/checkout"},
+                json={
+                    "order_tracking_id": "TRACK-001",
+                    "redirect_url": "https://pay.pesapal.com/checkout",
+                },
                 status=200,
             )
             result, error = service.submit_order_request({"amount": 1000, "currency": "KES"})

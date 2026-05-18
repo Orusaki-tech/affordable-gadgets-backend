@@ -91,7 +91,9 @@ class InventoryManagerProductImageUploadTests(APITestCase):
         primary = ProductImage.objects.filter(product=self.product, is_primary=True).first()
         self.assertIsNotNone(primary)
 
-        images = list(ProductImage.objects.filter(product=self.product).order_by("display_order", "id"))
+        images = list(
+            ProductImage.objects.filter(product=self.product).order_by("display_order", "id")
+        )
         self.assertEqual(images[0].display_order, 10)
         self.assertEqual(images[1].display_order, 11)
 
@@ -106,4 +108,3 @@ class InventoryManagerProductImageUploadTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-

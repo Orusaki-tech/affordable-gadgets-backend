@@ -40,9 +40,7 @@ frontend_base_url = os.environ.get("FRONTEND_BASE_URL", "").strip()
 if not frontend_base_url:
     raise ValueError("FRONTEND_BASE_URL environment variable must be set in production")
 if "localhost" in frontend_base_url or "127.0.0.1" in frontend_base_url:
-    raise ValueError(
-        "FRONTEND_BASE_URL cannot point to localhost/127.0.0.1 in production"
-    )
+    raise ValueError("FRONTEND_BASE_URL cannot point to localhost/127.0.0.1 in production")
 FRONTEND_BASE_URL = frontend_base_url.rstrip("/")
 
 # Database (use PostgreSQL in production)
@@ -260,8 +258,8 @@ else:
 _use_json_logging = os.environ.get("JSON_LOGGING", "true").lower() == "true"
 
 if _use_json_logging:
-    from inventory.observability import JSONFormatter
     from inventory.middleware import RequestContextFilter
+    from inventory.observability import JSONFormatter
 
     _json_fmt = JSONFormatter()
     LOGGING = {

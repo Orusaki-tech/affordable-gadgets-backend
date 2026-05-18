@@ -1,8 +1,8 @@
-import pytest
-from unittest.mock import patch, MagicMock
-from inventory.models import Order
-from inventory.services.order_email_service import OrderEmailService
+from unittest.mock import MagicMock, patch
 
+import pytest
+
+from inventory.services.order_email_service import OrderEmailService
 
 pytestmark = pytest.mark.django_db
 

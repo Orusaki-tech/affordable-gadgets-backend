@@ -1,7 +1,8 @@
-import pytest
 from unittest.mock import patch
-from inventory.services.otp_service import OtpService
 
+import pytest
+
+from inventory.services.otp_service import OtpService
 
 pytestmark = pytest.mark.django_db
 
@@ -58,6 +59,7 @@ class TestOtpServiceSendReviewOtp:
         with patch("inventory.services.otp_service.send_mail"):
             OtpService.send_review_otp("expire@test.com")
         from django.core.cache import cache
+
         cache.clear()
         assert OtpService.verify_review_otp("expire@test.com", "111111") is False
 
@@ -86,9 +88,13 @@ class TestOtpServiceSendOrderOtp:
         with patch("inventory.services.otp_service.send_mail"):
             review_result = OtpService.send_review_otp("isolated@test.com")
             order_result = OtpService.send_order_otp("isolated@test.com")
-        assert OtpService.verify_review_otp("isolated@test.com", review_result["debug_code"]) is True
+        assert (
+            OtpService.verify_review_otp("isolated@test.com", review_result["debug_code"]) is True
+        )
         assert OtpService.verify_order_otp("isolated@test.com", order_result["debug_code"]) is True
-        assert OtpService.verify_order_otp("isolated@test.com", review_result["debug_code"]) is False
+        assert (
+            OtpService.verify_order_otp("isolated@test.com", review_result["debug_code"]) is False
+        )
 
     def test_order_otp_sent_with_correct_subject(self, settings):
         settings.DEBUG = True

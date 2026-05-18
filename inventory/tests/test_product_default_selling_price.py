@@ -21,9 +21,7 @@ class PublicProductDefaultPriceTests(TestCase):
 
     def test_min_max_fallback_when_no_listable_units_prefetched(self):
         setattr(self.product, "available_units_list", [])
-        ser = PublicProductSerializer(
-            self.product, context={"view_action": "list"}
-        )
+        ser = PublicProductSerializer(self.product, context={"view_action": "list"})
         self.assertEqual(ser.data["min_price"], 12500.5)
         self.assertEqual(ser.data["max_price"], 12500.5)
 

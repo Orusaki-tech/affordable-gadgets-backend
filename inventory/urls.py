@@ -47,7 +47,9 @@ router.register(r"stock-alerts", views.StockAlertsViewSet, basename="stock-alert
 
 # Brand & Lead Management
 router.register(r"brands", views.BrandViewSet, basename="brand")
-router.register(r"financing-providers", views.FinancingProviderViewSet, basename="financing-provider")
+router.register(
+    r"financing-providers", views.FinancingProviderViewSet, basename="financing-provider"
+)
 router.register(r"financing-offers", views.FinancingOfferViewSet, basename="financing-offer")
 router.register(r"leads", views.LeadViewSet, basename="lead")
 router.register(r"promotion-types", views.PromotionTypeViewSet, basename="promotion-type")

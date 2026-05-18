@@ -48,8 +48,8 @@ CUSTOMERS_REGISTERED = Counter(
     ["brand"],
 )
 
-ORDER_CREATIONS = Counter(
-    "order_creations_total",
+ORDERS_CREATED = Counter(
+    "orders_created_total",
     "Total orders created",
     ["brand", "order_source"],
 )

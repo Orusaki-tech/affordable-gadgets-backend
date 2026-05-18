@@ -1,7 +1,8 @@
-import pytest
 from decimal import Decimal
-from inventory.services.receipt_service import ReceiptService
 
+import pytest
+
+from inventory.services.receipt_service import ReceiptService
 
 pytestmark = pytest.mark.django_db
 
@@ -30,7 +31,9 @@ class TestGenerateReceiptNumber:
         assert len(number) > 0
 
     def test_unique_per_order(self, order):
-        from inventory.models import Order as OrderModel, Customer
+        from inventory.models import Customer
+        from inventory.models import Order as OrderModel
+
         n1 = ReceiptService.generate_receipt_number(order)
         c2 = Customer.objects.create(name="Test2", phone="+254700000002")
         o2 = OrderModel.objects.create(customer=c2, brand=order.brand)

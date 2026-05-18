@@ -274,4 +274,6 @@ class TestBuybackApproval:
         inventory_manager_api_client: APIClient,
         product: Any,
     ) -> None:
-        pytest.skip("Buyback units are auto-set to RETURNED by signal; non-returned buyback cannot exist via model create.")
+        pytest.skip(
+            "Buyback units are auto-set to RETURNED by signal; non-returned buyback cannot exist via model create."
+        )

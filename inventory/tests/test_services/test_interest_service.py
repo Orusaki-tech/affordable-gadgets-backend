@@ -1,10 +1,11 @@
-import pytest
-from decimal import Decimal
 from datetime import timedelta
+from decimal import Decimal
+
+import pytest
 from django.utils import timezone
+
 from inventory.models import Lead
 from inventory.services.interest_service import InterestService
-
 
 pytestmark = pytest.mark.django_db
 

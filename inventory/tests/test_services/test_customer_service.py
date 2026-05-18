@@ -1,7 +1,7 @@
 import pytest
+
 from inventory.models import Customer
 from inventory.services.customer_service import CustomerService
-
 
 pytestmark = pytest.mark.django_db
 
@@ -51,9 +51,7 @@ class TestGetOrCreateCustomer:
 
     def test_returns_existing_customer(self):
         Customer.objects.create(name="Old Name", phone="+254700000020")
-        customer, created = CustomerService.get_or_create_customer(
-            "New Name", "+254700000020"
-        )
+        customer, created = CustomerService.get_or_create_customer("New Name", "+254700000020")
         assert created is False
         assert customer.name == "New Name"
 

@@ -6,12 +6,12 @@ Tests cover main business flows: product browsing, article management, and order
 
 import pytest
 from django.contrib.auth import get_user_model
-from model_bakery import baker
-from rest_framework.test import APIClient
-from rest_framework import status
 from django.core.cache import cache
+from model_bakery import baker
+from rest_framework import status
+from rest_framework.test import APIClient
 
-from inventory.models import Product, ProductArticle, Order, InventoryUnit, Brand
+from inventory.models import Brand, InventoryUnit, Product, ProductArticle
 
 User = get_user_model()
 
@@ -42,8 +42,7 @@ def content_creator_user(db):
 @pytest.fixture
 def default_brand(db):
     brand, _ = Brand.objects.get_or_create(
-        code="AFFORDABLE_GADGETS",
-        defaults={"name": "Affordable Gadgets", "is_active": True}
+        code="AFFORDABLE_GADGETS", defaults={"name": "Affordable Gadgets", "is_active": True}
     )
     return brand
 
@@ -116,18 +115,46 @@ class TestProductListingEndpoint:
 
     def test_products_list_includes_published_only(self, api_client, db, default_brand):
         """Published products should appear in public list."""
-        published = baker.make(Product, product_name=baker.seq("Pub "), brand=baker.seq("Brand-P"), model_series=baker.seq("Series-P"), product_type=Product.ProductType.PHONE, is_published=True, is_global=True, is_discontinued=False)
+        published = baker.make(
+            Product,
+            product_name=baker.seq("Pub "),
+            brand=baker.seq("Brand-P"),
+            model_series=baker.seq("Series-P"),
+            product_type=Product.ProductType.PHONE,
+            is_published=True,
+            is_global=True,
+            is_discontinued=False,
+        )
         published.brands.add(default_brand)
-        baker.make(InventoryUnit, product_template=published, sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE, available_online=True, quantity=1, selling_price=500, cost_of_unit=400)
-        
-        unpublished = baker.make(Product, product_name=baker.seq("Unpub "), brand=baker.seq("Brand-U"), model_series=baker.seq("Series-U"), product_type=Product.ProductType.PHONE, is_published=False, is_global=True, is_discontinued=False)
+        baker.make(
+            InventoryUnit,
+            product_template=published,
+            sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+            available_online=True,
+            quantity=1,
+            selling_price=500,
+            cost_of_unit=400,
+        )
+
+        unpublished = baker.make(
+            Product,
+            product_name=baker.seq("Unpub "),
+            brand=baker.seq("Brand-U"),
+            model_series=baker.seq("Series-U"),
+            product_type=Product.ProductType.PHONE,
+            is_published=False,
+            is_global=True,
+            is_discontinued=False,
+        )
         unpublished.brands.add(default_brand)
-        
+
         response = api_client.get("/api/v1/public/products/")
         data = response.json()
         results = get_results(data)
         product_ids = [p.get("id") for p in results if isinstance(p, dict)]
-        assert published.id in product_ids, f"Published product {published.id} not found in {product_ids}"
+        assert published.id in product_ids, (
+            f"Published product {published.id} not found in {product_ids}"
+        )
         assert unpublished.id not in product_ids
 
     def test_products_list_includes_required_fields(self, api_client, sample_product, db):
@@ -139,25 +166,59 @@ class TestProductListingEndpoint:
         product = results[0]
         required_fields = ["id", "product_name", "product_type"]
         for field in required_fields:
-            assert field in product, f"Product missing required field: {field}. Keys: {product.keys()}"
+            assert field in product, (
+                f"Product missing required field: {field}. Keys: {product.keys()}"
+            )
 
     def test_products_list_supports_filtering(self, api_client, db, default_brand):
         """Products list should support filtering by product_type (using choice codes)."""
-        phone = baker.make(Product, product_name=baker.seq("Phone "), product_type=Product.ProductType.PHONE, is_published=True, is_global=True, is_discontinued=False)
+        phone = baker.make(
+            Product,
+            product_name=baker.seq("Phone "),
+            product_type=Product.ProductType.PHONE,
+            is_published=True,
+            is_global=True,
+            is_discontinued=False,
+        )
         phone.brands.add(default_brand)
-        baker.make(InventoryUnit, product_template=phone, sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE, available_online=True, quantity=1, selling_price=500, cost_of_unit=400)
-        
-        laptop = baker.make(Product, product_name=baker.seq("Laptop "), product_type=Product.ProductType.LAPTOP, is_published=True, is_global=True, is_discontinued=False)
+        baker.make(
+            InventoryUnit,
+            product_template=phone,
+            sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+            available_online=True,
+            quantity=1,
+            selling_price=500,
+            cost_of_unit=400,
+        )
+
+        laptop = baker.make(
+            Product,
+            product_name=baker.seq("Laptop "),
+            product_type=Product.ProductType.LAPTOP,
+            is_published=True,
+            is_global=True,
+            is_discontinued=False,
+        )
         laptop.brands.add(default_brand)
-        baker.make(InventoryUnit, product_template=laptop, sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE, available_online=True, quantity=1, selling_price=500, cost_of_unit=400)
-        
+        baker.make(
+            InventoryUnit,
+            product_template=laptop,
+            sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+            available_online=True,
+            quantity=1,
+            selling_price=500,
+            cost_of_unit=400,
+        )
+
         # Use choice value "PH" instead of human-readable "phone"
         response = api_client.get("/api/v1/public/products/?type=PH")
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         results = get_results(data)
         product_ids = [p.get("id") for p in results if isinstance(p, dict)]
-        assert phone.id in product_ids, f"Phone product {phone.id} not found in results {product_ids}"
+        assert phone.id in product_ids, (
+            f"Phone product {phone.id} not found in results {product_ids}"
+        )
 
 
 @pytest.mark.django_db
@@ -261,21 +322,28 @@ class TestAPIResponseFormats:
     def test_list_response_has_consistent_structure(self, api_client, db, default_brand):
         """List endpoints should have consistent structure."""
         products = baker.make(
-            Product, 
-            product_name=baker.seq("Format "), 
+            Product,
+            product_name=baker.seq("Format "),
             brand=baker.seq("Brand-F"),
             model_series=baker.seq("Series-F"),
-            product_type=Product.ProductType.PHONE, 
-            is_published=True, 
-            _quantity=3, 
-            is_global=True, 
-            is_discontinued=False
+            product_type=Product.ProductType.PHONE,
+            is_published=True,
+            _quantity=3,
+            is_global=True,
+            is_discontinued=False,
         )
         for p in products:
-
             p.brands.add(default_brand)
-            baker.make(InventoryUnit, product_template=p, sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE, available_online=True, quantity=1, selling_price=500, cost_of_unit=400)
-            
+            baker.make(
+                InventoryUnit,
+                product_template=p,
+                sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+                available_online=True,
+                quantity=1,
+                selling_price=500,
+                cost_of_unit=400,
+            )
+
         response = api_client.get("/api/v1/public/products/")
         data = response.json()
         assert isinstance(data, (dict, list))
@@ -309,7 +377,9 @@ class TestMultipartFormDataHandling:
             "article_thumbnail_image": test_file,
         }
         response = api_client.patch(
-            f"/api/inventory/products/{sample_product.id}/update_content/", payload, format="multipart"
+            f"/api/inventory/products/{sample_product.id}/update_content/",
+            payload,
+            format="multipart",
         )
         assert response.status_code < 500, f"Got {response.status_code}: {response.data}"
 
@@ -345,6 +415,6 @@ class TestCriticalBusinessFlows:
         """User should be able to browse products and view articles."""
         list_response = api_client.get("/api/v1/public/products/")
         assert list_response.status_code == status.HTTP_200_OK
-        
+
         detail_response = api_client.get(f"/api/v1/public/products/{sample_product.id}/")
         assert detail_response.status_code == status.HTTP_200_OK

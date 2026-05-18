@@ -386,7 +386,9 @@ class PublicProductSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(serializers.CharField(allow_null=True))
     def get_article_headline(self, obj):
-        if self.context.get("view_action") == "list" and not self.context.get("include_article_teaser"):
+        if self.context.get("view_action") == "list" and not self.context.get(
+            "include_article_teaser"
+        ):
             return None
         try:
             art = obj.article
@@ -1417,12 +1419,15 @@ class PublicPromotionSerializer(serializers.ModelSerializer):
             request = self.context.get("request")
             original_url = primary_image.image.url
             optimized_url = get_optimized_image_url(primary_image.image)
-            if (
-                request
-                and (original_url.startswith("/media/") or original_url.startswith("/static/"))
+            if request and (
+                original_url.startswith("/media/") or original_url.startswith("/static/")
             ):
                 absolute_url = request.build_absolute_uri(original_url)
-                return optimized_url if optimized_url and "cloudinary.com" in optimized_url else absolute_url
+                return (
+                    optimized_url
+                    if optimized_url and "cloudinary.com" in optimized_url
+                    else absolute_url
+                )
             return optimized_url or original_url
         return None
 

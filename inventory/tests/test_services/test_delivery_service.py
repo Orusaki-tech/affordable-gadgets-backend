@@ -1,8 +1,9 @@
-import pytest
 from decimal import Decimal
+
+import pytest
+
 from inventory.models import DeliveryRate
 from inventory.services.delivery_service import get_delivery_fee
-
 
 pytestmark = pytest.mark.django_db
 

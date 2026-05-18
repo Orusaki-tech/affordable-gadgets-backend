@@ -1,9 +1,10 @@
-import pytest
 from decimal import Decimal
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
+import pytest
+
 from inventory.models import PesapalPayment
 from inventory.services.pesapal_payment_service import PesapalPaymentService
-
 
 pytestmark = pytest.mark.django_db
 
@@ -26,7 +27,9 @@ class TestGetEffectiveOrderTotal:
 
     def test_both(self, order_with_units):
         total = PesapalPaymentService.get_effective_order_total(order_with_units, "BOTH")
-        items_total = sum((item.sub_total for item in order_with_units.order_items.all()), Decimal("0.00"))
+        items_total = sum(
+            (item.sub_total for item in order_with_units.order_items.all()), Decimal("0.00")
+        )
         delivery_fee = order_with_units.delivery_fee or Decimal("0.00")
         assert total == items_total + delivery_fee
 
@@ -47,19 +50,25 @@ class TestInitiatePayment:
         )
         with patch.object(PesapalPaymentService, "pesapal_service", create=True):
             service = PesapalPaymentService()
-            result = service.initiate_payment(order_with_units, callback_url="https://example.com/callback")
+            result = service.initiate_payment(
+                order_with_units, callback_url="https://example.com/callback"
+            )
             assert result["success"] is True
             assert result["order_tracking_id"] == "TRACK-EXISTING"
 
     def test_no_ipn_url_returns_error(self, order_with_units, settings):
         settings.PESAPAL_IPN_URL = ""
         service = PesapalPaymentService()
-        result = service.initiate_payment(order_with_units, callback_url="https://example.com/callback")
+        result = service.initiate_payment(
+            order_with_units, callback_url="https://example.com/callback"
+        )
         assert result["success"] is False
         assert "IPN" in result.get("error", "")
 
     @patch("inventory.services.pesapal_payment_service.PesapalService")
-    def test_successful_payment_initiation(self, mock_pesapal_cls, order_with_units, pesapal_payment_settings):
+    def test_successful_payment_initiation(
+        self, mock_pesapal_cls, order_with_units, pesapal_payment_settings
+    ):
         mock_service = MagicMock()
         mock_service.submit_order_request.return_value = (
             {"order_tracking_id": "TRACK-NEW", "redirect_url": "https://pay.pesapal.com/go"},
@@ -68,7 +77,9 @@ class TestInitiatePayment:
         mock_pesapal_cls.return_value = mock_service
 
         service = PesapalPaymentService()
-        result = service.initiate_payment(order_with_units, callback_url="https://example.com/callback")
+        result = service.initiate_payment(
+            order_with_units, callback_url="https://example.com/callback"
+        )
 
         assert result["success"] is True
         assert result["order_tracking_id"] == "TRACK-NEW"
@@ -77,13 +88,17 @@ class TestInitiatePayment:
         ).exists()
 
     @patch("inventory.services.pesapal_payment_service.PesapalService")
-    def test_pesapal_error_returns_error(self, mock_pesapal_cls, order_with_units, pesapal_payment_settings):
+    def test_pesapal_error_returns_error(
+        self, mock_pesapal_cls, order_with_units, pesapal_payment_settings
+    ):
         mock_service = MagicMock()
         mock_service.submit_order_request.return_value = (None, "API error")
         mock_pesapal_cls.return_value = mock_service
 
         service = PesapalPaymentService()
-        result = service.initiate_payment(order_with_units, callback_url="https://example.com/callback")
+        result = service.initiate_payment(
+            order_with_units, callback_url="https://example.com/callback"
+        )
 
         assert result["success"] is False
         assert result.get("error") is not None

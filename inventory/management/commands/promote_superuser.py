@@ -26,16 +26,12 @@ class Command(BaseCommand):
         if "@" in identifier:
             user = User.objects.filter(email__iexact=identifier).first()
             if not user:
-                self.stdout.write(
-                    self.style.ERROR(f'No user found with email "{identifier}".')
-                )
+                self.stdout.write(self.style.ERROR(f'No user found with email "{identifier}".'))
                 return
         else:
             user = User.objects.filter(username__iexact=identifier).first()
             if not user:
-                self.stdout.write(
-                    self.style.ERROR(f'No user found with username "{identifier}".')
-                )
+                self.stdout.write(self.style.ERROR(f'No user found with username "{identifier}".'))
                 return
 
         if user.is_superuser and user.is_staff:

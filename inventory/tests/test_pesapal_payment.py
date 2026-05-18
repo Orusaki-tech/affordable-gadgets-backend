@@ -6,7 +6,6 @@ These tests verify the most critical money-moving code path — payment processi
 from __future__ import annotations
 
 from decimal import Decimal
-from unittest.mock import PropertyMock, patch
 
 import pytest
 import responses
@@ -26,9 +25,7 @@ class TestPesapalIPNCallback:
 
     @responses.activate
     @override_settings(PESAPAL_CONSUMER_KEY="test-key", PESAPAL_CONSUMER_SECRET="test-secret")
-    def test_ipn_with_valid_tracking_id(
-        self, api_client: APIClient, order: Order
-    ) -> None:
+    def test_ipn_with_valid_tracking_id(self, api_client: APIClient, order: Order) -> None:
         pesapal_payment = PesapalPayment.objects.create(
             order=order,
             pesapal_order_tracking_id="tracking-123",
@@ -67,9 +64,7 @@ class TestPesapalIPNCallback:
             status.HTTP_400_BAD_REQUEST,
         )
 
-    def test_ipn_post_method(
-        self, api_client: APIClient, order: Order
-    ) -> None:
+    def test_ipn_post_method(self, api_client: APIClient, order: Order) -> None:
         PesapalPayment.objects.create(
             order=order,
             pesapal_order_tracking_id="post-tracking",
@@ -89,9 +84,7 @@ class TestPesapalIPNCallback:
 class TestPesapalPaymentStatusTransitions:
     """Verify payment status transitions are valid."""
 
-    def test_payment_created_as_pending(
-        self, order: Order
-    ) -> None:
+    def test_payment_created_as_pending(self, order: Order) -> None:
         payment = PesapalPayment.objects.create(
             order=order,
             pesapal_order_tracking_id="track-status-1",
@@ -101,9 +94,7 @@ class TestPesapalPaymentStatusTransitions:
         assert payment.status == PesapalPayment.StatusChoices.PENDING
         assert not payment.is_successful
 
-    def test_payment_transition_to_completed(
-        self, order: Order
-    ) -> None:
+    def test_payment_transition_to_completed(self, order: Order) -> None:
         payment = PesapalPayment.objects.create(
             order=order,
             pesapal_order_tracking_id="track-status-2",
@@ -120,9 +111,7 @@ class TestPesapalPaymentStatusTransitions:
         assert payment.status == PesapalPayment.StatusChoices.COMPLETED
         assert payment.is_successful
 
-    def test_payment_transition_to_failed(
-        self, order: Order
-    ) -> None:
+    def test_payment_transition_to_failed(self, order: Order) -> None:
         payment = PesapalPayment.objects.create(
             order=order,
             pesapal_order_tracking_id="track-status-3",
@@ -151,9 +140,7 @@ class TestPesapalPaymentStatusTransitions:
 class TestOrderPaymentStatusView:
     """Verify the payment status endpoint works correctly."""
 
-    def test_payment_status_endpoint(
-        self, api_client: APIClient, paid_order: Order
-    ) -> None:
+    def test_payment_status_endpoint(self, api_client: APIClient, paid_order: Order) -> None:
         PesapalPayment.objects.create(
             order=paid_order,
             pesapal_order_tracking_id="view-status-test",
@@ -167,9 +154,7 @@ class TestOrderPaymentStatusView:
         response = api_client.get(url)
         assert response.status_code == status.HTTP_200_OK, response.content
 
-    def test_payment_status_for_nonexistent_order(
-        self, api_client: APIClient
-    ) -> None:
+    def test_payment_status_for_nonexistent_order(self, api_client: APIClient) -> None:
         url = "/api/inventory/orders/00000000-0000-0000-0000-000000000000/payment_status/"
         response = api_client.get(url)
         assert response.status_code == status.HTTP_404_NOT_FOUND

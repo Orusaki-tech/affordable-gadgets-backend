@@ -5,13 +5,11 @@ These are the most critical money-moving code paths in the system.
 
 from __future__ import annotations
 
-from decimal import Decimal
-
 import pytest
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from inventory.models import Brand, InventoryUnit, Order, OrderItem, Product
+from inventory.models import Brand, InventoryUnit, Order, Product
 
 pytestmark = [pytest.mark.p0, pytest.mark.django_db]
 
@@ -192,9 +190,7 @@ class TestOrderStatusTransitions:
         order: Order,
     ) -> None:
         url = f"/api/inventory/orders/{order.order_id}/"
-        response = inventory_manager_api_client.patch(
-            url, {"status": "Canceled"}, format="json"
-        )
+        response = inventory_manager_api_client.patch(url, {"status": "Canceled"}, format="json")
         assert response.status_code == status.HTTP_200_OK, response.content
         order.refresh_from_db()
         assert order.status == Order.StatusChoices.CANCELED
@@ -216,9 +212,7 @@ class TestOrderStatusTransitions:
         paid_order: Order,
     ) -> None:
         url = f"/api/inventory/orders/{paid_order.order_id}/"
-        response = order_manager_api_client.patch(
-            url, {"status": "Delivered"}, format="json"
-        )
+        response = order_manager_api_client.patch(url, {"status": "Delivered"}, format="json")
         assert response.status_code == status.HTTP_200_OK, response.content
         paid_order.refresh_from_db()
         assert paid_order.status == Order.StatusChoices.DELIVERED

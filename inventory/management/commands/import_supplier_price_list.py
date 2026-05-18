@@ -188,7 +188,12 @@ class Command(BaseCommand):
         existing_by_name = {
             p.product_name: p
             for p in Product.objects.only(
-                "id", "product_name", "brand", "model_series", "product_type", "default_selling_price"
+                "id",
+                "product_name",
+                "brand",
+                "model_series",
+                "product_type",
+                "default_selling_price",
             )
         }
         existing_by_key = {
@@ -262,13 +267,9 @@ class Command(BaseCommand):
                                     )
                                 except Exception as exc:  # noqa: BLE001
                                     failed += 1
-                                    errors.append(
-                                        f"Row {idx} ({name}): price update failed: {exc}"
-                                    )
+                                    errors.append(f"Row {idx} ({name}): price update failed: {exc}")
                                     self.stdout.write(
-                                        self.style.ERROR(
-                                            f"FAIL price [{ptype}] {name}: {exc}"
-                                        )
+                                        self.style.ERROR(f"FAIL price [{ptype}] {name}: {exc}")
                                     )
                                     if stop_on_error:
                                         raise
@@ -301,9 +302,7 @@ class Command(BaseCommand):
                     payload["updated_by"] = created_by
 
                 if dry_run:
-                    price_note = (
-                        f" @ KES {csv_price}" if csv_price is not None else " (no price)"
-                    )
+                    price_note = f" @ KES {csv_price}" if csv_price is not None else " (no price)"
                     self.stdout.write(
                         f"DRY: would create {ptype} {name!r} (brand={brand}){price_note}"
                     )
@@ -364,17 +363,13 @@ class Command(BaseCommand):
         self.stdout.write(f"Skipped (exists): {skipped_existing}")
         self.stdout.write(f"Skipped (invalid): {skipped_invalid}")
         if update_prices:
-            self.stdout.write(
-                self.style.SUCCESS(f"Prices updated:  {price_updated}")
-            )
+            self.stdout.write(self.style.SUCCESS(f"Prices updated:  {price_updated}"))
             if price_skipped_set:
                 self.stdout.write(
                     f"Prices preserved (already set, pass --overwrite-existing-prices to force): {price_skipped_set}"
                 )
             if price_skipped_missing:
-                self.stdout.write(
-                    f"Prices missing in CSV (existing rows): {price_skipped_missing}"
-                )
+                self.stdout.write(f"Prices missing in CSV (existing rows): {price_skipped_missing}")
         else:
             self.stdout.write("Price updates: disabled (--no-update-prices)")
         if failed:

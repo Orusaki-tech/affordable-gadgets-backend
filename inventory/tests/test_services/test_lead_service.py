@@ -1,10 +1,11 @@
-import pytest
-from decimal import Decimal
-from django.utils import timezone
 from datetime import timedelta
+from decimal import Decimal
+
+import pytest
+from django.utils import timezone
+
 from inventory.models import Admin, AdminRole, InventoryUnit, Lead, Order
 from inventory.services.lead_service import LeadService
-
 
 pytestmark = pytest.mark.django_db
 
@@ -23,9 +24,7 @@ def lead_with_items(brand, customer, product, available_unit):
 
 
 class TestAutoAssignLead:
-    def test_assigns_to_salesperson_with_fewest_leads(
-        self, lead_with_items, brand, sales_admin
-    ):
+    def test_assigns_to_salesperson_with_fewest_leads(self, lead_with_items, brand, sales_admin):
         role = AdminRole.objects.get(name=AdminRole.RoleChoices.SALESPERSON)
         sales_admin.roles.add(role)
         sales_admin.brands.add(brand)
@@ -80,7 +79,9 @@ class TestConvertLeadToOrder:
         assert order.order_items.count() == 1
         assert order.order_items.first().inventory_unit == available_unit
 
-    def test_transitions_units_to_pending_payment(self, lead_with_items, sales_admin, available_unit):
+    def test_transitions_units_to_pending_payment(
+        self, lead_with_items, sales_admin, available_unit
+    ):
         lead_with_items.status = Lead.StatusChoices.CONTACTED
         lead_with_items.save()
         LeadService.convert_lead_to_order(lead_with_items, sales_admin)

@@ -21,7 +21,9 @@ class OrderEmailService:
             # Reload to reduce chances of stale/partial order data in signal handlers.
             order = (
                 Order.objects.select_related("customer__user")
-                .prefetch_related("order_items__inventory_unit__product_template", "order_items__bundle")
+                .prefetch_related(
+                    "order_items__inventory_unit__product_template", "order_items__bundle"
+                )
                 .get(pk=order.pk)
             )
 
@@ -39,7 +41,9 @@ class OrderEmailService:
                 customer.user.get_full_name() if customer.user else "Customer"
             )
 
-            items = order.order_items.select_related("inventory_unit__product_template", "bundle").all()
+            items = order.order_items.select_related(
+                "inventory_unit__product_template", "bundle"
+            ).all()
             item_lines = []
             computed_total = Decimal("0.00")
             for item in items:

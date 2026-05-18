@@ -371,9 +371,9 @@ class Product(models.Model):
           For accessories, this assumes `model_series` contains the accessory type.
           If `brand`/`model_series` are missing, we fall back to `product_name`.
         """
-        from django.utils.text import slugify
-        from django.db import IntegrityError
         from django.core.exceptions import ValidationError
+        from django.db import IntegrityError
+        from django.utils.text import slugify
 
         def _is_missing(value) -> bool:
             return not value or value.strip() == "" or value.strip().upper() == "N/A"
@@ -388,7 +388,9 @@ class Product(models.Model):
         # Hard validation for accessories: ensure model_series is provided.
         if self.product_type == Product.ProductType.ACCESSORY and _is_missing(self.model_series):
             raise ValidationError(
-                {"model_series": "Accessories require model_series. Please add model_series (e.g. Charger, Case, Earbuds)."}
+                {
+                    "model_series": "Accessories require model_series. Please add model_series (e.g. Charger, Case, Earbuds)."
+                }
             )
 
         # Prevent template duplicates at the model layer (so admin sees a friendly error).
@@ -421,12 +423,9 @@ class Product(models.Model):
                 structured_without_name = slugify(
                     f"{self.brand}-{self.model_series}-{self.product_type}".strip("-")
                 )
-                should_regenerate = (
-                    len(normalized_slug) < 3
-                    or (
-                        normalized_slug == structured_without_name
-                        and not _is_missing(self.product_name)
-                    )
+                should_regenerate = len(normalized_slug) < 3 or (
+                    normalized_slug == structured_without_name
+                    and not _is_missing(self.product_name)
                 )
 
                 if should_regenerate:
@@ -450,9 +449,7 @@ class Product(models.Model):
             # was cleared, keep the existing slug instead of regenerating.
             if self.pk:
                 existing_slug = (
-                    Product.objects.filter(pk=self.pk)
-                    .values_list("slug", flat=True)
-                    .first()
+                    Product.objects.filter(pk=self.pk).values_list("slug", flat=True).first()
                 )
                 if existing_slug and str(existing_slug).strip():
                     self.slug = existing_slug
@@ -723,14 +720,16 @@ class FinancingOffer(models.Model):
         WEEK = "week", "Week"
         MONTH = "month", "Month"
 
-    provider = models.ForeignKey(
-        FinancingProvider, on_delete=models.PROTECT, related_name="offers"
-    )
+    provider = models.ForeignKey(FinancingProvider, on_delete=models.PROTECT, related_name="offers")
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="financing_offers")
 
     # Pricing terms (manual)
-    deposit_amount = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
-    retail_amount = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
+    deposit_amount = models.DecimalField(
+        max_digits=10, decimal_places=2, validators=[MinValueValidator(0)]
+    )
+    retail_amount = models.DecimalField(
+        max_digits=10, decimal_places=2, validators=[MinValueValidator(0)]
+    )
     term_unit = models.CharField(
         max_length=10, choices=TermUnit.choices, null=True, blank=True, db_index=True
     )
@@ -780,7 +779,9 @@ class FinancingOffer(models.Model):
 
         if self.deposit_amount is not None and self.retail_amount is not None:
             if self.deposit_amount > self.retail_amount:
-                raise ValidationError({"deposit_amount": "Deposit amount cannot exceed retail amount."})
+                raise ValidationError(
+                    {"deposit_amount": "Deposit amount cannot exceed retail amount."}
+                )
 
 
 # -------------------------------------------------------------------------
@@ -1018,8 +1019,7 @@ class DeliveryRate(models.Model):
             models.UniqueConstraint(
                 fields=["county"],
                 name="uniq_delivery_active_county_no_ward",
-                condition=Q(is_active=True)
-                & (Q(ward__isnull=True) | Q(ward="")),
+                condition=Q(is_active=True) & (Q(ward__isnull=True) | Q(ward="")),
             ),
         ]
         indexes = [

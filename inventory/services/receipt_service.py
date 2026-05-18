@@ -99,7 +99,9 @@ class ReceiptService:
         payment_channel = "Walk-in / Manual"
         try:
             pesapal_payment = (
-                order.pesapal_payments.filter(status="COMPLETED").order_by("-completed_at", "-initiated_at").first()
+                order.pesapal_payments.filter(status="COMPLETED")
+                .order_by("-completed_at", "-initiated_at")
+                .first()
                 or order.pesapal_payments.order_by("-initiated_at").first()
             )
             if pesapal_payment:
@@ -117,9 +119,15 @@ class ReceiptService:
                 )
                 payment_channel = "Pesapal"
                 mapped_methods = set()
-                if any(token in payment_method for token in ["MPESA", "M-PESA", "MOBILE_MONEY", "MOBILE MONEY"]):
+                if any(
+                    token in payment_method
+                    for token in ["MPESA", "M-PESA", "MOBILE_MONEY", "MOBILE MONEY"]
+                ):
                     mapped_methods.add("mpesa")
-                if any(token in payment_method for token in ["BANK", "VISA", "MASTERCARD", "AMEX", "CARD", "BANK_TRANSFER"]):
+                if any(
+                    token in payment_method
+                    for token in ["BANK", "VISA", "MASTERCARD", "AMEX", "CARD", "BANK_TRANSFER"]
+                ):
                     mapped_methods.add("bank")
                 if "CASH" in payment_method:
                     mapped_methods.add("cash")
@@ -335,8 +343,15 @@ class ReceiptService:
             customer = order.customer
             customer_email = (
                 customer.email
-                or (customer.user.email if customer.user and hasattr(customer.user, "email") else None)
-                or (getattr(order, "source_lead", None) and getattr(order.source_lead, "customer_email", None))
+                or (
+                    customer.user.email
+                    if customer.user and hasattr(customer.user, "email")
+                    else None
+                )
+                or (
+                    getattr(order, "source_lead", None)
+                    and getattr(order.source_lead, "customer_email", None)
+                )
                 or (order.user.email if order.user and hasattr(order.user, "email") else None)
             )
 
