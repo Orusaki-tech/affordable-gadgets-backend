@@ -11,9 +11,33 @@ from threading import Lock
 
 from prometheus_client import REGISTRY, Counter, Gauge, Histogram, generate_latest
 
+
+_registry_names: set | None = None
+
+
+def _registry_has(name: str) -> bool:
+    """Check whether *name* is already registered (lazily cached)."""
+    global _registry_names
+    if _registry_names is None:
+        _registry_names = set(REGISTRY.get_names())
+    return name in _registry_names
+
+
+def _counter(name, documentation, labelnames=()):
+    if _registry_has(name):
+        return REGISTRY._names_to_collectors[name]
+    return Counter(name, documentation, labelnames)
+
+
+def _gauge(name, documentation, labelnames=()):
+    if _registry_has(name):
+        return REGISTRY._names_to_collectors[name]
+    return Gauge(name, documentation, labelnames)
+
+
 # ── Prometheus Metrics ────────────────────────────────────────────
 
-HTTP_REQUESTS_TOTAL = Counter(
+HTTP_REQUESTS_TOTAL = _counter(
     "http_requests_total",
     "Total HTTP requests processed",
     ["method", "endpoint", "status_code", "brand"],
@@ -26,35 +50,35 @@ HTTP_REQUEST_DURATION_SECONDS = Histogram(
     buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10),
 )
 
-ORDERS_TOTAL = Counter("orders_total", "Total orders placed", ["status", "payment_method", "brand"])
+ORDERS_TOTAL = _counter("orders_total", "Total orders placed", ["status", "payment_method", "brand"])
 
-PAYMENTS_TOTAL = Counter("payments_total", "Total payment attempts", ["method", "status", "brand"])
+PAYMENTS_TOTAL = _counter("payments_total", "Total payment attempts", ["method", "status", "brand"])
 
-REVENUE_EARNED = Counter(
+REVENUE_EARNED = _counter(
     "revenue_earned_total",
     "Cumulative revenue earned from completed payments",
     ["brand"],
 )
 
-LEADS_CREATED = Counter(
+LEADS_CREATED = _counter(
     "leads_created_total",
     "Total leads created",
     ["brand"],
 )
 
-CUSTOMERS_REGISTERED = Counter(
+CUSTOMERS_REGISTERED = _counter(
     "customers_registered_total",
     "Total customers registered",
     ["brand"],
 )
 
-ORDERS_CREATED = Counter(
+ORDERS_CREATED = _counter(
     "orders_created_total",
     "Total orders created",
     ["brand", "order_source"],
 )
 
-LEADS_CONVERTED = Counter(
+LEADS_CONVERTED = _counter(
     "leads_converted_total",
     "Total leads converted to orders",
     ["brand"],
