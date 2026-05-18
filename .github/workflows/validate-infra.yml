@@ -47,15 +47,17 @@ jobs:
           ansible --version
 
       - name: Validate Ansible syntax
+        working-directory: deploy/ansible
         run: |
-          for playbook in deploy/ansible/playbooks/*.yml; do
+          for playbook in playbooks/*.yml; do
             echo "Checking: $playbook"
             ansible-playbook --syntax-check "$playbook" --list-tasks 2>&1 | head -20
           done
 
       - name: Lint Ansible roles
+        working-directory: deploy/ansible
         run: |
-          ansible-lint deploy/ansible/playbooks/ --exclude deploy/ansible/secrets/ 2>&1 || true
+          ansible-lint playbooks/ --exclude secrets/ 2>&1 || true
         continue-on-error: true
 
   deploy-monitoring:
@@ -83,6 +85,7 @@ jobs:
         run: pip install ansible
 
       - name: Deploy monitoring via Ansible
+        working-directory: deploy/ansible
         run: |
-          ansible-playbook deploy/ansible/playbooks/monitoring.yml \
-            -i deploy/ansible/inventory/production
+          ansible-playbook playbooks/monitoring.yml \
+            -i inventory/production
