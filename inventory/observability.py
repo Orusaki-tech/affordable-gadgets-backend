@@ -259,24 +259,20 @@ def refresh_business_metrics():
             brand_codes = ["AFFORDABLE_GADGETS"]
 
         for bc in brand_codes:
-            # Resolve brand name for Product.brand (CharField, not FK)
-            try:
-                brand_name = Brand.objects.get(code=bc).name
-            except Brand.DoesNotExist:
-                brand_name = bc.title()
-
             # Revenue from COMPLETED payments
             rev = PesapalPayment.objects.filter(
                 order__brand__code=bc, status="COMPLETED"
             ).aggregate(total=Coalesce(Sum("amount"), Decimal("0")))["total"]
             REVENUE_TOTAL.labels(brand=bc, product_type="all").set(float(rev))
 
+            brand_filter = Q(product_template__brands__code=bc) | Q(product_template__brands__isnull=True)
+
             # Gross margin: revenue - cost of goods sold for SOLD units
             sold_cost = InventoryUnit.objects.filter(
-                sale_status="SD", product_template__brand=brand_name
+                brand_filter, sale_status="SD"
             ).aggregate(total=Coalesce(Sum("cost_of_unit"), Decimal("0")))["total"]
             sold_revenue = InventoryUnit.objects.filter(
-                sale_status="SD", product_template__brand=brand_name
+                brand_filter, sale_status="SD"
             ).aggregate(total=Coalesce(Sum("selling_price"), Decimal("0")))["total"]
             margin = float(sold_revenue) - float(sold_cost)
             GROSS_MARGIN_TOTAL.labels(brand=bc, product_type="all").set(margin)
@@ -311,7 +307,7 @@ def refresh_business_metrics():
             try:
                 for status_code in ["AV", "SD", "RS", "RT", "PP"]:
                     val = InventoryUnit.objects.filter(
-                        sale_status=status_code, product_template__brand=brand_name
+                        brand_filter, sale_status=status_code
                     ).aggregate(total=Coalesce(Sum("selling_price"), Decimal("0")))["total"]
                     INVENTORY_VALUE.labels(brand=bc, status=status_code).set(float(val))
             except Exception:
