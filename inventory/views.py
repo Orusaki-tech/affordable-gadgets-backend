@@ -70,13 +70,19 @@ class RecordObservabilityEventView(APIView):
         event_type = request.data.get('event_type')
         if event_type == 'whatsapp_click':
             product_id = request.data.get('product_id')
+            try:
+                # Validate that product_id is an integer
+                product_id_int = int(product_id)
+            except (ValueError, TypeError):
+                return Response({"error": "product_id must be a valid integer."}, status=status.HTTP_400_BAD_REQUEST)
+
             if not product_id:
                 return Response({"error": "product_id required for whatsapp_click"}, status=status.HTTP_400_BAD_REQUEST)
 
             brand_code = getattr(request, 'brand', None)
             brand_code = brand_code.code if brand_code else "AFFORDABLE_GADGETS"
 
-            WHATSAPP_CLICKS_TOTAL.labels(product_id=str(product_id), brand=brand_code).inc()
+            WHATSAPP_CLICKS_TOTAL.labels(product_id=str(product_id_int), brand=brand_code).inc()
             return Response({"status": "ok"}, status=status.HTTP_202_ACCEPTED)
 
         return Response({"error": "invalid event_type"}, status=status.HTTP_400_BAD_REQUEST)
