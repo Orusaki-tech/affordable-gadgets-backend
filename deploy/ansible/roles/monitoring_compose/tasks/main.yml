@@ -72,6 +72,20 @@
     dest: "{{ compose_root }}/docker-compose.tunnel.yml"
     mode: "0644"
 
+- name: Stop monitoring stack before plugin cleanup
+  command: docker compose -f {{ compose_root }}/docker-compose.monitoring.yml down
+  args:
+    chdir: "{{ compose_root }}"
+  ignore_errors: true
+
+- name: Remove old, incompatible plugins from Grafana
+  command: "docker run --rm -v {{ compose_root }}/grafana_data:/var/lib/grafana busybox rm -rf /var/lib/grafana/plugins/{{ item }}"
+  loop:
+    - grafana-pyroscope-app
+    - grafana-exploretraces-app
+    - grafana-lokiexplore-app
+  ignore_errors: true
+
 - name: Start monitoring stack
   command: docker compose -f {{ compose_root }}/docker-compose.monitoring.yml --env-file {{ compose_root }}/monitoring/grafana.env up -d --remove-orphans
   args:
