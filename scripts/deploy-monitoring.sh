@@ -35,11 +35,12 @@ ssh_cmd() {
 ssh_cmd "mkdir -p $COMPOSE_ROOT/monitoring/prometheus $COMPOSE_ROOT/monitoring/grafana/datasources $COMPOSE_ROOT/monitoring/grafana/dashboards $COMPOSE_ROOT/monitoring/tunnel"
 
 # ── render configs via Python ─────────────────────────────────────────────────
-DEPLOY_DIR="$(cd "$(dirname "$0")/../deploy/ansible" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+DEPLOY_DIR="$SCRIPT_DIR/../deploy/ansible"
 WORK_DIR=$(mktemp -d)
 trap 'rm -rf $WORK_DIR' EXIT
 
-python3 "$DEPLOY_DIR/../scripts/render_monitoring_templates.py" \
+python3 "$SCRIPT_DIR/render_monitoring_templates.py" \
   "$DEPLOY_DIR/roles/monitoring_compose/templates" \
   "$WORK_DIR" \
   "$COMPOSE_ROOT" \
