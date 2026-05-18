@@ -3,12 +3,13 @@ on:
   pull_request:
     paths:
       - 'deploy/**'
-      - 'scripts/validate-monitoring-configs.sh'
+      - 'scripts/**'
       - '.github/workflows/validate-infra.yml'
   push:
     branches: [main]
     paths:
       - 'deploy/**'
+      - 'scripts/**'
       - '.github/workflows/validate-infra.yml'
 
 concurrency:
