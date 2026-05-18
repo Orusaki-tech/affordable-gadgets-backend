@@ -11,6 +11,7 @@ domain_root: affordable-gadgetske.com
 api_public_host: "api.{{ domain_root }}"
 shop_public_host: "www.{{ domain_root }}"
 admin_public_host: "admin.{{ domain_root }}"
+grafana_public_host: "grafana.{{ domain_root }}"
 
 # Staging hostnames (override in group_vars/staging.yml)
 api_staging_host: "api-staging.{{ domain_root }}"
