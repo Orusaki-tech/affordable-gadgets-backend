@@ -129,6 +129,12 @@ def refresh_business_metrics():
             brand_codes = ["AFFORDABLE_GADGETS"]
 
         for bc in brand_codes:
+            # Resolve brand name for Product.brand (CharField, not FK)
+            try:
+                brand_name = Brand.objects.get(code=bc).name
+            except Brand.DoesNotExist:
+                brand_name = bc.title()
+
             # Revenue from COMPLETED payments
             rev = (
                 PesapalPayment.objects.filter(
@@ -140,12 +146,12 @@ def refresh_business_metrics():
             # Gross margin: revenue - cost of goods sold for SOLD units
             sold_cost = (
                 InventoryUnit.objects.filter(
-                    sale_status="SD", product_template__brand__code=bc
+                    sale_status="SD", product_template__brand=brand_name
                 ).aggregate(total=Coalesce(Sum("cost_of_unit"), Decimal("0")))["total"]
             )
             sold_revenue = (
                 InventoryUnit.objects.filter(
-                    sale_status="SD", product_template__brand__code=bc
+                    sale_status="SD", product_template__brand=brand_name
                 ).aggregate(total=Coalesce(Sum("selling_price"), Decimal("0")))["total"]
             )
             margin = float(sold_revenue) - float(sold_cost)
@@ -176,7 +182,7 @@ def refresh_business_metrics():
             for status_code in ["AV", "SD", "RS", "RT", "PP"]:
                 val = (
                     InventoryUnit.objects.filter(
-                        sale_status=status_code, product_template__brand__code=bc
+                        sale_status=status_code, product_template__brand=brand_name
                     ).aggregate(total=Coalesce(Sum("selling_price"), Decimal("0")))["total"]
                 )
                 INVENTORY_VALUE.labels(brand=bc, status=status_code).set(float(val))

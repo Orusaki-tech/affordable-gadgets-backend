@@ -84,28 +84,27 @@ jobs:
       - name: Install Ansible
         run: pip install ansible
 
-      - name: Setup SSH key and config
+      - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/ci_deploy_key
           chmod 600 ~/.ssh/ci_deploy_key
-          cat >> ~/.ssh/config << 'EOF'
-          Host monitoring-iap
-            HostName 127.0.0.1
-            User affordablegadgetske_gmail_com
-            IdentityFile ~/.ssh/ci_deploy_key
-            StrictHostKeyChecking no
-            UserKnownHostsFile /dev/null
-            ProxyCommand gcloud compute start-iap-tunnel affordable-gadgets-production-monitoring 22 --listen-on-stdin --project=gmail-486411 --zone=us-east1-b
-          EOF
-          chmod 600 ~/.ssh/config
 
-      - name: Deploy monitoring via Ansible
+      - name: Deploy monitoring via Ansible (with IAP tunnel)
         working-directory: deploy/ansible
         run: |
+          gcloud compute start-iap-tunnel affordable-gadgets-production-monitoring 22 \
+            --project=gmail-486411 --zone=us-east1-b \
+            --local-host-port=0.0.0.0:12345 &
+          TUNNEL_PID=$!
+          sleep 5
           ansible-playbook playbooks/monitoring.yml \
             -i inventory/production/hosts.yml \
+            -e ansible_host=127.0.0.1 \
+            -e ansible_port=12345 \
             -e ansible_user=affordablegadgetske_gmail_com \
             -e ansible_private_key_file=~/.ssh/ci_deploy_key \
-            -e ansible_ssh_common_args='-F ~/.ssh/config' \
-            -e ansible_host=monitoring-iap
+            -e ansible_ssh_extra_args='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+          ANSIBLE_EXIT=$?
+          kill $TUNNEL_PID 2>/dev/null
+          exit $ANSIBLE_EXIT
