@@ -15,18 +15,16 @@ from prometheus_client import REGISTRY, Counter, Gauge, Histogram, generate_late
 _registry_names: set | None = None
 
 
-def _registry_has(name: str) -> bool:
-    """Check whether *name* is already registered (lazily cached)."""
-    global _registry_names
-    if _registry_names is None:
-        _registry_names = set(REGISTRY._names_to_collectors.keys())
-    return name in _registry_names
-
-
 def _counter(name, documentation, labelnames=()):
-    if _registry_has(name):
-        return REGISTRY._names_to_collectors[name]
-    return Counter(name, documentation, labelnames)
+    try:
+        return Counter(name, documentation, labelnames)
+    except ValueError:
+        existing = REGISTRY._names_to_collectors.get(name, None)
+        if existing is None:
+            # Try with stripped _total (OpenMetrics convention)
+            canonical = name[:-6] if name.endswith("_total") else name
+            existing = REGISTRY._names_to_collectors.get(canonical)
+        return existing if existing is not None else Counter(name, documentation, labelnames)
 
 
 def _gauge(name, documentation, labelnames=()):
@@ -72,8 +70,8 @@ CUSTOMERS_REGISTERED = _counter(
     ["brand"],
 )
 
-ORDERS_CREATED = _counter(
-    "orders_created_total",
+NEW_ORDERS_TOTAL = _counter(
+    "new_orders_total",
     "Total orders created",
     ["brand", "order_source"],
 )

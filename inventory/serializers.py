@@ -2447,9 +2447,9 @@ class OrderSerializer(serializers.ModelSerializer):
 
             # Track order creation
             try:
-                from inventory.observability import ORDERS_CREATED
+                from inventory.observability import NEW_ORDERS_TOTAL
 
-                ORDERS_CREATED.labels(
+                NEW_ORDERS_TOTAL.labels(
                     brand=order.brand.code if order.brand else "unknown",
                     order_source=validated_data.get("order_source", "unknown"),
                 ).inc()

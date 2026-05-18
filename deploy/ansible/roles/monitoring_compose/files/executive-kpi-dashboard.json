@@ -38,7 +38,7 @@
       "title": "Orders Created (${period})",
       "type": "stat",
       "gridPos": {"x": 4, "y": 0, "w": 4, "h": 3},
-      "targets": [{"expr": "sum(increase(orders_created_total[$period])) or vector(0)", "legendFormat": "Orders"}],
+      "targets": [{"expr": "sum(increase(new_orders_total[$period])) or vector(0)", "legendFormat": "Orders"}],
       "fieldConfig": {"defaults": {"color": {"mode": "none"}, "thresholds": {"steps": [{"color": "green"}]}}}
     },
     {
