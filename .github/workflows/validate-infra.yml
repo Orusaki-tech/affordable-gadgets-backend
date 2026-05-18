@@ -84,11 +84,21 @@ jobs:
       - name: Install Ansible
         run: pip install ansible
 
-      - name: Setup SSH key
+      - name: Setup SSH key and config
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/ci_deploy_key
           chmod 600 ~/.ssh/ci_deploy_key
+          cat >> ~/.ssh/config << 'EOF'
+          Host monitoring-iap
+            HostName 127.0.0.1
+            User affordablegadgetske_gmail_com
+            IdentityFile ~/.ssh/ci_deploy_key
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+            ProxyCommand gcloud compute start-iap-tunnel affordable-gadgets-production-monitoring 22 --listen-on-stdin --project=gmail-486411 --zone=us-east1-b
+          EOF
+          chmod 600 ~/.ssh/config
 
       - name: Deploy monitoring via Ansible
         working-directory: deploy/ansible
@@ -97,4 +107,5 @@ jobs:
             -i inventory/production/hosts.yml \
             -e ansible_user=affordablegadgetske_gmail_com \
             -e ansible_private_key_file=~/.ssh/ci_deploy_key \
-            -e 'ansible_ssh_common_args=-o ProxyCommand="gcloud compute start-iap-tunnel affordable-gadgets-production-monitoring 22 --listen-on-stdin --project=gmail-486411 --zone=us-east1-b"'
+            -e ansible_ssh_common_args='-F ~/.ssh/config' \
+            -e ansible_host=monitoring-iap
