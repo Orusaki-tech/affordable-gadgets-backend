@@ -88,4 +88,4 @@ jobs:
         working-directory: deploy/ansible
         run: |
           ansible-playbook playbooks/monitoring.yml \
-            -i inventory/production
+            -i inventory/production/hosts.yml
