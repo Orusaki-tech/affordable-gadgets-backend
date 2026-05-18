@@ -453,8 +453,9 @@
       }
     },
     {
-      "title": "Active Carts (Total)",
+      "title": "Unique Active Carts",
       "type": "stat",
+      "datasource": "JSON API",
       "gridPos": {
         "x": 15,
         "y": 9,
@@ -463,19 +464,91 @@
       },
       "targets": [
         {
-          "expr": "sum(carts_total{status='total'}) - sum(carts_total{status='submitted'})",
-          "legendFormat": "Active Carts"
+          "refId": "A",
+          "type": "jsonapi",
+          "urlPath": "/api/inventory/observability/cart-analytics/",
+          "method": "GET",
+          "fields": [
+            {
+              "language": "jsonpath",
+              "path": "$.metrics.active_carts_total"
+            }
+          ]
         }
       ],
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "none"
+          }
+        }
+      }
+    },
+    {
+      "title": "Items in Active Carts",
+      "type": "stat",
+      "datasource": "JSON API",
+      "gridPos": {
+        "x": 18,
+        "y": 9,
+        "w": 3,
+        "h": 3
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "jsonapi",
+          "urlPath": "/api/inventory/observability/cart-analytics/",
+          "method": "GET",
+          "fields": [
+            {
+              "language": "jsonpath",
+              "path": "$.metrics.active_items_total"
+            }
+          ]
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "none"
+          }
+        }
+      }
+    },
+    {
+      "title": "Stale/Abandoned Carts (>2h)",
+      "type": "stat",
+      "datasource": "JSON API",
+      "gridPos": {
+        "x": 21,
+        "y": 9,
+        "w": 3,
+        "h": 3
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "jsonapi",
+          "urlPath": "/api/inventory/observability/cart-analytics/",
+          "method": "GET",
+          "fields": [
+            {
+              "language": "jsonpath",
+              "path": "$.metrics.stale_carts_total"
+            }
+          ]
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
           },
           "thresholds": {
             "steps": [
               {
-                "color": "green"
+                "color": "orange"
               }
             ]
           }
@@ -566,7 +639,7 @@
       "type": "piechart",
       "gridPos": {
         "x": 0,
-        "y": 12,
+        "y": 18,
         "w": 8,
         "h": 7
       },
@@ -587,7 +660,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 8,
-        "y": 12,
+        "y": 18,
         "w": 8,
         "h": 7
       },
@@ -615,7 +688,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 16,
-        "y": 12,
+        "y": 18,
         "w": 8,
         "h": 7
       },
@@ -644,7 +717,7 @@
       "type": "table",
       "gridPos": {
         "x": 0,
-        "y": 19,
+        "y": 25,
         "w": 12,
         "h": 7
       },
@@ -669,7 +742,7 @@
       "type": "stat",
       "gridPos": {
         "x": 12,
-        "y": 19,
+        "y": 25,
         "w": 3,
         "h": 3
       },
@@ -708,7 +781,7 @@
       "type": "stat",
       "gridPos": {
         "x": 15,
-        "y": 19,
+        "y": 25,
         "w": 3,
         "h": 3
       },
@@ -745,7 +818,7 @@
       "type": "stat",
       "gridPos": {
         "x": 18,
-        "y": 19,
+        "y": 25,
         "w": 3,
         "h": 3
       },
@@ -776,6 +849,37 @@
           }
         }
       }
+    },
+    {
+      "title": "Most Popular Items in Carts",
+      "type": "table",
+      "datasource": "JSON API",
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 12,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "jsonapi",
+          "urlPath": "/api/inventory/observability/cart-analytics/",
+          "method": "GET",
+          "fields": [
+            {
+              "language": "jsonpath",
+              "path": "$.popular_products[*].product_name",
+              "name": "Product"
+            },
+            {
+              "language": "jsonpath",
+              "path": "$.popular_products[*].quantity_in_carts",
+              "name": "Quantity in Carts"
+            }
+          ]
+        }
+      ]
     }
   ]
 }

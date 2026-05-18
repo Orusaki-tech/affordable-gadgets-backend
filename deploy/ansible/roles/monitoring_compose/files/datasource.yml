@@ -18,6 +18,20 @@ datasources:
       authenticationType: gce
       defaultProject: gmail-486411
 
+  - name: JSON API
+    type: marcusolsson-json-datasource
+    url: http://web:8000
+    access: proxy
+    basicAuth: false
+    isDefault: false
+    editable: true
+    jsonData:
+      queryParams: ""
+    secureJsonData:
+      httpHeaderValue1: "Token ${GF_JSON_API_TOKEN}"
+    jsonData:
+      httpHeaderName1: "Authorization"
+
   # Google Cloud Trace is not available as a built-in / community datasource
   # in Grafana OSS. View traces at:
   # https://console.cloud.google.com/traces?project=gmail-486411
