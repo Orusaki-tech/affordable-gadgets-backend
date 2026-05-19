@@ -205,7 +205,7 @@
       },
       "targets": [
         {
-          "expr": "sum(max(rate(payments[5m])) by (method, status))",
+          "expr": "sum(max(rate(payments_cumulative[5m])) by (method, status))",
           "legendFormat": "Payments / 5m",
           "datasource": {
             "type": "prometheus",

@@ -641,6 +641,38 @@
       "id": 15
     },
     {
+      "title": "Active Items",
+      "type": "stat",
+      "datasource": {
+        "type": "datasource",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 4,
+        "y": 12,
+        "w": 4,
+        "h": 3
+      },
+      "targets": [
+        {
+          "expr": "max(cart_active_items)",
+          "instant": true,
+          "datasource": {
+            "type": "datasource",
+            "uid": "prometheus"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          }
+        }
+      },
+      "id": 28
+    },
+    {
       "title": "Items in Active Carts",
       "type": "table",
       "datasource": {
@@ -650,7 +682,7 @@
       "gridPos": {
         "x": 0,
         "y": 15,
-        "w": 12,
+        "w": 24,
         "h": 6
       },
       "targets": [
@@ -706,7 +738,20 @@
             ]
           }
         ]
-      }
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "Value": "Count"
+            }
+          }
+        }
+      ]
     },
     {
       "title": "Stale/Abandoned Carts (>2h)",
@@ -716,7 +761,7 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 4,
+        "x": 8,
         "y": 12,
         "w": 4,
         "h": 3
@@ -756,7 +801,7 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 16,
+        "x": 12,
         "y": 12,
         "w": 4,
         "h": 3
@@ -792,7 +837,7 @@
       "title": "On-Time Delivery",
       "type": "gauge",
       "gridPos": {
-        "x": 8,
+        "x": 16,
         "y": 12,
         "w": 4,
         "h": 3
@@ -840,7 +885,7 @@
       "title": "Sell-Through Rate",
       "type": "stat",
       "gridPos": {
-        "x": 12,
+        "x": 20,
         "y": 12,
         "w": 4,
         "h": 3
@@ -1038,7 +1083,7 @@
       "gridPos": {
         "x": 12,
         "y": 28,
-        "w": 3,
+        "w": 4,
         "h": 3
       },
       "targets": [
@@ -1083,9 +1128,9 @@
       "title": "p95 Latency (5m)",
       "type": "stat",
       "gridPos": {
-        "x": 15,
+        "x": 16,
         "y": 28,
-        "w": 3,
+        "w": 4,
         "h": 3
       },
       "targets": [
@@ -1129,9 +1174,9 @@
       "title": "Uptime (30d)",
       "type": "stat",
       "gridPos": {
-        "x": 18,
+        "x": 20,
         "y": 28,
-        "w": 3,
+        "w": 4,
         "h": 3
       },
       "targets": [
