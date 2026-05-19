@@ -611,8 +611,8 @@
       "title": "Unique Active Carts",
       "type": "stat",
       "datasource": {
-        "type": "marcusolsson-json-datasource",
-        "uid": "json-api"
+        "type": "datasource",
+        "uid": "prometheus"
       },
       "gridPos": {
         "x": 0,
@@ -622,19 +622,12 @@
       },
       "targets": [
         {
-          "refId": "A",
-          "type": "jsonapi",
-          "urlPath": "/api/inventory/observability/cart-analytics/",
-          "method": "GET",
-          "fields": [
-            {
-              "language": "jsonpath",
-              "path": "$.metrics.active_carts_total"
-            }
-          ],
+          "expr": "max(cart_active_carts)",
+          "legendFormat": "Active Carts",
+          "instant": true,
           "datasource": {
-            "type": "marcusolsson-json-datasource",
-            "uid": "json-api"
+            "type": "datasource",
+            "uid": "prometheus"
           }
         }
       ],
@@ -651,8 +644,8 @@
       "title": "Items in Active Carts",
       "type": "table",
       "datasource": {
-        "type": "marcusolsson-json-datasource",
-        "uid": "json-api"
+        "type": "datasource",
+        "uid": "prometheus"
       },
       "gridPos": {
         "x": 0,
@@ -662,25 +655,13 @@
       },
       "targets": [
         {
-          "refId": "A",
-          "type": "jsonapi",
-          "urlPath": "/api/inventory/observability/cart-analytics/",
-          "method": "GET",
-          "fields": [
-            {
-              "language": "jsonpath",
-              "path": "$.popular_products[*].product_name",
-              "name": "Item"
-            },
-            {
-              "language": "jsonpath",
-              "path": "$.popular_products[*].quantity_in_carts",
-              "name": "Count"
-            }
-          ],
+          "expr": "sort_desc(max(cart_popular_items) by (product_name))",
+          "legendFormat": "Count",
+          "format": "table",
+          "instant": true,
           "datasource": {
-            "type": "marcusolsson-json-datasource",
-            "uid": "json-api"
+            "type": "datasource",
+            "uid": "prometheus"
           }
         }
       ],
@@ -711,12 +692,16 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Item"
+              "options": "product_name"
             },
             "properties": [
               {
                 "id": "custom.displayMode",
                 "value": "auto"
+              },
+              {
+                "id": "custom.filterable",
+                "value": true
               }
             ]
           }
@@ -727,8 +712,8 @@
       "title": "Stale/Abandoned Carts (>2h)",
       "type": "stat",
       "datasource": {
-        "type": "marcusolsson-json-datasource",
-        "uid": "json-api"
+        "type": "datasource",
+        "uid": "prometheus"
       },
       "gridPos": {
         "x": 4,
@@ -738,19 +723,12 @@
       },
       "targets": [
         {
-          "refId": "A",
-          "type": "jsonapi",
-          "urlPath": "/api/inventory/observability/cart-analytics/",
-          "method": "GET",
-          "fields": [
-            {
-              "language": "jsonpath",
-              "path": "$.metrics.stale_carts_total"
-            }
-          ],
+          "expr": "max(cart_stale_carts)",
+          "legendFormat": "Stale Carts",
+          "instant": true,
           "datasource": {
-            "type": "marcusolsson-json-datasource",
-            "uid": "json-api"
+            "type": "datasource",
+            "uid": "prometheus"
           }
         }
       ],
@@ -769,6 +747,46 @@
         }
       },
       "id": 17
+    },
+    {
+      "title": "Items in Stale Carts",
+      "type": "stat",
+      "datasource": {
+        "type": "datasource",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 12,
+        "w": 4,
+        "h": 3
+      },
+      "targets": [
+        {
+          "expr": "max(cart_stale_items)",
+          "legendFormat": "Items",
+          "instant": true,
+          "datasource": {
+            "type": "datasource",
+            "uid": "prometheus"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "orange"
+              }
+            ]
+          }
+        }
+      },
+      "id": 27
     },
     {
       "title": "On-Time Delivery",

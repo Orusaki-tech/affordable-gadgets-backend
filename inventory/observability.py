@@ -281,6 +281,41 @@ PAYMENTS_CUMULATIVE = Gauge(
     multiprocess_mode="livemostrecent",
 )
 
+CART_ACTIVE_CARTS = Gauge(
+    "cart_active_carts",
+    "Active (unsubmitted) carts count",
+    ["brand"],
+    multiprocess_mode="livemostrecent",
+)
+
+CART_ACTIVE_ITEMS = Gauge(
+    "cart_active_items",
+    "Items in active carts",
+    ["brand"],
+    multiprocess_mode="livemostrecent",
+)
+
+CART_STALE_CARTS = Gauge(
+    "cart_stale_carts",
+    "Stale carts (not updated in 2h) count",
+    ["brand"],
+    multiprocess_mode="livemostrecent",
+)
+
+CART_STALE_ITEMS = Gauge(
+    "cart_stale_items",
+    "Items in stale carts",
+    ["brand"],
+    multiprocess_mode="livemostrecent",
+)
+
+CART_POPULAR_ITEMS = Gauge(
+    "cart_popular_items",
+    "Popular items in active carts by product name",
+    ["brand", "product_name"],
+    multiprocess_mode="livemostrecent",
+)
+
 # ── Gauge Refresh ────────────────────────────────────────────────────────
 
 _last_refresh = 0.0
@@ -302,14 +337,18 @@ def refresh_business_metrics():
         return
     try:
         _last_refresh = now
+        from datetime import timedelta
         from decimal import Decimal
 
         from django.db.models import F, Q, Sum
         from django.db.models.functions import Coalesce
 
+        from django.utils import timezone
+
         from inventory.models import (
             Brand,
             Cart,
+            CartItem,
             Customer,
             InventoryUnit,
             Lead,
@@ -354,6 +393,41 @@ def refresh_business_metrics():
             submitted = Cart.objects.filter(brand__code=bc, is_submitted=True).count()
             CARTS_TOTAL.labels(brand=bc, status="total").set(all_carts)
             CARTS_TOTAL.labels(brand=bc, status="submitted").set(submitted)
+
+            # Cart analytics (active unsubmitted carts)
+            try:
+                active_carts = Cart.objects.filter(brand__code=bc, is_submitted=False)
+                total_active_carts = active_carts.count()
+                total_items = CartItem.objects.filter(cart__in=active_carts).aggregate(
+                    total_qty=Sum("quantity")
+                )["total_qty"] or 0
+                CART_ACTIVE_CARTS.labels(brand=bc).set(total_active_carts)
+                CART_ACTIVE_ITEMS.labels(brand=bc).set(total_items)
+
+                # Stale carts (not updated in 2h)
+                stale_qs = active_carts.filter(
+                    updated_at__lt=timezone.now() - timedelta(hours=2)
+                )
+                total_stale_carts = stale_qs.count()
+                total_stale_items = CartItem.objects.filter(cart__in=stale_qs).aggregate(
+                    total_qty=Sum("quantity")
+                )["total_qty"] or 0
+                CART_STALE_CARTS.labels(brand=bc).set(total_stale_carts)
+                CART_STALE_ITEMS.labels(brand=bc).set(total_stale_items)
+
+                # Popular items (top 10)
+                popular_items = CartItem.objects.filter(cart__in=active_carts).values(
+                    product_name=F("inventory_unit__product_template__product_name")
+                ).annotate(
+                    quantity_in_carts=Sum("quantity")
+                ).order_by("-quantity_in_carts")[:10]
+                for item in popular_items:
+                    name = item["product_name"] or "unknown"
+                    CART_POPULAR_ITEMS.labels(brand=bc, product_name=name).set(
+                        item["quantity_in_carts"]
+                    )
+            except Exception:
+                pass
 
             # Customers
             try:
