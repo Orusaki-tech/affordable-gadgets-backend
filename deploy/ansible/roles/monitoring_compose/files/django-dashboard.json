@@ -180,7 +180,7 @@
       },
       "targets": [
         {
-          "expr": "sum(max(rate(orders_by_status[5m])) by (status))",
+          "expr": "sum(max(orders_by_status) by (status))",
           "legendFormat": "Orders / 5m",
           "datasource": {
             "type": "prometheus",
@@ -205,7 +205,7 @@
       },
       "targets": [
         {
-          "expr": "sum(max(rate(payments_cumulative[5m])) by (method, status))",
+          "expr": "sum(max(increase(payments_cumulative[5m])) by (method, status))",
           "legendFormat": "Payments / 5m",
           "datasource": {
             "type": "prometheus",

@@ -311,7 +311,7 @@
       },
       "targets": [
         {
-          "expr": "max(increase(orders_by_status[24h])) by (status) or vector(0)",
+          "expr": "max(orders_by_status) by (status) or vector(0)",
           "legendFormat": "{{status}}",
           "datasource": {
             "type": "datasource",
