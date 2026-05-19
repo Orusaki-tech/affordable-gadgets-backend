@@ -1227,7 +1227,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(whatsapp_clicks_cumulative[$period])) or vector(0)",
+          "expr": "max(increase(whatsapp_clicks_cumulative[$period])) or vector(0)",
           "legendFormat": "Clicks",
           "instant": true,
           "datasource": {
@@ -1482,6 +1482,45 @@
       "datasource": {
         "type": "datasource",
         "uid": "prometheus"
+      }
+    },
+    {
+      "id": 33,
+      "title": "Top Clicked Products",
+      "type": "table",
+      "gridPos": { "x": 0, "y": 41, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "expr": "sort_desc(max(whatsapp_clicks_cumulative) by (product_id))",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "",
+          "datasource": { "type": "datasource", "uid": "prometheus" }
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true },
+            "renameByName": { "Value": "Clicks" }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "left" },
+          "thresholds": { "steps": [{ "color": "green" }] }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Clicks" },
+            "properties": [
+              { "id": "custom.width", "value": 100 },
+              { "id": "custom.align", "value": "center" }
+            ]
+          }
+        ]
       }
     }
   ],
