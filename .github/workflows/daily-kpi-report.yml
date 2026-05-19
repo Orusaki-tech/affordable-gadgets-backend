@@ -1,0 +1,91 @@
+name: Daily KPI Report
+on:
+  schedule:
+    - cron: '0 21 * * *'   # 21:00 UTC = midnight Nairobi (EAT)
+  workflow_dispatch:        # manual trigger for testing
+
+jobs:
+  report:
+    name: Generate and Email KPI Report
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SA }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/ci_deploy_key
+          chmod 600 ~/.ssh/ci_deploy_key
+
+      - name: Run report on monitoring VM
+        id: report
+        env:
+          GCP_PROJECT_ID: gmail-486411
+          GCP_ZONE: us-east1-b
+          INSTANCE: affordable-gadgets-production-monitoring
+          SSH_USER: affordablegadgetske_gmail_com
+          SSH_KEY_PATH: ~/.ssh/ci_deploy_key
+        run: |
+          SSH_OPTS=(
+            -o StrictHostKeyChecking=no
+            -o UserKnownHostsFile=/dev/null
+            -o ProxyCommand="gcloud compute start-iap-tunnel ${INSTANCE} 22 --listen-on-stdin --project=${GCP_PROJECT_ID} --zone=${GCP_ZONE}"
+            -i "${SSH_KEY_PATH}"
+          )
+
+          # Copy report script to VM (SSH transport, not gcloud compute scp)
+          scp "${SSH_OPTS[@]}" scripts/daily-kpi-report.py \
+            "${SSH_USER}@127.0.0.1:/tmp/daily-kpi-report.py"
+
+          # Copy script into prometheus container, run it, capture output
+          ssh "${SSH_OPTS[@]}" "${SSH_USER}@127.0.0.1" \
+            "sudo docker cp /tmp/daily-kpi-report.py ag-prometheus:/tmp/daily-kpi-report.py && \
+             sudo docker exec ag-prometheus python3 /tmp/daily-kpi-report.py" \
+            > /tmp/kpi-report.html 2>/dev/null
+
+          echo "Report size: $(wc -c < /tmp/kpi-report.html) bytes"
+          echo "report_path=/tmp/kpi-report.html" >> $GITHUB_ENV
+
+      - name: Check mail config
+        id: mail_check
+        run: |
+          if [ -n "${{ secrets.MAIL_TO }}" ]; then
+            echo "configured=true" >> $GITHUB_OUTPUT
+          else
+            echo "MAIL_TO secret not set — skipping email"
+          fi
+
+      - name: Upload report as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kpi-report
+          path: ${{ env.report_path }}
+
+      - name: Send email report
+        if: steps.mail_check.outputs.configured == 'true'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.MAIL_SERVER || 'smtp.gmail.com' }}
+          server_port: ${{ secrets.MAIL_PORT || '465' }}
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: Affordable Gadgets — Daily KPI Report
+          to: ${{ secrets.MAIL_TO }}
+          from: Affordable Gadgets KPIs <${{ secrets.MAIL_FROM || secrets.MAIL_USERNAME }}>
+          html_body: file://${{ env.report_path }}
+          secure: true
+          ignore_cert: true
+          convert_markdown: false
