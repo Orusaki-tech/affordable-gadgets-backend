@@ -16,6 +16,7 @@ GRAFANA_SMTP_USER = sys.argv[6]
 GRAFANA_SMTP_PASSWORD = sys.argv[7]
 GRAFANA_SMTP_FROM = sys.argv[8]
 CLOUDFLARE_TUNNEL_TOKEN = sys.argv[9]
+DJANGO_API_TOKEN = sys.argv[10]
 
 
 def render_j2(src, dst, subs):
@@ -50,6 +51,7 @@ render_j2(
         "grafana_smtp_user": GRAFANA_SMTP_USER,
         "grafana_smtp_password": GRAFANA_SMTP_PASSWORD,
         "grafana_smtp_from": GRAFANA_SMTP_FROM,
+        "django_admin_token": DJANGO_API_TOKEN,
     },
 )
 

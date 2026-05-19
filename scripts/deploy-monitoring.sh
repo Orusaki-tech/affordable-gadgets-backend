@@ -2,7 +2,7 @@
 # Deploy monitoring stack (Prometheus + Grafana + cloudflared) to the monitoring VM.
 # Called by CI (validate-infra.yml) or locally.
 #
-# Required env: GRAFANA_ADMIN_PASSWORD, CLOUDFLARE_TUNNEL_TOKEN
+# Required env: GRAFANA_ADMIN_PASSWORD, CLOUDFLARE_TUNNEL_TOKEN, DJANGO_ADMIN_PASSWORD
 # Optional: GCP_PROJECT_ID, GCP_ZONE, MONITORING_INSTANCE, COMPOSE_ROOT,
 #           SSH_USER, SSH_KEY_PATH, GRAFANA_SMTP_*
 
@@ -16,6 +16,7 @@ SSH_USER="${SSH_USER:-affordablegadgetske_gmail_com}"
 SSH_KEY_PATH="${SSH_KEY_PATH:-~/.ssh/ci_deploy_key}"
 GRAFANA_ADMIN_PASSWORD="${GRAFANA_ADMIN_PASSWORD?GRAFANA_ADMIN_PASSWORD not set}"
 CLOUDFLARE_TUNNEL_TOKEN="${CLOUDFLARE_TUNNEL_TOKEN?CLOUDFLARE_TUNNEL_TOKEN not set}"
+DJANGO_ADMIN_PASSWORD="${DJANGO_ADMIN_PASSWORD?DJANGO_ADMIN_PASSWORD not set}"
 GRAFANA_SMTP_FROM="${GRAFANA_SMTP_FROM:-noreply@affordable-gadgetske.com}"
 GRAFANA_SMTP_USER="${GRAFANA_SMTP_USER:-}"
 GRAFANA_SMTP_PASSWORD="${GRAFANA_SMTP_PASSWORD:-}"
@@ -34,6 +35,31 @@ ssh_cmd() {
 sudo_cmd() {
   ssh "${SSH_OPTS[@]}" "$SSH_USER@127.0.0.1" "sudo bash -c '$*'"
 }
+
+# ── health check: confirm API is serving before fetching token ────────────────
+echo "→ Checking API health..."
+for i in 1 2 3; do
+  if curl -sf --max-time 10 "https://api.affordable-gadgetske.com/metrics/" > /dev/null 2>&1; then
+    echo "  API is healthy"
+    break
+  fi
+  echo "  Attempt $i failed, retrying in 10s..."
+  [ "$i" -lt 3 ] && sleep 10
+done
+
+# ── fetch API token for Grafana datasource ────────────────────────────────────
+echo "→ Fetching API token..."
+for i in 1 2 3; do
+  API_TOKEN=$(
+    curl -s --show-error --fail \
+      -X POST "https://api.affordable-gadgetske.com/api/auth/token/login/" \
+      -H "Content-Type: application/json" \
+      -d "{\"username\":\"admin\",\"password\":\"$DJANGO_ADMIN_PASSWORD\"}" \
+      | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])"
+  ) && break
+  echo "  Attempt $i failed, retrying in 10s..."
+  [ "$i" -lt 3 ] && sleep 10
+done
 
 TMP_DIR="/tmp/monitoring-deploy"
 
@@ -55,7 +81,8 @@ python3 "$SCRIPT_DIR/render_monitoring_templates.py" \
   "$GRAFANA_SMTP_USER" \
   "$GRAFANA_SMTP_PASSWORD" \
   "$GRAFANA_SMTP_FROM" \
-  "$CLOUDFLARE_TUNNEL_TOKEN"
+  "$CLOUDFLARE_TUNNEL_TOKEN" \
+  "$API_TOKEN"
 
 # ── copy files to temp dir on VM ──────────────────────────────────────────────
 scp "${SSH_OPTS[@]}" "$WORK_DIR/prometheus.yml"                "$SSH_USER@127.0.0.1:$TMP_DIR/"
