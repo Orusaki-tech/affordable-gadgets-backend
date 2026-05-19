@@ -49,6 +49,38 @@ sum(increase(orders_total[24h])) by (status) or vector(0)     # → 0
 - `deploy/ansible/roles/monitoring_compose/files/executive-kpi-dashboard.json` — added `or vector(0)` to 6 queries, changed `$period` type to `interval`
 - `deploy/monitoring/grafana/dashboards/executive-kpi-dashboard.json` — same changes (copy)
 
+# Session: 2026-05-19 — Grafana JSON API 502 Error
+
+## Problem Fixed
+
+### JSON API datasource returning 502 Bad Gateway
+- **Error**: Grafana JSON API datasource (`marcusolsson-json-datasource`, uid `json-api`) returned Cloudflare 502 for all 4 cart analytics panels.
+- **Symptom**: `Query error: 502` on "Unique Active Carts", "Items in Active Carts", "Stale/Abandoned Carts", "Most Popular Items in Carts".
+- **Root cause**: Datasource URL was `http://web:8000` — the monitoring VM (`affordable-gadgets-production-monitoring`, us-east1-b) does NOT run the Django `web` container. The API runs on separate MIG instances. Hostname `web` was unresolvable from Grafana's Docker container, causing connection failure that propagated through Cloudflare Tunnel as 502.
+- **Fix**: Changed `url: http://web:8000` → `url: https://api.affordable-gadgetske.com` in both datasource.yml files.
+  - `deploy/ansible/roles/monitoring_compose/files/datasource.yml` — Ansible source of truth
+  - `deploy/monitoring/grafana/datasources/datasource.yml` — local copy
+- The datasource already sends `Authorization: Token ${GF_JSON_API_TOKEN}`, which authenticates against the public API domain.
+
+## Key State
+
+### Topology (confirmed)
+- **NO staging environment** — everything is production only
+- **All resources in `us-east1-b`**: API MIG instances, monitoring VM, Cloud SQL, Redis
+- Monitoring VM (`affordable-gadgets-production-monitoring`) is a **dedicated VM** — does NOT run any Django/API containers
+- Prometheus discovers API instances via GCE service discovery (GCP API, not Docker networking)
+- Grafana's JSON API datasource now uses the public domain `api.affordable-gadgetske.com`
+
+## Files Modified
+- `deploy/ansible/roles/monitoring_compose/files/datasource.yml` — changed JSON API URL
+- `deploy/monitoring/grafana/datasources/datasource.yml` — same change (copy)
+
+## Deployment
+- **Push to deploy** — CI/CD handles everything. Just commit, push, and the pipeline runs the Ansible monitoring playbook against the monitoring VM.
+- No manual SSH or Docker commands needed on the monitoring VM.
+- The Ansible playbook copies files and restarts services via `docker compose`.
+
 ## Open Items
 - SMTP alerts blocked: `grafana_smtp_user` / `grafana_smtp_password` empty in vault (need Gmail app password)
 - Dashboard will show 0 for all period panels until counters are incremented by real user events (or multi-process issue is fixed)
+- **Phase 2**: Migrate cart analytics from JSON API panels to Prometheus Gauge metrics for long-term stability (remove dependency on community plugin and direct HTTP to API)

@@ -23,7 +23,7 @@ datasources:
   - name: JSON API
     type: marcusolsson-json-datasource
     uid: json-api
-    url: http://web:8000
+    url: https://api.affordable-gadgetske.com
     access: proxy
     basicAuth: false
     isDefault: false
