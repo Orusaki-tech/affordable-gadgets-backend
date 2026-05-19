@@ -21,7 +21,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - GF_INSTALL_PLUGINS=marcusolsson-json-datasource,grafana-pyroscope-app,grafana-exploretraces-app,grafana-lokiexplore-app
+      - GF_INSTALL_PLUGINS=marcusolsson-json-datasource
     env_file:
       - {{ compose_root }}/monitoring/grafana.env
     volumes:

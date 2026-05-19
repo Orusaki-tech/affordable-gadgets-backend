@@ -112,10 +112,16 @@ sudo_cmd "cp $TMP_DIR/executive-kpi-dashboard.json  $COMPOSE_ROOT/monitoring/gra
 # ── clean up temp dir ────────────────────────────────────────────────────────
 ssh_cmd "rm -rf $TMP_DIR"
 
+# ── remove incompatible plugins from data volume ─────────────────────────────
+# These plugins require react/jsx-runtime (Grafana 13+) and break on 11.x.
+sudo_cmd "docker run --rm -v ${COMPOSE_ROOT}/grafana_data:/var/lib/grafana busybox rm -rf \
+  /var/lib/grafana/plugins/grafana-pyroscope-app \
+  /var/lib/grafana/plugins/grafana-exploretraces-app \
+  /var/lib/grafana/plugins/grafana-lokiexplore-app" 2>/dev/null || true
+
 # ── restart containers ───────────────────────────────────────────────────────
 sudo_cmd "docker compose -f $COMPOSE_ROOT/docker-compose.monitoring.yml --env-file $COMPOSE_ROOT/monitoring/grafana.env up -d --remove-orphans"
-# Force Grafana restart so it picks up provisioning file changes (datasources, dashboards).
-# Using restart instead of --force-recreate to avoid recreating Prometheus unnecessarily.
+# Force Grafana restart so it picks up provisioning file changes.
 sudo_cmd "docker compose -f $COMPOSE_ROOT/docker-compose.monitoring.yml --env-file $COMPOSE_ROOT/monitoring/grafana.env restart grafana" || true
 sudo_cmd "docker compose -f $COMPOSE_ROOT/docker-compose.tunnel.yml --env-file $COMPOSE_ROOT/monitoring/tunnel/tunnel.env up -d"
 
