@@ -74,6 +74,7 @@ sum(increase(orders_total[24h])) by (status) or vector(0)     # → 0
 ## Files Modified
 - `deploy/ansible/roles/monitoring_compose/files/datasource.yml` — changed JSON API URL
 - `deploy/monitoring/grafana/datasources/datasource.yml` — same change (copy)
+- `scripts/deploy-monitoring.sh` — added explicit `restart grafana` after `up -d` so provisioning changes take effect immediately
 
 ## Deployment
 - **Push to deploy** — CI/CD handles everything. Just commit, push, and the pipeline runs the Ansible monitoring playbook against the monitoring VM.
