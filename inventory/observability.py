@@ -361,6 +361,7 @@ def refresh_business_metrics():
             Lead,
             Order,
             PesapalPayment,
+            Product,
             WhatsAppClickEvent,
         )
 
@@ -564,12 +565,17 @@ def refresh_business_metrics():
 
             # WhatsApp clicks (cumulative, per product)
             try:
-                clicks = WhatsAppClickEvent.objects.filter(
+                clicks = list(WhatsAppClickEvent.objects.filter(
                     brand_code=bc
-                ).values("product_id", product_name=F("product__product_name")).annotate(cnt=Count("id"))
+                ).values("product_id").annotate(cnt=Count("id")))
+                pids = [c["product_id"] for c in clicks if c["product_id"]]
+                prod_map = {}
+                if pids:
+                    for p in Product.objects.filter(id__in=pids).only("id", "product_name"):
+                        prod_map[p.id] = p.product_name or "unknown"
                 for c in clicks:
                     pid = str(c["product_id"]) if c["product_id"] else "0"
-                    pname = c.get("product_name") or "unknown"
+                    pname = prod_map.get(c["product_id"], "unknown")
                     WHATSAPP_CLICKS_CUMULATIVE.labels(product_id=pid, product_name=pname, brand=bc).set(c["cnt"])
             except Exception:
                 pass

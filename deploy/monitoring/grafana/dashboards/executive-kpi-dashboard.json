@@ -1214,7 +1214,7 @@
       },
       "targets": [
         {
-          "expr": "max(whatsapp_clicks_cumulative) or vector(0)",
+          "expr": "sum(max(whatsapp_clicks_cumulative) by (product_id)) or vector(0)",
           "legendFormat": "Clicks",
           "instant": true,
           "datasource": {
@@ -1497,12 +1497,13 @@
         {
           "id": "organize",
           "options": {
-            "excludeByName": {
-              "Time": true
-            },
-            "renameByName": {
-              "Value": "Clicks"
-            }
+"excludeByName": {
+        "Time": true
+      },
+      "renameByName": {
+        "product_id": "Product",
+        "Value": "Clicks"
+      }
           }
         }
       ],
@@ -1533,6 +1534,18 @@
               {
                 "id": "custom.align",
                 "value": "center"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Product"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "left"
               }
             ]
           }

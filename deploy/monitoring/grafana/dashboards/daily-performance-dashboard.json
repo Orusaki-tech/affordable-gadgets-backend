@@ -646,7 +646,7 @@
       "gridPos": { "x": 4, "y": 21, "w": 20, "h": 6 },
       "targets": [
         {
-          "expr": "sort_desc(max(whatsapp_clicks_cumulative) by (product_name))",
+          "expr": "sort_desc(max(whatsapp_clicks_cumulative) by (product_id))",
           "legendFormat": "",
           "format": "table",
           "instant": true,
@@ -679,8 +679,8 @@
         {
           "id": "organize",
           "options": {
-            "excludeByName": { "Time": true, "product_id": true },
-            "renameByName": { "product_name": "Product", "Value": "Clicks" }
+            "excludeByName": { "Time": true },
+            "renameByName": { "product_id": "Product", "Value": "Clicks" }
           }
         }
       ],

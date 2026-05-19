@@ -1483,7 +1483,7 @@
       },
       "targets": [
         {
-          "expr": "sort_desc(max(whatsapp_clicks_cumulative) by (product_name))",
+          "expr": "sort_desc(max(whatsapp_clicks_cumulative) by (product_id))",
           "format": "table",
           "instant": true,
           "legendFormat": "",
@@ -1498,11 +1498,10 @@
           "id": "organize",
           "options": {
 "excludeByName": {
-        "Time": true,
-        "product_id": true
+        "Time": true
       },
       "renameByName": {
-        "product_name": "Product",
+        "product_id": "Product",
         "Value": "Clicks"
       }
           }
