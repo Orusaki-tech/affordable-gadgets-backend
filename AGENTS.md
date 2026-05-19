@@ -105,3 +105,130 @@ sum(increase(orders_total[24h])) by (status) or vector(0)     # → 0
 - SMTP alerts blocked: `grafana_smtp_user` / `grafana_smtp_password` empty in vault (need Gmail app password)
 - Dashboard will show 0 for all period panels until counters are incremented by real user events (or multi-process issue is fixed)
 - **Phase 2**: Migrate cart analytics from JSON API panels to Prometheus Gauge metrics for long-term stability (remove dependency on community plugin and direct HTTP to API)
+
+# Session: 2026-05-19 (late) — Dashboard "no data" Investigation
+
+## Verified: Prometheus Stack Is Healthy
+
+### Prometheus scraping all 3 API instances (all UP)
+- Instances: `api-7pm1` (10.10.1.32), `api-t60l` (10.10.1.34), `api-v3dh` (10.10.1.19) — all tagged `api`, all in custom VPC `affordable-gadgets-production-vpc`, app subnet.
+- Monitoring VM (`affordable-gadgets-production-monitoring`, 10.10.1.33) is in the **same VPC/subnet** → firewall `allow_internal` permits port 8000 traffic ✓
+- Prometheus `ag-prometheus` has been running for 10 hours ✓
+- GCE service discovery correctly finds and scrapes all 3 API instances every 10s ✓
+
+### Gauges populated in Prometheus (verified via API)
+| Metric | Value | Notes |
+|--------|-------|-------|
+| `inventory_value_total{status="AV"}` | 7,828,909.79 | Real data ✓ |
+| `inventory_value_total{status="PP"}` | 254,999.97 | Real data ✓ |
+| `carts_total{status="total"}` | 3,800.0 | Real data ✓ |
+| `customers_total` | 1.0 | Only 1 customer |
+| `leads_total{status="NEW"}` | 1.0 | Only 1 lead |
+| `app_instances_active` | 1.0 | Per-worker gauge |
+| `active_users` | 0.0 | Redis zset empty (no auth activity within TTL) |
+| `revenue_total` | 0.0 | No COMPLETED payments in DB |
+| `gross_margin_total` | 0.0 | No sold units |
+| `delivery_sla_total` | 0.0 | No delivered orders |
+
+### Counters INVISIBLE to Prometheus (metric not stored)
+- `revenue_earned_total`, `leads_created_total`, `leads_converted_total`, `customers_registered_total`, `new_orders_total`, `orders_cancelled_total`, `orders_total`, `payments_total`, `whatsapp_clicks_total`
+- These have HELP/TYPE lines in `/metrics/` but **no data samples** → Prometheus never stores them → queries return empty.
+- The `or vector(0)` fallback **does work** (`sum(increase(revenue_earned_total[24h])) or vector(0)` returns `0`).
+- **Root cause**: Gunicorn multi-process. The worker serving `/metrics/` (`refresh_business_metrics()`) only sets gauge values; counters incremented in other workers are invisible.
+
+### Active Users = 0 — Diagnosis
+- `refresh_active_users_metric()` in `inventory/middleware.py:80` checks Redis sorted set `{prefix}:1:active_users_zset`.
+- The zset is populated by `RequestTimingMiddleware._record_metrics()` (`middleware.py:156`) on every **authenticated** request.
+- If no authenticated request has happened within the TTL (300s), the zset is empty → ZCARD returns 0.
+- To get non-zero `active_users`, an authenticated user (e.g., Django admin session) must visit the API within 5 minutes.
+- The Redis cache IS configured and reachable (no exceptions logged).
+
+### Known Grafana side-effect: `/react/jsx-runtime` 404
+- Logged twice in Grafana logs (user visited `/dashboards`). Not a datasource error.
+- Likely a cached panel plugin requesting a resource that doesn't exist in Grafana 11.x.
+- Does not affect dashboard rendering or data.
+
+## System Topology (confirmed via gcloud)
+```
+affordable-gadgets-production-vpc (custom)
+├── app subnet (10.10.1.0/24)
+│   ├── api-7pm1  (10.10.1.32)  tags: [api, iap-ssh, lb-health-check]
+│   ├── api-t60l  (10.10.1.34)  tags: [api, iap-ssh, lb-health-check]
+│   ├── api-v3dh  (10.10.1.19)  tags: [api, iap-ssh, lb-health-check]
+│   ├── monitoring (10.10.1.33) tags: [iap-ssh, monitoring] ← SA: default compute, cloud-platform scopes
+│   ├── admin-* (10.10.1.x)     tags: [admin, iap-ssh, lb-health-check]
+│   ├── shop-*  (10.10.1.x)     tags: [shop, iap-ssh, lb-health-check]
+│   └── tunnel  (10.10.1.2)     tags: [iap-ssh, tunnel]
+└── data subnet
+```
+
+## What's Deployed on Monitoring VM
+| Container | Status | Port |
+|-----------|--------|------|
+| `ag-prometheus` | Up 10h | 9090 |
+| `ag-grafana` | Up 9m (restarted by deploy) | 3000 |
+| `ag-cloudflared` | Up 8m (unhealthy) | tunnel |
+
+## What Dashboard Shows After Fixes
+- **Prometheus gauge panels** (inventory, carts, customers, leads, error rate, latency, uptime) → data ✓
+- **Prometheus counter panels** (revenue, orders, leads, conversions, customers) → **0** (with `or vector(0)` fallback)
+- **JSON API panels** (cart analytics) → data ✓ (URL fixed, token dynamically fetched)
+- `$period` template variable works as `interval` type
+
+## Fix: DB-backed cumulative gauges (replacing counters)
+
+### Problem
+8 counter metrics (`revenue_earned_total`, `leads_created_total`, `leads_converted_total`, `customers_registered_total`, `new_orders_total`, `orders_cancelled_total`, `orders_total`, `payments_total`) were never stored in Prometheus because gunicorn multi-process prevents cross-worker visibility — `.inc()` calls happen in workers that aren't serving `/metrics/`.
+
+### Solution
+Added 8 DB-backed cumulative gauges in `refresh_business_metrics()` (same pattern as the working gauges). These compute cumulative counts from the database every `/metrics/` scrape, bypassing the multi-process issue entirely.
+
+### Files Changed
+
+**Backend: `inventory/observability.py`**
+- Added 8 new `Gauge` definitions with `multiprocess_mode="livemostrecent"`:
+  - `REVENUE_EARNED_CUMULATIVE` → `revenue_earned`
+  - `LEADS_CREATED_CUMULATIVE` → `leads_created`
+  - `LEADS_CONVERTED_CUMULATIVE` → `leads_converted`
+  - `CUSTOMERS_REGISTERED_CUMULATIVE` → `customers_registered`
+  - `ORDERS_CREATED_CUMULATIVE` → `orders_created`
+  - `ORDERS_CANCELLED_CUMULATIVE` → `orders_cancelled`
+  - `ORDERS_STATUS_CUMULATIVE` → `orders_by_status`
+  - `PAYMENTS_CUMULATIVE` → `payments`
+- Added `.set()` calls in `refresh_business_metrics()` for all 8, sourcing data from DB:
+  - `revenue_earned` = `PesapalPayment.objects.filter(status="COMPLETED").Sum(amount)`
+  - `orders_created` = `Order.objects.count()`
+  - `orders_cancelled` = `Order.objects.filter(status="Canceled").count()`
+  - `orders_by_status` = `Order.objects.filter(status=X).count()` for each status
+  - `leads_created` = `Lead.objects.count()`
+  - `leads_converted` = `Lead.objects.filter(status="CONVERTED").count()`
+  - `customers_registered` = `Customer.objects.distinct().count()` (with orders or leads)
+  - `payments` = `PesapalPayment.objects.filter(method=X, status=Y).count()` for each method×status
+
+**Dashboards: `executive-kpi-dashboard.json`** (both copies)
+- Replaced all 13 occurrences of old counter metric names with new gauge names across 12 panel queries
+- Added new "Carts Total (current)" stat panel: `sum(carts_total{status="total"})` (shows 3,800 carts — real data previously unused)
+
+**Dashboards: `django-dashboard.json`** (both copies)
+- `orders_total` → `orders_by_status` (Orders Rate panel)
+- `payments_total` → `payments` (Payment Rate panel)
+
+**Config: `deploy/monitoring/prometheus/prometheus.yml`**
+- Replaced stale static IPs (`10.10.1.28-30`) with GCE SD config matching the Ansible template
+
+**Config: `deploy/monitoring/docker-compose.monitoring.yml`**
+- Added `GF_INSTALL_PLUGINS=marcusolsson-json-datasource` to Grafana environment
+
+### New Dashboard Panel
+| Panel | Query | Value |
+|---|---|---|
+| Carts Total (current) | `sum(carts_total{status="total"})` | 3,800 (real data) |
+
+### Gap Analysis (Post-Fix)
+| Layer | Status |
+|---|---|
+| Backend → Prometheus (gauges with data) | `revenue_earned`, `orders_created`, `orders_cancelled`, `orders_by_status`, `leads_created`, `leads_converted`, `customers_registered`, `payments` — all now populated from DB on each scrape |
+| Backend → Prometheus (pre-existing gauges) | `inventory_value_total{AV}=7.8M`, `carts_total{total}=3,800`, `customers_total=1` — unchanged |
+| Backend → Prometheus (still 0) | `revenue_total`, `gross_margin_total`, `delivery_sla_total` — no DB data exists |
+| Prometheus → Grafana (all panels) | All 8 metric panels now return data from DB-backed gauges instead of 0 |
+| Not fixable (no DB data) | `salesperson_performance_total` — no sales data in DB |

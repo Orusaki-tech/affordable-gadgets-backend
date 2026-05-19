@@ -59,7 +59,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(revenue_earned_total[$period])) or vector(0)",
+          "expr": "sum(increase(revenue_earned[$period])) or vector(0)",
           "legendFormat": "Revenue",
           "instant": true,
           "datasource": {
@@ -101,7 +101,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(new_orders_total[$period])) or vector(0)) - (sum(increase(orders_cancelled_total[$period])) or vector(0))",
+          "expr": "(sum(increase(orders_created[$period])) or vector(0)) - (sum(increase(orders_cancelled[$period])) or vector(0))",
           "legendFormat": "Net Orders",
           "instant": true,
           "datasource": {
@@ -142,7 +142,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(leads_created_total[$period])) or vector(0)",
+          "expr": "sum(increase(leads_created[$period])) or vector(0)",
           "legendFormat": "Leads",
           "instant": true,
           "datasource": {
@@ -183,7 +183,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(leads_converted_total[$period])) or vector(0)",
+          "expr": "sum(increase(leads_converted[$period])) or vector(0)",
           "legendFormat": "Conversions",
           "instant": true,
           "datasource": {
@@ -224,7 +224,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(customers_registered_total[$period])) or vector(0)",
+          "expr": "sum(increase(customers_registered[$period])) or vector(0)",
           "legendFormat": "Customers",
           "instant": true,
           "datasource": {
@@ -265,7 +265,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(leads_converted_total[$period])) or vector(0)) / (sum(increase(leads_created_total[$period])) > 0 or vector(1)) * 100",
+          "expr": "(sum(increase(leads_converted[$period])) or vector(0)) / (sum(increase(leads_created[$period])) > 0 or vector(1)) * 100",
           "legendFormat": "Rate",
           "instant": true,
           "datasource": {
@@ -313,7 +313,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(revenue_earned_total[$period])) by (brand) or vector(0)",
+          "expr": "sum(increase(revenue_earned[$period])) by (brand) or vector(0)",
           "legendFormat": "{{brand}}",
           "datasource": {
             "type": "datasource",
@@ -347,7 +347,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(orders_total[$period])) by (status) or vector(0)",
+          "expr": "sum(increase(orders_by_status[$period])) by (status) or vector(0)",
           "legendFormat": "{{status}}",
           "datasource": {
             "type": "datasource",
@@ -525,6 +525,45 @@
         }
       },
       "id": 12,
+      "datasource": {
+        "type": "datasource",
+        "uid": "prometheus"
+      }
+    },
+    {
+      "title": "Carts Total (current)",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 3,
+        "h": 3
+      },
+      "targets": [
+        {
+          "expr": "sum(carts_total{status=\"total\"})",
+          "legendFormat": "Carts",
+          "datasource": {
+            "type": "datasource",
+            "uid": "prometheus"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
+        }
+      },
+      "id": 999,
       "datasource": {
         "type": "datasource",
         "uid": "prometheus"
@@ -834,7 +873,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(leads_created_total[$period])) by (brand) or vector(0)",
+          "expr": "sum(increase(leads_created[$period])) by (brand) or vector(0)",
           "legendFormat": "Leads {{brand}}",
           "datasource": {
             "type": "datasource",
@@ -842,7 +881,7 @@
           }
         },
         {
-          "expr": "sum(increase(leads_converted_total[$period])) by (brand) or vector(0)",
+          "expr": "sum(increase(leads_converted[$period])) by (brand) or vector(0)",
           "legendFormat": "Conversions {{brand}}",
           "datasource": {
             "type": "datasource",
@@ -875,7 +914,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(customers_registered_total[$period])) or vector(0)",
+          "expr": "sum(increase(customers_registered[$period])) or vector(0)",
           "legendFormat": "Customers",
           "datasource": {
             "type": "datasource",
@@ -883,7 +922,7 @@
           }
         },
         {
-          "expr": "sum(increase(revenue_earned_total[$period])) or vector(0)",
+          "expr": "sum(increase(revenue_earned[$period])) or vector(0)",
           "legendFormat": "Revenue",
           "datasource": {
             "type": "datasource",

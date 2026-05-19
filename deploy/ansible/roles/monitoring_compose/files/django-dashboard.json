@@ -180,7 +180,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(orders_total[5m]))",
+          "expr": "sum(rate(orders_by_status[5m]))",
           "legendFormat": "Orders / 5m",
           "datasource": {
             "type": "prometheus",
@@ -205,7 +205,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(payments_total[5m]))",
+          "expr": "sum(rate(payments[5m]))",
           "legendFormat": "Payments / 5m",
           "datasource": {
             "type": "prometheus",

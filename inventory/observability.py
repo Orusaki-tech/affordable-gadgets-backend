@@ -225,6 +225,62 @@ SALESPERSON_TOTAL = Gauge(
     multiprocess_mode="livemostrecent",
 )
 
+REVENUE_EARNED_CUMULATIVE = Gauge(
+    "revenue_earned",
+    "Cumulative revenue from completed payments",
+    ["brand"],
+    multiprocess_mode="livemostrecent",
+)
+
+LEADS_CREATED_CUMULATIVE = Gauge(
+    "leads_created",
+    "Cumulative leads created",
+    ["brand"],
+    multiprocess_mode="livemostrecent",
+)
+
+LEADS_CONVERTED_CUMULATIVE = Gauge(
+    "leads_converted",
+    "Cumulative leads converted to orders",
+    ["brand"],
+    multiprocess_mode="livemostrecent",
+)
+
+CUSTOMERS_REGISTERED_CUMULATIVE = Gauge(
+    "customers_registered",
+    "Cumulative customers registered (distinct)",
+    ["brand"],
+    multiprocess_mode="livemostrecent",
+)
+
+ORDERS_CREATED_CUMULATIVE = Gauge(
+    "orders_created",
+    "Cumulative orders created",
+    ["brand"],
+    multiprocess_mode="livemostrecent",
+)
+
+ORDERS_CANCELLED_CUMULATIVE = Gauge(
+    "orders_cancelled",
+    "Cumulative orders cancelled",
+    ["brand"],
+    multiprocess_mode="livemostrecent",
+)
+
+ORDERS_STATUS_CUMULATIVE = Gauge(
+    "orders_by_status",
+    "Cumulative orders by status",
+    ["brand", "status"],
+    multiprocess_mode="livemostrecent",
+)
+
+PAYMENTS_CUMULATIVE = Gauge(
+    "payments",
+    "Cumulative payments by method and status",
+    ["brand", "method", "status"],
+    multiprocess_mode="livemostrecent",
+)
+
 # ── Gauge Refresh ────────────────────────────────────────────────────────
 
 _last_refresh = 0.0
@@ -317,6 +373,76 @@ def refresh_business_metrics():
                         brand_filter, sale_status=status_code
                     ).aggregate(total=Coalesce(Sum("selling_price"), Decimal("0")))["total"]
                     INVENTORY_VALUE.labels(brand=bc, status=status_code).set(float(val))
+            except Exception:
+                pass
+
+            # Cumulative revenue (multi-process safe replacement for revenue_earned_total counter)
+            try:
+                cum_rev = PesapalPayment.objects.filter(
+                    order__brand__code=bc, status="COMPLETED"
+                ).aggregate(total=Coalesce(Sum("amount"), Decimal("0")))["total"]
+                REVENUE_EARNED_CUMULATIVE.labels(brand=bc).set(float(cum_rev))
+            except Exception:
+                pass
+
+            # Cumulative orders created
+            try:
+                ord_cnt = Order.objects.filter(brand__code=bc).count()
+                ORDERS_CREATED_CUMULATIVE.labels(brand=bc).set(ord_cnt)
+            except Exception:
+                pass
+
+            # Cumulative orders cancelled
+            try:
+                cancelled_cnt = Order.objects.filter(brand__code=bc, status="Canceled").count()
+                ORDERS_CANCELLED_CUMULATIVE.labels(brand=bc).set(cancelled_cnt)
+            except Exception:
+                pass
+
+            # Cumulative orders by status
+            try:
+                for st in ["Pending", "Paid", "Delivered", "Canceled"]:
+                    cnt = Order.objects.filter(brand__code=bc, status=st).count()
+                    ORDERS_STATUS_CUMULATIVE.labels(brand=bc, status=st).set(cnt)
+            except Exception:
+                pass
+
+            # Cumulative leads created
+            try:
+                lead_cnt = Lead.objects.filter(brand__code=bc).count()
+                LEADS_CREATED_CUMULATIVE.labels(brand=bc).set(lead_cnt)
+            except Exception:
+                pass
+
+            # Cumulative leads converted
+            try:
+                conv_cnt = Lead.objects.filter(brand__code=bc, status="CONVERTED").count()
+                LEADS_CONVERTED_CUMULATIVE.labels(brand=bc).set(conv_cnt)
+            except Exception:
+                pass
+
+            # Cumulative customers registered
+            try:
+                cust_cnt = (
+                    Customer.objects.filter(Q(orders__brand__code=bc) | Q(leads__brand__code=bc))
+                    .distinct()
+                    .count()
+                )
+                CUSTOMERS_REGISTERED_CUMULATIVE.labels(brand=bc).set(cust_cnt)
+            except Exception:
+                pass
+
+            # Cumulative payments by method and status
+            try:
+                payment_methods = ["MPESA", "VISA", "MASTERCARD", "MOBILE_MONEY", "BANK"]
+                payment_statuses = ["COMPLETED", "PENDING", "FAILED", "IN_PROGRESS", "CANCELLED", "EXPIRED"]
+                for method in payment_methods:
+                    for st in payment_statuses:
+                        pmt_cnt = PesapalPayment.objects.filter(
+                            order__brand__code=bc, payment_method=method, status=st
+                        ).count()
+                        if pmt_cnt > 0:
+                            PAYMENTS_CUMULATIVE.labels(brand=bc, method=method, status=st).set(pmt_cnt)
             except Exception:
                 pass
 

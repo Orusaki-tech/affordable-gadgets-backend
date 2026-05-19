@@ -31,6 +31,8 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
+    environment:
+      - GF_INSTALL_PLUGINS=marcusolsson-json-datasource
     env_file:
       - ./grafana.env
     volumes:
