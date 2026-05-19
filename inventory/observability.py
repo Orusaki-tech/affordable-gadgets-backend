@@ -226,42 +226,42 @@ SALESPERSON_TOTAL = Gauge(
 )
 
 REVENUE_EARNED_CUMULATIVE = Gauge(
-    "revenue_earned",
+    "revenue_earned_cumulative",
     "Cumulative revenue from completed payments",
     ["brand"],
     multiprocess_mode="livemostrecent",
 )
 
 LEADS_CREATED_CUMULATIVE = Gauge(
-    "leads_created",
+    "leads_created_cumulative",
     "Cumulative leads created",
     ["brand"],
     multiprocess_mode="livemostrecent",
 )
 
 LEADS_CONVERTED_CUMULATIVE = Gauge(
-    "leads_converted",
+    "leads_converted_cumulative",
     "Cumulative leads converted to orders",
     ["brand"],
     multiprocess_mode="livemostrecent",
 )
 
 CUSTOMERS_REGISTERED_CUMULATIVE = Gauge(
-    "customers_registered",
+    "customers_registered_cumulative",
     "Cumulative customers registered (distinct)",
     ["brand"],
     multiprocess_mode="livemostrecent",
 )
 
 ORDERS_CREATED_CUMULATIVE = Gauge(
-    "orders_created",
+    "orders_created_cumulative",
     "Cumulative orders created",
     ["brand"],
     multiprocess_mode="livemostrecent",
 )
 
 ORDERS_CANCELLED_CUMULATIVE = Gauge(
-    "orders_cancelled",
+    "orders_cancelled_cumulative",
     "Cumulative orders cancelled",
     ["brand"],
     multiprocess_mode="livemostrecent",
@@ -275,7 +275,7 @@ ORDERS_STATUS_CUMULATIVE = Gauge(
 )
 
 PAYMENTS_CUMULATIVE = Gauge(
-    "payments",
+    "payments_cumulative",
     "Cumulative payments by method and status",
     ["brand", "method", "status"],
     multiprocess_mode="livemostrecent",

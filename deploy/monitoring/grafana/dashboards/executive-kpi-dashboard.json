@@ -59,7 +59,7 @@
       },
       "targets": [
         {
-          "expr": "max(increase(revenue_earned[$period])) or vector(0)",
+          "expr": "max(increase(revenue_earned_cumulative[$period])) or vector(0)",
           "legendFormat": "Revenue",
           "instant": true,
           "datasource": {
@@ -101,7 +101,7 @@
       },
       "targets": [
         {
-          "expr": "(max(increase(orders_created[$period])) or vector(0)) - (max(increase(orders_cancelled[$period])) or vector(0))",
+          "expr": "(max(increase(orders_created_cumulative[$period])) or vector(0)) - (max(increase(orders_cancelled[$period])) or vector(0))",
           "legendFormat": "Net Orders",
           "instant": true,
           "datasource": {
@@ -142,7 +142,7 @@
       },
       "targets": [
         {
-          "expr": "max(increase(leads_created[$period])) or vector(0)",
+          "expr": "max(increase(leads_created_cumulative[$period])) or vector(0)",
           "legendFormat": "Leads",
           "instant": true,
           "datasource": {
@@ -183,7 +183,7 @@
       },
       "targets": [
         {
-          "expr": "max(increase(leads_converted[$period])) or vector(0)",
+          "expr": "max(increase(leads_converted_cumulative[$period])) or vector(0)",
           "legendFormat": "Conversions",
           "instant": true,
           "datasource": {
@@ -224,7 +224,7 @@
       },
       "targets": [
         {
-          "expr": "max(increase(customers_registered[$period])) or vector(0)",
+          "expr": "max(increase(customers_registered_cumulative[$period])) or vector(0)",
           "legendFormat": "Customers",
           "instant": true,
           "datasource": {
@@ -265,7 +265,7 @@
       },
       "targets": [
         {
-          "expr": "(max(increase(leads_converted[$period])) or vector(0)) / (max(increase(leads_created[$period])) > 0 or vector(1)) * 100",
+          "expr": "(max(increase(leads_converted_cumulative[$period])) or vector(0)) / (max(increase(leads_created_cumulative[$period])) > 0 or vector(1)) * 100",
           "legendFormat": "Rate",
           "instant": true,
           "datasource": {
@@ -312,7 +312,7 @@
       },
       "targets": [
         {
-          "expr": "max(increase(revenue_earned[$period])) by (brand) or vector(0)",
+          "expr": "max(increase(revenue_earned_cumulative[$period])) by (brand) or vector(0)",
           "legendFormat": "{{brand}}",
           "datasource": {
             "type": "datasource",
@@ -926,7 +926,7 @@
       },
       "targets": [
         {
-          "expr": "max(increase(leads_created[$period])) by (brand) or vector(0)",
+          "expr": "max(increase(leads_created_cumulative[$period])) by (brand) or vector(0)",
           "legendFormat": "Leads {{brand}}",
           "datasource": {
             "type": "datasource",
@@ -934,7 +934,7 @@
           }
         },
         {
-          "expr": "max(increase(leads_converted[$period])) by (brand) or vector(0)",
+          "expr": "max(increase(leads_converted_cumulative[$period])) by (brand) or vector(0)",
           "legendFormat": "Conversions {{brand}}",
           "datasource": {
             "type": "datasource",
@@ -967,7 +967,7 @@
       },
       "targets": [
         {
-          "expr": "max(increase(customers_registered[$period])) or vector(0)",
+          "expr": "max(increase(customers_registered_cumulative[$period])) or vector(0)",
           "legendFormat": "Customers",
           "datasource": {
             "type": "datasource",
@@ -975,7 +975,7 @@
           }
         },
         {
-          "expr": "max(increase(revenue_earned[$period])) or vector(0)",
+          "expr": "max(increase(revenue_earned_cumulative[$period])) or vector(0)",
           "legendFormat": "Revenue",
           "datasource": {
             "type": "datasource",
