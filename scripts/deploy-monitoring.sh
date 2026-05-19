@@ -89,7 +89,7 @@ ssh_cmd "rm -rf $TMP_DIR"
 sudo_cmd "docker compose -f $COMPOSE_ROOT/docker-compose.monitoring.yml --env-file $COMPOSE_ROOT/monitoring/grafana.env up -d --remove-orphans"
 # Force Grafana restart so it picks up provisioning file changes (datasources, dashboards).
 # Using restart instead of --force-recreate to avoid recreating Prometheus unnecessarily.
-sudo_cmd "docker compose -f $COMPOSE_ROOT/docker-compose.monitoring.yml --env-file $COMPOSE_ROOT/monitoring/grafana.env restart grafana"
+sudo_cmd "docker compose -f $COMPOSE_ROOT/docker-compose.monitoring.yml --env-file $COMPOSE_ROOT/monitoring/grafana.env restart grafana" || true
 sudo_cmd "docker compose -f $COMPOSE_ROOT/docker-compose.tunnel.yml --env-file $COMPOSE_ROOT/monitoring/tunnel/tunnel.env up -d"
 
 echo "✓ Monitoring stack deployed successfully"
