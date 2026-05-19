@@ -77,6 +77,7 @@ sum(increase(orders_total[24h])) by (status) or vector(0)     # → 0
 - `scripts/deploy-monitoring.sh` — added health check + token fetch with retries, `restart grafana`, pass token to renderer
 - `scripts/render_monitoring_templates.py` — accept `django_admin_token` arg, pass to grafana.env template
 - `.github/workflows/validate-infra.yml` — pass `DJANGO_ADMIN_PASSWORD` secret to deploy step
+- `.github/workflows/ci.yml` — add `paths-ignore` so docs-only commits skip API build+deploy
 
 ### 3. Grafana JSON API auth failing (400)
 - **Error**: After fixing URL, auth token was `{{ django_admin_token | default('admin') }}` literal — renderer never received `django_admin_token` variable.
