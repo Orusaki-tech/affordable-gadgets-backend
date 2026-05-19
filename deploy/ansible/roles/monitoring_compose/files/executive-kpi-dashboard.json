@@ -1,7 +1,7 @@
 {
   "title": "Affordable Gadgets \u2014 Executive KPIs",
   "uid": "ag-exec-kpi",
-  "version": 6,
+  "version": 7,
   "tags": [
     "django",
     "business",
@@ -59,7 +59,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(revenue_earned[$period])) or vector(0)",
+          "expr": "max(increase(revenue_earned[$period])) or vector(0)",
           "legendFormat": "Revenue",
           "instant": true,
           "datasource": {
@@ -101,7 +101,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(orders_created[$period])) or vector(0)) - (sum(increase(orders_cancelled[$period])) or vector(0))",
+          "expr": "(max(increase(orders_created[$period])) or vector(0)) - (max(increase(orders_cancelled[$period])) or vector(0))",
           "legendFormat": "Net Orders",
           "instant": true,
           "datasource": {
@@ -142,7 +142,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(leads_created[$period])) or vector(0)",
+          "expr": "max(increase(leads_created[$period])) or vector(0)",
           "legendFormat": "Leads",
           "instant": true,
           "datasource": {
@@ -183,7 +183,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(leads_converted[$period])) or vector(0)",
+          "expr": "max(increase(leads_converted[$period])) or vector(0)",
           "legendFormat": "Conversions",
           "instant": true,
           "datasource": {
@@ -224,7 +224,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(customers_registered[$period])) or vector(0)",
+          "expr": "max(increase(customers_registered[$period])) or vector(0)",
           "legendFormat": "Customers",
           "instant": true,
           "datasource": {
@@ -265,7 +265,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(leads_converted[$period])) or vector(0)) / (sum(increase(leads_created[$period])) > 0 or vector(1)) * 100",
+          "expr": "(max(increase(leads_converted[$period])) or vector(0)) / (max(increase(leads_created[$period])) > 0 or vector(1)) * 100",
           "legendFormat": "Rate",
           "instant": true,
           "datasource": {
@@ -292,8 +292,7 @@
                 "value": 40
               }
             ]
-          },
-          "noValue": "0"
+          }
         }
       },
       "id": 6,
@@ -313,7 +312,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(revenue_earned[$period])) by (brand) or vector(0)",
+          "expr": "max(increase(revenue_earned[$period])) by (brand) or vector(0)",
           "legendFormat": "{{brand}}",
           "datasource": {
             "type": "datasource",
@@ -347,7 +346,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(orders_by_status[$period])) by (status) or vector(0)",
+          "expr": "max(increase(orders_by_status[$period])) by (status) or vector(0)",
           "legendFormat": "{{status}}",
           "datasource": {
             "type": "datasource",
@@ -376,14 +375,14 @@
       "title": "Gross Margin (current)",
       "type": "stat",
       "gridPos": {
-        "x": 3,
-        "y": 12,
-        "w": 3,
+        "x": 4,
+        "y": 9,
+        "w": 4,
         "h": 3
       },
       "targets": [
         {
-          "expr": "sum(gross_margin_total)",
+          "expr": "max(gross_margin_total)",
           "legendFormat": "Margin",
           "datasource": {
             "type": "datasource",
@@ -416,14 +415,14 @@
       "title": "Active Users (current)",
       "type": "stat",
       "gridPos": {
-        "x": 12,
-        "y": 12,
-        "w": 3,
+        "x": 20,
+        "y": 9,
+        "w": 4,
         "h": 3
       },
       "targets": [
         {
-          "expr": "active_users",
+          "expr": "max(active_users)",
           "legendFormat": "Active",
           "datasource": {
             "type": "datasource",
@@ -455,14 +454,14 @@
       "title": "App Instances (current)",
       "type": "stat",
       "gridPos": {
-        "x": 6,
+        "x": 8,
         "y": 9,
-        "w": 3,
+        "w": 4,
         "h": 3
       },
       "targets": [
         {
-          "expr": "app_instances_active",
+          "expr": "sum(app_instances_active)",
           "legendFormat": "Instances",
           "datasource": {
             "type": "datasource",
@@ -494,14 +493,14 @@
       "title": "Inventory Value AV (current)",
       "type": "stat",
       "gridPos": {
-        "x": 9,
+        "x": 12,
         "y": 9,
-        "w": 3,
+        "w": 4,
         "h": 3
       },
       "targets": [
         {
-          "expr": "sum(inventory_value_total{status=\"AV\"})",
+          "expr": "max(inventory_value_total{status=\"AV\"})",
           "legendFormat": "Available",
           "datasource": {
             "type": "datasource",
@@ -535,13 +534,13 @@
       "type": "stat",
       "gridPos": {
         "x": 0,
-        "y": 12,
-        "w": 3,
+        "y": 9,
+        "w": 4,
         "h": 3
       },
       "targets": [
         {
-          "expr": "sum(carts_total{status=\"total\"})",
+          "expr": "max(carts_total{status=\"total\"})",
           "legendFormat": "Carts",
           "datasource": {
             "type": "datasource",
@@ -573,14 +572,14 @@
       "title": "Customers (current)",
       "type": "stat",
       "gridPos": {
-        "x": 9,
-        "y": 12,
-        "w": 3,
+        "x": 16,
+        "y": 9,
+        "w": 4,
         "h": 3
       },
       "targets": [
         {
-          "expr": "customers_total",
+          "expr": "max(customers_total)",
           "legendFormat": "Customers",
           "datasource": {
             "type": "datasource",
@@ -618,7 +617,7 @@
       "gridPos": {
         "x": 0,
         "y": 12,
-        "w": 3,
+        "w": 4,
         "h": 3
       },
       "targets": [
@@ -656,9 +655,9 @@
         "uid": "json-api"
       },
       "gridPos": {
-        "x": 3,
+        "x": 4,
         "y": 12,
-        "w": 3,
+        "w": 4,
         "h": 3
       },
       "targets": [
@@ -696,9 +695,9 @@
         "uid": "json-api"
       },
       "gridPos": {
-        "x": 6,
+        "x": 8,
         "y": 12,
-        "w": 3,
+        "w": 4,
         "h": 3
       },
       "targets": [
@@ -739,14 +738,14 @@
       "title": "On-Time Delivery",
       "type": "gauge",
       "gridPos": {
-        "x": 3,
+        "x": 12,
         "y": 12,
-        "w": 3,
+        "w": 4,
         "h": 3
       },
       "targets": [
         {
-          "expr": "sum(delivery_sla_total{result=\"on_time\"}) / (sum(delivery_sla_total{result=\"on_time\"}) + sum(delivery_sla_total{result=\"late\"})) * 100",
+          "expr": "max(delivery_sla_total{result=\"on_time\"}) / (max(delivery_sla_total{result=\"on_time\"}) + max(delivery_sla_total{result=\"late\"})) * 100",
           "legendFormat": "On-time",
           "datasource": {
             "type": "datasource",
@@ -787,14 +786,14 @@
       "title": "Sell-Through Rate",
       "type": "stat",
       "gridPos": {
-        "x": 6,
+        "x": 16,
         "y": 12,
-        "w": 3,
+        "w": 4,
         "h": 3
       },
       "targets": [
         {
-          "expr": "sum(inventory_value_total{status=\"SD\"}) / (sum(inventory_value_total{status=\"AV\"}) + sum(inventory_value_total{status=\"SD\"})) * 100",
+          "expr": "max(inventory_value_total{status=\"SD\"}) / (max(inventory_value_total{status=\"AV\"}) + max(inventory_value_total{status=\"SD\"})) * 100",
           "legendFormat": "Sell-through",
           "datasource": {
             "type": "datasource",
@@ -843,7 +842,7 @@
       },
       "targets": [
         {
-          "expr": "inventory_value_total",
+          "expr": "max(inventory_value_total) by (status)",
           "legendFormat": "{{status}}",
           "datasource": {
             "type": "datasource",
@@ -873,7 +872,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(leads_created[$period])) by (brand) or vector(0)",
+          "expr": "max(increase(leads_created[$period])) by (brand) or vector(0)",
           "legendFormat": "Leads {{brand}}",
           "datasource": {
             "type": "datasource",
@@ -881,7 +880,7 @@
           }
         },
         {
-          "expr": "sum(increase(leads_converted[$period])) by (brand) or vector(0)",
+          "expr": "max(increase(leads_converted[$period])) by (brand) or vector(0)",
           "legendFormat": "Conversions {{brand}}",
           "datasource": {
             "type": "datasource",
@@ -914,7 +913,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(customers_registered[$period])) or vector(0)",
+          "expr": "max(increase(customers_registered[$period])) or vector(0)",
           "legendFormat": "Customers",
           "datasource": {
             "type": "datasource",
@@ -922,7 +921,7 @@
           }
         },
         {
-          "expr": "sum(increase(revenue_earned[$period])) or vector(0)",
+          "expr": "max(increase(revenue_earned[$period])) or vector(0)",
           "legendFormat": "Revenue",
           "datasource": {
             "type": "datasource",
@@ -1017,8 +1016,7 @@
                 "value": 5
               }
             ]
-          },
-          "noValue": "0"
+          }
         }
       },
       "id": 23,
@@ -1127,7 +1125,7 @@
         "uid": "json-api"
       },
       "gridPos": {
-        "x": 12,
+        "x": 0,
         "y": 15,
         "w": 12,
         "h": 6
