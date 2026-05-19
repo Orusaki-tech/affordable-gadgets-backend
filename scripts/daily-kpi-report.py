@@ -52,10 +52,15 @@ customers = val("customers_total")
 app_instances = val("app_instances_active")
 active_users = val("active_users")
 
-popular = promql("sort_desc(max(cart_popular_items) by (product_name))")
-popular_items = []
-for s in popular[:5]:
-    popular_items.append((s["metric"].get("product_name","?"), s["value"][1]))
+today_popular = promql("sort_desc(max(cart_popular_items) by (product_name))")
+today_items = []
+for s in today_popular[:5]:
+    today_items.append((s["metric"].get("product_name","?"), s["value"][1]))
+
+yesterday_popular = promql("sort_desc(max(cart_popular_items offset 24h) by (product_name))")
+yesterday_items = {}
+for s in yesterday_popular:
+    yesterday_items[s["metric"].get("product_name","?")] = s["value"][1]
 
 orders_by_status = val_with_labels("orders_by_status", agg="max", label="status")
 
@@ -97,12 +102,16 @@ for st, cnt in orders_by_status.items():
 
 html += """</table>
 
-<h2>Top Items in Active Carts</h2>
+<h2>Top Items in Active Carts — Day Comparison</h2>
 <table style="width:100%;border-collapse:collapse;">
-<tr style="background:#f3f4f6;"><th>Product</th><th>Count</th></tr>
+<tr style="background:#f3f4f6;"><th>Product</th><th>Today</th><th>Yesterday</th><th>Change</th></tr>
 """
-for name, cnt in popular_items:
-    html += f"<tr><td>{name}</td><td>{cnt}</td></tr>\n"
+for name, cnt in today_items:
+    ycnt = int(yesterday_items.get(name, 0))
+    diff = int(cnt) - ycnt
+    arrow = "▲" if diff > 0 else ("▼" if diff < 0 else "—")
+    color = "#16a34a" if diff > 0 else ("#dc2626" if diff < 0 else "#6b7280")
+    html += f'<tr><td>{name}</td><td style="text-align:center">{cnt}</td><td style="text-align:center">{ycnt}</td><td style="text-align:center;color:{color}">{arrow} {abs(diff) if diff else ""}</td></tr>\n'
 
 html += """</table>
 

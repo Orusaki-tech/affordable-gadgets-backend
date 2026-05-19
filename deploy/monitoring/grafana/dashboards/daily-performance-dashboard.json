@@ -1,0 +1,625 @@
+{
+  "title": "Affordable Gadgets \u2014 Daily Performance",
+  "uid": "ag-daily-perf",
+  "version": 1,
+  "tags": ["daily", "kpi"],
+  "timezone": "browser",
+  "editable": true,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Revenue",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 0, "w": 4, "h": 3 },
+      "targets": [
+        {
+          "expr": "sum(increase(revenue_earned_cumulative[$__range_s])) or vector(0)",
+          "legendFormat": "Revenue",
+          "instant": true,
+          "datasource": { "type": "datasource", "uid": "prometheus" }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyKES",
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [{ "color": "green" }]
+          },
+          "noValue": "0"
+        }
+      },
+      "datasource": { "type": "datasource", "uid": "prometheus" }
+    },
+    {
+      "id": 2,
+      "title": "Orders Created",
+      "type": "stat",
+      "gridPos": { "x": 4, "y": 0, "w": 4, "h": 3 },
+      "targets": [
+        {
+          "expr": "(sum(increase(orders_created_cumulative[$__range_s])) or vector(0)) - (sum(increase(orders_cancelled_cumulative[$__range_s])) or vector(0))",
+          "legendFormat": "Net Orders",
+          "instant": true,
+          "datasource": { "type": "datasource", "uid": "prometheus" }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [{ "color": "green" }]
+          },
+          "noValue": "0"
+        }
+      },
+      "datasource": { "type": "datasource", "uid": "prometheus" }
+    },
+    {
+      "id": 3,
+      "title": "New Leads",
+      "type": "stat",
+      "gridPos": { "x": 8, "y": 0, "w": 4, "h": 3 },
+      "targets": [
+        {
+          "expr": "sum(increase(leads_created_cumulative[$__range_s])) or vector(0)",
+          "legendFormat": "Leads",
+          "instant": true,
+          "datasource": { "type": "datasource", "uid": "prometheus" }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [{ "color": "green" }]
+          },
+          "noValue": "0"
+        }
+      },
+      "datasource": { "type": "datasource", "uid": "prometheus" }
+    },
+    {
+      "id": 4,
+      "title": "Conversions",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 0, "w": 4, "h": 3 },
+      "targets": [
+        {
+          "expr": "sum(increase(leads_converted_cumulative[$__range_s])) or vector(0)",
+          "legendFormat": "Conversions",
+          "instant": true,
+          "datasource": { "type": "datasource", "uid": "prometheus" }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [{ "color": "green" }]
+          },
+          "noValue": "0"
+        }
+      },
+      "datasource": { "type": "datasource", "uid": "prometheus" }
+    },
+    {
+      "id": 5,
+      "title": "New Customers",
+      "type": "stat",
+      "gridPos": { "x": 16, "y": 0, "w": 4, "h": 3 },
+      "targets": [
+        {
+          "expr": "sum(increase(customers_registered_cumulative[$__range_s])) or vector(0)",
+          "legendFormat": "Customers",
+          "instant": true,
+          "datasource": { "type": "datasource", "uid": "prometheus" }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [{ "color": "green" }]
+          },
+          "noValue": "0"
+        }
+      },
+      "datasource": { "type": "datasource", "uid": "prometheus" }
+    },
+    {
+      "id": 6,
+      "title": "Lead Conv. Rate",
+      "type": "stat",
+      "gridPos": { "x": 20, "y": 0, "w": 4, "h": 3 },
+      "targets": [
+        {
+          "expr": "(sum(increase(leads_converted_cumulative[$__range_s])) or vector(0)) / (sum(increase(leads_created_cumulative[$__range_s])) > 0 or vector(1)) * 100",
+          "legendFormat": "Rate",
+          "instant": true,
+          "datasource": { "type": "datasource", "uid": "prometheus" }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 25 },
+              { "color": "green", "value": 50 }
+            ]
+          },
+          "noValue": "0"
+        }
+      },
+      "datasource": { "type": "datasource", "uid": "prometheus" }
+    },
+    {
+      "id": 7,
+      "title": "Active Carts",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 3, "w": 4, "h": 3 },
+      "targets": [
+        {
+          "expr": "max(cart_active_carts)",
+          "legendFormat": "Active Carts",
+          "instant": true,
+          "datasource": { "type": "datasource", "uid": "prometheus" }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [{ "color": "green" }]
+          },
+          "noValue": "0"
+        }
+      },
+      "datasource": { "type": "datasource", "uid": "prometheus" }
+    },
+    {
+      "id": 8,
+      "title": "Active Items",
+      "type": "stat",
+      "gridPos": { "x": 4, "y": 3, "w": 4, "h": 3 },
+      "targets": [
+        {
+          "expr": "max(cart_active_items)",
+          "legendFormat": "Active Items",
+          "instant": true,
+          "datasource": { "type": "datasource", "uid": "prometheus" }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [{ "color": "green" }]
+          },
+          "noValue": "0"
+        }
+      },
+      "datasource": { "type": "datasource", "uid": "prometheus" }
+    },
+    {
+      "id": 9,
+      "title": "Stale Carts",
+      "type": "stat",
+      "gridPos": { "x": 8, "y": 3, "w": 4, "h": 3 },
+      "targets": [
+        {
+          "expr": "max(cart_stale_carts)",
+          "legendFormat": "Stale Carts",
+          "instant": true,
+          "datasource": { "type": "datasource", "uid": "prometheus" }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [{ "color": "orange" }]
+          },
+          "noValue": "0"
+        }
+      },
+      "datasource": { "type": "datasource", "uid": "prometheus" }
+    },
+    {
+      "id": 10,
+      "title": "Stale Items",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 3, "w": 4, "h": 3 },
+      "targets": [
+        {
+          "expr": "max(cart_stale_items)",
+          "legendFormat": "Stale Items",
+          "instant": true,
+          "datasource": { "type": "datasource", "uid": "prometheus" }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [{ "color": "orange" }]
+          },
+          "noValue": "0"
+        }
+      },
+      "datasource": { "type": "datasource", "uid": "prometheus" }
+    },
+    {
+      "id": 11,
+      "title": "Inventory Value (AV)",
+      "type": "stat",
+      "gridPos": { "x": 16, "y": 3, "w": 4, "h": 3 },
+      "targets": [
+        {
+          "expr": "max(inventory_value_total{status=\"AV\"})",
+          "legendFormat": "Value",
+          "instant": true,
+          "datasource": { "type": "datasource", "uid": "prometheus" }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyKES",
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [{ "color": "green" }]
+          },
+          "noValue": "0"
+        }
+      },
+      "datasource": { "type": "datasource", "uid": "prometheus" }
+    },
+    {
+      "id": 12,
+      "title": "Total Carts",
+      "type": "stat",
+      "gridPos": { "x": 20, "y": 3, "w": 4, "h": 3 },
+      "targets": [
+        {
+          "expr": "max(carts_total{status=\"total\"})",
+          "legendFormat": "Carts",
+          "instant": true,
+          "datasource": { "type": "datasource", "uid": "prometheus" }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [{ "color": "green" }]
+          },
+          "noValue": "0"
+        }
+      },
+      "datasource": { "type": "datasource", "uid": "prometheus" }
+    },
+    {
+      "id": 13,
+      "title": "Today's Top Items",
+      "type": "table",
+      "gridPos": { "x": 0, "y": 6, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "expr": "sort_desc(max(cart_popular_items) by (product_name))",
+          "legendFormat": "Count",
+          "format": "table",
+          "instant": true,
+          "datasource": { "type": "datasource", "uid": "prometheus" }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "left"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Count" },
+            "properties": [
+              { "id": "custom.align", "value": "center" },
+              { "id": "custom.width", "value": 100 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "product_name" },
+            "properties": [
+              { "id": "custom.align", "value": "left" }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true },
+            "renameByName": { "Value": "Count" }
+          }
+        }
+      ],
+      "datasource": { "type": "datasource", "uid": "prometheus" }
+    },
+    {
+      "id": 14,
+      "title": "Yesterday's Top Items",
+      "type": "table",
+      "gridPos": { "x": 12, "y": 6, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "expr": "sort_desc(max(cart_popular_items offset 24h) by (product_name))",
+          "legendFormat": "Count",
+          "format": "table",
+          "instant": true,
+          "datasource": { "type": "datasource", "uid": "prometheus" }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "left"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Count" },
+            "properties": [
+              { "id": "custom.align", "value": "center" },
+              { "id": "custom.width", "value": 100 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "product_name" },
+            "properties": [
+              { "id": "custom.align", "value": "left" }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true },
+            "renameByName": { "Value": "Count" }
+          }
+        }
+      ],
+      "datasource": { "type": "datasource", "uid": "prometheus" }
+    },
+    {
+      "id": 15,
+      "title": "Orders by Status",
+      "type": "bargauge",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "expr": "max(orders_by_status) by (status)",
+          "legendFormat": "{{status}}",
+          "format": "table",
+          "instant": true,
+          "datasource": { "type": "datasource", "uid": "prometheus" }
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false }
+          }
+        }
+      },
+      "datasource": { "type": "datasource", "uid": "prometheus" }
+    },
+    {
+      "id": 16,
+      "title": "Revenue Trend",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "expr": "max(increase(revenue_earned_cumulative[$__rate_interval])) by (brand) or vector(0)",
+          "legendFormat": "{{brand}}",
+          "datasource": { "type": "datasource", "uid": "prometheus" }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyKES",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      },
+      "datasource": { "type": "datasource", "uid": "prometheus" }
+    },
+    {
+      "id": 17,
+      "title": "Active Users",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 18, "w": 4, "h": 3 },
+      "targets": [
+        {
+          "expr": "max(active_users)",
+          "legendFormat": "Users",
+          "instant": true,
+          "datasource": { "type": "datasource", "uid": "prometheus" }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [{ "color": "green" }]
+          },
+          "noValue": "0"
+        }
+      },
+      "datasource": { "type": "datasource", "uid": "prometheus" }
+    },
+    {
+      "id": 18,
+      "title": "App Instances",
+      "type": "stat",
+      "gridPos": { "x": 4, "y": 18, "w": 4, "h": 3 },
+      "targets": [
+        {
+          "expr": "sum(app_instances_active)",
+          "legendFormat": "Instances",
+          "instant": true,
+          "datasource": { "type": "datasource", "uid": "prometheus" }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "green", "value": 2 }
+            ]
+          },
+          "noValue": "0"
+        }
+      },
+      "datasource": { "type": "datasource", "uid": "prometheus" }
+    },
+    {
+      "id": 19,
+      "title": "Customers",
+      "type": "stat",
+      "gridPos": { "x": 8, "y": 18, "w": 4, "h": 3 },
+      "targets": [
+        {
+          "expr": "max(customers_total)",
+          "legendFormat": "Customers",
+          "instant": true,
+          "datasource": { "type": "datasource", "uid": "prometheus" }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [{ "color": "green" }]
+          },
+          "noValue": "0"
+        }
+      },
+      "datasource": { "type": "datasource", "uid": "prometheus" }
+    },
+    {
+      "id": 20,
+      "title": "Uptime (30d)",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 18, "w": 4, "h": 3 },
+      "targets": [
+        {
+          "expr": "avg(up{job=\"django\"}) * 100",
+          "legendFormat": "Uptime",
+          "instant": true,
+          "datasource": { "type": "datasource", "uid": "prometheus" }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 99 },
+              { "color": "green", "value": 99.9 }
+            ]
+          },
+          "noValue": "0"
+        }
+      },
+      "datasource": { "type": "datasource", "uid": "prometheus" }
+    },
+    {
+      "id": 21,
+      "title": "Error Rate (1h)",
+      "type": "stat",
+      "gridPos": { "x": 16, "y": 18, "w": 4, "h": 3 },
+      "targets": [
+        {
+          "expr": "(sum(rate(http_requests_total{status_code=~\"5..\"}[1h])) or vector(0)) / sum(rate(http_requests_total[1h])) * 100",
+          "legendFormat": "Errors",
+          "instant": true,
+          "datasource": { "type": "datasource", "uid": "prometheus" }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          },
+          "noValue": "0"
+        }
+      },
+      "datasource": { "type": "datasource", "uid": "prometheus" }
+    },
+    {
+      "id": 22,
+      "title": "p95 Latency (5m)",
+      "type": "stat",
+      "gridPos": { "x": 20, "y": 18, "w": 4, "h": 3 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p95",
+          "instant": true,
+          "datasource": { "type": "datasource", "uid": "prometheus" }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.5 },
+              { "color": "red", "value": 2 }
+            ]
+          },
+          "noValue": "0"
+        }
+      },
+      "datasource": { "type": "datasource", "uid": "prometheus" }
+    }
+  ],
+  "time": {
+    "from": "now/d+8h",
+    "to": "now"
+  },
+  "refresh": "30s",
+  "schemaVersion": 38
+}

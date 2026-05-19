@@ -1,7 +1,7 @@
 name: Daily KPI Report
 on:
   schedule:
-    - cron: '0 21 * * *'   # 21:00 UTC = midnight Nairobi (EAT)
+    - cron: '0 5 * * *'    # 05:00 UTC = 08:00 Nairobi (EAT) — at daily reset, captures previous day
   workflow_dispatch:        # manual trigger for testing
 
 jobs:

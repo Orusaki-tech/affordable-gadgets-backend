@@ -101,7 +101,7 @@
       },
       "targets": [
         {
-          "expr": "(max(increase(orders_created_cumulative[$period])) or vector(0)) - (max(increase(orders_cancelled[$period])) or vector(0))",
+          "expr": "(max(increase(orders_created_cumulative[$period])) or vector(0)) - (max(increase(orders_cancelled_cumulative[$period])) or vector(0))",
           "legendFormat": "Net Orders",
           "instant": true,
           "datasource": {
