@@ -1239,7 +1239,7 @@
       },
       "targets": [
         {
-          "expr": "max(increase(whatsapp_clicks_cumulative[$period])) or vector(0)",
+          "expr": "max(whatsapp_clicks_cumulative) or vector(0)",
           "legendFormat": "Clicks",
           "instant": true,
           "datasource": {
