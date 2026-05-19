@@ -80,6 +80,17 @@ sum(increase(orders_total[24h])) by (status) or vector(0)     # → 0
 - No manual SSH or Docker commands needed on the monitoring VM.
 - The Ansible playbook copies files and restarts services via `docker compose`.
 
+### CI/CD Pipeline Verified (2026-05-19)
+
+| What | Auto-deployed? | Trigger | Mechanism |
+|------|---------------|---------|-----------|
+| **Monitoring** (datasources, dashboards, Prometheus, Grafana) | ✅ Yes | Push to `main` touching `deploy/` or `scripts/` | `validate-infra.yml` → `deploy-monitoring` job → `scripts/deploy-monitoring.sh` → SCP via IAP tunnel → `docker compose up -d` |
+| **Django API** | ✅ Yes | Push to `main` | `ci.yml` → Docker build → Artifact Registry → MIG rolling replace |
+| **OpenAPI schema** | ✅ Validate only | PR/push to `main` | `validate-openapi.yml` — comments on PR |
+| **Frontends** (Shop, Admin) | ❌ No | Manual Ansible only | No GitHub Actions workflow triggers them |
+| **Terraform infrastructure** | ❌ Plan only, no auto-apply | PR touching `deploy/terraform/` | `terraform-plan.yml` — `plan` only. Manual `apply` required. |
+| **Rollback** (API) | ❌ Manual | `workflow_dispatch` | `rollback-production.yml` — MIG rolling replace with previous image tag |
+
 ## Open Items
 - SMTP alerts blocked: `grafana_smtp_user` / `grafana_smtp_password` empty in vault (need Gmail app password)
 - Dashboard will show 0 for all period panels until counters are incremented by real user events (or multi-process issue is fixed)
