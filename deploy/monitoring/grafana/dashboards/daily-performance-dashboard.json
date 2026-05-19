@@ -622,7 +622,7 @@
       "gridPos": { "x": 0, "y": 21, "w": 4, "h": 3 },
       "targets": [
         {
-          "expr": "max(increase(whatsapp_clicks_cumulative[24h])) or vector(0)",
+          "expr": "round(sum(max(increase(whatsapp_clicks_cumulative[24h])) by (product_name))) or vector(0)",
           "legendFormat": "Clicks",
           "instant": true,
           "datasource": { "type": "datasource", "uid": "prometheus" }
@@ -646,7 +646,7 @@
       "gridPos": { "x": 4, "y": 21, "w": 20, "h": 6 },
       "targets": [
         {
-          "expr": "sort_desc(max(whatsapp_clicks_cumulative) by (product_name))",
+          "expr": "sort_desc(round(max(increase(whatsapp_clicks_cumulative[24h])) by (product_name)))",
           "legendFormat": "",
           "format": "table",
           "instant": true,

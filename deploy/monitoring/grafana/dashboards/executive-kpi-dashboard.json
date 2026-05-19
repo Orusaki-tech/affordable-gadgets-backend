@@ -1214,7 +1214,7 @@
       },
       "targets": [
         {
-          "expr": "sum(max(whatsapp_clicks_cumulative)) or vector(0)",
+          "expr": "sum(max(whatsapp_clicks_cumulative) by (product_name)) or vector(0)",
           "legendFormat": "Clicks",
           "instant": true,
           "datasource": {
