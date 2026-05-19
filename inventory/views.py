@@ -75,13 +75,9 @@ class RecordObservabilityEventView(APIView):
         if event_type == 'whatsapp_click':
             product_id = request.data.get('product_id')
             try:
-                # Validate that product_id is an integer
                 product_id_int = int(product_id)
             except (ValueError, TypeError):
                 return Response({"error": "product_id must be a valid integer."}, status=status.HTTP_400_BAD_REQUEST)
-
-            if not product_id:
-                return Response({"error": "product_id required for whatsapp_click"}, status=status.HTTP_400_BAD_REQUEST)
 
             brand_code = getattr(request, 'brand', None)
             brand_code = brand_code.code if brand_code else "AFFORDABLE_GADGETS"

@@ -685,6 +685,147 @@
         }
       ],
       "datasource": { "type": "datasource", "uid": "prometheus" }
+    },
+    {
+      "id": 25,
+      "title": "Lead Funnel",
+      "type": "table",
+      "gridPos": { "x": 0, "y": 27, "w": 8, "h": 6 },
+      "targets": [
+        {
+          "expr": "sum(leads_total) by (status)",
+          "legendFormat": "",
+          "format": "table",
+          "instant": true,
+          "datasource": { "type": "datasource", "uid": "prometheus" }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "left"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Count" },
+            "properties": [
+              { "id": "custom.align", "value": "center" },
+              { "id": "custom.width", "value": 100 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "status" },
+            "properties": [
+              { "id": "custom.align", "value": "left" }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true },
+            "renameByName": { "Value": "Count" }
+          }
+        }
+      ],
+      "datasource": { "type": "datasource", "uid": "prometheus" }
+    },
+    {
+      "id": 26,
+      "title": "Revenue by Product Type",
+      "type": "table",
+      "gridPos": { "x": 8, "y": 27, "w": 8, "h": 6 },
+      "targets": [
+        {
+          "expr": "sum(revenue_total) by (product_type)",
+          "legendFormat": "",
+          "format": "table",
+          "instant": true,
+          "datasource": { "type": "datasource", "uid": "prometheus" }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "left"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Revenue" },
+            "properties": [
+              { "id": "custom.align", "value": "center" },
+              { "id": "custom.width", "value": 120 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "product_type" },
+            "properties": [
+              { "id": "custom.align", "value": "left" }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true },
+            "renameByName": { "Value": "Revenue" }
+          }
+        }
+      ],
+      "datasource": { "type": "datasource", "uid": "prometheus" }
+    },
+    {
+      "id": 27,
+      "title": "Payments by Method",
+      "type": "table",
+      "gridPos": { "x": 16, "y": 27, "w": 8, "h": 6 },
+      "targets": [
+        {
+          "expr": "sum(payments_cumulative) by (method)",
+          "legendFormat": "",
+          "format": "table",
+          "instant": true,
+          "datasource": { "type": "datasource", "uid": "prometheus" }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "left"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Count" },
+            "properties": [
+              { "id": "custom.align", "value": "center" },
+              { "id": "custom.width", "value": 100 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "method" },
+            "properties": [
+              { "id": "custom.align", "value": "left" }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true },
+            "renameByName": { "Value": "Count" }
+          }
+        }
+      ],
+      "datasource": { "type": "datasource", "uid": "prometheus" }
     }
   ],
   "time": {
