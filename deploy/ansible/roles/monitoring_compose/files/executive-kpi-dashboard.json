@@ -531,7 +531,7 @@
       }
     },
     {
-      "title": "Carts Total (current)",
+      "title": "Carts Created (All Time)",
       "type": "stat",
       "gridPos": {
         "x": 0,
