@@ -13,7 +13,7 @@
       "gridPos": { "x": 0, "y": 0, "w": 4, "h": 3 },
       "targets": [
         {
-          "expr": "sum(increase(revenue_earned_cumulative[$__range_s])) or vector(0)",
+          "expr": "max(increase(revenue_earned_cumulative[$__range_s])) or vector(0)",
           "legendFormat": "Revenue",
           "instant": true,
           "datasource": { "type": "datasource", "uid": "prometheus" }
@@ -38,7 +38,7 @@
       "gridPos": { "x": 4, "y": 0, "w": 4, "h": 3 },
       "targets": [
         {
-          "expr": "(sum(increase(orders_created_cumulative[$__range_s])) or vector(0)) - (sum(increase(orders_cancelled_cumulative[$__range_s])) or vector(0))",
+          "expr": "(max(increase(orders_created_cumulative[$__range_s])) or vector(0)) - (max(increase(orders_cancelled_cumulative[$__range_s])) or vector(0))",
           "legendFormat": "Net Orders",
           "instant": true,
           "datasource": { "type": "datasource", "uid": "prometheus" }
@@ -62,7 +62,7 @@
       "gridPos": { "x": 8, "y": 0, "w": 4, "h": 3 },
       "targets": [
         {
-          "expr": "sum(increase(leads_created_cumulative[$__range_s])) or vector(0)",
+          "expr": "max(increase(leads_created_cumulative[$__range_s])) or vector(0)",
           "legendFormat": "Leads",
           "instant": true,
           "datasource": { "type": "datasource", "uid": "prometheus" }
@@ -86,7 +86,7 @@
       "gridPos": { "x": 12, "y": 0, "w": 4, "h": 3 },
       "targets": [
         {
-          "expr": "sum(increase(leads_converted_cumulative[$__range_s])) or vector(0)",
+          "expr": "max(increase(leads_converted_cumulative[$__range_s])) or vector(0)",
           "legendFormat": "Conversions",
           "instant": true,
           "datasource": { "type": "datasource", "uid": "prometheus" }
@@ -110,7 +110,7 @@
       "gridPos": { "x": 16, "y": 0, "w": 4, "h": 3 },
       "targets": [
         {
-          "expr": "sum(increase(customers_registered_cumulative[$__range_s])) or vector(0)",
+          "expr": "max(increase(customers_registered_cumulative[$__range_s])) or vector(0)",
           "legendFormat": "Customers",
           "instant": true,
           "datasource": { "type": "datasource", "uid": "prometheus" }
@@ -134,7 +134,7 @@
       "gridPos": { "x": 20, "y": 0, "w": 4, "h": 3 },
       "targets": [
         {
-          "expr": "(sum(increase(leads_converted_cumulative[$__range_s])) or vector(0)) / (sum(increase(leads_created_cumulative[$__range_s])) > 0 or vector(1)) * 100",
+          "expr": "(max(increase(leads_converted_cumulative[$__range_s])) or vector(0)) / (max(increase(leads_created_cumulative[$__range_s])) > 0 or vector(1)) * 100",
           "legendFormat": "Rate",
           "instant": true,
           "datasource": { "type": "datasource", "uid": "prometheus" }
@@ -622,7 +622,7 @@
       "gridPos": { "x": 0, "y": 21, "w": 4, "h": 3 },
       "targets": [
         {
-          "expr": "sum(increase(whatsapp_clicks_cumulative[$__range_s])) or vector(0)",
+          "expr": "max(increase(whatsapp_clicks_cumulative[$__range_s])) or vector(0)",
           "legendFormat": "Clicks",
           "instant": true,
           "datasource": { "type": "datasource", "uid": "prometheus" }
@@ -646,7 +646,7 @@
       "gridPos": { "x": 4, "y": 21, "w": 20, "h": 6 },
       "targets": [
         {
-          "expr": "sort_desc(max(whatsapp_clicks_cumulative) by (product_id))",
+          "expr": "sort_desc(max(whatsapp_clicks_cumulative) by (product_name))",
           "legendFormat": "",
           "format": "table",
           "instant": true,
@@ -667,20 +667,20 @@
               { "id": "custom.width", "value": 100 }
             ]
           },
-          {
-            "matcher": { "id": "byName", "options": "product_id" },
-            "properties": [
-              { "id": "custom.align", "value": "left" }
-            ]
-          }
+      {
+        "matcher": { "id": "byName", "options": "Product" },
+        "properties": [
+          { "id": "custom.align", "value": "left" }
+        ]
+      }
         ]
       },
       "transformations": [
         {
           "id": "organize",
           "options": {
-            "excludeByName": { "Time": true },
-            "renameByName": { "Value": "Clicks" }
+            "excludeByName": { "Time": true, "product_id": true },
+            "renameByName": { "product_name": "Product", "Value": "Clicks" }
           }
         }
       ],
@@ -829,7 +829,7 @@
     }
   ],
   "time": {
-    "from": "now/d+8h",
+    "from": "now/d",
     "to": "now"
   },
   "refresh": "30s",

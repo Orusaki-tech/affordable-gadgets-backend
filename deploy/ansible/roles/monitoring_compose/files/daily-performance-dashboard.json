@@ -646,7 +646,7 @@
       "gridPos": { "x": 4, "y": 21, "w": 20, "h": 6 },
       "targets": [
         {
-          "expr": "sort_desc(max(whatsapp_clicks_cumulative) by (product_id))",
+          "expr": "sort_desc(max(whatsapp_clicks_cumulative) by (product_name))",
           "legendFormat": "",
           "format": "table",
           "instant": true,
@@ -667,20 +667,20 @@
               { "id": "custom.width", "value": 100 }
             ]
           },
-          {
-            "matcher": { "id": "byName", "options": "product_id" },
-            "properties": [
-              { "id": "custom.align", "value": "left" }
-            ]
-          }
+      {
+        "matcher": { "id": "byName", "options": "Product" },
+        "properties": [
+          { "id": "custom.align", "value": "left" }
+        ]
+      }
         ]
       },
       "transformations": [
         {
           "id": "organize",
           "options": {
-            "excludeByName": { "Time": true },
-            "renameByName": { "Value": "Clicks" }
+            "excludeByName": { "Time": true, "product_id": true },
+            "renameByName": { "product_name": "Product", "Value": "Clicks" }
           }
         }
       ],
@@ -829,7 +829,7 @@
     }
   ],
   "time": {
-    "from": "now/d+8h",
+    "from": "now/d",
     "to": "now"
   },
   "refresh": "30s",

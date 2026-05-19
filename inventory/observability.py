@@ -319,7 +319,7 @@ CART_POPULAR_ITEMS = Gauge(
 WHATSAPP_CLICKS_CUMULATIVE = Gauge(
     "whatsapp_clicks_cumulative",
     "Total WhatsApp button clicks per product (DB-backed)",
-    ["product_id", "brand"],
+    ["product_id", "product_name", "brand"],
     multiprocess_mode="livemostrecent",
 )
 
@@ -566,10 +566,11 @@ def refresh_business_metrics():
             try:
                 clicks = WhatsAppClickEvent.objects.filter(
                     brand_code=bc
-                ).values("product_id").annotate(cnt=Count("id"))
+                ).values("product_id", product_name=F("product__product_name")).annotate(cnt=Count("id"))
                 for c in clicks:
                     pid = str(c["product_id"]) if c["product_id"] else "0"
-                    WHATSAPP_CLICKS_CUMULATIVE.labels(product_id=pid, brand=bc).set(c["cnt"])
+                    pname = c.get("product_name") or "unknown"
+                    WHATSAPP_CLICKS_CUMULATIVE.labels(product_id=pid, product_name=pname, brand=bc).set(c["cnt"])
             except Exception:
                 pass
     except Exception:

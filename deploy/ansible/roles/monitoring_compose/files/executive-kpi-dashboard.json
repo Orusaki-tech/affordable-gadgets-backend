@@ -1214,7 +1214,7 @@
       },
       "targets": [
         {
-          "expr": "max(whatsapp_clicks_cumulative) or vector(0)",
+          "expr": "sum(max(whatsapp_clicks_cumulative) by (product_id)) or vector(0)",
           "legendFormat": "Clicks",
           "instant": true,
           "datasource": {
@@ -1483,7 +1483,7 @@
       },
       "targets": [
         {
-          "expr": "sort_desc(max(whatsapp_clicks_cumulative) by (product_id))",
+          "expr": "sort_desc(max(whatsapp_clicks_cumulative) by (product_name))",
           "format": "table",
           "instant": true,
           "legendFormat": "",
@@ -1497,12 +1497,14 @@
         {
           "id": "organize",
           "options": {
-            "excludeByName": {
-              "Time": true
-            },
-            "renameByName": {
-              "Value": "Clicks"
-            }
+"excludeByName": {
+        "Time": true,
+        "product_id": true
+      },
+      "renameByName": {
+        "product_name": "Product",
+        "Value": "Clicks"
+      }
           }
         }
       ],
@@ -1533,6 +1535,18 @@
               {
                 "id": "custom.align",
                 "value": "center"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Product"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "left"
               }
             ]
           }
