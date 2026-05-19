@@ -81,3 +81,7 @@ shutil.copy2(
     f"{TEMPLATES_DIR}/../files/executive-kpi-dashboard.json",
     f"{WORK_DIR}/executive-kpi-dashboard.json",
 )
+shutil.copy2(
+    f"{TEMPLATES_DIR}/../files/daily-performance-dashboard.json",
+    f"{WORK_DIR}/daily-performance-dashboard.json",
+)
