@@ -1,7 +1,7 @@
 {
   "title": "Affordable Gadgets \u2014 Executive KPIs",
   "uid": "ag-exec-kpi",
-  "version": 7,
+  "version": 8,
   "tags": [
     "django",
     "business",
@@ -562,7 +562,7 @@
           }
         }
       },
-      "id": 999,
+      "id": 13,
       "datasource": {
         "type": "datasource",
         "uid": "prometheus"
@@ -601,7 +601,7 @@
           }
         }
       },
-      "id": 13,
+      "id": 14,
       "datasource": {
         "type": "datasource",
         "uid": "prometheus"
@@ -645,20 +645,20 @@
           }
         }
       },
-      "id": 14
+      "id": 15
     },
     {
       "title": "Items in Active Carts",
-      "type": "stat",
+      "type": "table",
       "datasource": {
         "type": "marcusolsson-json-datasource",
         "uid": "json-api"
       },
       "gridPos": {
-        "x": 4,
-        "y": 12,
-        "w": 4,
-        "h": 3
+        "x": 0,
+        "y": 15,
+        "w": 12,
+        "h": 6
       },
       "targets": [
         {
@@ -669,7 +669,13 @@
           "fields": [
             {
               "language": "jsonpath",
-              "path": "$.metrics.active_items_total"
+              "path": "$.popular_products[*].product_name",
+              "name": "Item"
+            },
+            {
+              "language": "jsonpath",
+              "path": "$.popular_products[*].quantity_in_carts",
+              "name": "Count"
             }
           ],
           "datasource": {
@@ -678,14 +684,44 @@
           }
         }
       ],
+      "id": 16,
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "thresholds"
+          "custom": {
+            "align": "left"
           }
-        }
-      },
-      "id": 15
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Count"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "center"
+              },
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Item"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "auto"
+              }
+            ]
+          }
+        ]
+      }
     },
     {
       "title": "Stale/Abandoned Carts (>2h)",
@@ -695,7 +731,7 @@
         "uid": "json-api"
       },
       "gridPos": {
-        "x": 8,
+        "x": 4,
         "y": 12,
         "w": 4,
         "h": 3
@@ -732,13 +768,13 @@
           }
         }
       },
-      "id": 16
+      "id": 17
     },
     {
       "title": "On-Time Delivery",
       "type": "gauge",
       "gridPos": {
-        "x": 12,
+        "x": 8,
         "y": 12,
         "w": 4,
         "h": 3
@@ -776,7 +812,7 @@
           }
         }
       },
-      "id": 17,
+      "id": 18,
       "datasource": {
         "type": "datasource",
         "uid": "prometheus"
@@ -786,7 +822,7 @@
       "title": "Sell-Through Rate",
       "type": "stat",
       "gridPos": {
-        "x": 16,
+        "x": 12,
         "y": 12,
         "w": 4,
         "h": 3
@@ -825,7 +861,7 @@
           }
         }
       },
-      "id": 18,
+      "id": 19,
       "datasource": {
         "type": "datasource",
         "uid": "prometheus"
@@ -855,7 +891,7 @@
           "unit": "currencyKES"
         }
       },
-      "id": 19,
+      "id": 20,
       "datasource": {
         "type": "datasource",
         "uid": "prometheus"
@@ -896,7 +932,7 @@
           }
         }
       },
-      "id": 20,
+      "id": 21,
       "datasource": {
         "type": "datasource",
         "uid": "prometheus"
@@ -938,7 +974,7 @@
           }
         }
       },
-      "id": 21,
+      "id": 22,
       "datasource": {
         "type": "datasource",
         "uid": "prometheus"
@@ -972,7 +1008,7 @@
           }
         }
       },
-      "id": 22,
+      "id": 23,
       "datasource": {
         "type": "datasource",
         "uid": "prometheus"
@@ -1019,7 +1055,7 @@
           }
         }
       },
-      "id": 23,
+      "id": 24,
       "datasource": {
         "type": "datasource",
         "uid": "prometheus"
@@ -1065,7 +1101,7 @@
           }
         }
       },
-      "id": 24,
+      "id": 25,
       "datasource": {
         "type": "datasource",
         "uid": "prometheus"
@@ -1111,50 +1147,11 @@
           }
         }
       },
-      "id": 25,
+      "id": 26,
       "datasource": {
         "type": "datasource",
         "uid": "prometheus"
       }
-    },
-    {
-      "title": "Most Popular Items in Carts",
-      "type": "table",
-      "datasource": {
-        "type": "marcusolsson-json-datasource",
-        "uid": "json-api"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 15,
-        "w": 12,
-        "h": 6
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "type": "jsonapi",
-          "urlPath": "/api/inventory/observability/cart-analytics/",
-          "method": "GET",
-          "fields": [
-            {
-              "language": "jsonpath",
-              "path": "$.popular_products[*].product_name",
-              "name": "Product"
-            },
-            {
-              "language": "jsonpath",
-              "path": "$.popular_products[*].quantity_in_carts",
-              "name": "Quantity in Carts"
-            }
-          ],
-          "datasource": {
-            "type": "marcusolsson-json-datasource",
-            "uid": "json-api"
-          }
-        }
-      ],
-      "id": 26
     }
   ],
   "time": {
