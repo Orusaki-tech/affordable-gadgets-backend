@@ -949,12 +949,24 @@
           }
         }
       ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "currencyKES"
+  "fieldConfig": {
+    "defaults": {
+      "unit": "currencyKES",
+      "mappings": [
+        {
+          "type": "value",
+          "options": {
+            "AV": { "text": "Available" },
+            "SD": { "text": "Sold" },
+            "RS": { "text": "Reserved" },
+            "RT": { "text": "Returned" },
+            "PP": { "text": "Pending Payment" }
+          }
         }
-      },
-      "id": 20,
+      ]
+    }
+  },
+  "id": 20,
       "datasource": {
         "type": "datasource",
         "uid": "prometheus"
