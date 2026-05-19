@@ -24,7 +24,7 @@
       },
       "targets": [
         {
-          "expr": "max(increase(revenue_earned_cumulative[24h])) or vector(0)",
+          "expr": "max(revenue_earned_cumulative) - (max(revenue_earned_cumulative offset 24h) or vector(0))",
           "legendFormat": "Revenue",
           "instant": true,
           "datasource": {
@@ -66,7 +66,7 @@
       },
       "targets": [
         {
-          "expr": "(max(increase(orders_created_cumulative[24h])) or vector(0)) - (max(increase(orders_cancelled_cumulative[24h])) or vector(0))",
+          "expr": "(max(orders_created_cumulative) - (max(orders_created_cumulative offset 24h) or vector(0))) - (max(orders_cancelled_cumulative) - (max(orders_cancelled_cumulative offset 24h) or vector(0)))",
           "legendFormat": "Net Orders",
           "instant": true,
           "datasource": {
@@ -107,7 +107,7 @@
       },
       "targets": [
         {
-          "expr": "max(increase(leads_created_cumulative[24h])) or vector(0)",
+          "expr": "max(leads_created_cumulative) - (max(leads_created_cumulative offset 24h) or vector(0))",
           "legendFormat": "Leads",
           "instant": true,
           "datasource": {
@@ -148,7 +148,7 @@
       },
       "targets": [
         {
-          "expr": "max(increase(leads_converted_cumulative[24h])) or vector(0)",
+          "expr": "max(leads_converted_cumulative) - (max(leads_converted_cumulative offset 24h) or vector(0))",
           "legendFormat": "Conversions",
           "instant": true,
           "datasource": {
@@ -189,7 +189,7 @@
       },
       "targets": [
         {
-          "expr": "max(increase(customers_registered_cumulative[24h])) or vector(0)",
+          "expr": "max(customers_registered_cumulative) - (max(customers_registered_cumulative offset 24h) or vector(0))",
           "legendFormat": "Customers",
           "instant": true,
           "datasource": {
@@ -230,7 +230,7 @@
       },
       "targets": [
         {
-          "expr": "(max(increase(leads_converted_cumulative[24h])) or vector(0)) / (max(increase(leads_created_cumulative[24h])) > 0 or vector(1)) * 100",
+          "expr": "(max(leads_converted_cumulative) - (max(leads_converted_cumulative offset 24h) or vector(0))) / ((max(leads_created_cumulative) - (max(leads_created_cumulative offset 24h) or vector(0))) > 0 or vector(1)) * 100",
           "legendFormat": "Rate",
           "instant": true,
           "datasource": {
@@ -277,7 +277,7 @@
       },
       "targets": [
         {
-          "expr": "max(increase(revenue_earned_cumulative[24h])) by (brand) or vector(0)",
+          "expr": "(max(revenue_earned_cumulative) by (brand)) - (max(revenue_earned_cumulative offset 24h) by (brand) or vector(0))",
           "legendFormat": "{{brand}}",
           "datasource": {
             "type": "datasource",
@@ -958,7 +958,7 @@
       },
       "targets": [
         {
-          "expr": "max(increase(leads_created_cumulative[24h])) by (brand) or vector(0)",
+          "expr": "(max(leads_created_cumulative) by (brand)) - (max(leads_created_cumulative offset 24h) by (brand) or vector(0))",
           "legendFormat": "Leads {{brand}}",
           "datasource": {
             "type": "datasource",
@@ -966,7 +966,7 @@
           }
         },
         {
-          "expr": "max(increase(leads_converted_cumulative[24h])) by (brand) or vector(0)",
+          "expr": "(max(leads_converted_cumulative) by (brand)) - (max(leads_converted_cumulative offset 24h) by (brand) or vector(0))",
           "legendFormat": "Conversions {{brand}}",
           "datasource": {
             "type": "datasource",
@@ -999,7 +999,7 @@
       },
       "targets": [
         {
-          "expr": "max(increase(customers_registered_cumulative[24h])) or vector(0)",
+          "expr": "max(customers_registered_cumulative) - (max(customers_registered_cumulative offset 24h) or vector(0))",
           "legendFormat": "Customers",
           "datasource": {
             "type": "datasource",
@@ -1007,7 +1007,7 @@
           }
         },
         {
-          "expr": "max(increase(revenue_earned_cumulative[24h])) or vector(0)",
+          "expr": "max(revenue_earned_cumulative) - (max(revenue_earned_cumulative offset 24h) or vector(0))",
           "legendFormat": "Revenue",
           "datasource": {
             "type": "datasource",
