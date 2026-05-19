@@ -5,6 +5,17 @@ on:
     branches: [main, master]
   push:
     branches: [main, master]
+    paths-ignore:
+      - 'AGENTS.md'
+      - 'README.md'
+      - 'deploy/**'
+      - 'scripts/**'
+      - '.github/workflows/validate-*.yml'
+      - '.github/workflows/terraform-*.yml'
+      - '.github/workflows/rollback-*.yml'
+      - '.github/workflows/deploy-*.yml'
+      - '.github/workflows/keep-warm.yml'
+      - '.github/workflows/health-cron.yml'
 
 env:
   REGION: us-east1
