@@ -74,7 +74,15 @@ sum(increase(orders_total[24h])) by (status) or vector(0)     # → 0
 ## Files Modified
 - `deploy/ansible/roles/monitoring_compose/files/datasource.yml` — changed JSON API URL
 - `deploy/monitoring/grafana/datasources/datasource.yml` — same change (copy)
-- `scripts/deploy-monitoring.sh` — added explicit `restart grafana` after `up -d` so provisioning changes take effect immediately
+- `scripts/deploy-monitoring.sh` — added health check + token fetch with retries, `restart grafana`, pass token to renderer
+- `scripts/render_monitoring_templates.py` — accept `django_admin_token` arg, pass to grafana.env template
+- `.github/workflows/validate-infra.yml` — pass `DJANGO_ADMIN_PASSWORD` secret to deploy step
+
+### 3. Grafana JSON API auth failing (400)
+- **Error**: After fixing URL, auth token was `{{ django_admin_token | default('admin') }}` literal — renderer never received `django_admin_token` variable.
+- **Root cause**: `render_monitoring_templates.py` did not pass `django_admin_token` to the grafana.env template. The CI/CD path always had a broken `GF_JSON_API_TOKEN`.
+- **Fix**: `deploy-monitoring.sh` now health-checks the API (3 retries), fetches a fresh DRF token via `POST /api/auth/token/login/` with `DJANGO_ADMIN_PASSWORD` from GitHub secrets (3 retries), passes it to the renderer.
+- **New GitHub secret**: `DJANGO_ADMIN_PASSWORD` — the Django admin password. Used only in-memory during CI; never written to disk or transmitted to the VM. Only the token (not the password) ends up in `grafana.env`.
 
 ## Deployment
 - **Push to deploy** — CI/CD handles everything. Just commit, push, and the pipeline runs the Ansible monitoring playbook against the monitoring VM.
