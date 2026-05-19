@@ -58,6 +58,7 @@ from datetime import timedelta
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from .models import WhatsAppClickEvent
 from .observability import WHATSAPP_CLICKS_TOTAL
 
 from rest_framework.throttling import AnonRateThrottle
@@ -86,6 +87,11 @@ class RecordObservabilityEventView(APIView):
             brand_code = brand_code.code if brand_code else "AFFORDABLE_GADGETS"
 
             WHATSAPP_CLICKS_TOTAL.labels(product_id=str(product_id_int), brand=brand_code).inc()
+
+            WhatsAppClickEvent.objects.create(
+                product_id=product_id_int,
+                brand_code=brand_code,
+            )
             return Response({"status": "ok"}, status=status.HTTP_202_ACCEPTED)
 
         return Response({"error": "invalid event_type"}, status=status.HTTP_400_BAD_REQUEST)

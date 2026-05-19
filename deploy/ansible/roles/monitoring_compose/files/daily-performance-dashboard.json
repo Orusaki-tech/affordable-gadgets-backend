@@ -614,6 +614,77 @@
         }
       },
       "datasource": { "type": "datasource", "uid": "prometheus" }
+    },
+    {
+      "id": 23,
+      "title": "WhatsApp Clicks",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 21, "w": 4, "h": 3 },
+      "targets": [
+        {
+          "expr": "sum(increase(whatsapp_clicks_cumulative[$__range_s])) or vector(0)",
+          "legendFormat": "Clicks",
+          "instant": true,
+          "datasource": { "type": "datasource", "uid": "prometheus" }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [{ "color": "green" }]
+          },
+          "noValue": "0"
+        }
+      },
+      "datasource": { "type": "datasource", "uid": "prometheus" }
+    },
+    {
+      "id": 24,
+      "title": "Top Clicked Products",
+      "type": "table",
+      "gridPos": { "x": 4, "y": 21, "w": 20, "h": 6 },
+      "targets": [
+        {
+          "expr": "sort_desc(max(whatsapp_clicks_cumulative) by (product_id))",
+          "legendFormat": "",
+          "format": "table",
+          "instant": true,
+          "datasource": { "type": "datasource", "uid": "prometheus" }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "left"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Clicks" },
+            "properties": [
+              { "id": "custom.align", "value": "center" },
+              { "id": "custom.width", "value": 100 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "product_id" },
+            "properties": [
+              { "id": "custom.align", "value": "left" }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true },
+            "renameByName": { "Value": "Clicks" }
+          }
+        }
+      ],
+      "datasource": { "type": "datasource", "uid": "prometheus" }
     }
   ],
   "time": {

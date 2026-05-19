@@ -316,6 +316,13 @@ CART_POPULAR_ITEMS = Gauge(
     multiprocess_mode="livemostrecent",
 )
 
+WHATSAPP_CLICKS_CUMULATIVE = Gauge(
+    "whatsapp_clicks_cumulative",
+    "Total WhatsApp button clicks per product (DB-backed)",
+    ["product_id", "brand"],
+    multiprocess_mode="livemostrecent",
+)
+
 # ── Gauge Refresh ────────────────────────────────────────────────────────
 
 _last_refresh = 0.0
@@ -340,7 +347,7 @@ def refresh_business_metrics():
         from datetime import timedelta
         from decimal import Decimal
 
-        from django.db.models import F, Q, Sum
+        from django.db.models import Count, F, Q, Sum
         from django.db.models.functions import Coalesce
 
         from django.utils import timezone
@@ -354,6 +361,7 @@ def refresh_business_metrics():
             Lead,
             Order,
             PesapalPayment,
+            WhatsAppClickEvent,
         )
 
         brand_codes = list(Brand.objects.filter(is_active=True).values_list("code", flat=True))
@@ -551,6 +559,17 @@ def refresh_business_metrics():
                     SALESPERSON_TOTAL.labels(brand=bc, salesperson=sp_name, metric="approval_rate").set(
                         sp.get("approval_rate", 0)
                     )
+            except Exception:
+                pass
+
+            # WhatsApp clicks (cumulative, per product)
+            try:
+                clicks = WhatsAppClickEvent.objects.filter(
+                    brand_code=bc
+                ).values("product_id").annotate(cnt=Count("id"))
+                for c in clicks:
+                    pid = str(c["product_id"]) if c["product_id"] else "0"
+                    WHATSAPP_CLICKS_CUMULATIVE.labels(product_id=pid, brand=bc).set(c["cnt"])
             except Exception:
                 pass
     except Exception:

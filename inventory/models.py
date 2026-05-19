@@ -2482,6 +2482,27 @@ class Receipt(models.Model):
         return f"Receipt {self.receipt_number} for Order {self.order.order_id}"
 
 
+class WhatsAppClickEvent(models.Model):
+    """
+    Records a WhatsApp button click on a product page.
+    Each row = one click, with timestamp for daily/weekly aggregation.
+    """
+    product = models.ForeignKey(
+        Product, on_delete=models.CASCADE, null=True, blank=True,
+        verbose_name="Product clicked"
+    )
+    brand_code = models.CharField(max_length=50, default="AFFORDABLE_GADGETS")
+    clicked_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-clicked_at"]
+        verbose_name = "WhatsApp Click Event"
+        verbose_name_plural = "WhatsApp Click Events"
+
+    def __str__(self):
+        return f"WhatsApp click on product {self.product_id} at {self.clicked_at.isoformat()}"
+
+
 # -------------------------------------------------------------------------
 # ENUM CHOICES (module-level exports for drf-spectacular overrides)
 # -------------------------------------------------------------------------
