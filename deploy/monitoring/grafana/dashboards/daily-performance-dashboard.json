@@ -646,7 +646,7 @@
       "gridPos": { "x": 4, "y": 21, "w": 20, "h": 6 },
       "targets": [
         {
-          "expr": "sort_desc(max(whatsapp_clicks_cumulative) by (product_id))",
+          "expr": "sort_desc(max(whatsapp_clicks_cumulative) by (product_name))",
           "legendFormat": "",
           "format": "table",
           "instant": true,
@@ -680,7 +680,7 @@
           "id": "organize",
           "options": {
             "excludeByName": { "Time": true },
-            "renameByName": { "product_id": "Product", "Value": "Clicks" }
+            "renameByName": { "product_name": "Product", "Value": "Clicks" }
           }
         }
       ],
