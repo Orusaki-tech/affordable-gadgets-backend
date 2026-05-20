@@ -106,14 +106,23 @@ class Command(BaseCommand):
         """
         product_name = data.get("product_name")
         if product_name:
+            name = product_name.strip()
+            # Try forward match (DB contains JSON name)
             candidates = list(
                 Product.objects.filter(
-                    product_name__icontains=product_name.strip()
-                ).order_by("product_name")[:5]
+                    product_name__icontains=name
+                ).order_by("product_name")[:10]
             )
+            if not candidates:
+                # Try reverse match (JSON name contains DB product_name)
+                for p in Product.objects.filter(is_published=True).only("product_name"):
+                    if name.lower() in p.product_name.lower() or p.product_name.lower() in name.lower():
+                        candidates.append(p)
+                        if len(candidates) >= 5:
+                            break
             if candidates:
                 # Prefer exact match, then shortest name (base model, not variant)
-                exact = [p for p in candidates if p.product_name.strip().lower() == product_name.strip().lower()]
+                exact = [p for p in candidates if p.product_name.strip().lower() == name.lower()]
                 if exact:
                     return exact[0]
                 candidates.sort(key=lambda p: len(p.product_name))
