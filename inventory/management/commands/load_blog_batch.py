@@ -98,18 +98,45 @@ class Command(BaseCommand):
             summary = f"[DRY RUN] Would create/update: {total_created} (skipped {total_skipped})"
         self.stdout.write(self.style.SUCCESS(summary))
 
+    def _resolve_product(self, data):
+        """Find product by product_name (primary) or slug (fallback).
+
+        Uses product_name when available for SEO-friendly matching.
+        Falls back to slug lookup for backward compatibility.
+        """
+        product_name = data.get("product_name")
+        if product_name:
+            candidates = list(
+                Product.objects.filter(
+                    product_name__icontains=product_name.strip()
+                ).order_by("product_name")[:5]
+            )
+            if candidates:
+                # Prefer exact match, then shortest name (base model, not variant)
+                exact = [p for p in candidates if p.product_name.strip().lower() == product_name.strip().lower()]
+                if exact:
+                    return exact[0]
+                candidates.sort(key=lambda p: len(p.product_name))
+                return candidates[0]
+
+        # Fallback to slug
+        product_slug = data.get("product_slug")
+        if product_slug:
+            try:
+                return Product.objects.get(slug=product_slug)
+            except Product.DoesNotExist:
+                pass
+
+        return None
+
     def _load_single_article(self, json_path, dry_run=False, force=False):
         with open(json_path) as f:
             data = json.load(f)
 
-        product_slug = data.get("product_slug")
-        if not product_slug:
-            return "Missing product_slug"
-
-        try:
-            product = Product.objects.get(slug=product_slug)
-        except Product.DoesNotExist:
-            return f"Product not found: {product_slug}"
+        product = self._resolve_product(data)
+        if not product:
+            slug = data.get("product_slug", "?")
+            return f"Product not found (slug={slug}, name={data.get('product_name', 'N/A')})"
 
         # Check if article already exists
         article_exists = ProductArticle.objects.filter(product=product).exists()
