@@ -171,8 +171,8 @@ class Command(BaseCommand):
             "display_order"
         )
         image_section = ""
+        image_urls = []
         if product_images.exists():
-            image_urls = []
             for pi in product_images:
                 try:
                     url = get_optimized_image_url(pi.image, width=800, height=800)
