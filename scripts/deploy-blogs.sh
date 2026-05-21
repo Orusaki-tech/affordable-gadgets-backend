@@ -19,13 +19,14 @@ set -eu
 BATCH="${1:-}"
 
 PROJECT="gmail-486411"
+REGION="us-east1"
 ZONE="us-east1-b"
-MIG="affordable-gadgets-api-mig-us-east1-b"
+MIG="affordable-gadgets-production-api-mig"
 
 echo "🔍 Finding a running API instance..."
 INSTANCE=$(gcloud compute instance-groups managed list-instances "${MIG}" \
   --project="${PROJECT}" \
-  --zone="${ZONE}" \
+  --region="${REGION}" \
   --format="value(NAME)" \
   --limit=1)
 
@@ -50,4 +51,4 @@ gcloud compute ssh "${INSTANCE}" \
   --command="docker exec \$(docker ps -q -f name=web) ${CMD}"
 
 echo "✅ Batch loaded successfully!"
-echo "   Visit: https://shop.affordable-gadgetske.com/products/<slug>/blog"
+echo "   Visit: https://www.affordable-gadgetske.com/products/<slug>/blog"

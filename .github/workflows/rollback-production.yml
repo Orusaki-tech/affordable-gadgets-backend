@@ -28,7 +28,7 @@ jobs:
           echo "Rollback: deploy image tag ${TAG} via your MIG template update or Ansible:"
           echo "  ansible-playbook -i inventory/production playbooks/api.yml -e image_tag=${TAG}"
           gcloud compute instance-groups managed rolling-action replace "${MIG_NAME}" \
-            --region=us-central1 --project="${PROJECT_ID}" --max-unavailable=0 --max-surge=1
+            --region=us-east1 --project="${PROJECT_ID}" --max-unavailable=0 --max-surge=1
 
       - name: Smoke health
         run: curl -sf --max-time 30 "${{ vars.PRODUCTION_API_URL || 'https://api.affordable-gadgetske.com' }}/health/"
