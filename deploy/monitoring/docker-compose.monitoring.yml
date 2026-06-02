@@ -8,6 +8,8 @@
 #   Grafana    → http://localhost:3000  (admin / ${GRAFANA_PASSWORD:-admin})
 #
 # Source of truth: deploy/ansible/roles/monitoring_compose/
+# 
+# Last restarted: 2026-06-02 (fix 502 timeout issue)
 
 services:
   prometheus:
@@ -24,6 +26,7 @@ services:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
       - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-remote-write-receiver"
 
   grafana:
     image: grafana/grafana:13.0.1
