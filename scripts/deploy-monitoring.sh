@@ -8,15 +8,17 @@
 
 set -euo pipefail
 
-export GCP_PROJECT_ID="${GCP_PROJECT_ID:-gmail-486411}"
+export GCP_PROJECT_ID="${GCP_PROJECT_ID:-$(gcloud config get-value project 2>/dev/null || echo gmail-486411)}"
 GCP_ZONE="${GCP_ZONE:-us-east1-b}"
 MONITORING_INSTANCE="${MONITORING_INSTANCE:-affordable-gadgets-production-monitoring}"
 COMPOSE_ROOT="${COMPOSE_ROOT:-/opt/affordable-gadgets}"
-SSH_USER="${SSH_USER:-affordablegadgetske_gmail_com}"
+SSH_USER="${SSH_USER:-$(gcloud compute os-login describe-profile --format='value(posixAccounts[0].username)' 2>/dev/null || echo affordablegadgetske_gmail_com)}"
 SSH_KEY_PATH="${SSH_KEY_PATH:-~/.ssh/ci_deploy_key}"
+DOCKER_COMPOSE="${DOCKER_COMPOSE:-docker-compose}"
 GRAFANA_ADMIN_PASSWORD="${GRAFANA_ADMIN_PASSWORD?GRAFANA_ADMIN_PASSWORD not set}"
-CLOUDFLARE_TUNNEL_TOKEN="${CLOUDFLARE_TUNNEL_TOKEN?CLOUDFLARE_TUNNEL_TOKEN not set}"
-DJANGO_ADMIN_PASSWORD="${DJANGO_ADMIN_PASSWORD?DJANGO_ADMIN_PASSWORD not set}"
+CLOUDFLARE_TUNNEL_TOKEN="${CLOUDFLARE_TUNNEL_TOKEN:-}"
+DJANGO_ADMIN_PASSWORD="${DJANGO_ADMIN_PASSWORD:-}"
+DJANGO_API_TOKEN="${DJANGO_API_TOKEN:-}"
 GRAFANA_SMTP_FROM="${GRAFANA_SMTP_FROM:-noreply@affordable-gadgetske.com}"
 GRAFANA_SMTP_USER="${GRAFANA_SMTP_USER:-}"
 GRAFANA_SMTP_PASSWORD="${GRAFANA_SMTP_PASSWORD:-}"
@@ -48,18 +50,27 @@ for i in 1 2 3; do
 done
 
 # ── fetch API token for Grafana datasource ────────────────────────────────────
-echo "→ Fetching API token..."
-for i in 1 2 3; do
-  API_TOKEN=$(
-    curl -s --show-error --fail \
-      -X POST "https://api.affordable-gadgetske.com/api/auth/token/login/" \
-      -H "Content-Type: application/json" \
-      -d "{\"username\":\"admin\",\"password\":\"$DJANGO_ADMIN_PASSWORD\"}" \
-      | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])"
-  ) && break
-  echo "  Attempt $i failed, retrying in 10s..."
-  [ "$i" -lt 3 ] && sleep 10
-done
+if [[ -n "$DJANGO_API_TOKEN" ]]; then
+  echo "→ Using provided DJANGO_API_TOKEN"
+  API_TOKEN="$DJANGO_API_TOKEN"
+else
+  if [[ -z "$DJANGO_ADMIN_PASSWORD" ]]; then
+    echo "DJANGO_ADMIN_PASSWORD or DJANGO_API_TOKEN must be set" >&2
+    exit 1
+  fi
+  echo "→ Fetching API token..."
+  for i in 1 2 3; do
+    API_TOKEN=$(
+      curl -s --show-error --fail \
+        -X POST "https://api.affordable-gadgetske.com/api/auth/token/login/" \
+        -H "Content-Type: application/json" \
+        -d "{\"username\":\"admin\",\"password\":\"$DJANGO_ADMIN_PASSWORD\"}" \
+        | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])"
+    ) && break
+    echo "  Attempt $i failed, retrying in 10s..."
+    [ "$i" -lt 3 ] && sleep 10
+  done
+fi
 
 TMP_DIR="/tmp/monitoring-deploy"
 
@@ -72,6 +83,11 @@ DEPLOY_DIR="$SCRIPT_DIR/../deploy/ansible"
 WORK_DIR=$(mktemp -d)
 trap 'rm -rf $WORK_DIR' EXIT
 
+if [[ "${DEPLOY_TUNNEL_ON_MONITORING:-0}" == "1" && -z "$CLOUDFLARE_TUNNEL_TOKEN" ]]; then
+  echo "CLOUDFLARE_TUNNEL_TOKEN required when DEPLOY_TUNNEL_ON_MONITORING=1" >&2
+  exit 1
+fi
+
 python3 "$SCRIPT_DIR/render_monitoring_templates.py" \
   "$DEPLOY_DIR/roles/monitoring_compose/templates" \
   "$WORK_DIR" \
@@ -81,7 +97,7 @@ python3 "$SCRIPT_DIR/render_monitoring_templates.py" \
   "$GRAFANA_SMTP_USER" \
   "$GRAFANA_SMTP_PASSWORD" \
   "$GRAFANA_SMTP_FROM" \
-  "$CLOUDFLARE_TUNNEL_TOKEN" \
+  "${CLOUDFLARE_TUNNEL_TOKEN:-placeholder}" \
   "$API_TOKEN"
 
 # ── copy files to temp dir on VM ──────────────────────────────────────────────
@@ -122,9 +138,15 @@ sudo_cmd "docker run --rm -v ${COMPOSE_ROOT}/grafana_data:/var/lib/grafana busyb
   /var/lib/grafana/plugins/grafana-lokiexplore-app" 2>/dev/null || true
 
 # ── restart containers ───────────────────────────────────────────────────────
-sudo_cmd "docker compose -f $COMPOSE_ROOT/docker-compose.monitoring.yml --env-file $COMPOSE_ROOT/monitoring/grafana.env up -d --remove-orphans"
+sudo_cmd "$DOCKER_COMPOSE -f $COMPOSE_ROOT/docker-compose.monitoring.yml --env-file $COMPOSE_ROOT/monitoring/grafana.env up -d --remove-orphans"
 # Force Grafana restart so it picks up provisioning file changes.
-sudo_cmd "docker compose -f $COMPOSE_ROOT/docker-compose.monitoring.yml --env-file $COMPOSE_ROOT/monitoring/grafana.env restart grafana" || true
-sudo_cmd "docker compose -f $COMPOSE_ROOT/docker-compose.tunnel.yml --env-file $COMPOSE_ROOT/monitoring/tunnel/tunnel.env up -d"
+sudo_cmd "$DOCKER_COMPOSE -f $COMPOSE_ROOT/docker-compose.monitoring.yml --env-file $COMPOSE_ROOT/monitoring/grafana.env restart grafana" || true
+
+# Tunnel runs on affordable-gadgets-production-tunnel (not this VM).
+if [[ "${DEPLOY_TUNNEL_ON_MONITORING:-0}" == "1" ]]; then
+  sudo_cmd "$DOCKER_COMPOSE -f $COMPOSE_ROOT/docker-compose.tunnel.yml --env-file $COMPOSE_ROOT/monitoring/tunnel/tunnel.env up -d"
+else
+  echo "→ Skipping cloudflared (DEPLOY_TUNNEL_ON_MONITORING!=1); tunnel VM handles ingress"
+fi
 
 echo "✓ Monitoring stack deployed successfully"

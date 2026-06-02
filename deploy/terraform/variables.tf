@@ -15,6 +15,12 @@ variable "zone" {
   default     = "us-central1-a"
 }
 
+variable "secondary_zone" {
+  description = "Secondary GCP zone for multi-zone MIGs (e.g. us-central1-b)"
+  type        = string
+  default     = "us-central1-b"
+}
+
 variable "name_prefix" {
   description = "Prefix for resource names"
   type        = string
@@ -98,6 +104,24 @@ variable "redis_memory_size_gb" {
   default = 1
 }
 
+variable "api_autoscaler_cooldown_period" {
+  description = "Autoscaler cooldown period in seconds for API MIG"
+  type        = number
+  default     = 180
+}
+
+variable "api_autoscaler_cpu_target" {
+  description = "CPU utilization target for API autoscaler (0.0–1.0)"
+  type        = number
+  default     = 0.6
+}
+
+variable "api_autoscaler_lb_utilization_target" {
+  description = "LB utilization target for API autoscaler (0.0–1.0)"
+  type        = number
+  default     = null
+}
+
 variable "api_machine_type" {
   type    = string
   default = "e2-standard-4"
@@ -111,6 +135,48 @@ variable "api_min_replicas" {
 variable "api_max_replicas" {
   type    = number
   default = 25
+}
+
+variable "monitoring_machine_type" {
+  description = "GCE machine type for the monitoring VM (Prometheus + Grafana)"
+  type        = string
+  default     = "e2-standard-2"
+}
+
+variable "monitoring_disk_size_gb" {
+  description = "Boot disk size for the monitoring VM in GB"
+  type        = number
+  default     = 30
+}
+
+variable "k6_runner_ip" {
+  description = "Source IP of the k6 load test runner (for Prometheus remote write firewall)"
+  type        = string
+  default     = "0.0.0.0/0"
+}
+
+variable "shop_autoscaler_cooldown_period" {
+  description = "Autoscaler cooldown period in seconds for Shop MIG"
+  type        = number
+  default     = 180
+}
+
+variable "shop_autoscaler_cpu_target" {
+  description = "CPU utilization target for Shop autoscaler (0.0–1.0)"
+  type        = number
+  default     = 0.6
+}
+
+variable "admin_autoscaler_cooldown_period" {
+  description = "Autoscaler cooldown period in seconds for Admin MIG"
+  type        = number
+  default     = 180
+}
+
+variable "admin_autoscaler_cpu_target" {
+  description = "CPU utilization target for Admin autoscaler (0.0–1.0)"
+  type        = number
+  default     = 0.6
 }
 
 variable "shop_machine_type" {

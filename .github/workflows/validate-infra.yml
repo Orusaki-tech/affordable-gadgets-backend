@@ -96,7 +96,7 @@ jobs:
           GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
           CLOUDFLARE_TUNNEL_TOKEN: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
           DJANGO_ADMIN_PASSWORD: ${{ secrets.DJANGO_ADMIN_PASSWORD }}
-          GCP_PROJECT_ID: gmail-486411
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           GCP_ZONE: us-east1-b
           SSH_KEY_PATH: ~/.ssh/ci_deploy_key
         run: bash scripts/deploy-monitoring.sh
