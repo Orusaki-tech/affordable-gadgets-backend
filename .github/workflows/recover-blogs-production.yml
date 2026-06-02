@@ -11,6 +11,10 @@ on:
         description: 'Only audit + dry-run (no writes)'
         type: boolean
         default: false
+      resume_cloud_sql:
+        description: 'Resume Cloud SQL if SUSPENDED (required if instance was stopped)'
+        type: boolean
+        default: true
 
 jobs:
   recover:
@@ -26,6 +30,33 @@ jobs:
         with:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_DEPLOY_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Resume Cloud SQL instance if suspended
+        if: inputs.resume_cloud_sql
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          SQL_INSTANCE: affordable-gadgets-production-pg
+        run: |
+          STATE=$(gcloud sql instances describe "${SQL_INSTANCE}" \
+            --project="${GCP_PROJECT_ID}" --format='value(state)' 2>/dev/null || echo UNKNOWN)
+          echo "Cloud SQL ${SQL_INSTANCE} state: ${STATE}"
+          if [[ "${STATE}" == "SUSPENDED" || "${STATE}" == "STOPPED" ]]; then
+            echo "Resuming instance..."
+            gcloud sql instances patch "${SQL_INSTANCE}" \
+              --activation-policy=ALWAYS \
+              --project="${GCP_PROJECT_ID}"
+            for i in $(seq 1 36); do
+              STATE=$(gcloud sql instances describe "${SQL_INSTANCE}" \
+                --project="${GCP_PROJECT_ID}" --format='value(state)')
+              echo "  wait ${i}: ${STATE}"
+              [[ "${STATE}" == "RUNNABLE" ]] && break
+              sleep 10
+            done
+          fi
+          gcloud sql instances describe "${SQL_INSTANCE}" \
+            --project="${GCP_PROJECT_ID}" --format='table(name,state,region)'
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -47,10 +78,31 @@ jobs:
           MERGE_FROM_RESTORE: ${{ inputs.merge_from_restore }}
           DRY_RUN_ONLY: ${{ inputs.dry_run_only }}
         run: |
-          curl -o cloud-sql-proxy https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.14.3/cloud-sql-proxy.linux.amd64
+          set -euo pipefail
+          if [[ "${DATABASE_URL}" != *"127.0.0.1"* && "${DATABASE_URL}" != *"localhost"* ]]; then
+            echo "ERROR: PRODUCTION_DATABASE_URL must use host 127.0.0.1 when connecting via Cloud SQL Auth Proxy."
+            echo "Example: postgresql://user:pass@127.0.0.1:5432/affordable_gadgets"
+            exit 1
+          fi
+
+          curl -sSf -o cloud-sql-proxy https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.14.3/cloud-sql-proxy.linux.amd64
           chmod +x cloud-sql-proxy
-          ./cloud-sql-proxy "${CONNECTION}" &
-          sleep 5
+          ./cloud-sql-proxy "${CONNECTION}" --port=5432 &
+          PROXY_PID=$!
+          trap 'kill ${PROXY_PID} 2>/dev/null || true' EXIT
+
+          echo "Waiting for Cloud SQL proxy..."
+          for i in $(seq 1 30); do
+            if python3 -c "
+          import os, psycopg
+          u=os.environ['DATABASE_URL']
+          psycopg.connect(u, connect_timeout=3).close()
+          " 2>/dev/null; then
+              echo "Database connection OK"
+              break
+            fi
+            sleep 2
+          done
 
           python manage.py migrate --noinput
           python manage.py audit_blog_recovery
@@ -76,9 +128,9 @@ jobs:
       - name: Verify public API sample
         if: ${{ inputs.dry_run_only != true }}
         run: |
-          count=$(curl -sf "https://api.affordable-gadgetske.com/api/v1/public/products/?page_size=50" | grep -o '"has_published_article":true' | wc -l || true)
-          echo "Products with published articles (sample page): ${count}"
+          count=$(curl -sf "https://api.affordable-gadgetske.com/api/v1/public/products/?page_size=100" | grep -o '"has_published_article":true' | wc -l || true)
+          echo "Products with published articles (first 100): ${count}"
           if [[ "${count}" -lt 1 ]]; then
-            echo "WARNING: No has_published_article:true in first page — check load_blog_batch errors"
+            echo "WARNING: No published articles in API sample — check workflow logs for load_blog_batch errors"
             exit 1
           fi

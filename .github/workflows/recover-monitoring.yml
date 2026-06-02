@@ -6,6 +6,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: production
     permissions:
       id-token: write
       contents: read
@@ -17,9 +18,18 @@ jobs:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_DEPLOY_SA }}
 
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Setup SSH key for IAP tunnel
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/ci_deploy_key
+          chmod 600 ~/.ssh/ci_deploy_key
+
       - name: Check monitoring data volumes
         env:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_ZONE: us-east1-b
         run: |
           chmod +x deploy/scripts/check-monitoring-data.sh
           ./deploy/scripts/check-monitoring-data.sh || true
@@ -30,6 +40,8 @@ jobs:
           CLOUDFLARE_TUNNEL_TOKEN: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
           DJANGO_ADMIN_PASSWORD: ${{ secrets.DJANGO_ADMIN_PASSWORD }}
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_ZONE: us-east1-b
+          SSH_KEY_PATH: ~/.ssh/ci_deploy_key
         run: |
           chmod +x scripts/deploy-monitoring.sh
           ./scripts/deploy-monitoring.sh
