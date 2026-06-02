@@ -21,6 +21,7 @@ from inventory.models import (
     OrderItem,
     Product,
     ProductAccessory,
+    ProductArticle,
     ProductImage,
     Promotion,
     ReservationRequest,
@@ -89,6 +90,8 @@ class Command(BaseCommand):
         InventoryUnitImage.objects.all().delete()
         InventoryUnit.objects.all().delete()
         ProductImage.objects.all().delete()
+        # CRITICAL: Delete ProductArticles BEFORE Product to prevent CASCADE deletion
+        ProductArticle.objects.all().delete()
         WishlistItem.objects.all().delete()
         Product.objects.all().delete()
 
