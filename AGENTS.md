@@ -1,3 +1,19 @@
+# Session: 2026-06-02 — Blog recovery tooling (Cloud SQL + JSON)
+
+## Added
+- `audit_blog_recovery` — catalog/JSON audit; `--compare-restore` vs `RESTORE_DATABASE_URL`
+- `merge_from_restore_db` — selective article + unit merge from Cloud SQL clone
+- Migration `0061_productarticle_protect` — FK PROTECT on `ProductArticle.product`
+- `scripts/reload-blogs-production.sh` — Cloud SQL proxy + `load_blog_batch --force` (no Render creds)
+- `deploy/scripts/cloud-sql-clone-recovery.sh`, `deploy/scripts/check-monitoring-data.sh`
+- GitHub Actions: `recover-blogs-production.yml`, `recover-monitoring.yml`
+- Docs: `docs/BLOG_RECOVERY.md`
+
+## Run recovery
+1. Push to main, then Actions → **Recover blogs (production)** (needs `PRODUCTION_DATABASE_URL`, `CLOUD_SQL_CONNECTION_NAME`)
+2. Optional clone: set `RESTORE_DATABASE_URL`, enable merge input in workflow
+3. Monitoring: Actions → **Recover monitoring stack**
+
 # Session: 2026-05-21 — Blog Articles Deployed to Production (159 articles)
 
 ### 1. Bug found in production

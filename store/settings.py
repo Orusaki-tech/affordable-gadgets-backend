@@ -170,6 +170,13 @@ if not DATABASE_URL:
         }
     }
 
+# Optional second database (Cloud SQL clone / backup) for recovery commands.
+RESTORE_DATABASE_URL = os.environ.get("RESTORE_DATABASE_URL", "").strip()
+if RESTORE_DATABASE_URL:
+    from store.database_urls import database_config_from_url
+
+    DATABASES["restore"] = database_config_from_url(RESTORE_DATABASE_URL)
+
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators

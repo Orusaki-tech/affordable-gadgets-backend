@@ -7,6 +7,8 @@ IMPORTANT: This file imports from .settings, so it must be imported AFTER base s
 import os
 from urllib.parse import parse_qsl, urlparse
 
+from store.database_urls import database_config_from_url
+
 from .settings import *  # noqa: F403 - Import all base settings first
 
 # Security settings
@@ -64,6 +66,7 @@ if database_url:
                 "PASSWORD": parsed.password,
                 "HOST": parsed.hostname,
                 "PORT": parsed.port or "5432",
+                "CONN_MAX_AGE": int(os.environ.get("CONN_MAX_AGE", "300") or "300"),
                 "OPTIONS": db_options,
             }
         }
@@ -110,11 +113,19 @@ if not database_url:
             "PASSWORD": os.environ.get("DB_PASSWORD"),
             "HOST": db_host,
             "PORT": os.environ.get("DB_PORT", "5432"),
+            "CONN_MAX_AGE": int(os.environ.get("CONN_MAX_AGE", "300") or "300"),
             "OPTIONS": {
                 "connect_timeout": 10,
             },
         }
     }
+
+# Cloud SQL clone / backup for merge_from_restore_db and audit_blog_recovery.
+_restore_url = os.environ.get("RESTORE_DATABASE_URL", "").strip()
+if _restore_url:
+    DATABASES["restore"] = database_config_from_url(  # noqa: F405
+        _restore_url, conn_max_age=int(os.environ.get("CONN_MAX_AGE", "300") or "300")
+    )
 
 # Static files (use Cloudinary for production)
 STATIC_URL = "/static/"

@@ -1,37 +1,65 @@
 #!/usr/bin/env bash
-set -eu
+set -euo pipefail
 
-# reload-blogs-production.sh — Reload all 159 blog articles to production database.
-#
-# This script connects to the production Render database and reloads all blog batches.
-# Must be run on a machine with access to production database credentials.
+# reload-blogs-production.sh — Reload blog articles into production Cloud SQL.
 #
 # Usage:
+#   export CLOUD_SQL_CONNECTION_NAME="project:region:instance"
+#   export PRODUCTION_DATABASE_URL="postgresql://user:pass@127.0.0.1:5432/affordable_gadgets"
 #   ./scripts/reload-blogs-production.sh
 #
-# The script:
-# 1. Sets DATABASE_URL to production Render database
-# 2. Runs load_blog_batch --force to reload all articles
-# 3. Verifies the reload was successful
+# Or with proxy already running:
+#   DATABASE_URL="$PRODUCTION_DATABASE_URL" ./scripts/reload-blogs-production.sh
+#
+# Optional: merge from a Cloud SQL clone first:
+#   export RESTORE_DATABASE_URL="postgresql://..."
+#   python manage.py merge_from_restore_db --dry-run
+#   python manage.py merge_from_restore_db
 
-set -a
-# Load production database credentials from .env
-DB_USER="affordable_gadgets_user"
-DB_PASSWORD="xwdwzdnCcVgdqxYYuk6XErBegYSGUneI"
-DB_HOST="dpg-d5cfcf2li9vc73ceh8q0-a.oregon-postgres.render.com"
-DB_NAME="affordable_gadgets"
-DB_PORT="5432"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "${ROOT}"
 
-export DATABASE_URL="postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
-set +a
+if [[ -z "${DATABASE_URL:-}" ]]; then
+  if [[ -z "${PRODUCTION_DATABASE_URL:-}" ]]; then
+    echo "ERROR: Set DATABASE_URL or PRODUCTION_DATABASE_URL" >&2
+    exit 1
+  fi
+  export DATABASE_URL="${PRODUCTION_DATABASE_URL}"
+fi
 
-echo "📚 Reloading all blog articles to production database..."
-echo "   Database: ${DB_HOST}"
-echo "   Database: ${DB_NAME}"
+PROXY_PID=""
+if [[ -n "${CLOUD_SQL_CONNECTION_NAME:-}" ]] && ! nc -z 127.0.0.1 5432 2>/dev/null; then
+  PROXY_BIN="${PROXY_BIN:-cloud-sql-proxy}"
+  if ! command -v "${PROXY_BIN}" >/dev/null 2>&1; then
+    echo "ERROR: cloud-sql-proxy not found; start proxy manually or install it." >&2
+    exit 1
+  fi
+  echo "Starting Cloud SQL Auth Proxy for ${CLOUD_SQL_CONNECTION_NAME}..."
+  "${PROXY_BIN}" "${CLOUD_SQL_CONNECTION_NAME}" &
+  PROXY_PID=$!
+  trap 'kill ${PROXY_PID} 2>/dev/null || true' EXIT
+  sleep 5
+fi
+
+export DJANGO_SETTINGS_MODULE="${DJANGO_SETTINGS_MODULE:-store.settings_production}"
+export SECRET_KEY="${SECRET_KEY:-blog-reload-local-only}"
+export ALLOWED_HOSTS="${ALLOWED_HOSTS:-localhost}"
+export FRONTEND_BASE_URL="${FRONTEND_BASE_URL:-https://shop.affordable-gadgetske.com}"
+
+echo "Auditing catalog vs blog JSON..."
+python manage.py audit_blog_recovery
+
 echo ""
+echo "Dry run load_blog_batch..."
+python manage.py load_blog_batch --dry-run
 
+echo ""
+echo "Loading all blog batches (--force)..."
 python manage.py load_blog_batch --force
 
 echo ""
-echo "✅ Blog reload complete!"
-echo "   Verify: curl https://api.affordable-gadgetske.com/api/v1/public/products/169/ | grep has_published_article"
+echo "Post-load audit..."
+python manage.py audit_blog_recovery
+
+echo ""
+echo "Done. Verify: curl -s 'https://api.affordable-gadgetske.com/api/v1/public/products/?page_size=5' | grep has_published_article"

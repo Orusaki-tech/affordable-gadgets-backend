@@ -1,0 +1,84 @@
+name: Recover blogs (production)
+
+on:
+  workflow_dispatch:
+    inputs:
+      merge_from_restore:
+        description: 'Run merge_from_restore_db first (requires RESTORE_DATABASE_URL secret)'
+        type: boolean
+        default: false
+      dry_run_only:
+        description: 'Only audit + dry-run (no writes)'
+        type: boolean
+        default: false
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SA }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Cloud SQL Proxy and recover blogs
+        env:
+          CONNECTION: ${{ secrets.CLOUD_SQL_CONNECTION_NAME }}
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          RESTORE_DATABASE_URL: ${{ secrets.RESTORE_DATABASE_URL }}
+          SECRET_KEY: ci-blog-recovery
+          ALLOWED_HOSTS: localhost,api.affordable-gadgetske.com
+          FRONTEND_BASE_URL: https://shop.affordable-gadgetske.com
+          DJANGO_SETTINGS_MODULE: store.settings_production
+          MERGE_FROM_RESTORE: ${{ inputs.merge_from_restore }}
+          DRY_RUN_ONLY: ${{ inputs.dry_run_only }}
+        run: |
+          curl -o cloud-sql-proxy https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.14.3/cloud-sql-proxy.linux.amd64
+          chmod +x cloud-sql-proxy
+          ./cloud-sql-proxy "${CONNECTION}" &
+          sleep 5
+
+          python manage.py migrate --noinput
+          python manage.py audit_blog_recovery
+
+          if [[ "${MERGE_FROM_RESTORE}" == "true" ]]; then
+            if [[ -z "${RESTORE_DATABASE_URL:-}" ]]; then
+              echo "SKIP merge: RESTORE_DATABASE_URL secret not set"
+            else
+              python manage.py audit_blog_recovery --compare-restore
+              python manage.py merge_from_restore_db --dry-run
+              if [[ "${DRY_RUN_ONLY}" != "true" ]]; then
+                python manage.py merge_from_restore_db
+              fi
+            fi
+          fi
+
+          python manage.py load_blog_batch --dry-run
+          if [[ "${DRY_RUN_ONLY}" != "true" ]]; then
+            python manage.py load_blog_batch --force
+            python manage.py audit_blog_recovery
+          fi
+
+      - name: Verify public API sample
+        if: ${{ inputs.dry_run_only != true }}
+        run: |
+          count=$(curl -sf "https://api.affordable-gadgetske.com/api/v1/public/products/?page_size=50" | grep -o '"has_published_article":true' | wc -l || true)
+          echo "Products with published articles (sample page): ${count}"
+          if [[ "${count}" -lt 1 ]]; then
+            echo "WARNING: No has_published_article:true in first page — check load_blog_batch errors"
+            exit 1
+          fi
