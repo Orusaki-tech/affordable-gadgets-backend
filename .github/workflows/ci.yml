@@ -156,41 +156,15 @@ jobs:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_DEPLOY_SA }}
 
-      - name: Trigger rolling replace on MIG
-        id: roll
+      - name: Deploy API MIG (recreate + pull images)
         env:
-          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_REGION: ${{ env.REGION }}
           MIG_NAME: ${{ secrets.PRODUCTION_API_MIG_NAME }}
-        run: |
-          gcloud compute instance-groups managed rolling-action replace "${MIG_NAME}" \
-            --region="${{ env.REGION }}" \
-            --project="${PROJECT_ID}" \
-            --max-unavailable=0 \
-            --max-surge=2
-
-      - name: Wait for MIG rollout to complete
-        env:
-          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-          MIG_NAME: ${{ secrets.PRODUCTION_API_MIG_NAME }}
-        run: |
-          echo "Polling MIG until all instances are HEALTHY and stable..."
-          for i in $(seq 1 60); do
-            STATUS=$(gcloud compute instance-groups managed list-instances "${MIG_NAME}" \
-              --region="${{ env.REGION }}" \
-              --project="${PROJECT_ID}" \
-              --format="value(HEALTH_STATE)" 2>/dev/null || echo "")
-            UNHEALTHY=$(echo "$STATUS" | grep -cv "HEALTHY" || true)
-            if [ "$UNHEALTHY" -eq 0 ] && [ -n "$STATUS" ]; then
-              echo "All instances HEALTHY after ${i}0s"
-              break
-            fi
-            if [ "$i" -eq 60 ]; then
-              echo "TIMEOUT: MIG not stable after 10 minutes"
-              exit 1
-            fi
-            echo "Waiting... ($i/60, unhealthy=$UNHEALTHY)"
-            sleep 10
-          done
+          SERVICE: api
+          DEPLOY_CONFIG_BUCKET: ${{ secrets.DEPLOY_CONFIG_BUCKET }}
+          ENV_NAME: production
+        run: bash deploy/scripts/mig-recreate-deploy.sh
 
       - name: Log deployment completion to Cloud Logging
         run: |

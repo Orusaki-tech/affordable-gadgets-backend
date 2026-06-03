@@ -14,6 +14,8 @@ resource "google_compute_health_check" "http" {
   }
 }
 
+
+
 resource "google_compute_instance_template" "tpl" {
   name_prefix  = "${local.full_name}-"
   machine_type = var.machine_type
@@ -55,9 +57,11 @@ resource "google_compute_region_instance_group_manager" "mig" {
   region = var.region
 
   base_instance_name = local.full_name
-  target_size        = var.target_size != null ? var.target_size : var.min_replicas
+  # Autoscaler owns size when enabled; setting target_size causes apply errors.
+  target_size = var.enable_autoscaler && var.target_size == null ? null : (
+    var.target_size != null ? var.target_size : var.min_replicas
+  )
 
-  # Pin to one zone so fixed max_surge/max_unavailable of 1 is valid (regional MIG rule).
   distribution_policy_zones = var.distribution_policy_zones
 
   version {
@@ -78,8 +82,12 @@ resource "google_compute_region_instance_group_manager" "mig" {
   update_policy {
     type                  = "PROACTIVE"
     minimal_action        = "REPLACE"
-    max_surge_fixed       = 1
-    max_unavailable_fixed = 0
+    max_surge_fixed       = 0
+    max_unavailable_fixed = length(var.distribution_policy_zones)
+  }
+
+  lifecycle {
+    ignore_changes = [target_size]
   }
 }
 
@@ -92,11 +100,17 @@ resource "google_compute_region_autoscaler" "autoscaler" {
   autoscaling_policy {
     min_replicas    = var.min_replicas
     max_replicas    = var.max_replicas
-    cooldown_period = 180
+    cooldown_period = var.autoscaler_cooldown_period
 
     cpu_utilization {
-      target = 0.6
+      target = var.autoscaler_cpu_target
     }
-    # Enable load_balancing_utilization after MIG is attached to a backend service (see platform.tf).
+
+    dynamic "load_balancing_utilization" {
+      for_each = var.autoscaler_lb_utilization_target != null ? [1] : []
+      content {
+        target = var.autoscaler_lb_utilization_target
+      }
+    }
   }
 }

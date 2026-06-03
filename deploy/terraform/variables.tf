@@ -129,12 +129,12 @@ variable "api_machine_type" {
 
 variable "api_min_replicas" {
   type    = number
-  default = 2
+  default = 1
 }
 
 variable "api_max_replicas" {
   type    = number
-  default = 25
+  default = 3
 }
 
 variable "monitoring_machine_type" {
@@ -186,12 +186,12 @@ variable "shop_machine_type" {
 
 variable "shop_min_replicas" {
   type    = number
-  default = 2
+  default = 1
 }
 
 variable "shop_max_replicas" {
   type    = number
-  default = 40
+  default = 2
 }
 
 variable "admin_machine_type" {
@@ -206,7 +206,7 @@ variable "admin_min_replicas" {
 
 variable "admin_max_replicas" {
   type    = number
-  default = 5
+  default = 2
 }
 
 variable "github_wif_enabled" {

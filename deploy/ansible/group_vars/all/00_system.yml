@@ -22,7 +22,7 @@ artifact_registry_host: "{{ gcp_region }}-docker.pkg.dev/{{ gcp_project_id }}"
 api_image: "{{ artifact_registry_host }}/ag-api/ag-api"
 shop_image: "{{ artifact_registry_host }}/ag-shop/ag-shop"
 admin_image: "{{ artifact_registry_host }}/ag-admin/ag-admin"
-image_tag: latest
+image_tag: production-latest
 
 compose_root: /opt/affordable-gadgets
 api_compose_file: "{{ compose_root }}/docker-compose.api.yml"

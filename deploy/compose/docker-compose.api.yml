@@ -1,8 +1,16 @@
-# Reference compose for API (production uses Ansible template on VMs).
 services:
-  web:
-    image: "${API_IMAGE:-ag-api}:${IMAGE_TAG:-latest}"
+  api:
+    image: us-east1-docker.pkg.dev/gmail-486411/ag-api/ag-api:production-latest
+    container_name: ag-api-web
+    restart: unless-stopped
     ports:
       - "8000:8000"
-    env_file: api.env
-    restart: unless-stopped
+    env_file: /opt/affordable-gadgets/api.env
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    command: >
+      sh -c "python manage.py migrate --noinput && gunicorn store.wsgi:application --bind 0.0.0.0:8000 --workers 4 --threads 16 --timeout 120 --access-logfile - --error-logfile -"

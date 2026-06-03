@@ -3,7 +3,8 @@
 resource "google_storage_bucket" "deploy_config" {
   count = var.platform_enabled ? 1 : 0
 
-  name                        = "${local.platform_name_prefix}-deploy-config"
+  # Bucket names are global; include project number suffix to avoid collisions.
+  name = "${local.platform_name_prefix}-${substr(tostring(data.google_project.current[0].number), length(tostring(data.google_project.current[0].number)) - 6, 6)}-deploy-config"
   location                    = var.region
   uniform_bucket_level_access = true
   force_destroy               = var.environment == "staging"

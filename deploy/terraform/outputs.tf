@@ -108,6 +108,7 @@ output "github_secrets_hint" {
     STAGING_API_MIG_NAME      = try(module.api_mig[0].mig_name, null)
     STAGING_SHOP_MIG_NAME     = try(module.shop_mig[0].mig_name, null)
     STAGING_ADMIN_MIG_NAME    = try(module.admin_mig[0].mig_name, null)
+    DEPLOY_CONFIG_BUCKET      = try(google_storage_bucket.deploy_config[0].name, null)
     CLOUD_SQL_CONNECTION_NAME = try(module.cloud_sql[0].connection_name, null)
   } : null
 }

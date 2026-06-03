@@ -76,6 +76,11 @@ That can be added to Terraform too if you set `var.admin_users` (see below).
 1. Re-run `setup-gcp-apis.sh` (e.g. Cloud Build was added after first migration).
 2. `terraform apply` again so new IAM bindings exist.
 3. For **private VM SSH**: use IAP (`--tunnel-through-iap`) and `roles/iap.tunnelResourceAccessor` on your user.
+4. GitHub deploy SA needs `roles/compute.loadBalancerAdmin` for MIG rolling replace (see `github_wif.tf`).
+
+## Production quota (MIG deploys)
+
+Default trial/small-project limits (~8 `INSTANCES` in `us-east1`, ~12 `CPUS_ALL_REGIONS`) block `max-surge=2` rolls. Use `deploy/scripts/mig-recreate-deploy.sh` (recreate one VM at a time) and keep `min_replicas=1` until you request a quota increase in GCP Console → IAM & admin → Quotas.
 
 Bootstrap API nodes after MIG replace (until startup scripts are fixed):
 

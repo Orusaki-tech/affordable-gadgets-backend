@@ -1,12 +1,27 @@
 project_id       = "your-gcp-project-id"
-region           = "us-central1"
-zone             = "us-central1-a"
+region           = "us-east1"
+zone             = "us-east1-b"
 name_prefix      = "affordable-gadgets"
 environment      = "production"
 platform_enabled = true
 legacy_mode      = false
 
-api_min_replicas = 2
-api_max_replicas = 25
-shop_min_replicas = 2
-shop_max_replicas = 40
+# Autoscaling: min 1 VM at idle, scale out when CPU > 60% (defaults in variables.tf).
+# Max replicas capped for project quota (8 instances / 12 CPUs in us-east1).
+api_min_replicas  = 1
+api_max_replicas  = 3
+shop_min_replicas = 1
+shop_max_replicas = 2
+admin_min_replicas = 1
+admin_max_replicas = 2
+
+shop_autoscaler_cpu_target  = 0.6
+api_autoscaler_cpu_target   = 0.6
+admin_autoscaler_cpu_target = 0.6
+
+github_wif_enabled = true
+github_repositories = [
+  "Orusaki-tech/affordable-gadgets-backend",
+  "Orusaki-tech/affordable-gadgets-frontend",
+  "Orusaki-tech/affordable-gadgets-admin",
+]

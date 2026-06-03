@@ -17,6 +17,7 @@ DEPLOY_SA="$(terraform output -raw gcp_deploy_sa_email 2>/dev/null || true)"
 API_MIG="$(terraform output -raw api_mig_name 2>/dev/null || true)"
 SHOP_MIG="$(terraform output -raw shop_mig_name 2>/dev/null || true)"
 ADMIN_MIG="$(terraform output -raw admin_mig_name 2>/dev/null || true)"
+BUCKET="$(terraform output -raw deploy_config_bucket 2>/dev/null || true)"
 CONN="$(terraform output -raw cloud_sql_connection_name 2>/dev/null || true)"
 API_LB="$(terraform output -raw api_lb_ip 2>/dev/null || true)"
 SHOP_LB="$(terraform output -raw shop_lb_ip 2>/dev/null || true)"
@@ -35,6 +36,12 @@ CLOUD_SQL_CONNECTION_NAME   = ${CONN}
 
 GCP_WIF_PROVIDER            = ${WIF:-<run terraform apply with github_repository set>}
 GCP_DEPLOY_SA               = ${DEPLOY_SA:-<from terraform output gcp_deploy_sa_email>}
+DEPLOY_CONFIG_BUCKET        = ${BUCKET:-<terraform output deploy_config_bucket>}
+
+# Production MIG names (also set on frontend/admin repos as PRODUCTION_*_MIG_NAME)
+PRODUCTION_API_MIG_NAME     = ${API_MIG}
+PRODUCTION_SHOP_MIG_NAME    = ${SHOP_MIG}
+PRODUCTION_ADMIN_MIG_NAME   = ${ADMIN_MIG}
 
 # Optional: for migrate job in deploy-staging.yml
 STAGING_DATABASE_URL        = postgresql://affordable:PASSWORD@CLOUD_SQL_PRIVATE_IP:5432/affordable_gadgets

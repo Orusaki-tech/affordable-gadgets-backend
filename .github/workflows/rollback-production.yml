@@ -19,16 +19,21 @@ jobs:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_DEPLOY_SA }}
 
-      - name: Rolling replace with previous tag
+      - uses: actions/checkout@v4
+
+      - name: Roll back API image and recreate MIG
         env:
-          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_REGION: us-east1
           MIG_NAME: ${{ secrets.PRODUCTION_API_MIG_NAME }}
+          SERVICE: api
+          DEPLOY_CONFIG_BUCKET: ${{ secrets.DEPLOY_CONFIG_BUCKET }}
+          ENV_NAME: production
           TAG: ${{ inputs.previous_image_tag }}
         run: |
-          echo "Rollback: deploy image tag ${TAG} via your MIG template update or Ansible:"
-          echo "  ansible-playbook -i inventory/production playbooks/api.yml -e image_tag=${TAG}"
-          gcloud compute instance-groups managed rolling-action replace "${MIG_NAME}" \
-            --region=us-east1 --project="${PROJECT_ID}" --max-unavailable=0 --max-surge=1
+          echo "Rollback: update GCS compose to image_tag=${TAG}, then recreate MIG:"
+          echo "  ansible-playbook -i deploy/ansible/inventory/production deploy/ansible/playbooks/api.yml -e image_tag=${TAG}"
+          bash deploy/scripts/mig-recreate-deploy.sh
 
       - name: Smoke health
         run: curl -sf --max-time 30 "${{ vars.PRODUCTION_API_URL || 'https://api.affordable-gadgetske.com' }}/health/"

@@ -7,8 +7,11 @@ allowed_hosts: "{{ api_public_host }},www.{{ domain_root }},{{ domain_root }},lo
 csrf_trusted_origins: "https://{{ shop_public_host }},https://www.{{ domain_root }},https://{{ admin_public_host }}"
 pesapal_environment: live
 api_gunicorn_workers: 6
-api_mig_min: 2
-shop_mig_min: 2
+api_mig_min: 1
+shop_mig_min: 1
+image_tag: production-latest
+gcp_region: us-east1
+gcp_zone: us-east1-b
 
 # Observability
 sentry_traces_sample_rate: 0

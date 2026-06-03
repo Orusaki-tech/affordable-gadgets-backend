@@ -8,8 +8,8 @@ locals {
   ))
   github_wif_enabled = var.platform_enabled && var.github_wif_enabled && length(local.github_repos) > 0
   # GCP account_id max 30 chars; name_prefix + env + "-deploy" can exceed that.
-  deploy_sa_id       = "ag-${var.environment}-deploy"
-  deploy_sa_email    = "${local.deploy_sa_id}@${var.project_id}.iam.gserviceaccount.com"
+  deploy_sa_id    = "ag-${var.environment}-deploy"
+  deploy_sa_email = "${local.deploy_sa_id}@${var.project_id}.iam.gserviceaccount.com"
 }
 
 resource "google_service_account" "deploy" {
@@ -24,6 +24,8 @@ resource "google_project_iam_member" "deploy_roles" {
   for_each = local.github_wif_enabled ? toset([
     "roles/artifactregistry.writer",
     "roles/compute.instanceAdmin.v1",
+    # MIG rolling-action replace reads the attached health check (compute.healthChecks.use).
+    "roles/compute.loadBalancerAdmin",
     "roles/iam.serviceAccountUser",
     "roles/cloudsql.client",
     "roles/storage.objectViewer",

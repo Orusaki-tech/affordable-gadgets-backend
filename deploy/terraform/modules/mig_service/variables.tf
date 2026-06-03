@@ -80,3 +80,21 @@ variable "distribution_policy_zones" {
   type        = list(string)
   description = "Zones for regional MIG (single zone avoids multi-zone surge constraints)"
 }
+
+variable "autoscaler_cooldown_period" {
+  type        = number
+  default     = 180
+  description = "Cooldown period in seconds for the autoscaler"
+}
+
+variable "autoscaler_cpu_target" {
+  type        = number
+  default     = 0.6
+  description = "CPU utilization target for the autoscaler (0.0–1.0)"
+}
+
+variable "autoscaler_lb_utilization_target" {
+  type        = number
+  default     = null
+  description = "Load balancing utilization target for the autoscaler (0.0–1.0)"
+}

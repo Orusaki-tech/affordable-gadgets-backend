@@ -24,13 +24,15 @@
   become: false
   when: deploy_config_bucket | length > 0
 
-- name: Rolling restart admin MIG
-  command: >-
-    gcloud compute instance-groups managed rolling-action replace {{ admin_mig_name }}
-    --region={{ gcp_region }}
-    --project={{ gcp_project_id }}
-    --max-unavailable=0
-    --max-surge=1
+- name: Recreate admin MIG instances and pull images (quota-safe)
+  command: "{{ role_path }}/../../../scripts/mig-recreate-deploy.sh"
+  environment:
+    GCP_PROJECT_ID: "{{ gcp_project_id }}"
+    GCP_REGION: "{{ gcp_region }}"
+    MIG_NAME: "{{ admin_mig_name }}"
+    SERVICE: admin
+    DEPLOY_CONFIG_BUCKET: "{{ deploy_config_bucket }}"
+    ENV_NAME: "{{ env_name }}"
   delegate_to: localhost
   become: false
   when: admin_mig_name | default('') | length > 0
