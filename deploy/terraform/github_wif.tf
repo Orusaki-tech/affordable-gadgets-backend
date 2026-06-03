@@ -29,6 +29,8 @@ resource "google_project_iam_member" "deploy_roles" {
     "roles/iam.serviceAccountUser",
     "roles/cloudsql.client",
     "roles/storage.objectViewer",
+    # IAP tunnel for Ansible deploy of monitoring / other VMs.
+    "roles/iap.tunnelResourceAccessor",
   ]) : toset([])
 
   project = var.project_id
