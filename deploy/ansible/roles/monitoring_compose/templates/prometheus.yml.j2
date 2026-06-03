@@ -18,6 +18,9 @@ scrape_configs:
       - project: {{ gcp_project_id }}
         zone: us-east1-b
         port: 8000
+      - project: {{ gcp_project_id }}
+        zone: us-east1-c
+        port: 8000
     relabel_configs:
       - source_labels: [__meta_gce_tags]
         regex: ".*,api,.*"
