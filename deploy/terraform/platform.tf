@@ -76,7 +76,8 @@ module "monitoring" {
   subnetwork      = module.vpc[0].app_subnet_name
   machine_type    = var.monitoring_machine_type
   disk_size_gb    = var.monitoring_disk_size_gb
-  k6_runner_ip = var.k6_runner_ip
+  k6_runner_ip    = var.k6_runner_ip
+  startup_script  = file("${path.module}/scripts/monitoring-startup.sh.tpl")
 }
 
 module "api_mig" {
