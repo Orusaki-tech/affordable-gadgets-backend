@@ -1,6 +1,6 @@
 services:
   api:
-    image: us-east1-docker.pkg.dev/gmail-486411/ag-api/ag-api:production-latest
+    image: us-east1-docker.pkg.dev/project-07850c05-c54d-486b-80a/ag-api/ag-api:production-latest
     container_name: ag-api-web
     restart: unless-stopped
     ports:
@@ -11,6 +11,6 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 60s
+      start_period: 120s
     command: >
-      sh -c "python manage.py migrate --noinput && gunicorn store.wsgi:application --bind 0.0.0.0:8000 --workers 4 --threads 16 --timeout 120 --access-logfile - --error-logfile -"
+      sh -c "python manage.py create_default_brand --skip-checks && python manage.py collectstatic --noinput && gunicorn store.wsgi:application --bind 0.0.0.0:8000 --workers 4 --threads 16 --timeout 120 --access-logfile - --error-logfile -"
