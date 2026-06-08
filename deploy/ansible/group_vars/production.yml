@@ -13,6 +13,10 @@ image_tag: production-latest
 gcp_region: us-east1
 gcp_zone: us-east1-b
 
+# Supabase (Google OAuth)
+supabase_url: "https://esyyjswqnheibjbfsycx.supabase.co"
+supabase_anon_key: "sb_publishable_ueGt43IRaS_VjXrHzmz8uA_0K212yxu"
+
 # Observability
 sentry_traces_sample_rate: 0
 sentry_profiles_sample_rate: 0

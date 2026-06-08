@@ -12,3 +12,7 @@ csrf_trusted_origins: "https://{{ shop_staging_host }},https://{{ admin_staging_
 pesapal_environment: sandbox
 api_gunicorn_workers: 4
 api_mig_min: 1
+
+# Supabase (Google OAuth) — same project as production
+supabase_url: "https://esyyjswqnheibjbfsycx.supabase.co"
+supabase_anon_key: "sb_publishable_ueGt43IRaS_VjXrHzmz8uA_0K212yxu"
