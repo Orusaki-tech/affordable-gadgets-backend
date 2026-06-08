@@ -2525,6 +2525,8 @@ class ObservabilityEvent(models.Model):
         PRODUCT_VIEW = "product_view", "Product Detail View"
         PAGE_VIEW = "page_view", "Page View"
         WHATSAPP_CLICK = "whatsapp_click", "WhatsApp Click"
+        CART_ADD = "cart_add", "Add to Cart"
+        LOGIN = "login", "Login"
 
     user = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, blank=True, db_index=True

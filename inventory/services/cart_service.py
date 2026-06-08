@@ -5,7 +5,7 @@ from decimal import Decimal
 
 from django.utils import timezone
 
-from inventory.models import Bundle, Cart, CartItem, InventoryUnit
+from inventory.models import Bundle, Cart, CartItem, InventoryUnit, ObservabilityEvent
 from inventory.services.customer_service import CustomerService
 
 
@@ -156,6 +156,15 @@ class CartService:
             cart_item.unit_price = final_price  # Update price in case promotion changed
             cart_item.promotion = promotion
             cart_item.save()
+
+        ObservabilityEvent.objects.create(
+            user=cart.user if cart.user_id else None,
+            session_key=cart.session_key or "",
+            event_type=ObservabilityEvent.EventType.CART_ADD,
+            product_id=product.id,
+            brand_code=getattr(cart.brand, "code", "AFFORDABLE_GADGETS"),
+            metadata={"quantity": quantity, "inventory_unit_id": inventory_unit.id},
+        )
 
         return cart_item
 

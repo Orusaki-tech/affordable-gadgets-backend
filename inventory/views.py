@@ -329,6 +329,49 @@ class FunnelSummaryView(APIView):
         })
 
 
+class DailyActivityView(APIView):
+    """Admin endpoint: today's user activity feed (searches, cart adds, whatsapp clicks, logins)."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        today = timezone.localdate()
+        brand_code = getattr(request, "brand", None)
+        brand_code = brand_code.code if brand_code else "AFFORDABLE_GADGETS"
+
+        events = (
+            ObservabilityEvent.objects
+            .filter(created_at__date=today, brand_code=brand_code)
+            .exclude(user__isnull=True)
+            .select_related("user", "product")
+            .order_by("-created_at")[:200]
+        )
+
+        rows = []
+        for e in events:
+            product_name = e.product.name if e.product else ""
+            detail = ""
+            if e.event_type == "search":
+                detail = e.metadata.get("search_query", "") if e.metadata else ""
+            elif e.event_type == "cart_add":
+                detail = f"qty {e.metadata.get('quantity', 1)}" if e.metadata else ""
+            elif e.event_type == "whatsapp_click":
+                detail = product_name
+            rows.append({
+                "time": e.created_at.isoformat(),
+                "user": e.user.username,
+                "email": e.user.email,
+                "event_type": e.event_type,
+                "product": product_name,
+                "detail": detail,
+            })
+
+        return Response({
+            "date": today.isoformat(),
+            "total_events": len(rows),
+            "events": rows,
+        })
+
+
 class EmptySerializer(serializers.Serializer):
     pass
 
@@ -4033,6 +4076,13 @@ class SupabaseAuthView(APIView):
             user.utm_content = request.data.get("utm_content", "")
             update_fields.extend(["utm_source", "utm_medium", "utm_campaign", "utm_content"])
         user.save(update_fields=update_fields)
+
+        ObservabilityEvent.objects.create(
+            user=user,
+            event_type=ObservabilityEvent.EventType.LOGIN,
+            brand_code=request.headers.get("X-Brand-Code", "AFFORDABLE_GADGETS"),
+            metadata={"method": "google_oauth"},
+        )
 
         token, _ = Token.objects.get_or_create(user=user)
 
