@@ -501,7 +501,7 @@ class DatasourceHealthView(APIView):
         return Response({
             "status": status,
             "authenticated_as": authenticated_as,
-            "grafana_token_valid": grafana_token_valid,
+            "grafana_token_valid": "true" if grafana_token_valid else "false",
             "total_users": User.objects.count(),
             "total_events_today": events_today.count(),
             "events_today_by_type": dict(
