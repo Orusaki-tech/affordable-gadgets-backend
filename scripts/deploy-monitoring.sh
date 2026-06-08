@@ -112,6 +112,7 @@ scp "${SSH_OPTS[@]}" "$WORK_DIR/alerts.yml"                    "$SSH_USER@127.0.
 scp "${SSH_OPTS[@]}" "$WORK_DIR/django-dashboard.json"         "$SSH_USER@127.0.0.1:$TMP_DIR/"
 scp "${SSH_OPTS[@]}" "$WORK_DIR/executive-kpi-dashboard.json"  "$SSH_USER@127.0.0.1:$TMP_DIR/"
 scp "${SSH_OPTS[@]}" "$WORK_DIR/daily-performance-dashboard.json" "$SSH_USER@127.0.0.1:$TMP_DIR/"
+scp "${SSH_OPTS[@]}" "$WORK_DIR/marketing-funnel.json"              "$SSH_USER@127.0.0.1:$TMP_DIR/"
 
 # ── move files to compose_root via sudo ───────────────────────────────────────
 sudo_cmd "mkdir -p $COMPOSE_ROOT/monitoring/prometheus $COMPOSE_ROOT/monitoring/grafana/datasources $COMPOSE_ROOT/monitoring/grafana/dashboards $COMPOSE_ROOT/monitoring/tunnel"
@@ -126,6 +127,7 @@ sudo_cmd "cp $TMP_DIR/alerts.yml                    $COMPOSE_ROOT/monitoring/pro
 sudo_cmd "cp $TMP_DIR/django-dashboard.json         $COMPOSE_ROOT/monitoring/grafana/dashboards/django-dashboard.json"
 sudo_cmd "cp $TMP_DIR/executive-kpi-dashboard.json  $COMPOSE_ROOT/monitoring/grafana/dashboards/executive-kpi-dashboard.json"
 sudo_cmd "cp $TMP_DIR/daily-performance-dashboard.json  $COMPOSE_ROOT/monitoring/grafana/dashboards/daily-performance-dashboard.json"
+sudo_cmd "cp $TMP_DIR/marketing-funnel.json              $COMPOSE_ROOT/monitoring/grafana/dashboards/marketing-funnel.json"
 
 # ── clean up temp dir ────────────────────────────────────────────────────────
 ssh_cmd "rm -rf $TMP_DIR"

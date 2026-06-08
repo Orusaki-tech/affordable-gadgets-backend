@@ -40,6 +40,12 @@
     dest: "{{ compose_root }}/monitoring/grafana/dashboards/executive-kpi-dashboard.json"
     mode: "0644"
 
+- name: Deploy Marketing Funnel dashboard
+  copy:
+    src: marketing-funnel.json
+    dest: "{{ compose_root }}/monitoring/grafana/dashboards/marketing-funnel.json"
+    mode: "0644"
+
 - name: Deploy Prometheus alert rules
   copy:
     src: alerts.yml

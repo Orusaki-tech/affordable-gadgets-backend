@@ -85,3 +85,7 @@ shutil.copy2(
     f"{TEMPLATES_DIR}/../files/daily-performance-dashboard.json",
     f"{WORK_DIR}/daily-performance-dashboard.json",
 )
+shutil.copy2(
+    f"{TEMPLATES_DIR}/../files/marketing-funnel.json",
+    f"{WORK_DIR}/marketing-funnel.json",
+)
