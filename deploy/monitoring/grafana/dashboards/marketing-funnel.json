@@ -562,6 +562,18 @@
                 "value": "date_time"
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "email"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 220
+              }
+            ]
           }
         ]
       },

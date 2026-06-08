@@ -39,6 +39,7 @@ jobs:
           GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
           CLOUDFLARE_TUNNEL_TOKEN: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
           DJANGO_ADMIN_PASSWORD: ${{ secrets.DJANGO_ADMIN_PASSWORD }}
+          DJANGO_API_TOKEN: ${{ secrets.DJANGO_API_TOKEN }}
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           GCP_ZONE: us-east1-b
           SSH_KEY_PATH: ~/.ssh/ci_deploy_key

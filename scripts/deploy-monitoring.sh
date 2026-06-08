@@ -63,18 +63,25 @@ else
     echo "DJANGO_ADMIN_PASSWORD or DJANGO_API_TOKEN must be set" >&2
     exit 1
   fi
-  echo "→ Fetching API token..."
+  echo "→ Fetching API token from admin password..."
+  API_TOKEN=""
   for i in 1 2 3; do
-    API_TOKEN=$(
-      curl -s --show-error --fail \
-        -X POST "https://api.affordable-gadgetske.com/api/auth/token/login/" \
-        -H "Content-Type: application/json" \
-        -d "{\"username\":\"admin\",\"password\":\"$DJANGO_ADMIN_PASSWORD\"}" \
-        | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])"
-    ) && break
-    echo "  Attempt $i failed, retrying in 10s..."
+    RESP=$(curl -s --show-error --fail \
+      -X POST "https://api.affordable-gadgetske.com/api/auth/token/login/" \
+      -H "Content-Type: application/json" \
+      -d "{\"username\":\"admin\",\"password\":\"$DJANGO_ADMIN_PASSWORD\"}" 2>&1) \
+      && API_TOKEN=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])" 2>/dev/null) \
+      && break
+    echo "  Attempt $i failed (${RESP:0:200}), retrying in 10s..."
     [ "$i" -lt 3 ] && sleep 10
   done
+  if [[ -z "$API_TOKEN" ]]; then
+    echo "ERROR: Could not obtain API token after 3 attempts." >&2
+    echo "  - Check that DJANGO_ADMIN_PASSWORD matches the production admin password." >&2
+    echo "  - Ensure the admin user has is_staff=True and an Admin profile (auto-created on login)." >&2
+    echo "  - Alternatively, set DJANGO_API_TOKEN to a static DRF token for a staff user." >&2
+    exit 1
+  fi
 fi
 
 TMP_DIR="/tmp/monitoring-deploy"

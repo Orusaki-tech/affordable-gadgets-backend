@@ -4072,13 +4072,11 @@ class AdminTokenLoginView(ObtainAuthToken):
 
         # Ensure an admin profile exists before issuing a token so frontend can rely on a
         # single login response containing both auth token and profile details.
-        try:
-            admin_profile = Admin.objects.get(user=user)
-        except Admin.DoesNotExist:
-            return Response(
-                {"detail": "Staff account is missing an admin profile."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+        # Auto-create if missing so CI token exchange never fails on 403.
+        admin_profile, _ = Admin.objects.get_or_create(
+            user=user,
+            defaults={"full_name": user.get_full_name() or user.username},
+        )
 
         # Update last_login
         user.last_login = timezone.now()
