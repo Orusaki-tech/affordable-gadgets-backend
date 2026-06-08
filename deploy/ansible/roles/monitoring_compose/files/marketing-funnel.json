@@ -577,6 +577,89 @@
         "type": "marcusolsson-json-datasource",
         "uid": "json-api"
       }
+    },
+    {
+      "id": 13,
+      "title": "Daily Active Users",
+      "type": "table",
+      "gridPos": {
+        "x": 0,
+        "y": 37,
+        "w": 12,
+        "h": 10
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "marcusolsson-json-datasource",
+            "uid": "json-api"
+          },
+          "urlPath": "/api/inventory/analytics/daily-users/",
+          "method": "GET",
+          "jsonPath": "$.users",
+          "resultType": "table",
+          "params": []
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          },
+          "displayName": "",
+          "noValue": ""
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "last_seen"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "date_time"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "email"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 220
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "phone"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 140
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "sortBy": [
+          {
+            "displayName": "last_seen",
+            "desc": true
+          }
+        ]
+      },
+      "datasource": {
+        "type": "marcusolsson-json-datasource",
+        "uid": "json-api"
+      }
     }
   ]
 }

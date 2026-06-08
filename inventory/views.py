@@ -107,11 +107,21 @@ class RecordObservabilityEventView(APIView):
 
             WHATSAPP_CLICKS_TOTAL.labels(product_id=str(product_id_int), brand=brand_code).inc()
 
+            user_email = self._get_user_email(request) or None
+            user = None
+            if user_email:
+                user = User.objects.filter(email=user_email).first()
             WhatsAppClickEvent.objects.create(
                 product_id=product_id_int,
                 brand_code=brand_code,
-                email=self._get_user_email(request) or None,
+                email=user_email,
                 phone=self._get_user_phone(request) or None,
+            )
+            ObservabilityEvent.objects.create(
+                user=user,
+                event_type=ObservabilityEvent.EventType.WHATSAPP_CLICK,
+                product_id=product_id_int,
+                brand_code=brand_code,
             )
             return Response({"status": "ok"}, status=status.HTTP_202_ACCEPTED)
 
@@ -369,6 +379,91 @@ class DailyActivityView(APIView):
             "date": today.isoformat(),
             "total_events": len(rows),
             "events": rows,
+        })
+
+
+class DailyUsersView(APIView):
+    """Admin endpoint: today's active users with aggregated activity and phone."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        today = timezone.localdate()
+        brand_code = getattr(request, "brand", None)
+        brand_code = brand_code.code if brand_code else "AFFORDABLE_GADGETS"
+
+        events = (
+            ObservabilityEvent.objects
+            .filter(created_at__date=today, brand_code=brand_code)
+            .exclude(user__isnull=True)
+            .select_related("user", "user__customer", "product")
+            .order_by("-created_at")
+        )
+
+        from collections import defaultdict
+        user_data: dict[int, dict] = defaultdict(lambda: {
+            "email": "",
+            "phone": "",
+            "products_viewed": [],
+            "products_added_to_cart": [],
+            "whatsapp_products": [],
+            "searches": [],
+            "total_events": 0,
+            "last_seen": "",
+        })
+
+        seen_products = defaultdict(lambda: {"viewed": set(), "cart": set(), "whatsapp": set()})
+
+        for e in events:
+            uid = e.user_id
+            entry = user_data[uid]
+            if not entry["email"]:
+                entry["email"] = e.user.email
+            if not entry["phone"]:
+                try:
+                    entry["phone"] = e.user.customer.phone or ""
+                except Exception:
+                    entry["phone"] = ""
+            entry["total_events"] += 1
+            ts = e.created_at.isoformat()
+            if ts > entry["last_seen"]:
+                entry["last_seen"] = ts
+
+            product_name = e.product.name if e.product else ""
+            if e.event_type == "search":
+                q = (e.metadata or {}).get("search_query", "")
+                if q and q not in entry["searches"]:
+                    entry["searches"].append(q)
+            elif e.event_type == "product_view":
+                if product_name and product_name not in seen_products[uid]["viewed"]:
+                    seen_products[uid]["viewed"].add(product_name)
+                    entry["products_viewed"].append(product_name)
+            elif e.event_type == "cart_add":
+                if product_name and product_name not in seen_products[uid]["cart"]:
+                    seen_products[uid]["cart"].add(product_name)
+                    entry["products_added_to_cart"].append(product_name)
+            elif e.event_type == "whatsapp_click":
+                if product_name and product_name not in seen_products[uid]["whatsapp"]:
+                    seen_products[uid]["whatsapp"].add(product_name)
+                    entry["whatsapp_products"].append(product_name)
+
+        users_list = [
+            {
+                "email": d["email"],
+                "phone": d["phone"],
+                "products_viewed": ", ".join(d["products_viewed"]),
+                "products_added_to_cart": ", ".join(d["products_added_to_cart"]),
+                "whatsapp_products": ", ".join(d["whatsapp_products"]),
+                "searches": ", ".join(d["searches"]),
+                "total_events": d["total_events"],
+                "last_seen": d["last_seen"],
+            }
+            for d in sorted(user_data.values(), key=lambda x: x["last_seen"], reverse=True)
+        ]
+
+        return Response({
+            "date": today.isoformat(),
+            "active_users": len(users_list),
+            "users": users_list,
         })
 
 
@@ -3989,6 +4084,13 @@ class AdminTokenLoginView(ObtainAuthToken):
         user.last_login = timezone.now()
         user.save(update_fields=["last_login"])
 
+        ObservabilityEvent.objects.create(
+            user=user,
+            event_type=ObservabilityEvent.EventType.LOGIN,
+            brand_code=request.headers.get("X-Brand-Code", "AFFORDABLE_GADGETS"),
+            metadata={"method": "email_password"},
+        )
+
         # Get or create token
         token, created = Token.objects.get_or_create(user=user)
 
@@ -4126,7 +4228,17 @@ class CustomerLoginView(generics.GenericAPIView):
         # an exception if authentication fails.
         serializer.is_valid(raise_exception=True)
 
-        # 2. If valid, return the data populated by the serializer's validate method
+        # 2. Record login event
+        user = getattr(serializer, "user", None)
+        if user:
+            ObservabilityEvent.objects.create(
+                user=user,
+                event_type=ObservabilityEvent.EventType.LOGIN,
+                brand_code=request.headers.get("X-Brand-Code", "AFFORDABLE_GADGETS"),
+                metadata={"method": "email_password"},
+            )
+
+        # 3. If valid, return the data populated by the serializer's validate method
         # (token, user_id, email).
         return Response(serializer.validated_data, status=status.HTTP_200_OK)
 
