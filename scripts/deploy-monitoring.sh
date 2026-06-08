@@ -153,7 +153,12 @@ sudo_cmd "docker run --rm -v ${COMPOSE_ROOT}/grafana_data:/var/lib/grafana busyb
 
 # ── restart containers ───────────────────────────────────────────────────────
 sudo_cmd "$DOCKER_COMPOSE -f $COMPOSE_ROOT/docker-compose.monitoring.yml --env-file $COMPOSE_ROOT/monitoring/grafana.env up -d --remove-orphans"
-# Force Grafana restart so it picks up provisioning file changes.
+
+# Pin JSON API plugin — unpinned GF_INSTALL_PLUGINS pulls v1.3.28+ which needs Grafana 12+.
+echo "→ Ensuring JSON API plugin v1.3.24 (compatible with Grafana 11.2)..."
+sudo_cmd "docker exec ag-grafana grafana cli plugins install marcusolsson-json-datasource 1.3.24" || true
+
+# Force Grafana restart so it picks up provisioning + plugin changes.
 sudo_cmd "$DOCKER_COMPOSE -f $COMPOSE_ROOT/docker-compose.monitoring.yml --env-file $COMPOSE_ROOT/monitoring/grafana.env restart grafana" || true
 
 # Tunnel runs on affordable-gadgets-production-tunnel (not this VM).

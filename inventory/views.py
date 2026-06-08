@@ -472,6 +472,7 @@ class DatasourceHealthView(APIView):
     Returns connectivity and auth status so Grafana can verify
     the JSON API datasource is working end-to-end."""
 
+    authentication_classes = []
     permission_classes = []
 
     def get(self, request):
