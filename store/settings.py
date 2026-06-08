@@ -529,8 +529,8 @@ TWILIO_WHATSAPP_FROM = os.environ.get("TWILIO_WHATSAPP_FROM", "")  # Format: wha
 TWILIO_TIMEOUT = int(os.environ.get("TWILIO_TIMEOUT", "10"))
 
 # --- Supabase Configuration ---
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
-SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://esyyjswqnheibjbfsycx.supabase.co")
+SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "sb_publishable_ueGt43IRaS_VjXrHzmz8uA_0K212yxu")
 
 # --- CORS Configuration (Development) ---
 # Configure allowed origins for your frontend applications
