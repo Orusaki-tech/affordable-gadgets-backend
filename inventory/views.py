@@ -63,6 +63,13 @@ from .observability import WHATSAPP_CLICKS_TOTAL
 
 from rest_framework.throttling import AnonRateThrottle
 
+from .models import ObservabilityEvent, User, Cart, CartItem, Customer
+from .serializers import (
+    ObservabilityEventSerializer,
+    UserAnalyticsSerializer,
+    UserDetailAnalyticsSerializer,
+)
+
 class RecordObservabilityEventView(APIView):
     """
     Public-facing endpoint to record discrete business events, like button clicks.
@@ -163,6 +170,164 @@ class CartAnalyticsView(APIView):
             },
             "popular_products": list(popular_items)
         })
+
+class RecordEventView(APIView):
+    """
+    Public endpoint to record user activity events (searches, product views, page views).
+    Accepts optional session_key for anonymous tracking before login.
+    """
+    permission_classes = [AllowAny]
+    throttle_classes = [AnonRateThrottle]
+
+    def post(self, request):
+        event_type = request.data.get("event_type")
+        valid_types = ["search", "product_view", "page_view"]
+        if event_type not in valid_types:
+            return Response(
+                {"error": f"invalid event_type. Must be one of: {', '.join(valid_types)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        from inventory.observability import PAGE_VIEWS_TOTAL, PRODUCT_VIEWS_TOTAL, SEARCH_QUERIES_TOTAL
+
+        brand_code = getattr(request, "brand", None)
+        brand_code = brand_code.code if brand_code else "AFFORDABLE_GADGETS"
+
+        product_id = request.data.get("product_id")
+        metadata = request.data.get("metadata", {})
+        session_key = request.data.get("session_key", "")
+        ip_address = request.META.get("REMOTE_ADDR", "")
+
+        user = request.user if request.user.is_authenticated else None
+
+        event = ObservabilityEvent.objects.create(
+            user=user,
+            session_key=session_key,
+            event_type=event_type,
+            product_id=product_id if product_id else None,
+            metadata=metadata,
+            brand_code=brand_code,
+            ip_address=ip_address,
+        )
+
+        if event_type == "search":
+            SEARCH_QUERIES_TOTAL.labels(brand=brand_code).inc()
+        elif event_type == "product_view" and product_id:
+            PRODUCT_VIEWS_TOTAL.labels(product_id=str(product_id), brand=brand_code).inc()
+        elif event_type == "page_view":
+            path = metadata.get("path", "/")
+            PAGE_VIEWS_TOTAL.labels(path=path, brand=brand_code).inc()
+
+        serializer = ObservabilityEventSerializer(event)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class UserAnalyticsListView(APIView):
+    """Admin endpoint: list all users with signup date, last login, event counts."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        users = User.objects.all().order_by("-date_joined")
+        serializer = UserAnalyticsSerializer(users, many=True)
+        return Response({
+            "total_users": users.count(),
+            "users": serializer.data,
+        })
+
+
+class UserDetailAnalyticsView(APIView):
+    """Admin endpoint: full activity timeline for one user."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, user_id):
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+        serializer = UserDetailAnalyticsSerializer(user)
+        return Response(serializer.data)
+
+
+class FunnelSummaryView(APIView):
+    """Admin endpoint: aggregate marketing funnel data."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from django.db.models import Count
+
+        brand_code = getattr(request, "brand", None)
+        brand_code = brand_code.code if brand_code else "AFFORDABLE_GADGETS"
+
+        date_from = request.query_params.get("date_from")
+        date_to = request.query_params.get("date_to")
+
+        events_qs = ObservabilityEvent.objects.filter(brand_code=brand_code)
+        if date_from:
+            events_qs = events_qs.filter(created_at__date__gte=date_from)
+        if date_to:
+            events_qs = events_qs.filter(created_at__date__lte=date_to)
+
+        total_events = events_qs.count()
+        searches = events_qs.filter(event_type="search")
+        product_views = events_qs.filter(event_type="product_view")
+        page_views = events_qs.filter(event_type="page_view")
+
+        unique_users_with_events = (
+            events_qs.exclude(user__isnull=True).values("user").distinct().count()
+        )
+
+        users_with_searches = (
+            searches.exclude(user__isnull=True).values("user").distinct().count()
+        )
+
+        users_with_product_views = (
+            product_views.exclude(user__isnull=True).values("user").distinct().count()
+        )
+
+        total_users = User.objects.count()
+        users_with_orders = (
+            Customer.objects.exclude(user__isnull=True)
+            .filter(total_orders__gt=0)
+            .count()
+        )
+
+        acquisition_sources = (
+            User.objects.exclude(utm_source__isnull=True)
+            .exclude(utm_source="")
+            .values("utm_source")
+            .annotate(count=Count("id"))
+            .order_by("-count")
+        )
+
+        popular_searches = (
+            events_qs.filter(event_type="search", metadata__search_query__isnull=False)
+            .values("metadata__search_query")
+            .annotate(count=Count("id"))
+            .order_by("-count")[:20]
+        )
+
+        return Response({
+            "summary": {
+                "total_users": total_users,
+                "users_with_orders": users_with_orders,
+                "unique_users_with_events": unique_users_with_events,
+                "unique_users_with_searches": users_with_searches,
+                "unique_users_with_product_views": users_with_product_views,
+                "total_events": total_events,
+                "total_searches": searches.count(),
+                "total_product_views": product_views.count(),
+                "total_page_views": page_views.count(),
+            },
+            "acquisition_sources": [
+                {"source": s["utm_source"], "count": s["count"]}
+                for s in acquisition_sources
+            ],
+            "popular_searches": [
+                {"query": s["metadata__search_query"], "count": s["count"]}
+                for s in popular_searches
+            ],
+        })
+
 
 class EmptySerializer(serializers.Serializer):
     pass
@@ -3845,6 +4010,10 @@ class SupabaseAuthView(APIView):
                 username=username,
                 email=email,
                 supabase_uid=supabase_id,
+                utm_source=request.data.get("utm_source", ""),
+                utm_medium=request.data.get("utm_medium", ""),
+                utm_campaign=request.data.get("utm_campaign", ""),
+                utm_content=request.data.get("utm_content", ""),
             )
             user.set_unusable_password()
             user.save()
@@ -3856,7 +4025,14 @@ class SupabaseAuthView(APIView):
             )
 
         user.last_login = timezone.now()
-        user.save(update_fields=["last_login"])
+        update_fields = ["last_login"]
+        if request.data.get("utm_source") and not user.utm_source:
+            user.utm_source = request.data.get("utm_source", "")
+            user.utm_medium = request.data.get("utm_medium", "")
+            user.utm_campaign = request.data.get("utm_campaign", "")
+            user.utm_content = request.data.get("utm_content", "")
+            update_fields.extend(["utm_source", "utm_medium", "utm_campaign", "utm_content"])
+        user.save(update_fields=update_fields)
 
         token, _ = Token.objects.get_or_create(user=user)
 

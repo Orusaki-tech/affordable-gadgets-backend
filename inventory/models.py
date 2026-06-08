@@ -22,6 +22,12 @@ class User(AbstractUser):
 
     supabase_uid = models.CharField(max_length=255, null=True, blank=True, unique=True, verbose_name="Supabase User ID")
 
+    # Marketing attribution (UTM params captured on first visit/login)
+    utm_source = models.CharField(max_length=255, null=True, blank=True, db_index=True)
+    utm_medium = models.CharField(max_length=255, null=True, blank=True)
+    utm_campaign = models.CharField(max_length=255, null=True, blank=True)
+    utm_content = models.CharField(max_length=255, null=True, blank=True)
+
     # Custom methods for role checking (assumes Admin/Customer models exist)
     @property
     def is_admin(self):
@@ -2505,6 +2511,46 @@ class WhatsAppClickEvent(models.Model):
 
     def __str__(self):
         return f"WhatsApp click on product {self.product_id} at {self.clicked_at.isoformat()}"
+
+
+class ObservabilityEvent(models.Model):
+    """Generic event log for tracking user activity across the marketing funnel.
+
+    Records searches, product views, page views, and any other user action
+    that feeds into analytics and funnel reporting.
+    """
+
+    class EventType(models.TextChoices):
+        SEARCH = "search", "Search Query"
+        PRODUCT_VIEW = "product_view", "Product Detail View"
+        PAGE_VIEW = "page_view", "Page View"
+        WHATSAPP_CLICK = "whatsapp_click", "WhatsApp Click"
+
+    user = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, db_index=True
+    )
+    session_key = models.CharField(max_length=40, db_index=True, blank=True)
+    event_type = models.CharField(max_length=32, choices=EventType.choices, db_index=True)
+    product = models.ForeignKey(
+        Product, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    metadata = models.JSONField(null=True, blank=True, default=dict)
+    brand_code = models.CharField(max_length=50, default="AFFORDABLE_GADGETS", db_index=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Observability Event"
+        verbose_name_plural = "Observability Events"
+        indexes = [
+            models.Index(fields=["user", "created_at"]),
+            models.Index(fields=["event_type", "created_at"]),
+            models.Index(fields=["session_key", "created_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.event_type} by user {self.user_id or 'anon'} at {self.created_at.isoformat()}"
 
 
 # -------------------------------------------------------------------------

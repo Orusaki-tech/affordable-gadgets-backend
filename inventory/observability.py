@@ -140,6 +140,24 @@ WHATSAPP_CLICKS_TOTAL = _counter(
     ["product_id", "brand"],
 )
 
+SEARCH_QUERIES_TOTAL = _counter(
+    "search_queries_total",
+    "Total search queries performed",
+    ["brand"],
+)
+
+PRODUCT_VIEWS_TOTAL = _counter(
+    "product_views_total",
+    "Total product detail page views",
+    ["product_id", "brand"],
+)
+
+PAGE_VIEWS_TOTAL = _counter(
+    "page_views_total",
+    "Total page views",
+    ["path", "brand"],
+)
+
 
 ORDERS_CANCELLED_TOTAL = _counter(
     "orders_cancelled_total",

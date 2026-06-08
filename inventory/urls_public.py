@@ -3,7 +3,7 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from . import views_public
+from . import views, views_public
 
 router = DefaultRouter()
 router.register(r"products", views_public.PublicProductViewSet, basename="public-product")
@@ -22,6 +22,8 @@ router.register(
 router.register(r"reviews", views_public.PublicReviewViewSet, basename="public-review")
 
 urlpatterns = [
+    # Public event recording (no auth required, for frontend analytics tracking)
+    path("events/", views.RecordEventView.as_view(), name="public-record-event"),
     path(
         "financing/inquiry/",
         views_public.PublicFinancingInquiryView.as_view(),

@@ -81,6 +81,11 @@ urlpatterns = [
     # Cart Analytics Endpoint (Internal)
     path('observability/cart-analytics/', views.CartAnalyticsView.as_view(), name='cart-analytics'),
     path('observability/record-event/', views.RecordObservabilityEventView.as_view(), name='record-event'),
+    # User Analytics Endpoints
+    path('analytics/events/', views.RecordEventView.as_view(), name='record-analytics-event'),
+    path('analytics/users/', views.UserAnalyticsListView.as_view(), name='user-analytics-list'),
+    path('analytics/users/<int:user_id>/', views.UserDetailAnalyticsView.as_view(), name='user-analytics-detail'),
+    path('analytics/funnel-summary/', views.FunnelSummaryView.as_view(), name='funnel-summary'),
     
     # IMPORTANT: Explicit routes for custom actions must come BEFORE router.urls
     # to ensure they match before the router's generic routes

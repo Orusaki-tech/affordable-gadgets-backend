@@ -31,6 +31,7 @@ from .models import (
     Lead,
     LeadItem,
     Notification,
+    ObservabilityEvent,
     Order,
     OrderItem,
     Product,
@@ -45,6 +46,7 @@ from .models import (
     UnitAcquisitionSource,
     UnitTransfer,
     User,
+    WhatsAppClickEvent,
 )
 
 logger = logging.getLogger(__name__)
@@ -904,13 +906,16 @@ class TagSerializer(serializers.ModelSerializer):
 
 
 class ProductArticleSummarySerializer(serializers.ModelSerializer):
-    """Lightweight article payload for product list (no body)."""
+    """Article payload for product list — includes body & seo_description so the
+    admin buying-guide editor can populate its form from the list response."""
 
     class Meta:
         model = ProductArticle
         fields = (
             "headline",
             "seo_title",
+            "seo_description",
+            "body",
             "is_published",
             "published_at",
             "created_at",
@@ -4166,3 +4171,132 @@ class BundleSerializer(serializers.ModelSerializer):
             "is_currently_active",
         )
         read_only_fields = ("created_at", "updated_at", "items", "is_currently_active")
+
+
+class ObservabilityEventSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ObservabilityEvent
+        fields = (
+            "id",
+            "user",
+            "session_key",
+            "event_type",
+            "product",
+            "metadata",
+            "brand_code",
+            "created_at",
+        )
+        read_only_fields = ("id", "created_at")
+
+
+class UserAnalyticsSerializer(serializers.ModelSerializer):
+    full_name = serializers.SerializerMethodField()
+    total_events = serializers.SerializerMethodField()
+    last_seen = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = (
+            "id",
+            "username",
+            "email",
+            "full_name",
+            "date_joined",
+            "last_login",
+            "utm_source",
+            "utm_medium",
+            "utm_campaign",
+            "total_events",
+            "last_seen",
+        )
+
+    def get_full_name(self, obj):
+        return obj.get_full_name() or obj.username
+
+    def get_total_events(self, obj):
+        return ObservabilityEvent.objects.filter(user=obj).count()
+
+    def get_last_seen(self, obj):
+        last_event = ObservabilityEvent.objects.filter(user=obj).order_by("-created_at").first()
+        return last_event.created_at.isoformat() if last_event else None
+
+
+class UserDetailAnalyticsSerializer(serializers.ModelSerializer):
+    recent_events = serializers.SerializerMethodField()
+    cart_items = serializers.SerializerMethodField()
+    whatsapp_clicks = serializers.SerializerMethodField()
+    utm_params = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = (
+            "id",
+            "username",
+            "email",
+            "date_joined",
+            "last_login",
+            "utm_source",
+            "utm_medium",
+            "utm_campaign",
+            "utm_content",
+            "utm_params",
+            "recent_events",
+            "cart_items",
+            "whatsapp_clicks",
+        )
+
+    def get_utm_params(self, obj):
+        return {
+            "source": obj.utm_source,
+            "medium": obj.utm_medium,
+            "campaign": obj.utm_campaign,
+            "content": obj.utm_content,
+        }
+
+    def get_recent_events(self, obj):
+        events = ObservabilityEvent.objects.filter(user=obj).order_by("-created_at")[:50]
+        return ObservabilityEventSerializer(events, many=True).data
+
+    def get_cart_items(self, obj):
+        try:
+            customer = obj.customer
+            cart = Cart.objects.filter(customer=customer, is_submitted=False).first()
+            if not cart:
+                return []
+            items = CartItem.objects.filter(cart=cart).select_related(
+                "inventory_unit__product_template"
+            )
+            return [
+                {
+                    "product_id": item.inventory_unit.product_template_id,
+                    "product_name": item.inventory_unit.product_template.product_name,
+                    "quantity": item.quantity,
+                    "unit_price": str(item.unit_price),
+                }
+                for item in items
+            ]
+        except Exception:
+            return []
+
+    def get_whatsapp_clicks(self, obj):
+        email = obj.email or ""
+        phone = ""
+        try:
+            phone = obj.customer.phone or ""
+        except Exception:
+            pass
+        clicks = WhatsAppClickEvent.objects.filter(
+            Q(email=email) | Q(phone=phone)
+        ).order_by("-clicked_at")[:20]
+        return [
+            {
+                "product_id": c.product_id,
+                "clicked_at": c.clicked_at.isoformat(),
+            }
+            for c in clicks
+        ]
+
+
+class FunnelSummarySerializer(serializers.Serializer):
+    date_from = serializers.DateField(required=False)
+    date_to = serializers.DateField(required=False)
