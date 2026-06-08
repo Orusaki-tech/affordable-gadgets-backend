@@ -66,9 +66,25 @@ from rest_framework.throttling import AnonRateThrottle
 class RecordObservabilityEventView(APIView):
     """
     Public-facing endpoint to record discrete business events, like button clicks.
+    Accepts optional email/phone for user tracking.
     """
     permission_classes = [AllowAny] # Allow clicks from anonymous users
     throttle_classes = [AnonRateThrottle]
+
+    def _get_user_email(self, request) -> str:
+        """Derive email from authenticated user or request data."""
+        if request.user and request.user.is_authenticated:
+            return request.user.email or ""
+        return request.data.get("email", "")
+
+    def _get_user_phone(self, request) -> str:
+        """Derive phone from authenticated user's customer profile or request data."""
+        if request.user and request.user.is_authenticated:
+            try:
+                return request.user.customer.phone or ""
+            except Exception:
+                return ""
+        return request.data.get("phone", "")
 
     def post(self, request):
         event_type = request.data.get('event_type')
@@ -87,6 +103,8 @@ class RecordObservabilityEventView(APIView):
             WhatsAppClickEvent.objects.create(
                 product_id=product_id_int,
                 brand_code=brand_code,
+                email=self._get_user_email(request) or None,
+                phone=self._get_user_phone(request) or None,
             )
             return Response({"status": "ok"}, status=status.HTTP_202_ACCEPTED)
 
@@ -3780,6 +3798,88 @@ class AdminTokenLoginView(ObtainAuthToken):
                 },
             }
         )
+
+
+class SupabaseAuthView(APIView):
+    """
+    POST: Authenticate via Supabase JWT (Google OAuth).
+    Accepts a Supabase access_token, verifies it, and returns a Django Token.
+    Maps Supabase user to existing Django user by supabase_uid or email.
+    Supports both admin and customer users.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        access_token = request.data.get("access_token")
+        if not access_token:
+            return Response({"error": "access_token is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        from inventory.supabase_auth import verify_supabase_token
+
+        supabase_user = verify_supabase_token(access_token)
+        if not supabase_user:
+            return Response({"error": "Invalid or expired Supabase token."}, status=status.HTTP_401_UNAUTHORIZED)
+
+        email = (supabase_user.get("email") or "").strip().lower()
+        supabase_id = (supabase_user.get("id") or "").strip()
+
+        # Find existing user by supabase_uid first, then by email
+        user = None
+        if supabase_id:
+            user = User.objects.filter(supabase_uid=supabase_id).first()
+        if not user and email:
+            user = User.objects.filter(email=email).first()
+            if user and supabase_id:
+                user.supabase_uid = supabase_id
+                user.save(update_fields=["supabase_uid"])
+
+        # Auto-create user for first-time Google sign-in
+        if not user and email:
+            username = email.split("@")[0]
+            base_username = username
+            suffix = 1
+            while User.objects.filter(username=username).exists():
+                username = f"{base_username}{suffix}"
+                suffix += 1
+            user = User.objects.create_user(
+                username=username,
+                email=email,
+                supabase_uid=supabase_id,
+            )
+            user.set_unusable_password()
+            user.save()
+
+        if not user:
+            return Response(
+                {"error": "Could not authenticate. No user found for this Google account."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        user.last_login = timezone.now()
+        user.save(update_fields=["last_login"])
+
+        token, _ = Token.objects.get_or_create(user=user)
+
+        response_data = {
+            "token": token.key,
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "is_staff": user.is_staff,
+                "is_superuser": user.is_superuser,
+            },
+        }
+
+        # Include admin profile if user has one
+        try:
+            admin_profile = Admin.objects.get(user=user)
+            response_data["profile"] = AdminSerializer(admin_profile).data
+            response_data["is_admin"] = True
+        except Admin.DoesNotExist:
+            response_data["is_admin"] = False
+
+        return Response(response_data, status=status.HTTP_200_OK)
 
 
 class CustomerLoginView(generics.GenericAPIView):

@@ -309,6 +309,20 @@ CART_STALE_ITEMS = Gauge(
     multiprocess_mode="livemostrecent",
 )
 
+CART_STALE_2W = Gauge(
+    "cart_stale_2w",
+    "Active carts untouched for >2 weeks",
+    ["brand"],
+    multiprocess_mode="livemostrecent",
+)
+
+CART_STALE_3W = Gauge(
+    "cart_stale_3w",
+    "Active carts untouched for >3 weeks",
+    ["brand"],
+    multiprocess_mode="livemostrecent",
+)
+
 CART_POPULAR_ITEMS = Gauge(
     "cart_popular_items",
     "Popular items in active carts by product name",
@@ -423,6 +437,18 @@ def refresh_business_metrics():
                 )["total_qty"] or 0
                 CART_STALE_CARTS.labels(brand=bc).set(total_stale_carts)
                 CART_STALE_ITEMS.labels(brand=bc).set(total_stale_items)
+
+                # Stale carts (2+ weeks)
+                stale_2w_qs = active_carts.filter(
+                    updated_at__lt=timezone.now() - timedelta(weeks=2)
+                )
+                CART_STALE_2W.labels(brand=bc).set(stale_2w_qs.count())
+
+                # Stale carts (3+ weeks)
+                stale_3w_qs = active_carts.filter(
+                    updated_at__lt=timezone.now() - timedelta(weeks=3)
+                )
+                CART_STALE_3W.labels(brand=bc).set(stale_3w_qs.count())
 
                 # Popular items (top 10)
                 popular_items = CartItem.objects.filter(cart__in=active_carts).values(

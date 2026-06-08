@@ -20,6 +20,8 @@ from django.utils.translation import gettext_lazy as _
 class User(AbstractUser):
     """Custom User model extending AbstractUser to differentiate between Admin and Customer roles."""
 
+    supabase_uid = models.CharField(max_length=255, null=True, blank=True, unique=True, verbose_name="Supabase User ID")
+
     # Custom methods for role checking (assumes Admin/Customer models exist)
     @property
     def is_admin(self):
@@ -2493,6 +2495,8 @@ class WhatsAppClickEvent(models.Model):
     )
     brand_code = models.CharField(max_length=50, default="AFFORDABLE_GADGETS")
     clicked_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    email = models.EmailField(null=True, blank=True, db_index=True, verbose_name="User email")
+    phone = models.CharField(max_length=20, blank=True, db_index=True, verbose_name="User phone")
 
     class Meta:
         ordering = ["-clicked_at"]

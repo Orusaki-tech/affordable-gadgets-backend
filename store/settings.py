@@ -528,6 +528,10 @@ TWILIO_AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN", "")
 TWILIO_WHATSAPP_FROM = os.environ.get("TWILIO_WHATSAPP_FROM", "")  # Format: whatsapp:+14155238886
 TWILIO_TIMEOUT = int(os.environ.get("TWILIO_TIMEOUT", "10"))
 
+# --- Supabase Configuration ---
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
+
 # --- CORS Configuration (Development) ---
 # Configure allowed origins for your frontend applications
 # Update these when deploying to production with actual frontend URLs

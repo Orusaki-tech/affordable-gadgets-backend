@@ -50,6 +50,7 @@ urlpatterns = [
     # 1. Django Admin Interface
     path("admin/", admin.site.urls),
     path("api/auth/token/login/", inventory_views.AdminTokenLoginView.as_view()),
+    path("api/auth/supabase/", inventory_views.SupabaseAuthView.as_view()),
     # 2. Authentication Endpoints (Placeholder for user login, registration, etc.)
     # In a real-world scenario, you would use a library like Djoser or built-in DRF Auth views.
     path("api/auth/", include("rest_framework.urls")),
