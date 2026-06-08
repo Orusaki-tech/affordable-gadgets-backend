@@ -31,6 +31,8 @@ resource "google_project_iam_member" "deploy_roles" {
     "roles/storage.objectViewer",
     # IAP tunnel for Ansible deploy of monitoring / other VMs.
     "roles/iap.tunnelResourceAccessor",
+    # Cloud Logging — gcloud logging write in CI/CD deploy step.
+    "roles/logging.logWriter",
   ]) : toset([])
 
   project = var.project_id
