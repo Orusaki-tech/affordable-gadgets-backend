@@ -14,7 +14,12 @@ MONITORING_INSTANCE="${MONITORING_INSTANCE:-affordable-gadgets-production-monito
 COMPOSE_ROOT="${COMPOSE_ROOT:-/opt/affordable-gadgets}"
 SSH_USER="${SSH_USER:-$(gcloud compute os-login describe-profile --format='value(posixAccounts[0].username)' 2>/dev/null || echo affordablegadgetske_gmail_com)}"
 SSH_KEY_PATH="${SSH_KEY_PATH:-~/.ssh/ci_deploy_key}"
-DOCKER_COMPOSE="${DOCKER_COMPOSE:-docker-compose}"
+# Prefer docker compose (plugin) over standalone docker-compose binary
+if command -v docker-compose &>/dev/null; then
+  DOCKER_COMPOSE="${DOCKER_COMPOSE:-docker-compose}"
+else
+  DOCKER_COMPOSE="${DOCKER_COMPOSE:-docker compose}"
+fi
 GRAFANA_ADMIN_PASSWORD="${GRAFANA_ADMIN_PASSWORD?GRAFANA_ADMIN_PASSWORD not set}"
 CLOUDFLARE_TUNNEL_TOKEN="${CLOUDFLARE_TUNNEL_TOKEN:-}"
 DJANGO_ADMIN_PASSWORD="${DJANGO_ADMIN_PASSWORD:-}"
