@@ -157,8 +157,9 @@ class CartService:
             cart_item.promotion = promotion
             cart_item.save()
 
+        cart_user = cart.customer.user if cart.customer_id and hasattr(cart.customer, 'user') else None
         ObservabilityEvent.objects.create(
-            user=cart.user if cart.user_id else None,
+            user=cart_user,
             session_key=cart.session_key or "",
             event_type=ObservabilityEvent.EventType.CART_ADD,
             product_id=product.id,
