@@ -8,7 +8,7 @@
 
 set -euo pipefail
 
-export GCP_PROJECT_ID="${GCP_PROJECT_ID:-$(gcloud config get-value project 2>/dev/null || echo gmail-486411)}"
+export GCP_PROJECT_ID="${GCP_PROJECT_ID:-$(gcloud config get-value project 2>/dev/null || echo project-07850c05-c54d-486b-80a)}"
 GCP_ZONE="${GCP_ZONE:-us-east1-b}"
 MONITORING_INSTANCE="${MONITORING_INSTANCE:-affordable-gadgets-production-monitoring}"
 COMPOSE_ROOT="${COMPOSE_ROOT:-/opt/affordable-gadgets}"

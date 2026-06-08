@@ -18,7 +18,7 @@ datasources:
     editable: false
     jsonData:
       authenticationType: gce
-      defaultProject: gmail-486411
+      defaultProject: project-07850c05-c54d-486b-80a
 
   - name: JSON API
     type: marcusolsson-json-datasource
@@ -35,4 +35,4 @@ datasources:
 
   # Google Cloud Trace is not available as a built-in / community datasource
   # in Grafana OSS. View traces at:
-  # https://console.cloud.google.com/traces?project=gmail-486411
+  # https://console.cloud.google.com/traces?project=project-07850c05-c54d-486b-80a

@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PROJECT=gmail-486411
+PROJECT=project-07850c05-c54d-486b-80a
 ZONE=us-central1-a
 INSTANCE=affordable-gadgets-staging-tunnel
 TOKEN="$(cd "${ROOT}/ansible" && ansible-vault view secrets/staging.vault.yml --vault-password-file .vault_pass 2>/dev/null | python3 -c "import sys,yaml; print(yaml.safe_load(sys.stdin).get('cloudflare_tunnel_token',''))")"

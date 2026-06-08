@@ -18,7 +18,7 @@ set -eu
 
 BATCH="${1:-}"
 
-PROJECT="gmail-486411"
+PROJECT="project-07850c05-c54d-486b-80a"
 REGION="us-east1"
 ZONE="us-east1-b"
 MIG="affordable-gadgets-production-api-mig"

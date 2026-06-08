@@ -57,7 +57,7 @@ The script updates the VM `.env` (`ALLOWED_HOSTS`, `PESAPAL_IPN_URL`) and starts
 ```bash
 cd deploy/terraform
 cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars: set project_id (e.g. gmail-486411), region, zone.
+# Edit terraform.tfvars: set project_id (e.g. project-07850c05-c54d-486b-80a), region, zone.
 terraform init
 terraform plan
 terraform apply

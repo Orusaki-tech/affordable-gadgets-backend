@@ -37,7 +37,7 @@ resource "google_compute_instance" "monitoring" {
 
   lifecycle {
     # Startup script is optional; avoid replacing the VM when it is added later.
-    ignore_changes = [metadata_startup_script]
+    ignore_changes = [metadata_startup_script, metadata]
   }
 }
 

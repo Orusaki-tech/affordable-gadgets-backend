@@ -33,7 +33,7 @@ jobs:
       - name: Run report on monitoring VM
         id: report
         env:
-          GCP_PROJECT_ID: gmail-486411
+          GCP_PROJECT_ID: project-07850c05-c54d-486b-80a
           GCP_ZONE: us-east1-b
           INSTANCE: affordable-gadgets-production-monitoring
           SSH_USER: affordablegadgetske_gmail_com

@@ -591,6 +591,150 @@
       }
     },
     {
+      "id": 14,
+      "title": "Datasource Reachable",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 47,
+        "w": 3,
+        "h": 3
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "marcusolsson-json-datasource",
+            "uid": "json-api"
+          },
+          "urlPath": "/api/inventory/analytics/datasource-health/",
+          "method": "GET",
+          "jsonPath": "$.status",
+          "resultType": "string",
+          "params": []
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          },
+          "noValue": "⛔ Unreachable"
+        }
+      },
+      "datasource": {
+        "type": "marcusolsson-json-datasource",
+        "uid": "json-api"
+      }
+    },
+    {
+      "id": 15,
+      "title": "Auth Token Valid",
+      "type": "stat",
+      "gridPos": {
+        "x": 3,
+        "y": 47,
+        "w": 3,
+        "h": 3
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "marcusolsson-json-datasource",
+            "uid": "json-api"
+          },
+          "urlPath": "/api/inventory/analytics/datasource-health/",
+          "method": "GET",
+          "jsonPath": "$.grafana_token_valid",
+          "resultType": "string",
+          "params": []
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red"
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "true": {
+                  "color": "green",
+                  "text": "✅ Authenticated"
+                },
+                "false": {
+                  "color": "red",
+                  "text": "❌ Auth Failed"
+                }
+              }
+            }
+          ],
+          "noValue": "⛔ Unreachable"
+        }
+      },
+      "datasource": {
+        "type": "marcusolsson-json-datasource",
+        "uid": "json-api"
+      }
+    },
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 47,
+        "w": 3,
+        "h": 3
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "marcusolsson-json-datasource",
+            "uid": "json-api"
+          },
+          "urlPath": "/api/inventory/analytics/datasource-health/",
+          "method": "GET",
+          "jsonPath": "$.status",
+          "resultType": "string",
+          "params": []
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          },
+          "noValue": "⛔ Unreachable"
+        }
+      },
+      "datasource": {
+        "type": "marcusolsson-json-datasource",
+        "uid": "json-api"
+      }
+    },
+    {
       "id": 13,
       "title": "Daily Active Users",
       "type": "table",

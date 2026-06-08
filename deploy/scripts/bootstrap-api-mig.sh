@@ -2,7 +2,7 @@
 # Bootstrap API MIG instances: Docker + GCS config + compose up (until startup scripts are reliable).
 set -euo pipefail
 
-PROJECT="${GCP_PROJECT_ID:-gmail-486411}"
+PROJECT="${GCP_PROJECT_ID:-project-07850c05-c54d-486b-80a}"
 ZONE="${GCP_ZONE:-us-central1-a}"
 MIG="${API_MIG_NAME:-affordable-gadgets-staging-api-mig}"
 BUCKET="${DEPLOY_CONFIG_BUCKET:-affordable-gadgets-staging-deploy-config}"

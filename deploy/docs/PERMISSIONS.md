@@ -30,7 +30,7 @@ Copy outputs into **GitHub repository secrets** (that part is GitHub UI or `gh s
 Optional: grant yourself IAP SSH to private VMs:
 
 ```bash
-gcloud projects add-iam-policy-binding gmail-486411 \
+gcloud projects add-iam-policy-binding project-07850c05-c54d-486b-80a \
   --member="user:YOU@gmail.com" \
   --role="roles/iap.tunnelResourceAccessor"
 ```
@@ -66,7 +66,7 @@ That can be added to Terraform too if you set `var.admin_users` (see below).
    ```bash
    gh secret set GCP_WIF_PROVIDER --body "$(terraform output -raw gcp_wif_provider)"
    gh secret set GCP_DEPLOY_SA --body "$(terraform output -raw gcp_deploy_sa_email)"
-   gh secret set GCP_PROJECT_ID --body "gmail-486411"
+   gh secret set GCP_PROJECT_ID --body "project-07850c05-c54d-486b-80a"
    gh secret set GCP_ZONE --body "us-central1-a"
    gh secret set STAGING_API_MIG_NAME --body "$(terraform output -raw api_mig_name)"
    ```

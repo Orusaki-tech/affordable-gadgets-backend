@@ -18,7 +18,7 @@ Environment overrides:
 |----------|---------|
 | `LEGACY_INSTANCE` | `affordable-gadgets-backend` |
 | `LEGACY_ZONE` | `us-central1-a` |
-| `LEGACY_PROJECT` | `gmail-486411` |
+| `LEGACY_PROJECT` | `project-07850c05-c54d-486b-80a` |
 | `DUMP_LOCAL` | `./affordable_gadgets.dump` |
 
 ## Manual steps
@@ -26,11 +26,11 @@ Environment overrides:
 ### 1. Dump on legacy VM
 
 ```bash
-gcloud compute ssh affordable-gadgets-backend --zone=us-central1-a --project=gmail-486411
+gcloud compute ssh affordable-gadgets-backend --zone=us-central1-a --project=project-07850c05-c54d-486b-80a
 docker exec affordable-gadgets-postgres pg_dump -U affordable -Fc affordable_gadgets > /tmp/affordable_gadgets.dump
 exit
 gcloud compute scp affordable-gadgets-backend:/tmp/affordable_gadgets.dump ./affordable_gadgets.dump \
-  --zone=us-central1-a --project=gmail-486411
+  --zone=us-central1-a --project=project-07850c05-c54d-486b-80a
 ```
 
 ### 2. Cloud SQL Auth Proxy

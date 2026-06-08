@@ -2,7 +2,7 @@
 # Enable APIs required for platform_enabled=true Terraform apply.
 set -euo pipefail
 
-PROJECT_ID="${1:-${GCP_PROJECT_ID:-gmail-486411}}"
+PROJECT_ID="${1:-${GCP_PROJECT_ID:-project-07850c05-c54d-486b-80a}}"
 
 APIS=(
   compute.googleapis.com

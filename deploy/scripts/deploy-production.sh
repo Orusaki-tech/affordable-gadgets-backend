@@ -19,7 +19,7 @@ done
 
 ENV="${POSITIONAL[0]:-production}"
 REGION="${POSITIONAL[1]:-us-east1}"
-PROJECT="${PROJECT_ID:-gmail-486411}"
+PROJECT="${PROJECT_ID:-project-07850c05-c54d-486b-80a}"
 BUCKET="affordable-gadgets-${ENV}-deploy-config"
 PREFIX="${ENV}"
 BACKEND_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

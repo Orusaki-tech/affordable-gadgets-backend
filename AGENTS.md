@@ -1,3 +1,43 @@
+# Session: 2026-06-08 — Grafana datasource auth fix + project ID update
+
+## GCP Project
+- **Project ID:** `project-07850c05-c54d-486b-80a` (not `gmail-486411` — that was the old project)
+- **Project number:** `111963419931`
+- **GCP account:** `petermadasana@gmail.com` (uses IAP tunnel + `ci_deploy_key`)
+- **Default SSH user:** `petermadasana_gmail_com`
+- **APIs run in Docker** — `ag-api-web` container on the API MIG instances
+
+## Grafana Monitoring
+- **URL:** https://monitoring.affordable-gadgetske.com
+- **Dashboard:** "Affordable Gadgets — Marketing Funnel & Users" (uid: `ag-marketing-funnel`)
+- **JSON API datasource uid:** `json-api`
+- **Auth:** `Authorization: Token ${GF_JSON_API_TOKEN}` from `grafana.env`
+- **Admin token:** `da069c6809c8197539d20925b622ac938cf7ce76` (set as `DJANGO_API_TOKEN` GitHub secret)
+
+## Grafana Datasource Auth Fix
+If panels show 0/empty:
+1. **Datasource Health** panel shows "Reachable" / "Auth Valid"
+2. Auth fails? Regenerate token: `sudo docker exec ag-api-web python manage.py drf_create_token admin`
+3. Update `DJANGO_API_TOKEN` in GitHub secrets
+4. Run **Recover monitoring stack** workflow or push to main
+
+## Key URLs
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/inventory/analytics/datasource-health/` | No-auth health check — returns reachable + auth valid + counts |
+| `GET /api/inventory/analytics/daily-users/` | Today's active users with products |
+| `GET /api/inventory/analytics/daily-activity/` | Today's raw event feed |
+| `POST /api/auth/token/login/` | Admin token exchange (`username=admin` + password) |
+
+## Recent Changes (commit 6e8c386)
+- `AdminTokenLoginView` auto-creates Admin profile if missing
+- Added email column override to DailyUserActivity Grafana panel
+- `deploy-monitoring.sh`: better error output on token exchange failure
+- Added `DJANGO_API_TOKEN` secret support to workflows
+- All GCP project references updated from `gmail-486411` to `project-07850c05-c54d-486b-80a`
+- Added `DatasourceHealthView` at `/api/inventory/analytics/datasource-health/`
+- Added "Datasource Reachable" and "Auth Token Valid" Grafana stat panels
+
 # Session: 2026-06-02 — Blog recovery tooling (Cloud SQL + JSON)
 
 ## Added

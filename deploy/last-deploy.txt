@@ -2,7 +2,7 @@ Deploy: 2026-05-13T16:12:44Z
 VM: affordable-gadgets-backend
 External IP: 34.29.8.90
 Zone: us-central1-a
-Project: gmail-486411
+Project: project-07850c05-c54d-486b-80a
 Backend URL: http://34.29.8.90:8000
 ALLOWED_HOSTS extras (e.g. ngrok): api.affordable-gadgetske.com
 Public API base URL: https://api.affordable-gadgetske.com

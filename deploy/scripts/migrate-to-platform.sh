@@ -39,11 +39,11 @@ need terraform
 if [[ ! -f "${TFVARS}" ]]; then
   echo "Creating ${TFVARS} from example..."
   cp "${TFVARS_EXAMPLE}" "${TFVARS}"
-  echo "Edit project_id in ${TFVARS} if needed (default: gmail-486411)."
+  echo "Edit project_id in ${TFVARS} if needed (default: project-07850c05-c54d-486b-80a)."
 fi
 
 PROJECT="$(grep -E '^project_id' "${TFVARS}" | sed 's/.*= *"\(.*\)".*/\1/')"
-PROJECT="${PROJECT:-gmail-486411}"
+PROJECT="${PROJECT:-project-07850c05-c54d-486b-80a}"
 
 if [[ "${SKIP_APIS:-}" != "1" ]]; then
   bash "${ROOT}/scripts/setup-gcp-apis.sh" "${PROJECT}"

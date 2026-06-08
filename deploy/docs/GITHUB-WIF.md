@@ -5,7 +5,7 @@ Use WIF so CI can push to Artifact Registry and roll MIGs without JSON keys.
 ## 1. Create deploy service account
 
 ```bash
-PROJECT_ID=gmail-486411
+PROJECT_ID=project-07850c05-c54d-486b-80a
 SA=platform-deploy
 gcloud iam service-accounts create "${SA}" --project="${PROJECT_ID}" \
   --display-name="GitHub platform deploy"
@@ -54,8 +54,8 @@ After `terraform apply`, run:
 | Secret | Value |
 |--------|--------|
 | `GCP_WIF_PROVIDER` | `projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/github/providers/github-oidc` |
-| `GCP_DEPLOY_SA` | `platform-deploy@gmail-486411.iam.gserviceaccount.com` |
-| `GCP_PROJECT_ID` | `gmail-486411` |
+| `GCP_DEPLOY_SA` | `platform-deploy@project-07850c05-c54d-486b-80a.iam.gserviceaccount.com` |
+| `GCP_PROJECT_ID` | `project-07850c05-c54d-486b-80a` |
 | `GCP_ZONE` | `us-central1-a` |
 | `STAGING_API_MIG_NAME` | from `terraform output api_mig_name` |
 | `STAGING_SHOP_MIG_NAME` | from `terraform output shop_mig_name` |

@@ -2,7 +2,7 @@
 # Platform-wide non-secret variables (single source of truth).
 # Secrets: deploy/ansible/secrets/<env>.vault.yml (ansible-vault)
 
-gcp_project_id: "gmail-486411"
+gcp_project_id: "project-07850c05-c54d-486b-80a"
 gcp_region: us-central1
 gcp_zone: us-central1-a
 name_prefix: affordable-gadgets

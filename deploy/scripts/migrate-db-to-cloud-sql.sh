@@ -4,7 +4,7 @@ set -euo pipefail
 
 LEGACY_INSTANCE="${LEGACY_INSTANCE:-affordable-gadgets-backend}"
 LEGACY_ZONE="${LEGACY_ZONE:-us-central1-a}"
-LEGACY_PROJECT="${LEGACY_PROJECT:-gmail-486411}"
+LEGACY_PROJECT="${LEGACY_PROJECT:-project-07850c05-c54d-486b-80a}"
 LEGACY_PG_CONTAINER="${LEGACY_PG_CONTAINER:-affordable-gadgets-postgres}"
 DUMP_LOCAL="${DUMP_LOCAL:-./affordable_gadgets.dump}"
 

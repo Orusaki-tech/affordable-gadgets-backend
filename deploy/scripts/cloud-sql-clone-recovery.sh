@@ -2,7 +2,7 @@
 # Guide + helpers for Cloud SQL clone recovery (blogs + inventory units).
 set -euo pipefail
 
-PROJECT="${GCP_PROJECT_ID:-gmail-486411}"
+PROJECT="${GCP_PROJECT_ID:-project-07850c05-c54d-486b-80a}"
 REGION="${GCP_REGION:-us-east1}"
 INSTANCE="${CLOUD_SQL_INSTANCE:-}"
 

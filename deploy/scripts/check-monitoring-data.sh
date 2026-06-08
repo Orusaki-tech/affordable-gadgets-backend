@@ -2,7 +2,7 @@
 # Inspect Prometheus/Grafana Docker volumes on the monitoring VM.
 set -euo pipefail
 
-PROJECT="${GCP_PROJECT_ID:-gmail-486411}"
+PROJECT="${GCP_PROJECT_ID:-project-07850c05-c54d-486b-80a}"
 ZONE="${GCP_ZONE:-us-east1-b}"
 INSTANCE="${MONITORING_INSTANCE:-affordable-gadgets-production-monitoring}"
 

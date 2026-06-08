@@ -467,6 +467,51 @@ class DailyUsersView(APIView):
         })
 
 
+class DatasourceHealthView(APIView):
+    """No-auth endpoint for Grafana datasource health check.
+    Returns connectivity and auth status so Grafana can verify
+    the JSON API datasource is working end-to-end."""
+
+    permission_classes = []
+
+    def get(self, request):
+        from rest_framework.authtoken.models import Token
+
+        status = "ok"
+        authenticated_as = None
+        grafana_token_valid = False
+
+        auth_header = request.META.get("HTTP_AUTHORIZATION", "")
+        if auth_header.startswith("Token "):
+            token_key = auth_header[6:]
+            try:
+                token = Token.objects.select_related("user").get(key=token_key)
+                if token.user.is_active:
+                    authenticated_as = token.user.username
+                    grafana_token_valid = True
+            except Token.DoesNotExist:
+                pass
+
+        today = timezone.localdate()
+        events_today = (
+            ObservabilityEvent.objects.filter(created_at__date=today)
+            .exclude(user__isnull=True)
+        )
+
+        return Response({
+            "status": status,
+            "authenticated_as": authenticated_as,
+            "grafana_token_valid": grafana_token_valid,
+            "total_users": User.objects.count(),
+            "total_events_today": events_today.count(),
+            "events_today_by_type": dict(
+                events_today.values_list("event_type")
+                .annotate(count=Count("id"))
+                .order_by()
+            ),
+        })
+
+
 class EmptySerializer(serializers.Serializer):
     pass
 

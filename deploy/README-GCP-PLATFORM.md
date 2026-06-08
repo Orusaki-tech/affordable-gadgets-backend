@@ -18,7 +18,7 @@ APPLY=1 ./deploy/scripts/migrate-to-platform.sh --apply
 
 This script:
 
-1. Ensures `deploy/terraform/environments/staging.tfvars` exists (`project_id = gmail-486411`)
+1. Ensures `deploy/terraform/environments/staging.tfvars` exists (`project_id = project-07850c05-c54d-486b-80a`)
 2. Enables GCP APIs
 3. Runs `terraform apply -var-file=environments/staging.tfvars`
 4. Generates `deploy/ansible/vars/generated_from_terraform.yml`
@@ -51,8 +51,8 @@ Config is stored in GCS (`deploy_config_bucket`); MIG startup pulls `api.env` + 
 ```bash
 # Build & push image first (local or CI)
 gcloud auth configure-docker us-central1-docker.pkg.dev
-docker build -t us-central1-docker.pkg.dev/gmail-486411/ag-api/ag-api:staging-latest .
-docker push us-central1-docker.pkg.dev/gmail-486411/ag-api/ag-api:staging-latest
+docker build -t us-central1-docker.pkg.dev/project-07850c05-c54d-486b-80a/ag-api/ag-api:staging-latest .
+docker push us-central1-docker.pkg.dev/project-07850c05-c54d-486b-80a/ag-api/ag-api:staging-latest
 
 ansible-playbook -i deploy/ansible/inventory/staging \
   deploy/ansible/playbooks/api.yml \
@@ -122,7 +122,7 @@ Then `./deploy/deploy-gcp.sh` works as before.
 ## SSH (IAP)
 
 ```bash
-gcloud compute ssh INSTANCE --zone=us-central1-a --tunnel-through-iap --project=gmail-486411
+gcloud compute ssh INSTANCE --zone=us-central1-a --tunnel-through-iap --project=project-07850c05-c54d-486b-80a
 sudo docker exec -it ag-api-web bash
 ```
 
