@@ -316,27 +316,144 @@ class FunnelSummaryView(APIView):
             .order_by("-count")[:20]
         )
 
+        summary = {
+            "total_users": total_users,
+            "users_with_orders": users_with_orders,
+            "unique_users_with_events": unique_users_with_events,
+            "unique_users_with_searches": users_with_searches,
+            "unique_users_with_product_views": users_with_product_views,
+            "total_events": total_events,
+            "total_searches": searches.count(),
+            "total_product_views": product_views.count(),
+            "total_page_views": page_views.count(),
+        }
+        acquisition_list = [
+            {"source": s["utm_source"], "count": s["count"]}
+            for s in acquisition_sources
+        ]
+
+        # #region agent log
+        try:
+            import json as _json
+            import time as _time
+            with open(
+                "/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug-d42a00.log",
+                "a",
+            ) as _dbg:
+                _dbg.write(
+                    _json.dumps(
+                        {
+                            "sessionId": "d42a00",
+                            "runId": "pre-fix",
+                            "hypothesisId": "H1-H5",
+                            "location": "inventory/views.py:FunnelSummaryView.get",
+                            "message": "funnel_summary_payload",
+                            "data": {
+                                "users_with_orders": users_with_orders,
+                                "acquisition_count": len(acquisition_list),
+                                "popular_searches_count": len(popular_searches),
+                                "total_page_views_events": page_views.count(),
+                                "summary": summary,
+                            },
+                            "timestamp": int(_time.time() * 1000),
+                        }
+                    )
+                    + "\n"
+                )
+        except OSError:
+            pass
+        # #endregion
+
         return Response({
-            "summary": {
-                "total_users": total_users,
-                "users_with_orders": users_with_orders,
-                "unique_users_with_events": unique_users_with_events,
-                "unique_users_with_searches": users_with_searches,
-                "unique_users_with_product_views": users_with_product_views,
-                "total_events": total_events,
-                "total_searches": searches.count(),
-                "total_product_views": product_views.count(),
-                "total_page_views": page_views.count(),
-            },
-            "acquisition_sources": [
-                {"source": s["utm_source"], "count": s["count"]}
-                for s in acquisition_sources
-            ],
+            "summary": summary,
+            "acquisition_sources": acquisition_list,
             "popular_searches": [
                 {"query": s["metadata__search_query"], "count": s["count"]}
                 for s in popular_searches
             ],
         })
+
+
+def _product_display_name(product):
+    if not product:
+        return ""
+    return getattr(product, "product_name", "") or ""
+
+
+def _empty_user_activity_entry():
+    return {
+        "email": "",
+        "phone": "",
+        "products_viewed": [],
+        "products_added_to_cart": [],
+        "whatsapp_products": [],
+        "searches": [],
+        "total_events": 0,
+        "last_seen": "",
+    }
+
+
+def _aggregate_user_activity(events):
+    """Aggregate observability events into per-user activity dicts keyed by user id."""
+    from collections import defaultdict
+
+    user_data = defaultdict(_empty_user_activity_entry)
+    seen_products = defaultdict(lambda: {"viewed": set(), "cart": set(), "whatsapp": set()})
+
+    for e in events:
+        uid = e.user_id
+        entry = user_data[uid]
+        if not entry["email"]:
+            entry["email"] = e.user.email
+        if not entry["phone"]:
+            try:
+                entry["phone"] = e.user.customer.phone or ""
+            except Exception:
+                entry["phone"] = ""
+        entry["total_events"] += 1
+        ts = e.created_at.isoformat()
+        if ts > entry["last_seen"]:
+            entry["last_seen"] = ts
+
+        product_name = _product_display_name(e.product)
+        metadata = e.metadata if isinstance(e.metadata, dict) else {}
+        if e.event_type == "search":
+            q = metadata.get("search_query", "")
+            if q and q not in entry["searches"]:
+                entry["searches"].append(q)
+        elif e.event_type == "product_view":
+            if product_name and product_name not in seen_products[uid]["viewed"]:
+                seen_products[uid]["viewed"].add(product_name)
+                entry["products_viewed"].append(product_name)
+        elif e.event_type == "cart_add":
+            if product_name and product_name not in seen_products[uid]["cart"]:
+                seen_products[uid]["cart"].add(product_name)
+                entry["products_added_to_cart"].append(product_name)
+        elif e.event_type == "whatsapp_click":
+            if product_name and product_name not in seen_products[uid]["whatsapp"]:
+                seen_products[uid]["whatsapp"].add(product_name)
+                entry["whatsapp_products"].append(product_name)
+
+    return user_data
+
+
+def _format_user_activity_rows(user_data, extra_fields=None):
+    rows = []
+    for uid, d in user_data.items():
+        row = {
+            "email": d["email"],
+            "phone": d["phone"],
+            "products_viewed": ", ".join(d["products_viewed"]),
+            "products_added_to_cart": ", ".join(d["products_added_to_cart"]),
+            "whatsapp_products": ", ".join(d["whatsapp_products"]),
+            "searches": ", ".join(d["searches"]),
+            "total_events": d["total_events"],
+            "last_seen": d["last_seen"],
+        }
+        if extra_fields and uid in extra_fields:
+            row.update(extra_fields[uid])
+        rows.append(row)
+    return sorted(rows, key=lambda x: x["last_seen"], reverse=True)
 
 
 class DailyActivityView(APIView):
@@ -358,12 +475,13 @@ class DailyActivityView(APIView):
 
         rows = []
         for e in events:
-            product_name = e.product.name if e.product else ""
+            product_name = _product_display_name(e.product)
+            metadata = e.metadata if isinstance(e.metadata, dict) else {}
             detail = ""
             if e.event_type == "search":
-                detail = e.metadata.get("search_query", "") if e.metadata else ""
+                detail = metadata.get("search_query", "")
             elif e.event_type == "cart_add":
-                detail = f"qty {e.metadata.get('quantity', 1)}" if e.metadata else ""
+                detail = f"qty {metadata.get('quantity', 1)}"
             elif e.event_type == "whatsapp_click":
                 detail = product_name
             rows.append({
@@ -399,70 +517,120 @@ class DailyUsersView(APIView):
             .order_by("-created_at")
         )
 
-        from collections import defaultdict
-        user_data: dict[int, dict] = defaultdict(lambda: {
-            "email": "",
-            "phone": "",
-            "products_viewed": [],
-            "products_added_to_cart": [],
-            "whatsapp_products": [],
-            "searches": [],
-            "total_events": 0,
-            "last_seen": "",
-        })
+        # #region agent log
+        try:
+            import json as _json
+            import time as _time
+            with open(
+                "/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug-d42a00.log",
+                "a",
+            ) as _dbg:
+                _dbg.write(
+                    _json.dumps(
+                        {
+                            "sessionId": "d42a00",
+                            "runId": "pre-fix",
+                            "hypothesisId": "H1",
+                            "location": "inventory/views.py:DailyUsersView.get",
+                            "message": "daily_users_events_loaded",
+                            "data": {"event_count": events.count()},
+                            "timestamp": int(_time.time() * 1000),
+                        }
+                    )
+                    + "\n"
+                )
+        except OSError:
+            pass
+        # #endregion
 
-        seen_products = defaultdict(lambda: {"viewed": set(), "cart": set(), "whatsapp": set()})
+        user_data = _aggregate_user_activity(events)
+        users_list = _format_user_activity_rows(user_data)
 
-        for e in events:
-            uid = e.user_id
-            entry = user_data[uid]
-            if not entry["email"]:
-                entry["email"] = e.user.email
-            if not entry["phone"]:
-                try:
-                    entry["phone"] = e.user.customer.phone or ""
-                except Exception:
-                    entry["phone"] = ""
-            entry["total_events"] += 1
-            ts = e.created_at.isoformat()
-            if ts > entry["last_seen"]:
-                entry["last_seen"] = ts
-
-            product_name = e.product.name if e.product else ""
-            if e.event_type == "search":
-                q = (e.metadata or {}).get("search_query", "")
-                if q and q not in entry["searches"]:
-                    entry["searches"].append(q)
-            elif e.event_type == "product_view":
-                if product_name and product_name not in seen_products[uid]["viewed"]:
-                    seen_products[uid]["viewed"].add(product_name)
-                    entry["products_viewed"].append(product_name)
-            elif e.event_type == "cart_add":
-                if product_name and product_name not in seen_products[uid]["cart"]:
-                    seen_products[uid]["cart"].add(product_name)
-                    entry["products_added_to_cart"].append(product_name)
-            elif e.event_type == "whatsapp_click":
-                if product_name and product_name not in seen_products[uid]["whatsapp"]:
-                    seen_products[uid]["whatsapp"].add(product_name)
-                    entry["whatsapp_products"].append(product_name)
-
-        users_list = [
-            {
-                "email": d["email"],
-                "phone": d["phone"],
-                "products_viewed": ", ".join(d["products_viewed"]),
-                "products_added_to_cart": ", ".join(d["products_added_to_cart"]),
-                "whatsapp_products": ", ".join(d["whatsapp_products"]),
-                "searches": ", ".join(d["searches"]),
-                "total_events": d["total_events"],
-                "last_seen": d["last_seen"],
-            }
-            for d in sorted(user_data.values(), key=lambda x: x["last_seen"], reverse=True)
-        ]
+        # #region agent log
+        try:
+            import json as _json
+            import time as _time
+            with open(
+                "/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug-d42a00.log",
+                "a",
+            ) as _dbg:
+                _dbg.write(
+                    _json.dumps(
+                        {
+                            "sessionId": "d42a00",
+                            "runId": "pre-fix",
+                            "hypothesisId": "H1",
+                            "location": "inventory/views.py:DailyUsersView.get",
+                            "message": "daily_users_response_ok",
+                            "data": {"active_users": len(users_list)},
+                            "timestamp": int(_time.time() * 1000),
+                        }
+                    )
+                    + "\n"
+                )
+        except OSError:
+            pass
+        # #endregion
 
         return Response({
             "date": today.isoformat(),
             "active_users": len(users_list),
+            "users": users_list,
+        })
+
+
+class RegisteredUsersActivityView(APIView):
+    """All registered users with lifetime product interaction summary."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        brand_code = getattr(request, "brand", None)
+        brand_code = brand_code.code if brand_code else "AFFORDABLE_GADGETS"
+
+        extra_fields = {}
+        user_data = {}
+        for user in User.objects.select_related("customer").order_by("-date_joined"):
+            phone = ""
+            try:
+                phone = user.customer.phone or ""
+            except Exception:
+                pass
+            user_data[user.id] = _empty_user_activity_entry()
+            user_data[user.id]["email"] = user.email
+            user_data[user.id]["phone"] = phone
+            extra_fields[user.id] = {
+                "date_joined": user.date_joined.isoformat() if user.date_joined else "",
+                "last_login": user.last_login.isoformat() if user.last_login else "",
+            }
+
+        events = (
+            ObservabilityEvent.objects
+            .filter(brand_code=brand_code)
+            .exclude(user__isnull=True)
+            .select_related("user", "user__customer", "product")
+            .order_by("-created_at")
+        )
+        activity = _aggregate_user_activity(events)
+
+        for uid, data in activity.items():
+            if uid not in user_data:
+                user_data[uid] = _empty_user_activity_entry()
+            for key in (
+                "email",
+                "phone",
+                "products_viewed",
+                "products_added_to_cart",
+                "whatsapp_products",
+                "searches",
+                "total_events",
+                "last_seen",
+            ):
+                user_data[uid][key] = data[key]
+
+        users_list = _format_user_activity_rows(user_data, extra_fields)
+
+        return Response({
+            "total_users": len(users_list),
             "users": users_list,
         })
 

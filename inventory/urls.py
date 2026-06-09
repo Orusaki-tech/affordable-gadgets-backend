@@ -88,6 +88,11 @@ urlpatterns = [
     path('analytics/funnel-summary/', views.FunnelSummaryView.as_view(), name='funnel-summary'),
     path('analytics/daily-activity/', views.DailyActivityView.as_view(), name='daily-activity'),
     path('analytics/daily-users/', views.DailyUsersView.as_view(), name='daily-users'),
+    path(
+        'analytics/registered-users/',
+        views.RegisteredUsersActivityView.as_view(),
+        name='registered-users-activity',
+    ),
     path('analytics/datasource-health/', views.DatasourceHealthView.as_view(), name='datasource-health'),
     
     # IMPORTANT: Explicit routes for custom actions must come BEFORE router.urls

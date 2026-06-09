@@ -101,12 +101,12 @@
           },
           "columns": [
             {
-              "selector": "summary.users_with_orders",
+              "selector": "users_with_orders",
               "text": "users_with_orders",
               "type": "number"
             }
           ],
-          "root_selector": "$"
+          "root_selector": "$.summary"
         }
       ],
       "fieldConfig": {
@@ -214,7 +214,7 @@
     {
       "id": 5,
       "title": "Funnel Summary",
-      "type": "stat",
+      "type": "table",
       "gridPos": {
         "x": 0,
         "y": 3,
@@ -239,29 +239,21 @@
             "headers": []
           },
           "columns": [],
-          "root_selector": "$"
+          "root_selector": "$.summary"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "custom": {
-            "displayMode": "list"
+            "align": "auto"
           },
-          "noValue": "0"
+          "noValue": "—"
         },
         "overrides": []
       },
       "options": {
-        "displayMode": "list",
-        "orientation": "horizontal",
-        "showTrendLines": false,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
+        "showHeader": true,
+        "sortBy": []
       },
       "datasource": {
         "type": "yesoreyeram-infinity-datasource",
@@ -301,7 +293,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "noValue": "0",
+          "noValue": "No UTM data",
           "custom": {
             "hideFrom": {
               "tooltip": false,
@@ -652,13 +644,13 @@
     },
     {
       "id": 13,
-      "title": "Daily Active Users",
+      "title": "Registered Users & Product Activity",
       "type": "table",
       "gridPos": {
         "x": 0,
         "y": 37,
-        "w": 12,
-        "h": 10
+        "w": 24,
+        "h": 12
       },
       "targets": [
         {
@@ -670,7 +662,7 @@
           "type": "json",
           "source": "url",
           "format": "table",
-          "url": "/api/inventory/analytics/daily-users/",
+          "url": "/api/inventory/analytics/registered-users/",
           "parser": "backend",
           "url_options": {
             "method": "GET",
@@ -690,6 +682,18 @@
           "noValue": ""
         },
         "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "date_joined"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "date_time"
+              }
+            ]
+          },
           {
             "matcher": {
               "id": "byName",
@@ -725,13 +729,25 @@
                 "value": 140
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "products_viewed"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 280
+              }
+            ]
           }
         ]
       },
       "options": {
         "sortBy": [
           {
-            "displayName": "last_seen",
+            "displayName": "date_joined",
             "desc": true
           }
         ]
@@ -747,7 +763,7 @@
       "type": "stat",
       "gridPos": {
         "x": 0,
-        "y": 47,
+        "y": 49,
         "w": 3,
         "h": 3
       },
@@ -805,7 +821,7 @@
       "type": "stat",
       "gridPos": {
         "x": 3,
-        "y": 47,
+        "y": 49,
         "w": 3,
         "h": 3
       },
