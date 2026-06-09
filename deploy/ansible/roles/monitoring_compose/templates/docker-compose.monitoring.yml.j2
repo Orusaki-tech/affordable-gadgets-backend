@@ -22,8 +22,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      # v1.3.28+ requires Grafana >=12; keep image and plugin in sync.
-      - GF_INSTALL_PLUGINS=marcusolsson-json-datasource
+      - GF_INSTALL_PLUGINS=yesoreyeram-infinity-datasource
     env_file:
       - {{ compose_root }}/monitoring/grafana.env
     volumes:

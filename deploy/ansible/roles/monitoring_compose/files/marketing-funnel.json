@@ -28,14 +28,28 @@
       "targets": [
         {
           "datasource": {
-            "type": "marcusolsson-json-datasource",
+            "type": "yesoreyeram-infinity-datasource",
             "uid": "json-api"
           },
-          "urlPath": "/api/inventory/analytics/users/",
-          "method": "GET",
-          "jsonPath": "$.total_users",
-          "resultType": "string",
-          "params": []
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "format": "table",
+          "url": "/api/inventory/analytics/users/",
+          "parser": "backend",
+          "url_options": {
+            "method": "GET",
+            "params": [],
+            "headers": []
+          },
+          "columns": [
+            {
+              "selector": "total_users",
+              "text": "total_users",
+              "type": "number"
+            }
+          ],
+          "root_selector": "$"
         }
       ],
       "fieldConfig": {
@@ -54,7 +68,7 @@
         }
       },
       "datasource": {
-        "type": "marcusolsson-json-datasource",
+        "type": "yesoreyeram-infinity-datasource",
         "uid": "json-api"
       }
     },
@@ -71,14 +85,28 @@
       "targets": [
         {
           "datasource": {
-            "type": "marcusolsson-json-datasource",
+            "type": "yesoreyeram-infinity-datasource",
             "uid": "json-api"
           },
-          "urlPath": "/api/inventory/analytics/funnel-summary/",
-          "method": "GET",
-          "jsonPath": "$.summary.users_with_orders",
-          "resultType": "string",
-          "params": []
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "format": "table",
+          "url": "/api/inventory/analytics/funnel-summary/",
+          "parser": "backend",
+          "url_options": {
+            "method": "GET",
+            "params": [],
+            "headers": []
+          },
+          "columns": [
+            {
+              "selector": "summary.users_with_orders",
+              "text": "users_with_orders",
+              "type": "number"
+            }
+          ],
+          "root_selector": "$"
         }
       ],
       "fieldConfig": {
@@ -97,7 +125,7 @@
         }
       },
       "datasource": {
-        "type": "marcusolsson-json-datasource",
+        "type": "yesoreyeram-infinity-datasource",
         "uid": "json-api"
       }
     },
@@ -196,14 +224,22 @@
       "targets": [
         {
           "datasource": {
-            "type": "marcusolsson-json-datasource",
+            "type": "yesoreyeram-infinity-datasource",
             "uid": "json-api"
           },
-          "urlPath": "/api/inventory/analytics/funnel-summary/",
-          "method": "GET",
-          "jsonPath": "$",
-          "resultType": "table",
-          "params": []
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "format": "table",
+          "url": "/api/inventory/analytics/funnel-summary/",
+          "parser": "backend",
+          "url_options": {
+            "method": "GET",
+            "params": [],
+            "headers": []
+          },
+          "columns": [],
+          "root_selector": "$"
         }
       ],
       "fieldConfig": {
@@ -228,7 +264,7 @@
         }
       },
       "datasource": {
-        "type": "marcusolsson-json-datasource",
+        "type": "yesoreyeram-infinity-datasource",
         "uid": "json-api"
       }
     },
@@ -245,14 +281,22 @@
       "targets": [
         {
           "datasource": {
-            "type": "marcusolsson-json-datasource",
+            "type": "yesoreyeram-infinity-datasource",
             "uid": "json-api"
           },
-          "urlPath": "/api/inventory/analytics/funnel-summary/",
-          "method": "GET",
-          "jsonPath": "$.acquisition_sources",
-          "resultType": "table",
-          "params": []
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "format": "table",
+          "url": "/api/inventory/analytics/funnel-summary/",
+          "parser": "backend",
+          "url_options": {
+            "method": "GET",
+            "params": [],
+            "headers": []
+          },
+          "columns": [],
+          "root_selector": "$.acquisition_sources"
         }
       ],
       "fieldConfig": {
@@ -293,7 +337,7 @@
         }
       },
       "datasource": {
-        "type": "marcusolsson-json-datasource",
+        "type": "yesoreyeram-infinity-datasource",
         "uid": "json-api"
       }
     },
@@ -310,14 +354,22 @@
       "targets": [
         {
           "datasource": {
-            "type": "marcusolsson-json-datasource",
+            "type": "yesoreyeram-infinity-datasource",
             "uid": "json-api"
           },
-          "urlPath": "/api/inventory/analytics/funnel-summary/",
-          "method": "GET",
-          "jsonPath": "$.popular_searches",
-          "resultType": "table",
-          "params": []
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "format": "table",
+          "url": "/api/inventory/analytics/funnel-summary/",
+          "parser": "backend",
+          "url_options": {
+            "method": "GET",
+            "params": [],
+            "headers": []
+          },
+          "columns": [],
+          "root_selector": "$.popular_searches"
         }
       ],
       "fieldConfig": {
@@ -339,7 +391,7 @@
         ]
       },
       "datasource": {
-        "type": "marcusolsson-json-datasource",
+        "type": "yesoreyeram-infinity-datasource",
         "uid": "json-api"
       }
     },
@@ -532,14 +584,22 @@
       "targets": [
         {
           "datasource": {
-            "type": "marcusolsson-json-datasource",
+            "type": "yesoreyeram-infinity-datasource",
             "uid": "json-api"
           },
-          "urlPath": "/api/inventory/analytics/daily-activity/",
-          "method": "GET",
-          "jsonPath": "$.events",
-          "resultType": "table",
-          "params": []
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "format": "table",
+          "url": "/api/inventory/analytics/daily-activity/",
+          "parser": "backend",
+          "url_options": {
+            "method": "GET",
+            "params": [],
+            "headers": []
+          },
+          "columns": [],
+          "root_selector": "$.events"
         }
       ],
       "fieldConfig": {
@@ -586,7 +646,7 @@
         ]
       },
       "datasource": {
-        "type": "marcusolsson-json-datasource",
+        "type": "yesoreyeram-infinity-datasource",
         "uid": "json-api"
       }
     },
@@ -603,14 +663,22 @@
       "targets": [
         {
           "datasource": {
-            "type": "marcusolsson-json-datasource",
+            "type": "yesoreyeram-infinity-datasource",
             "uid": "json-api"
           },
-          "urlPath": "/api/inventory/analytics/daily-users/",
-          "method": "GET",
-          "jsonPath": "$.users",
-          "resultType": "table",
-          "params": []
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "format": "table",
+          "url": "/api/inventory/analytics/daily-users/",
+          "parser": "backend",
+          "url_options": {
+            "method": "GET",
+            "params": [],
+            "headers": []
+          },
+          "columns": [],
+          "root_selector": "$.users"
         }
       ],
       "fieldConfig": {
@@ -669,7 +737,7 @@
         ]
       },
       "datasource": {
-        "type": "marcusolsson-json-datasource",
+        "type": "yesoreyeram-infinity-datasource",
         "uid": "json-api"
       }
     },
@@ -686,14 +754,28 @@
       "targets": [
         {
           "datasource": {
-            "type": "marcusolsson-json-datasource",
+            "type": "yesoreyeram-infinity-datasource",
             "uid": "json-api"
           },
-          "urlPath": "/api/inventory/analytics/datasource-health/",
-          "method": "GET",
-          "jsonPath": "$.status",
-          "resultType": "string",
-          "params": []
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "format": "table",
+          "url": "/api/inventory/analytics/datasource-health/",
+          "parser": "backend",
+          "url_options": {
+            "method": "GET",
+            "params": [],
+            "headers": []
+          },
+          "columns": [
+            {
+              "selector": "status",
+              "text": "status",
+              "type": "string"
+            }
+          ],
+          "root_selector": "$"
         }
       ],
       "fieldConfig": {
@@ -713,7 +795,7 @@
         }
       },
       "datasource": {
-        "type": "marcusolsson-json-datasource",
+        "type": "yesoreyeram-infinity-datasource",
         "uid": "json-api"
       }
     },
@@ -730,14 +812,28 @@
       "targets": [
         {
           "datasource": {
-            "type": "marcusolsson-json-datasource",
+            "type": "yesoreyeram-infinity-datasource",
             "uid": "json-api"
           },
-          "urlPath": "/api/inventory/analytics/datasource-health/",
-          "method": "GET",
-          "jsonPath": "$.grafana_token_valid",
-          "resultType": "string",
-          "params": []
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "format": "table",
+          "url": "/api/inventory/analytics/datasource-health/",
+          "parser": "backend",
+          "url_options": {
+            "method": "GET",
+            "params": [],
+            "headers": []
+          },
+          "columns": [
+            {
+              "selector": "grafana_token_valid",
+              "text": "grafana_token_valid",
+              "type": "string"
+            }
+          ],
+          "root_selector": "$"
         }
       ],
       "fieldConfig": {
@@ -761,7 +857,7 @@
         }
       },
       "datasource": {
-        "type": "marcusolsson-json-datasource",
+        "type": "yesoreyeram-infinity-datasource",
         "uid": "json-api"
       }
     }
