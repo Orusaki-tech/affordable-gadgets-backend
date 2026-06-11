@@ -37,6 +37,8 @@ jobs:
           GCP_ZONE: us-east1-b
           INSTANCE: affordable-gadgets-production-monitoring
           SSH_KEY_PATH: ~/.ssh/ci_deploy_key
+          DJANGO_API_TOKEN: ${{ secrets.DJANGO_API_TOKEN }}
+          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
         run: |
           # Match deploy-monitoring.sh: ci_deploy_key is registered on the WIF SA's OS Login profile
           SSH_USER="${SSH_USER:-$(gcloud compute os-login describe-profile --format='value(posixAccounts[0].username)' 2>/dev/null || echo affordablegadgetske_gmail_com)}"
@@ -49,19 +51,21 @@ jobs:
             -i "${SSH_KEY_PATH}"
           )
 
-          # Copy report script to VM (SSH transport, not gcloud compute scp)
           scp "${SSH_OPTS[@]}" scripts/daily-kpi-report.py \
             "${SSH_USER}@127.0.0.1:/tmp/daily-kpi-report.py"
 
-          # Copy script into prometheus container, run it, capture output
+          # Run on VM host: reaches Prometheus :9090, Grafana :3000, and public Django API
           ssh "${SSH_OPTS[@]}" "${SSH_USER}@127.0.0.1" \
-            "sudo docker cp /tmp/daily-kpi-report.py ag-prometheus:/tmp/daily-kpi-report.py && \
-             sudo docker exec ag-prometheus python3 /tmp/daily-kpi-report.py" \
+            "DJANGO_API_TOKEN='${DJANGO_API_TOKEN}' \
+             GRAFANA_PASSWORD='${GRAFANA_ADMIN_PASSWORD}' \
+             PROMETHEUS_URL='http://localhost:9090' \
+             GRAFANA_URL='http://localhost:3000' \
+             python3 /tmp/daily-kpi-report.py" \
             > /tmp/kpi-report.html
 
           echo "Report size: $(wc -c < /tmp/kpi-report.html) bytes"
           if [ ! -s /tmp/kpi-report.html ]; then
-            echo "KPI report is empty — check SSH, docker, or prometheus connectivity above"
+            echo "KPI report is empty — check SSH, API token, or service connectivity above"
             exit 1
           fi
           echo "report_path=/tmp/kpi-report.html" >> $GITHUB_ENV

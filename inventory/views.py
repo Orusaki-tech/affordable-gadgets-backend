@@ -332,38 +332,6 @@ class FunnelSummaryView(APIView):
             for s in acquisition_sources
         ]
 
-        # #region agent log
-        try:
-            import json as _json
-            import time as _time
-            with open(
-                "/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug-d42a00.log",
-                "a",
-            ) as _dbg:
-                _dbg.write(
-                    _json.dumps(
-                        {
-                            "sessionId": "d42a00",
-                            "runId": "pre-fix",
-                            "hypothesisId": "H1-H5",
-                            "location": "inventory/views.py:FunnelSummaryView.get",
-                            "message": "funnel_summary_payload",
-                            "data": {
-                                "users_with_orders": users_with_orders,
-                                "acquisition_count": len(acquisition_list),
-                                "popular_searches_count": len(popular_searches),
-                                "total_page_views_events": page_views.count(),
-                                "summary": summary,
-                            },
-                            "timestamp": int(_time.time() * 1000),
-                        }
-                    )
-                    + "\n"
-                )
-        except OSError:
-            pass
-        # #endregion
-
         return Response({
             "summary": summary,
             "acquisition_sources": acquisition_list,
@@ -517,60 +485,8 @@ class DailyUsersView(APIView):
             .order_by("-created_at")
         )
 
-        # #region agent log
-        try:
-            import json as _json
-            import time as _time
-            with open(
-                "/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug-d42a00.log",
-                "a",
-            ) as _dbg:
-                _dbg.write(
-                    _json.dumps(
-                        {
-                            "sessionId": "d42a00",
-                            "runId": "pre-fix",
-                            "hypothesisId": "H1",
-                            "location": "inventory/views.py:DailyUsersView.get",
-                            "message": "daily_users_events_loaded",
-                            "data": {"event_count": events.count()},
-                            "timestamp": int(_time.time() * 1000),
-                        }
-                    )
-                    + "\n"
-                )
-        except OSError:
-            pass
-        # #endregion
-
         user_data = _aggregate_user_activity(events)
         users_list = _format_user_activity_rows(user_data)
-
-        # #region agent log
-        try:
-            import json as _json
-            import time as _time
-            with open(
-                "/Users/shwariphones/Desktop/shwari-django/affordable-gadgets-backend/.cursor/debug-d42a00.log",
-                "a",
-            ) as _dbg:
-                _dbg.write(
-                    _json.dumps(
-                        {
-                            "sessionId": "d42a00",
-                            "runId": "pre-fix",
-                            "hypothesisId": "H1",
-                            "location": "inventory/views.py:DailyUsersView.get",
-                            "message": "daily_users_response_ok",
-                            "data": {"active_users": len(users_list)},
-                            "timestamp": int(_time.time() * 1000),
-                        }
-                    )
-                    + "\n"
-                )
-        except OSError:
-            pass
-        # #endregion
 
         return Response({
             "date": today.isoformat(),
@@ -632,6 +548,35 @@ class RegisteredUsersActivityView(APIView):
         return Response({
             "total_users": len(users_list),
             "users": users_list,
+        })
+
+
+class BlogSummaryView(APIView):
+    """Published buying-guide (blog) article counts and recent updates."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from inventory.models import ProductArticle
+
+        published_qs = ProductArticle.objects.filter(is_published=True)
+        recent = (
+            ProductArticle.objects.select_related("product")
+            .order_by("-updated_at")[:20]
+        )
+        return Response({
+            "published_count": published_qs.count(),
+            "draft_count": ProductArticle.objects.filter(is_published=False).count(),
+            "recent_articles": [
+                {
+                    "product_name": (
+                        art.product.product_name if art.product_id else ""
+                    ),
+                    "headline": art.headline or "",
+                    "is_published": art.is_published,
+                    "updated_at": art.updated_at.isoformat() if art.updated_at else "",
+                }
+                for art in recent
+            ],
         })
 
 

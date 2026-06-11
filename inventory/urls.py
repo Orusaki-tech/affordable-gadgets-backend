@@ -93,6 +93,7 @@ urlpatterns = [
         views.RegisteredUsersActivityView.as_view(),
         name='registered-users-activity',
     ),
+    path('analytics/blog-summary/', views.BlogSummaryView.as_view(), name='blog-summary'),
     path('analytics/datasource-health/', views.DatasourceHealthView.as_view(), name='datasource-health'),
     
     # IMPORTANT: Explicit routes for custom actions must come BEFORE router.urls
