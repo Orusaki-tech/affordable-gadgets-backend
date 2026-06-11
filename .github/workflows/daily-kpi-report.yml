@@ -36,9 +36,12 @@ jobs:
           GCP_PROJECT_ID: project-07850c05-c54d-486b-80a
           GCP_ZONE: us-east1-b
           INSTANCE: affordable-gadgets-production-monitoring
-          SSH_USER: affordablegadgetske_gmail_com
           SSH_KEY_PATH: ~/.ssh/ci_deploy_key
         run: |
+          # Match deploy-monitoring.sh: ci_deploy_key is registered on the WIF SA's OS Login profile
+          SSH_USER="${SSH_USER:-$(gcloud compute os-login describe-profile --format='value(posixAccounts[0].username)' 2>/dev/null || echo affordablegadgetske_gmail_com)}"
+          echo "Using SSH user: ${SSH_USER}"
+
           SSH_OPTS=(
             -o StrictHostKeyChecking=no
             -o UserKnownHostsFile=/dev/null
@@ -54,9 +57,13 @@ jobs:
           ssh "${SSH_OPTS[@]}" "${SSH_USER}@127.0.0.1" \
             "sudo docker cp /tmp/daily-kpi-report.py ag-prometheus:/tmp/daily-kpi-report.py && \
              sudo docker exec ag-prometheus python3 /tmp/daily-kpi-report.py" \
-            > /tmp/kpi-report.html 2>/dev/null
+            > /tmp/kpi-report.html
 
           echo "Report size: $(wc -c < /tmp/kpi-report.html) bytes"
+          if [ ! -s /tmp/kpi-report.html ]; then
+            echo "KPI report is empty — check SSH, docker, or prometheus connectivity above"
+            exit 1
+          fi
           echo "report_path=/tmp/kpi-report.html" >> $GITHUB_ENV
 
       - name: Check mail config
