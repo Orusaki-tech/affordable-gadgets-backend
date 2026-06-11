@@ -79,6 +79,20 @@ jobs:
             echo "MAIL_TO secret not set — skipping email"
           fi
 
+      - name: Configure SMTP (port 465 = SSL, port 587 = STARTTLS)
+        id: smtp
+        if: steps.mail_check.outputs.configured == 'true'
+        run: |
+          PORT="${{ secrets.MAIL_PORT }}"
+          PORT="${PORT:-587}"
+          if [ "$PORT" = "465" ]; then
+            echo "secure=true" >> $GITHUB_OUTPUT
+          else
+            echo "secure=false" >> $GITHUB_OUTPUT
+          fi
+          echo "port=$PORT" >> $GITHUB_OUTPUT
+          echo "SMTP port=$PORT secure=$( [ "$PORT" = "465" ] && echo true || echo false )"
+
       - name: Upload report as artifact
         uses: actions/upload-artifact@v4
         with:
@@ -90,13 +104,13 @@ jobs:
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: ${{ secrets.MAIL_SERVER || 'smtp.gmail.com' }}
-          server_port: ${{ secrets.MAIL_PORT || '465' }}
+          server_port: ${{ steps.smtp.outputs.port }}
           username: ${{ secrets.MAIL_USERNAME }}
           password: ${{ secrets.MAIL_PASSWORD }}
           subject: Affordable Gadgets — Daily KPI Report
           to: ${{ secrets.MAIL_TO }}
           from: Affordable Gadgets KPIs <${{ secrets.MAIL_FROM || secrets.MAIL_USERNAME }}>
           html_body: file://${{ env.report_path }}
-          secure: true
+          secure: ${{ steps.smtp.outputs.secure }}
           ignore_cert: true
           convert_markdown: false
