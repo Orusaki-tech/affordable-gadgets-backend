@@ -51,6 +51,10 @@ services:
     restart: unless-stopped
     ports:
       - "8081:8081"
+    env_file:
+      - ./grafana.env
+    environment:
+      - AUTH_TOKEN=${GF_RENDERING_RENDERER_TOKEN}
 
 volumes:
   prometheus_data:
