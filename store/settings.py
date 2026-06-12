@@ -579,6 +579,7 @@ CORS_ALLOW_HEADERS = [
     "x-csrftoken",
     "x-requested-with",
     "x-brand-code",  # Required for brand-based filtering
+    "x-session-key",  # Anonymous session tracking (cart, wishlist, analytics)
     "idempotency-key",  # Required for order idempotency
     "x-idempotency-key",  # Alternative idempotency key header
     "ngrok-skip-browser-warning",  # Allow frontend's ngrok dev header
