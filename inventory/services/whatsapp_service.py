@@ -138,7 +138,7 @@ Thank you for your purchase at Affordable Gadgets!
 • Order ID: {order_id}
 • Total Amount: Ksh {total_amount:,.2f}
 {receipt_line}
-Your receipt has been sent to your email. If you have any questions, please contact us at +254717881573.
+Your receipt has been sent to your email. If you have any questions, please contact us at +254768431216.
 
 Best regards,
 Affordable Gadgets Team
@@ -244,7 +244,7 @@ Thank you for your purchase at Affordable Gadgets!
 
 Please find your receipt attached.
 
-If you have any questions, contact us at +254717881573.
+If you have any questions, contact us at +254768431216.
 
 Best regards,
 Affordable Gadgets Team"""
