@@ -8176,6 +8176,10 @@ components:
           type: string
           writeOnly: true
           minLength: 1
+        session_key:
+          type: string
+          writeOnly: true
+          description: Anonymous browser session key for backfilling pre-login activity.
       required:
       - password
       - username_or_email

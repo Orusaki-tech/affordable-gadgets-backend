@@ -80,7 +80,7 @@ product_bulk_destroy = path(
 urlpatterns = [
     # Cart Analytics Endpoint (Internal)
     path('observability/cart-analytics/', views.CartAnalyticsView.as_view(), name='cart-analytics'),
-    path('observability/record-event/', views.RecordObservabilityEventView.as_view(), name='record-event'),
+    path('observability/record-event/', views.RecordEventView.as_view(), name='record-event'),
     # User Analytics Endpoints
     path('analytics/events/', views.RecordEventView.as_view(), name='record-analytics-event'),
     path('analytics/users/', views.UserAnalyticsListView.as_view(), name='user-analytics-list'),

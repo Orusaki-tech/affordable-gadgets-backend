@@ -71,7 +71,9 @@ class CartService:
         return cart
 
     @staticmethod
-    def add_item_to_cart(cart, inventory_unit, quantity=1, promotion_id=None, unit_price=None):
+    def add_item_to_cart(
+        cart, inventory_unit, quantity=1, promotion_id=None, unit_price=None, ip_address=None
+    ):
         """Add item to cart (no reservation, just tracking)."""
         CartService._validate_unit_for_cart(cart, inventory_unit)
         product = inventory_unit.product_template
@@ -165,6 +167,7 @@ class CartService:
             product_id=product.id,
             brand_code=getattr(cart.brand, "code", "AFFORDABLE_GADGETS"),
             metadata={"quantity": quantity, "inventory_unit_id": inventory_unit.id},
+            ip_address=ip_address or None,
         )
 
         return cart_item

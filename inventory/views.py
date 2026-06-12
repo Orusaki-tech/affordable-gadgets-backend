@@ -63,7 +63,7 @@ from .observability import WHATSAPP_CLICKS_TOTAL
 
 from rest_framework.throttling import AnonRateThrottle
 
-from inventory.services.analytics_service import attach_session_activity_to_user
+from inventory.services.analytics_service import attach_session_activity_to_user, get_client_ip
 
 from .models import ObservabilityEvent, User, Cart, CartItem, Customer
 from .serializers import (
@@ -71,63 +71,6 @@ from .serializers import (
     UserAnalyticsSerializer,
     UserDetailAnalyticsSerializer,
 )
-
-class RecordObservabilityEventView(APIView):
-    """
-    Public-facing endpoint to record discrete business events, like button clicks.
-    Accepts optional email/phone for user tracking.
-    """
-    permission_classes = [AllowAny] # Allow clicks from anonymous users
-    throttle_classes = [AnonRateThrottle]
-
-    def _get_user_email(self, request) -> str:
-        """Derive email from authenticated user or request data."""
-        if request.user and request.user.is_authenticated:
-            return request.user.email or ""
-        return request.data.get("email", "")
-
-    def _get_user_phone(self, request) -> str:
-        """Derive phone from authenticated user's customer profile or request data."""
-        if request.user and request.user.is_authenticated:
-            try:
-                return request.user.customer.phone or ""
-            except Exception:
-                return ""
-        return request.data.get("phone", "")
-
-    def post(self, request):
-        event_type = request.data.get('event_type')
-        if event_type == 'whatsapp_click':
-            product_id = request.data.get('product_id')
-            try:
-                product_id_int = int(product_id)
-            except (ValueError, TypeError):
-                return Response({"error": "product_id must be a valid integer."}, status=status.HTTP_400_BAD_REQUEST)
-
-            brand_code = getattr(request, 'brand', None)
-            brand_code = brand_code.code if brand_code else "AFFORDABLE_GADGETS"
-
-            WHATSAPP_CLICKS_TOTAL.labels(product_id=str(product_id_int), brand=brand_code).inc()
-
-            user_email = self._get_user_email(request) or None
-            user = None
-            if user_email:
-                user = User.objects.filter(email=user_email).first()
-            WhatsAppClickEvent.objects.create(
-                product_id=product_id_int,
-                brand_code=brand_code,
-                email=user_email,
-                phone=self._get_user_phone(request) or None,
-            )
-            ObservabilityEvent.objects.create(
-                user=user,
-                event_type=ObservabilityEvent.EventType.WHATSAPP_CLICK,
-                product_id=product_id_int,
-                brand_code=brand_code,
-            )
-            return Response({"status": "ok"}, status=status.HTTP_202_ACCEPTED)
-
-        return Response({"error": "invalid event_type"}, status=status.HTTP_400_BAD_REQUEST)
 
 class CartAnalyticsView(APIView):
     """
@@ -197,7 +140,6 @@ class RecordEventView(APIView):
         "page_view",
         "cart_add",
         "whatsapp_click",
-        "login",
     )
 
     def _resolve_product_id(self, request, metadata):
@@ -234,7 +176,7 @@ class RecordEventView(APIView):
             metadata = {}
         product_id = self._resolve_product_id(request, metadata)
         session_key = request.data.get("session_key", "")
-        ip_address = request.META.get("REMOTE_ADDR", "")
+        ip_address = get_client_ip(request)
 
         user = request.user if request.user.is_authenticated else None
         if not user and event_type == "whatsapp_click":
@@ -4401,7 +4343,9 @@ class SupabaseAuthView(APIView):
 
         session_key = request.data.get("session_key", "")
         if session_key:
-            attach_session_activity_to_user(user, session_key, brand_code)
+            attach_session_activity_to_user(
+                user, session_key, brand_code, get_client_ip(request)
+            )
 
         token, _ = Token.objects.get_or_create(user=user)
 
@@ -4457,7 +4401,9 @@ class CustomerLoginView(generics.GenericAPIView):
             )
             session_key = request.data.get("session_key", "")
             if session_key:
-                attach_session_activity_to_user(user, session_key, brand_code)
+                attach_session_activity_to_user(
+                    user, session_key, brand_code, get_client_ip(request)
+                )
 
         # 3. If valid, return the data populated by the serializer's validate method
         # (token, user_id, email).

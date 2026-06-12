@@ -79,6 +79,7 @@ from inventory.serializers_public import (
 )
 from inventory.auth import OptionalTrackingTokenAuthentication
 from inventory.services.analytics_service import (
+    get_client_ip,
     link_cart_to_authenticated_user,
     resolve_request_session_key,
 )
@@ -2331,7 +2332,12 @@ class CartViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ModelViewSet):
         try:
             unit = InventoryUnit.objects.get(id=inventory_unit_id)
             cart_item = CartService.add_item_to_cart(
-                cart, unit, quantity, promotion_id=promotion_id, unit_price=unit_price
+                cart,
+                unit,
+                quantity,
+                promotion_id=promotion_id,
+                unit_price=unit_price,
+                ip_address=get_client_ip(request),
             )
             serializer = CartItemSerializer(cart_item)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
