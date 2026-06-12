@@ -157,6 +157,25 @@ sudo_cmd "$DOCKER_COMPOSE -f $COMPOSE_ROOT/docker-compose.monitoring.yml --env-f
 # Force Grafana restart so it picks up provisioning + plugin changes.
 sudo_cmd "$DOCKER_COMPOSE -f $COMPOSE_ROOT/docker-compose.monitoring.yml --env-file $COMPOSE_ROOT/monitoring/grafana.env restart grafana" || true
 
+# ── health check: confirm Grafana is serving before declaring success ─────────
+echo "→ Checking Grafana health..."
+GRAFANA_OK=0
+for i in 1 2 3 4 5; do
+  if ssh_cmd "curl -sf --max-time 10 http://localhost:3000/login > /dev/null"; then
+    echo "  Grafana is healthy"
+    GRAFANA_OK=1
+    break
+  fi
+  echo "  Attempt $i/5 failed, retrying in 5s..."
+  sleep 5
+done
+if [[ "$GRAFANA_OK" -ne 1 ]]; then
+  echo "ERROR: Grafana health check failed after deploy"
+  ssh_cmd "docker ps -a --format 'table {{.Names}}\t{{.Status}}'" || true
+  ssh_cmd "docker logs ag-grafana --tail 30" || true
+  exit 1
+fi
+
 # Tunnel runs on affordable-gadgets-production-tunnel (not this VM).
 if [[ "${DEPLOY_TUNNEL_ON_MONITORING:-0}" == "1" ]]; then
   sudo_cmd "$DOCKER_COMPOSE -f $COMPOSE_ROOT/docker-compose.tunnel.yml --env-file $COMPOSE_ROOT/monitoring/tunnel/tunnel.env up -d"

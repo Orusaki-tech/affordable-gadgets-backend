@@ -44,8 +44,6 @@ services:
       - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
       - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
       - grafana_data:/var/lib/grafana
-    depends_on:
-      - grafana-renderer
 
   grafana-renderer:
     image: grafana/grafana-image-renderer:latest
