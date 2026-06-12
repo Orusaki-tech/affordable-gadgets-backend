@@ -222,7 +222,7 @@ class RecordEventView(APIView):
                 product_id=product_id,
                 brand_code=brand_code,
                 email=user_email or None,
-                phone=phone or None,
+                phone=phone,
             )
 
         serializer = ObservabilityEventSerializer(event)
