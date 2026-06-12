@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 
-from inventory.models import Cart, Customer, ObservabilityEvent, Product
+from inventory.models import Cart, Customer, ObservabilityEvent
 from inventory.services.analytics_service import (
     backfill_session_events_to_user,
     link_cart_to_authenticated_user,
@@ -19,12 +19,14 @@ TEST_IP = "127.0.0.1"
 @pytest.mark.django_db
 def test_backfill_session_events_requires_matching_ip():
     user = User.objects.create_user(username="shopper", email="shopper@test.com", password="pass")
-    ObservabilityEvent.objects.create(
+    event = ObservabilityEvent.objects.create(
         session_key="sess-abc12",
         event_type="product_view",
         brand_code="AFFORDABLE_GADGETS",
         ip_address="10.0.0.1",
     )
+    event.refresh_from_db()
+    assert str(event.ip_address) == "10.0.0.1"
 
     assert backfill_session_events_to_user(user, "sess-abc12", TEST_IP) == 0
     assert ObservabilityEvent.objects.filter(user=user).count() == 0
@@ -52,8 +54,26 @@ def test_backfill_session_events_claims_null_ip_when_ip_verified_exists():
 
 
 @pytest.mark.django_db
-def test_record_event_accepts_whatsapp_click(brand):
-    product = Product.objects.create(product_name="Test Phone", brand="Samsung")
+def test_backfill_rejects_legacy_session_when_foreign_ip_present():
+    user = User.objects.create_user(username="shopper3", email="shopper3@test.com", password="pass")
+    ObservabilityEvent.objects.create(
+        session_key="sess-legacy1",
+        event_type="page_view",
+        brand_code="AFFORDABLE_GADGETS",
+        ip_address=None,
+    )
+    ObservabilityEvent.objects.create(
+        session_key="sess-legacy1",
+        event_type="product_view",
+        brand_code="AFFORDABLE_GADGETS",
+        ip_address="10.0.0.99",
+    )
+
+    assert backfill_session_events_to_user(user, "sess-legacy1", TEST_IP) == 0
+
+
+@pytest.mark.django_db
+def test_record_event_accepts_whatsapp_click(brand, product):
     client = APIClient()
     response = client.post(
         "/api/v1/public/events/",
@@ -73,8 +93,7 @@ def test_record_event_accepts_whatsapp_click(brand):
 
 
 @pytest.mark.django_db
-def test_legacy_record_event_url_delegates_to_record_event_view(brand):
-    product = Product.objects.create(product_name="Legacy Phone", brand="Samsung")
+def test_legacy_record_event_url_delegates_to_record_event_view(brand, product):
     client = APIClient()
     response = client.post(
         "/api/inventory/observability/record-event/",

@@ -85,13 +85,13 @@ def _claimable_events_qs(session_key: str, request_ip: str):
             | Q(ip_address="")
         )
 
-    # Legacy rows without IP (e.g. server-side cart_add before IP was stored).
-    has_ip_rows = anonymous.exclude(ip_address__isnull=True).exclude(ip_address="").exists()
-    if not has_ip_rows:
-        cutoff = timezone.now() - _LEGACY_NULL_IP_WINDOW
-        return anonymous.filter(created_at__gte=cutoff)
+    # Session has IP-tagged events from another client — do not allow hijack.
+    if anonymous.filter(ip_address__isnull=False).exists():
+        return ObservabilityEvent.objects.none()
 
-    return ObservabilityEvent.objects.none()
+    # Legacy rows without IP (e.g. server-side cart_add before IP was stored).
+    cutoff = timezone.now() - _LEGACY_NULL_IP_WINDOW
+    return anonymous.filter(created_at__gte=cutoff)
 
 
 def session_is_claimable(session_key: str, request_ip: str) -> bool:
