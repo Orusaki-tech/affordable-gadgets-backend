@@ -565,7 +565,7 @@
     },
     {
       "id": 12,
-      "title": "Daily User Activity",
+      "title": "Today's Per-User Activity (logged-in events)",
       "type": "table",
       "gridPos": {
         "x": 0,
@@ -644,7 +644,7 @@
     },
     {
       "id": 13,
-      "title": "Registered Users & Product Activity",
+      "title": "Registered Users — Lifetime Per-User Events",
       "type": "table",
       "gridPos": {
         "x": 0,

@@ -531,6 +531,7 @@ class CustomerLoginSerializer(serializers.Serializer):
 
     username_or_email = serializers.CharField(write_only=True)
     password = serializers.CharField(write_only=True, style={"input_type": "password"})
+    session_key = serializers.CharField(required=False, allow_blank=True, write_only=True)
 
     # Read-only fields returned on successful login
     token = serializers.CharField(read_only=True)

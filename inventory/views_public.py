@@ -77,6 +77,11 @@ from inventory.serializers_public import (
     ReviewEligibilityRequestSerializer,
     ReviewOtpRequestSerializer,
 )
+from inventory.auth import OptionalTrackingTokenAuthentication
+from inventory.services.analytics_service import (
+    link_cart_to_authenticated_user,
+    resolve_request_session_key,
+)
 from inventory.services.cart_service import CartService
 from inventory.services.customer_service import CustomerService
 from inventory.services.delivery_service import get_delivery_fee
@@ -2236,6 +2241,15 @@ class CartViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ModelViewSet):
 
     serializer_class = CartSerializer
     permission_classes = [permissions.AllowAny]
+    authentication_classes = [OptionalTrackingTokenAuthentication]
+
+    def _resolve_session_key(self, request):
+        return resolve_request_session_key(request)
+
+    def _maybe_link_cart_to_user(self, cart, request):
+        if request.user and request.user.is_authenticated:
+            link_cart_to_authenticated_user(cart, request.user)
+        return cart
 
     def get_queryset(self):
         brand = getattr(self.request, "brand", None)
@@ -2246,9 +2260,7 @@ class CartViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ModelViewSet):
         # For list view, only show non-submitted carts
         if self.action == "list":
             queryset = Cart.objects.filter(brand=brand, is_submitted=False)
-            session_key = self.request.session.session_key or self.request.META.get(
-                "HTTP_X_SESSION_KEY", ""
-            )
+            session_key = self._resolve_session_key(self.request)
             customer_phone = self.request.data.get(
                 "customer_phone"
             ) or self.request.query_params.get("phone")
@@ -2282,11 +2294,12 @@ class CartViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        session_key = request.session.session_key or request.META.get("HTTP_X_SESSION_KEY", "")
+        session_key = self._resolve_session_key(request)
         customer_phone = request.data.get("customer_phone", "")
 
         try:
             cart = CartService.get_or_create_cart(session_key, customer_phone, brand)
+            self._maybe_link_cart_to_user(cart, request)
             serializer = self.get_serializer(cart)
             return Response(serializer.data)
         except Exception as e:
@@ -2309,6 +2322,7 @@ class CartViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ModelViewSet):
     def items(self, request, pk=None):
         """Add item to cart."""
         cart = self.get_object()
+        self._maybe_link_cart_to_user(cart, request)
         inventory_unit_id = request.data.get("inventory_unit_id")
         quantity = request.data.get("quantity", 1)
         promotion_id = request.data.get("promotion_id")

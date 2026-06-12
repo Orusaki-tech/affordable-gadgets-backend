@@ -515,7 +515,7 @@
     },
     {
       "id": 13,
-      "title": "Today's Top Items",
+      "title": "Top Items in Active Carts (all sessions)",
       "type": "table",
       "gridPos": {
         "x": 0,
@@ -592,7 +592,7 @@
     },
     {
       "id": 14,
-      "title": "Yesterday's Top Items",
+      "title": "Yesterday's Top Items in Active Carts",
       "type": "table",
       "gridPos": {
         "x": 12,
