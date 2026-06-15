@@ -54,7 +54,10 @@ if database_url:
     try:
         parsed = urlparse(database_url)
         # Carry URL query params (e.g. ?sslmode=require) into Django DB OPTIONS.
-        db_options = {"connect_timeout": 10}
+        db_options = {
+            "connect_timeout": 10,
+            "statement_timeout": int(os.environ.get("DB_STATEMENT_TIMEOUT", "30000")),
+        }
         for key, value in parse_qsl(parsed.query, keep_blank_values=False):
             db_options[key] = value
 
@@ -105,6 +108,10 @@ if not database_url:
     # Clean up hostname - remove any trailing slashes, paths, or invalid characters (like parentheses)
     db_host = db_host.strip().rstrip("/").rstrip(")").rstrip("(").split("/")[0].split("?")[0]
 
+    # Default sslmode: require for remote hosts, disable for local
+    _local_hosts = ("localhost", "127.0.0.1", "0.0.0.0")
+    _sslmode = "disable" if db_host in _local_hosts else os.environ.get("DB_SSLMODE", "require")
+
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.postgresql",
@@ -116,6 +123,8 @@ if not database_url:
             "CONN_MAX_AGE": int(os.environ.get("CONN_MAX_AGE", "300") or "300"),
             "OPTIONS": {
                 "connect_timeout": 10,
+                "sslmode": _sslmode,
+                "statement_timeout": int(os.environ.get("DB_STATEMENT_TIMEOUT", "30000")),
             },
         }
     }
