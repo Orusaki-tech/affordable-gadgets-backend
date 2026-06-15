@@ -138,6 +138,22 @@ jobs:
           chmod +x cloud-sql-proxy
           ./cloud-sql-proxy "${CONNECTION}" &
           sleep 5
+          echo "--- Testing proxy connection ---"
+          python3 -c "
+import socket, time
+for i in range(5):
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(3)
+    try:
+        s.connect(('127.0.0.1', 5432))
+        print('Proxy TCP check: CONNECTED')
+        s.close()
+        break
+    except Exception as e:
+        print(f'Proxy TCP check attempt {i+1}: {e}')
+        time.sleep(2)
+"
+          echo "--- Proxy test complete ---"
           pip install -r requirements.txt
           python manage.py migrate --noinput
 
