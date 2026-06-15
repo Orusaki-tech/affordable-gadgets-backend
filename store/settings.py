@@ -153,11 +153,9 @@ if DATABASE_URL:
                 "PASSWORD": parsed.password,
                 "HOST": parsed.hostname,
                 "PORT": parsed.port or "5432",
-                "CONN_MAX_AGE": int(os.environ.get("CONN_MAX_AGE", "60")),
                 "OPTIONS": {
                     "connect_timeout": 10,
                     "sslmode": ssl_mode,
-                    "options": f"-c statement_timeout={int(os.environ.get('DB_STATEMENT_TIMEOUT', '30000'))}",
                 },
             }
         }
