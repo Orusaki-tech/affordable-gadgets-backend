@@ -1,10 +1,14 @@
 #!/usr/bin/env sh
 set -eu
 
-# Migrations are run by CI/CD before deploy. Startup runs only
-# brand seeding, static files, and the app server.
+# Migrations run on every container start. Safe: idempotent, Postgres
+# advisory locks prevent races during MIG rolling update. Containers are
+# inside the VPC and can reach the Cloud SQL private IP.
 
 PORT="${PORT:-8000}"
+
+echo "Running database migrations..."
+python manage.py migrate --noinput
 
 echo "🏷️  Ensuring default brand exists..."
 python manage.py create_default_brand --skip-checks 2>/dev/null || true
