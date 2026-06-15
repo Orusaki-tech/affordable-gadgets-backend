@@ -127,22 +127,39 @@ jobs:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_DEPLOY_SA }}
 
-      - name: Cloud SQL Proxy and migrate
+      - name: Start Cloud SQL Proxy
         env:
           CONNECTION: ${{ secrets.CLOUD_SQL_CONNECTION_NAME }}
+        run: |
+          curl -o cloud-sql-proxy https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.14.3/cloud-sql-proxy.linux.amd64
+          chmod +x cloud-sql-proxy
+          nohup ./cloud-sql-proxy "${CONNECTION}" > /tmp/proxy.log 2>&1 &
+          disown
+          echo "--- Waiting for proxy to start ---"
+          timeout 20 bash -c 'while ! echo "" | nc -w1 127.0.0.1 5432 2>/dev/null; do echo "waiting for proxy..."; sleep 2; done && echo "Proxy TCP: CONNECTED"'
+          echo "--- Proxy ready ---"
+
+      - name: Test database connection
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+          echo "--- Testing psql connection ---"
+          PGCONNECT_TIMEOUT=15 psql "$DATABASE_URL" -c "SELECT 1 AS connected;" -c "\conninfo"
+          echo "--- psql connection OK ---"
+
+      - name: Run Django migrations
+        env:
           DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
           SECRET_KEY: ci-migrate-key
           FRONTEND_BASE_URL: https://shop.affordable-gadgetske.com
         run: |
-          curl -o cloud-sql-proxy https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.14.3/cloud-sql-proxy.linux.amd64
-          chmod +x cloud-sql-proxy
-          ./cloud-sql-proxy "${CONNECTION}" &
-          sleep 5
-          echo "--- Testing proxy connection ---"
-          timeout 20 bash -c 'while ! echo "" | nc -w1 127.0.0.1 5432 2>/dev/null; do echo "waiting for proxy..."; sleep 2; done && echo "Proxy TCP check: CONNECTED"'
-          echo "--- Proxy test complete ---"
           pip install -r requirements.txt
           python manage.py migrate --noinput
+
+      - name: Dump Cloud SQL Proxy logs
+        if: always()
+        run: cat /tmp/proxy.log
 
   deploy:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
