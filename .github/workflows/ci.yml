@@ -144,8 +144,9 @@ jobs:
           DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
-          echo "--- Testing psql connection ---"
-          PGCONNECT_TIMEOUT=15 psql "$DATABASE_URL" -c "SELECT 1 AS connected;" -c "\conninfo"
+          PROXY_URL="${DATABASE_URL%%@*}@127.0.0.1:5432/${DATABASE_URL#*@*/}"
+          echo "--- Testing psql connection via proxy (127.0.0.1) ---"
+          PGCONNECT_TIMEOUT=15 psql "$PROXY_URL" -c "SELECT 1 AS connected;" -c "\conninfo"
           echo "--- psql connection OK ---"
 
       - name: Run Django migrations
@@ -154,6 +155,8 @@ jobs:
           SECRET_KEY: ci-migrate-key
           FRONTEND_BASE_URL: https://shop.affordable-gadgetske.com
         run: |
+          PROXY_URL="${DATABASE_URL%%@*}@127.0.0.1:5432/${DATABASE_URL#*@*/}"
+          export DATABASE_URL="$PROXY_URL"
           pip install -r requirements.txt
           python manage.py migrate --noinput
 
