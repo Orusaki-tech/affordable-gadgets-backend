@@ -1,5 +1,7 @@
 # Test multipart merge handling
 
+from unittest.mock import patch
+
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
 from model_bakery import baker
@@ -51,11 +53,15 @@ def test_mixed_multipart_and_json_payload(api_client, admin_user, sample_product
         "article": '{"body": "JSON body", "seo_title": "JSON SEO"}',
     }
 
-    response = api_client.patch(
-        f"/api/inventory/products/{sample_product.id}/update_content/",
-        payload,
-        format="multipart",
-    )
+    with patch(
+        "inventory.cloudinary_utils.upload_image_to_cloudinary",
+        return_value=("article_thumbnails/thumb.gif", "https://example.com/thumb.gif"),
+    ):
+        response = api_client.patch(
+            f"/api/inventory/products/{sample_product.id}/update_content/",
+            payload,
+            format="multipart",
+        )
 
     assert response.status_code == 200, response.content
     data = response.json()
