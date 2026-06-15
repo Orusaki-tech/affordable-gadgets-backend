@@ -157,7 +157,7 @@ if DATABASE_URL:
                 "OPTIONS": {
                     "connect_timeout": 10,
                     "sslmode": ssl_mode,
-                    "statement_timeout": int(os.environ.get("DB_STATEMENT_TIMEOUT", "30000")),
+                    "options": f"-c statement_timeout={int(os.environ.get('DB_STATEMENT_TIMEOUT', '30000'))}",
                 },
             }
         }

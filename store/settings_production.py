@@ -54,12 +54,11 @@ if database_url:
     try:
         parsed = urlparse(database_url)
         # Carry URL query params (e.g. ?sslmode=require) into Django DB OPTIONS.
-        db_options = {
-            "connect_timeout": 10,
-            "statement_timeout": int(os.environ.get("DB_STATEMENT_TIMEOUT", "30000")),
-        }
+        db_options = {"connect_timeout": 10}
         for key, value in parse_qsl(parsed.query, keep_blank_values=False):
             db_options[key] = value
+        # Set default PostgreSQL runtime params (can be overridden via URL query)
+        db_options.setdefault("options", f"-c statement_timeout={int(os.environ.get('DB_STATEMENT_TIMEOUT', '30000'))}")
 
         DATABASES = {
             "default": {
@@ -124,7 +123,7 @@ if not database_url:
             "OPTIONS": {
                 "connect_timeout": 10,
                 "sslmode": _sslmode,
-                "statement_timeout": int(os.environ.get("DB_STATEMENT_TIMEOUT", "30000")),
+                "options": f"-c statement_timeout={int(os.environ.get('DB_STATEMENT_TIMEOUT', '30000'))}",
             },
         }
     }
