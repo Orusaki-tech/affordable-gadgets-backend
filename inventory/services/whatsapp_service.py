@@ -142,7 +142,7 @@ Your receipt has been sent to your email. If you have any questions, please cont
 
 Best regards,
 Affordable Gadgets Team
-📍 Kimathi House, Fourth Floor, Room 409"""
+📍 Kimathi House, Fifth Floor, Room 504"""
 
             message = client.messages.create(
                 body=message_body, from_=whatsapp_from, to=f"whatsapp:{formatted_phone}"
