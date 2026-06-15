@@ -108,3 +108,39 @@ class InventoryManagerProductImageUploadTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_content_creator_can_upload_multiple_images_from_product_endpoint(self):
+        creator_user = get_user_model().objects.create_user(
+            username="content_creator_bulk_images",
+            email="cc.bulk@example.com",
+            password="test-pass-123",
+            is_staff=True,
+        )
+        creator_admin = Admin.objects.create(user=creator_user, admin_code="ADM-CC-IMG-BULK")
+        content_role, _ = AdminRole.objects.get_or_create(
+            name=AdminRole.RoleChoices.CONTENT_CREATOR,
+            defaults={
+                "display_name": "Content Creator",
+                "description": "Can create reviews and content",
+            },
+        )
+        creator_admin.roles.add(content_role)
+
+        self.client.force_authenticate(user=creator_user)
+        url = reverse("product-upload-images", args=[self.product.id])
+
+        with patch(
+            "inventory.cloudinary_utils.upload_image_to_cloudinary",
+            side_effect=[
+                ("product_photos/test-image-1.jpg", "https://example.com/1.jpg"),
+                ("product_photos/test-image-2.jpg", "https://example.com/2.jpg"),
+            ],
+        ):
+            response = self.client.post(
+                url,
+                {"images": [self.image_file_1, self.image_file_2], "make_primary": "true"},
+                format="multipart",
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(ProductImage.objects.filter(product=self.product).count(), 2)

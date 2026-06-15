@@ -1060,10 +1060,10 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
 
             return [IsInventoryManagerOrSuperuser()]
         if self.action in ["upload_images", "delete_images", "set_primary_image"]:
-            # Inventory Managers and Superusers can manage product images from product detail
-            from .permissions import IsInventoryManagerOrSuperuser
+            # Content Creators and Inventory Managers can manage product images from product detail
+            from .permissions import IsContentCreatorOrInventoryManager
 
-            return [IsInventoryManagerOrSuperuser()]
+            return [IsContentCreatorOrInventoryManager()]
         if self.action == "update_content":
             # Content Creators and Inventory Managers can update content fields
             from .permissions import IsContentCreatorOrInventoryManager
@@ -1620,6 +1620,8 @@ class ProductImageViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     serializer_class = ProductImageSerializer
     permission_classes = [IsContentCreatorOrInventoryManagerOrReadOnly]
     parser_classes = [MultiPartParser, FormParser]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = {"product": ["exact"]}
 
 
 class ArticleImageViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
