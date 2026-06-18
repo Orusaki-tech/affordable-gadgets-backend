@@ -1429,13 +1429,18 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
                     has_published_article=Exists(
                         ProductArticle.objects.filter(product_id=OuterRef("pk"), is_published=True)
                     ),
-                    published_article_count=Subquery(
-                        ProductArticle.objects.filter(
-                            product_id=OuterRef("pk"), is_published=True
-                        )
-                        .values("product_id")
-                        .annotate(c=Count("id"))
-                        .values("c")[:1],
+                    published_article_count=Coalesce(
+                        Subquery(
+                            ProductArticle.objects.filter(
+                                product_id=OuterRef("pk"), is_published=True
+                            )
+                            .order_by()
+                            .values("product_id")
+                            .annotate(c=Count("id"))
+                            .values("c")[:1],
+                            output_field=IntegerField(),
+                        ),
+                        Value(0),
                         output_field=IntegerField(),
                     ),
                 )
