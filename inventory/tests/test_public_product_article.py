@@ -62,7 +62,8 @@ class PublicProductArticleApiTests(APITestCase):
         )
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2)
+        results = response.data.get("results") or response.data
+        self.assertEqual(len(results), 2)
 
     def test_unpublished_returns_404(self):
         self.article.is_published = False

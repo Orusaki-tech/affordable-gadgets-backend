@@ -329,6 +329,7 @@ class PublicArticleCardSerializer(serializers.ModelSerializer):
 
     product_slug = serializers.CharField(source="product.slug", read_only=True)
     product_name = serializers.CharField(source="product.product_name", read_only=True)
+    product_primary_image = serializers.SerializerMethodField()
 
     class Meta:
         model = ProductArticle
@@ -337,11 +338,28 @@ class PublicArticleCardSerializer(serializers.ModelSerializer):
             "headline",
             "category",
             "thumbnail_image",
+            "product_primary_image",
             "published_at",
             "product_slug",
             "product_name",
         )
         read_only_fields = fields
+
+    @extend_schema_field(serializers.URLField(allow_null=True))
+    def get_product_primary_image(self, obj):
+        product = obj.product
+        prefetched = getattr(product, "_prefetched_objects_cache", {}).get("images")
+        if prefetched is not None:
+            primary_image = next((img for img in prefetched if img.is_primary), None) or (
+                prefetched[0] if prefetched else None
+            )
+        else:
+            primary_image = product.images.filter(is_primary=True).first() or product.images.first()
+        if primary_image and primary_image.image:
+            from inventory.cloudinary_utils import get_optimized_image_url
+
+            return get_optimized_image_url(primary_image.image)
+        return None
 
 
 class PublicProductSerializer(serializers.ModelSerializer):

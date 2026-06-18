@@ -312,7 +312,12 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
         ser = PublicProductArticleSerializer(art, context=self.get_serializer_context())
         return Response(ser.data)
 
-    @extend_schema(responses={200: PublicArticleCardSerializer(many=True)})
+    @extend_schema(
+        responses={200: PublicArticleCardSerializer(many=True)},
+        parameters=[
+            OpenApiParameter("product_slug", OpenApiTypes.STR, OpenApiParameter.PATH),
+        ],
+    )
     @action(
         detail=False,
         methods=["get"],
@@ -331,12 +336,23 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
         articles = (
             ProductArticle.objects.filter(product=product, is_published=True)
             .select_related("product")
+            .prefetch_related("product__images")
             .order_by("-is_primary", "-published_at", "id")
         )
-        ser = PublicArticleCardSerializer(articles, many=True, context=self.get_serializer_context())
-        return Response(ser.data)
+        page = self.paginate_queryset(articles)
+        queryset = page if page is not None else articles
+        ser = PublicArticleCardSerializer(queryset, many=True, context=self.get_serializer_context())
+        if page is not None:
+            return self.get_paginated_response(ser.data)
+        return Response({"count": len(ser.data), "results": ser.data})
 
-    @extend_schema(responses={200: PublicProductArticleSerializer})
+    @extend_schema(
+        responses={200: PublicProductArticleSerializer},
+        parameters=[
+            OpenApiParameter("product_slug", OpenApiTypes.STR, OpenApiParameter.PATH),
+            OpenApiParameter("article_slug", OpenApiTypes.STR, OpenApiParameter.PATH),
+        ],
+    )
     @action(
         detail=False,
         methods=["get"],
@@ -3503,6 +3519,7 @@ class PublicArticleViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
         queryset = (
             ProductArticle.objects.filter(is_published=True, product__is_published=True)
             .select_related("product")
+            .prefetch_related("product__images")
             .order_by("-published_at", "-is_primary", "id")
         )
         if brand:
