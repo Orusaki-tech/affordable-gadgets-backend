@@ -518,11 +518,11 @@ class Product(models.Model):
     def article(self):
         """Backward-compatible access to the primary buying guide."""
         prefetched = getattr(self, "_prefetched_objects_cache", {}).get("articles")
-        if prefetched is not None:
+        if prefetched:
             for art in prefetched:
                 if art.is_primary:
                     return art
-            return prefetched[0] if prefetched else None
+            return prefetched[0]
         return (
             self.articles.filter(is_primary=True).first() or self.articles.order_by("id").first()
         )

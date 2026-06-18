@@ -107,7 +107,10 @@ def migrate_productarticle_schema(apps, schema_editor):
                 info = cursor.fetchall()
                 id_col = next((row for row in info if row[1] == "id"), None)
                 if id_col and id_col[5] == 1:
-                    return
+                    cursor.execute("PRAGMA index_list(inventory_productarticle)")
+                    indices = {row[1] for row in cursor.fetchall()}
+                    if "unique_product_article_slug" in indices:
+                        return
 
             if "slug" not in cols:
                 cursor.execute(

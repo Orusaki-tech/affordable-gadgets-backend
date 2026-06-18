@@ -933,15 +933,12 @@ class ProductArticleSerializer(serializers.ModelSerializer):
     """Full product buying guide / blog (staff)."""
 
     images = ArticleImageSerializer(many=True, read_only=True)
-    product_id = serializers.PrimaryKeyRelatedField(
-        queryset=Product.objects.all(), source="product", write_only=True, required=False
-    )
 
     class Meta:
         model = ProductArticle
         fields = (
             "id",
-            "product_id",
+            "product",
             "slug",
             "category",
             "headline",
@@ -956,7 +953,10 @@ class ProductArticleSerializer(serializers.ModelSerializer):
             "updated_at",
             "images",
         )
-        read_only_fields = ("id", "published_at", "created_at", "updated_at", "images")
+        read_only_fields = ("id", "published_at", "created_at", "updated_at", "images", "product")
+        extra_kwargs = {
+            "slug": {"required": False, "allow_blank": True},
+        }
 
     def validate_seo_title(self, value):
         if value and len(value) > 60:
