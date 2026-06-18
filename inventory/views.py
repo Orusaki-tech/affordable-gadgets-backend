@@ -218,12 +218,14 @@ class RecordEventView(APIView):
                     phone = ""
             if not phone:
                 phone = request.data.get("phone") or metadata.get("phone") or ""
-            WhatsAppClickEvent.objects.create(
+            click_event = WhatsAppClickEvent.objects.create(
                 product_id=product_id,
                 brand_code=brand_code,
                 email=user_email or None,
                 phone=phone,
             )
+            from inventory.services.whatsapp_lead_service import notify_whatsapp_lead
+            notify_whatsapp_lead(click_event)
 
         serializer = ObservabilityEventSerializer(event)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -620,6 +622,38 @@ class DatasourceHealthView(APIView):
                 .annotate(count=Count("id"))
                 .order_by()
             ),
+        })
+
+
+class WhatsAppLeadsView(APIView):
+    """No-auth endpoint for Grafana datasource — returns recent WhatsApp
+    leads with phone, product name, and timestamp so the dashboard can
+    display a table of interested users."""
+
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request):
+        LIMIT = 50
+        today = timezone.localdate()
+        today_count = WhatsAppClickEvent.objects.filter(clicked_at__date=today).count()
+        leads = WhatsAppClickEvent.objects.select_related("product").order_by("-clicked_at")[:LIMIT]
+        data = [
+            {
+                "id": lead.id,
+                "phone": lead.phone,
+                "email": lead.email or "",
+                "product_id": lead.product_id,
+                "product_name": lead.product.product_name if lead.product else "Unknown",
+                "clicked_at": lead.clicked_at.isoformat(),
+            }
+            for lead in leads
+        ]
+        return Response({
+            "leads": data,
+            "count": len(data),
+            "today_count": today_count,
+            "limit": LIMIT,
         })
 
 
