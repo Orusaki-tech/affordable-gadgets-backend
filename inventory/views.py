@@ -626,14 +626,27 @@ class DatasourceHealthView(APIView):
 
 
 class WhatsAppLeadsView(APIView):
-    """No-auth endpoint for Grafana datasource — returns recent WhatsApp
-    leads with phone, product name, and timestamp so the dashboard can
-    display a table of interested users."""
+    """Grafana datasource endpoint — returns recent WhatsApp leads with phone,
+    product name, and timestamp. Requires valid Authorization: Token header
+    to prevent leaking contact info."""
 
     authentication_classes = []
     permission_classes = []
 
+    def _token_is_valid(self, request) -> bool:
+        auth = request.META.get("HTTP_AUTHORIZATION", "")
+        if not auth.startswith("Token "):
+            return False
+        try:
+            token = Token.objects.select_related("user").get(key=auth[6:])
+            return token.user.is_active
+        except Token.DoesNotExist:
+            return False
+
     def get(self, request):
+        if not self._token_is_valid(request):
+            return Response({"leads": [], "count": 0, "today_count": 0, "limit": 50})
+
         LIMIT = 50
         today = timezone.localdate()
         today_count = WhatsAppClickEvent.objects.filter(clicked_at__date=today).count()
