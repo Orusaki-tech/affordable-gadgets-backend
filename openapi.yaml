@@ -995,7 +995,6 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ProductArticleRequest'
-        required: true
       security:
       - cookieAuth: []
       responses:
@@ -1050,7 +1049,6 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ProductArticleRequest'
-        required: true
       security:
       - cookieAuth: []
       responses:
@@ -6373,7 +6371,7 @@ paths:
         name: ordering
         schema:
           type: string
-        description: Sort by published_at or -published_at (default).
+        description: Sort by release_date, -release_date, published_at, or -published_at.
       - in: query
         name: page
         schema:
@@ -6386,6 +6384,14 @@ paths:
         name: product
         schema:
           type: integer
+      - in: query
+        name: product_slug
+        schema:
+          type: string
+      - in: query
+        name: search
+        schema:
+          type: string
       tags:
       - api
       security:
@@ -11211,12 +11217,8 @@ components:
       type: object
       description: Full product buying guide / blog (staff).
       properties:
-        product_id:
-          type: integer
-          writeOnly: true
         slug:
           type: string
-          minLength: 1
           description: URL segment under /products/{product-slug}/blog/{slug}/
           maxLength: 255
           pattern: ^[-a-zA-Z0-9_]+$
@@ -11888,6 +11890,9 @@ components:
         id:
           type: integer
           readOnly: true
+        product:
+          type: integer
+          readOnly: true
         slug:
           type: string
           description: URL segment under /products/{product-slug}/blog/{slug}/
@@ -11940,18 +11945,12 @@ components:
           items:
             $ref: '#/components/schemas/ArticleImage'
           readOnly: true
-      required:
-      - slug
     ProductArticleRequest:
       type: object
       description: Full product buying guide / blog (staff).
       properties:
-        product_id:
-          type: integer
-          writeOnly: true
         slug:
           type: string
-          minLength: 1
           description: URL segment under /products/{product-slug}/blog/{slug}/
           maxLength: 255
           pattern: ^[-a-zA-Z0-9_]+$
@@ -11984,8 +11983,6 @@ components:
         is_primary:
           type: boolean
           description: Default article for legacy /products/{slug}/blog URLs
-      required:
-      - slug
     ProductArticleSummary:
       type: object
       description: |-

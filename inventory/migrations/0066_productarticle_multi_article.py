@@ -92,6 +92,10 @@ def migrate_productarticle_schema(apps, schema_editor):
                 )
                 cursor.execute("ALTER TABLE inventory_productarticle ADD PRIMARY KEY (id);")
                 cursor.execute(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS unique_product_article_slug "
+                    "ON inventory_productarticle (product_id, slug);"
+                )
+                cursor.execute(
                     """
                     ALTER TABLE inventory_articleimage
                     ADD CONSTRAINT inventory_articleima_article_id_fk

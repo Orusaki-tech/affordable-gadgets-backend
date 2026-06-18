@@ -12,6 +12,7 @@ from django.db.models import (
     Count,
     DecimalField,
     Exists,
+    F,
     IntegerField,
     Max,
     Min,
@@ -3465,12 +3466,14 @@ class PublicProductAccessoryViewSet(_PublicAPIMixin, inventory_views.ProductAcce
             OpenApiParameter("page_size", OpenApiTypes.INT, OpenApiParameter.QUERY),
             OpenApiParameter("category", OpenApiTypes.STR, OpenApiParameter.QUERY),
             OpenApiParameter("product", OpenApiTypes.INT, OpenApiParameter.QUERY),
+            OpenApiParameter("product_slug", OpenApiTypes.STR, OpenApiParameter.QUERY),
+            OpenApiParameter("search", OpenApiTypes.STR, OpenApiParameter.QUERY),
             OpenApiParameter("brand", OpenApiTypes.STR, OpenApiParameter.QUERY),
             OpenApiParameter(
                 "ordering",
                 OpenApiTypes.STR,
                 OpenApiParameter.QUERY,
-                description="Sort by published_at or -published_at (default).",
+                description="Sort by release_date, -release_date, published_at, or -published_at.",
             ),
         ]
     )
@@ -3482,6 +3485,8 @@ class PublicArticleViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
     permission_classes = [permissions.AllowAny]
     pagination_class = PageNumberPagination
     lookup_field = "slug"
+    filter_backends = [filters.SearchFilter]
+    search_fields = ["headline", "product__product_name"]
 
     def get_serializer_class(self):
         if self.action == "retrieve":
@@ -3510,12 +3515,25 @@ class PublicArticleViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
         if product_id:
             queryset = queryset.filter(product_id=product_id)
 
+        product_slug = self.request.query_params.get("product_slug")
+        if product_slug:
+            queryset = queryset.filter(product__slug=product_slug)
+
         brand_name = self.request.query_params.get("brand")
         if brand_name:
             queryset = queryset.filter(product__brand__iexact=brand_name)
 
         ordering = self.request.query_params.get("ordering")
-        if ordering in {"published_at", "-published_at"}:
-            queryset = queryset.order_by(ordering, "-is_primary", "id")
+        if ordering in {"release_date", "-release_date", "published_at", "-published_at"}:
+            if ordering == "release_date":
+                queryset = queryset.order_by(
+                    F("product__release_date").asc(nulls_last=True), "-published_at", "-is_primary", "id"
+                )
+            elif ordering == "-release_date":
+                queryset = queryset.order_by(
+                    F("product__release_date").desc(nulls_last=True), "-published_at", "-is_primary", "id"
+                )
+            else:
+                queryset = queryset.order_by(ordering, "-is_primary", "id")
 
         return queryset
