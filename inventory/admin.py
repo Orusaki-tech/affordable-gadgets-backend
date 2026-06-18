@@ -74,9 +74,9 @@ class ProductArticleInline(admin.StackedInline):
     """Inline for editing the buying guide linked to a Product."""
 
     model = ProductArticle
-    extra = 0
-    max_num = 1
-    fields = ["headline", "seo_title", "seo_description", "body", "is_published"]
+    extra = 1
+    max_num = 20
+    fields = ["slug", "category", "headline", "seo_title", "seo_description", "body", "is_published", "is_primary"]
     verbose_name = "Buying Guide / Blog Content"
     verbose_name_plural = "Buying Guide / Blog Content"
 

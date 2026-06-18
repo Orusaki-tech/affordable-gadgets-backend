@@ -369,6 +369,7 @@ def unpublished_product(brand: Brand) -> Product:
 def product_with_article(product: Product) -> Product:
     ProductArticle.objects.create(
         product=product,
+        slug="test-buying-guide",
         headline="Test Buying Guide",
         body="# Guide\n\nContent here.",
         seo_title="Test SEO Title",

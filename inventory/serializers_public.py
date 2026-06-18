@@ -302,9 +302,13 @@ class PublicReviewSubmitSerializer(serializers.Serializer):
 class PublicProductArticleSerializer(serializers.ModelSerializer):
     """Published buying guide for storefront article page (public read-only)."""
 
+    product_slug = serializers.CharField(source="product.slug", read_only=True)
+    product_name = serializers.CharField(source="product.product_name", read_only=True)
+
     class Meta:
         model = ProductArticle
         fields = (
+            "slug",
             "category",
             "headline",
             "thumbnail_image",
@@ -313,6 +317,29 @@ class PublicProductArticleSerializer(serializers.ModelSerializer):
             "body",
             "published_at",
             "updated_at",
+            "is_primary",
+            "product_slug",
+            "product_name",
+        )
+        read_only_fields = fields
+
+
+class PublicArticleCardSerializer(serializers.ModelSerializer):
+    """Lightweight article payload for blog card carousels."""
+
+    product_slug = serializers.CharField(source="product.slug", read_only=True)
+    product_name = serializers.CharField(source="product.product_name", read_only=True)
+
+    class Meta:
+        model = ProductArticle
+        fields = (
+            "slug",
+            "headline",
+            "category",
+            "thumbnail_image",
+            "published_at",
+            "product_slug",
+            "product_name",
         )
         read_only_fields = fields
 
@@ -342,6 +369,7 @@ class PublicProductSerializer(serializers.ModelSerializer):
     long_description = serializers.CharField(read_only=True, required=False)
     has_published_article = serializers.SerializerMethodField()
     article_headline = serializers.SerializerMethodField()
+    published_article_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
@@ -376,6 +404,7 @@ class PublicProductSerializer(serializers.ModelSerializer):
             "meta_description",  # SEO fields
             "has_published_article",
             "article_headline",
+            "published_article_count",
         ]
 
     @extend_schema_field(OpenApiTypes.BOOL)
@@ -384,17 +413,20 @@ class PublicProductSerializer(serializers.ModelSerializer):
             return bool(obj.has_published_article)
         return ProductArticle.objects.filter(product=obj, is_published=True).exists()
 
+    @extend_schema_field(OpenApiTypes.INT)
+    def get_published_article_count(self, obj):
+        if hasattr(obj, "published_article_count"):
+            return int(obj.published_article_count or 0)
+        return ProductArticle.objects.filter(product=obj, is_published=True).count()
+
     @extend_schema_field(serializers.CharField(allow_null=True))
     def get_article_headline(self, obj):
         if self.context.get("view_action") == "list" and not self.context.get(
             "include_article_teaser"
         ):
             return None
-        try:
-            art = obj.article
-        except ObjectDoesNotExist:
-            return None
-        if not art.is_published:
+        art = obj.article
+        if not art or not art.is_published:
             return None
         h = (art.headline or "").strip()
         return h or None
@@ -861,6 +893,7 @@ class PublicProductListSerializer(PublicProductSerializer):
             "has_active_bundle",
             "bundle_price_preview",
             "has_published_article",
+            "published_article_count",
         ]
 
 

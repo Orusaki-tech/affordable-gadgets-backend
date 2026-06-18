@@ -700,6 +700,7 @@ from .models import (  # noqa: E402
     Notification,
     Order,
     OrderItem,
+    ProductArticle,
     ProductAccessory,
     ProductImage,
     Promotion,
@@ -766,6 +767,7 @@ from .serializers import (  # noqa: E402
     ProductAccessorySerializer,
     ProductImageSerializer,
     ProductListSerializer,
+    ProductArticleSerializer,
     ProductSerializer,
     PromotionSerializer,
     PromotionTypeSerializer,
@@ -905,7 +907,7 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                 Product.objects.filter(pk=pk)
                 .order_by("product_name")
                 .annotate(available_stock=available_stock_expr)
-                .prefetch_related("images", "brands", "tags", "article")
+                .prefetch_related("images", "brands", "tags", "articles")
             )
 
         queryset = super().get_queryset()
@@ -1089,7 +1091,7 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
         # Reduce N+1: prefetch relations used by ProductSerializer (images, brands, tags)
         # Skip prefetch for stock_summary — only needs id, product_name, product_type; avoids 3 extra queries
         if self.action != "stock_summary":
-            queryset = queryset.prefetch_related("images", "brands", "tags", "article")
+            queryset = queryset.prefetch_related("images", "brands", "tags", "articles")
         elif self.action == "stock_summary":
             queryset = queryset.only("id", "product_name", "product_type")
         return queryset
@@ -1534,6 +1536,7 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
         # We reconstruct a nested article dict and merge it with any existing article payload
         article_data = {}
         article_field_mapping = {
+            "article_slug": "slug",
             "article_headline": "headline",
             "article_seo_title": "seo_title",
             "article_seo_description": "seo_description",
@@ -1669,6 +1672,20 @@ class ProductImageViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     parser_classes = [MultiPartParser, FormParser]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = {"product": ["exact"]}
+
+
+class ProductArticleViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
+    """CRUD for product buying guides / blog articles."""
+
+    queryset = ProductArticle.objects.all().select_related("product").prefetch_related("images")
+    serializer_class = ProductArticleSerializer
+    permission_classes = [IsContentCreatorOrInventoryManagerOrReadOnly]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = {"product": ["exact"], "is_published": ["exact"], "category": ["exact"]}
+    search_fields = ("headline", "slug", "product__product_name")
+    ordering_fields = ("published_at", "updated_at", "created_at", "headline")
+    ordering = ("-updated_at",)
 
 
 class ArticleImageViewSet(_SilkProfileMixin, viewsets.ModelViewSet):

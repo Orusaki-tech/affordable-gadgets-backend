@@ -87,7 +87,7 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.WARNING(f"  Skip article — no product for slug={slug}"))
                 continue
 
-            if ProductArticle.objects.filter(product=product).exists():
+            if ProductArticle.objects.filter(product=product, slug=getattr(r_article, "slug", None) or r_article.headline).exists():
                 continue
 
             self.stdout.write(f"  Article → {slug}")
@@ -96,8 +96,10 @@ class Command(BaseCommand):
                 continue
 
             with transaction.atomic():
-                ProductArticle.objects.create(
+                new_article = ProductArticle.objects.create(
                     product=product,
+                    slug=getattr(r_article, "slug", None) or slug,
+                    is_primary=getattr(r_article, "is_primary", True),
                     category=r_article.category,
                     thumbnail_image=r_article.thumbnail_image,
                     headline=r_article.headline,
@@ -111,7 +113,7 @@ class Command(BaseCommand):
                 )
                 for r_img in ArticleImage.objects.using(RESTORE).filter(article=r_article):
                     ArticleImage.objects.create(
-                        article_id=product.pk,
+                        article=new_article,
                         image=r_img.image,
                         alt_text=r_img.alt_text,
                         caption=r_img.caption,

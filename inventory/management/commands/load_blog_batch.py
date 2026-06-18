@@ -4,6 +4,7 @@ import os
 
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone as django_timezone
+from django.utils.text import slugify
 
 from inventory.cloudinary_utils import get_optimized_image_url
 from inventory.models import Product, ProductArticle, ProductImage
@@ -147,8 +148,9 @@ class Command(BaseCommand):
             slug = data.get("product_slug", "?")
             return f"Product not found (slug={slug}, name={data.get('product_name', 'N/A')})"
 
-        # Check if article already exists
-        article_exists = ProductArticle.objects.filter(product=product).exists()
+        # Check if article already exists (same product + slug)
+        article_slug = data.get("slug") or slugify(data.get("headline", "")) or f"article-{product.slug}"
+        article_exists = ProductArticle.objects.filter(product=product, slug=article_slug).exists()
         if article_exists and not force:
             return "skipped"
 
@@ -231,12 +233,14 @@ class Command(BaseCommand):
             "body": body_with_images,
             "category": category,
             "is_published": is_published,
+            "is_primary": data.get("is_primary", not ProductArticle.objects.filter(product=product).exists()),
         }
         if is_published:
             defaults["published_at"] = django_timezone.now()
 
         article, created = ProductArticle.objects.update_or_create(
             product=product,
+            slug=article_slug,
             defaults=defaults,
         )
 

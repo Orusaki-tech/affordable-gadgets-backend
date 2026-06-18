@@ -514,24 +514,46 @@ class Product(models.Model):
                 # Retry: another transaction likely inserted the same slug.
                 continue
 
+    @property
+    def article(self):
+        """Backward-compatible access to the primary buying guide."""
+        prefetched = getattr(self, "_prefetched_objects_cache", {}).get("articles")
+        if prefetched is not None:
+            for art in prefetched:
+                if art.is_primary:
+                    return art
+            return prefetched[0] if prefetched else None
+        return (
+            self.articles.filter(is_primary=True).first() or self.articles.order_by("id").first()
+        )
+
 
 class ProductArticle(models.Model):
     """
-    SEO-oriented buying guide / blog content for a product template (one per product).
-    Public site serves this at /products/{product.slug}/blog when is_published.
+    SEO-oriented buying guide / blog content for a product template.
+    Public site serves published articles at /products/{product.slug}/blog/{article.slug}.
     """
 
     class ArticleCategory(models.TextChoices):
         BUYING_GUIDE = "buying_guide", "Buying Guide"
+        HISTORY_GUIDE = "history_guide", "History Guide"
+        INFORMATIONAL_GUIDE = "informational_guide", "Informational Guide"
         TECH_TIP = "tech_tip", "Tech Tip"
         NEWS = "news", "News"
         GENERAL = "general", "General"
 
-    product = models.OneToOneField(
+    product = models.ForeignKey(
         Product,
         on_delete=models.PROTECT,
-        related_name="article",
-        primary_key=True,
+        related_name="articles",
+    )
+    slug = models.SlugField(
+        max_length=255,
+        help_text="URL segment under /products/{product-slug}/blog/{slug}/",
+    )
+    is_primary = models.BooleanField(
+        default=False,
+        help_text="Default article for legacy /products/{slug}/blog URLs",
     )
     category = models.CharField(
         max_length=50,
@@ -566,18 +588,49 @@ class ProductArticle(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ["product_id"]
+        ordering = ["-is_primary", "-published_at", "id"]
         indexes = [
             models.Index(fields=["is_published"]),
+            models.Index(fields=["slug"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(fields=["product", "slug"], name="unique_product_article_slug"),
         ]
 
     def __str__(self):
-        return f"Article for {self.product_id}"
+        return f"Article for {self.product_id} ({self.slug})"
+
+    def _ensure_slug(self):
+        from django.utils.text import slugify
+
+        if self.slug:
+            return
+        base = slugify(self.headline) or f"article-{self.product_id or 'new'}"
+        slug = base
+        counter = 1
+        qs = ProductArticle.objects.filter(product_id=self.product_id)
+        if self.pk:
+            qs = qs.exclude(pk=self.pk)
+        while qs.filter(slug=slug).exists():
+            slug = f"{base}-{counter}"
+            counter += 1
+        self.slug = slug
 
     def save(self, *args, **kwargs):
+        if self.product_id and not self.slug:
+            self._ensure_slug()
         if self.is_published and self.published_at is None:
             self.published_at = timezone.now()
         super().save(*args, **kwargs)
+        if self.is_primary and self.product_id:
+            ProductArticle.objects.filter(product_id=self.product_id).exclude(pk=self.pk).update(
+                is_primary=False
+            )
+        elif self.product_id and not ProductArticle.objects.filter(
+            product_id=self.product_id, is_primary=True
+        ).exists():
+            ProductArticle.objects.filter(pk=self.pk).update(is_primary=True)
+            self.is_primary = True
 
 
 class ArticleImage(models.Model):

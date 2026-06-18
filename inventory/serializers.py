@@ -913,11 +913,15 @@ class ProductArticleSummarySerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductArticle
         fields = (
+            "id",
+            "slug",
+            "category",
             "headline",
             "seo_title",
             "seo_description",
             "body",
             "is_published",
+            "is_primary",
             "published_at",
             "created_at",
             "updated_at",
@@ -929,10 +933,16 @@ class ProductArticleSerializer(serializers.ModelSerializer):
     """Full product buying guide / blog (staff)."""
 
     images = ArticleImageSerializer(many=True, read_only=True)
+    product_id = serializers.PrimaryKeyRelatedField(
+        queryset=Product.objects.all(), source="product", write_only=True, required=False
+    )
 
     class Meta:
         model = ProductArticle
         fields = (
+            "id",
+            "product_id",
+            "slug",
             "category",
             "headline",
             "thumbnail_image",
@@ -940,12 +950,13 @@ class ProductArticleSerializer(serializers.ModelSerializer):
             "seo_description",
             "body",
             "is_published",
+            "is_primary",
             "published_at",
             "created_at",
             "updated_at",
             "images",
         )
-        read_only_fields = ("published_at", "created_at", "updated_at", "images")
+        read_only_fields = ("id", "published_at", "created_at", "updated_at", "images")
 
     def validate_seo_title(self, value):
         if value and len(value) > 60:
@@ -1019,6 +1030,7 @@ class ProductSerializer(serializers.ModelSerializer):
     # instead of failing fast in DRF's default UniqueValidator.
     slug = serializers.SlugField(required=False, allow_blank=True, validators=[])
     article = ProductArticleSerializer(required=False, allow_null=True)
+    articles = ProductArticleSerializer(many=True, read_only=True)
 
     class Meta:
         model = Product
@@ -1051,8 +1063,9 @@ class ProductSerializer(serializers.ModelSerializer):
             "product_highlights",
             "long_description",
             "is_published",
-            # Buying guide / SEO article
+            # Buying guide / SEO article (legacy single-article write)
             "article",
+            "articles",
             # Video Fields
             "product_video_url",
             "product_video_file",
@@ -1220,9 +1233,23 @@ class ProductSerializer(serializers.ModelSerializer):
         if article_data is not serializers.empty:
             ser = ProductArticleSerializer(data=article_data)
             ser.is_valid(raise_exception=True)
-            ser.save(product=instance)
+            ser.save(product=instance, is_primary=True)
 
         return instance
+
+    def _upsert_primary_article(self, instance, article_data):
+        article_obj = (
+            instance.articles.filter(is_primary=True).first() or instance.articles.order_by("id").first()
+        )
+        payload = dict(article_data)
+        if article_obj is None:
+            ser = ProductArticleSerializer(data=payload)
+            ser.is_valid(raise_exception=True)
+            ser.save(product=instance, is_primary=True)
+        else:
+            ser = ProductArticleSerializer(article_obj, data=payload, partial=True)
+            ser.is_valid(raise_exception=True)
+            ser.save()
 
     def update(self, instance, validated_data):
         article_data = validated_data.pop("article", serializers.empty)
@@ -1255,13 +1282,7 @@ class ProductSerializer(serializers.ModelSerializer):
             instance.save()
 
         if article_data is not serializers.empty:
-            article_obj = getattr(instance, "article", None)
-            if article_obj is None:
-                ser = ProductArticleSerializer(data=article_data)
-            else:
-                ser = ProductArticleSerializer(article_obj, data=article_data, partial=True)
-            ser.is_valid(raise_exception=True)
-            ser.save(product=instance)
+            self._upsert_primary_article(instance, article_data)
 
         return instance
 
@@ -1270,6 +1291,7 @@ class ProductListSerializer(ProductSerializer):
     """Product list: omit full article body (summary only)."""
 
     article = ProductArticleSummarySerializer(read_only=True, allow_null=True)
+    articles = ProductArticleSummarySerializer(many=True, read_only=True)
 
     class Meta(ProductSerializer.Meta):
         pass

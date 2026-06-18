@@ -6,6 +6,22 @@ info:
     \ and Sales system.\n    DRF TokenAuthentication is used: clients must send `Authorization:\
     \ Token <key>` for protected endpoints.\n    "
 paths:
+  /api/auth/supabase/:
+    post:
+      operationId: api_auth_supabase_create
+      description: |-
+        POST: Authenticate via Supabase JWT (Google OAuth).
+        Accepts a Supabase access_token, verifies it, and returns a Django Token.
+        Maps Supabase user to existing Django user by supabase_uid or email.
+        Supports both admin and customer users.
+      tags:
+      - api
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
   /api/auth/token/login/:
     post:
       operationId: api_auth_token_login_create
@@ -30,7 +46,6 @@ paths:
               $ref: '#/components/schemas/AdminAuthTokenRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -64,7 +79,6 @@ paths:
       tags:
       - accessories-link
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -94,7 +108,6 @@ paths:
               $ref: '#/components/schemas/ProductAccessoryRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '201':
@@ -120,7 +133,6 @@ paths:
       tags:
       - accessories-link
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -157,7 +169,6 @@ paths:
               $ref: '#/components/schemas/ProductAccessoryRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -193,7 +204,6 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedProductAccessoryRequest'
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -218,7 +228,6 @@ paths:
       tags:
       - accessories-link
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '204':
@@ -232,7 +241,6 @@ paths:
       tags:
       - admin-roles
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -259,7 +267,6 @@ paths:
       tags:
       - admin-roles
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -286,7 +293,6 @@ paths:
             schema:
               $ref: '#/components/schemas/FixProductVisibilityRequest'
       security:
-      - tokenAuth: []
       - cookieAuth: []
       - {}
       responses:
@@ -316,7 +322,6 @@ paths:
       tags:
       - admins
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -343,7 +348,6 @@ paths:
               $ref: '#/components/schemas/AdminCreateRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '201':
@@ -371,7 +375,6 @@ paths:
       tags:
       - admins
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -410,7 +413,6 @@ paths:
               $ref: '#/components/schemas/AdminRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -448,7 +450,6 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedAdminRequest'
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -475,7 +476,6 @@ paths:
       tags:
       - admins
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '204':
@@ -506,7 +506,6 @@ paths:
               $ref: '#/components/schemas/AdminRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -540,7 +539,6 @@ paths:
               $ref: '#/components/schemas/AdminRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -575,7 +573,6 @@ paths:
               $ref: '#/components/schemas/AdminRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -609,7 +606,6 @@ paths:
               $ref: '#/components/schemas/AdminRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -618,6 +614,130 @@ paths:
               schema:
                 $ref: '#/components/schemas/Admin'
           description: ''
+  /analytics/blog-summary/:
+    get:
+      operationId: analytics_blog_summary_retrieve
+      description: Published buying-guide (blog) article counts and recent updates.
+      tags:
+      - analytics
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /analytics/daily-activity/:
+    get:
+      operationId: analytics_daily_activity_retrieve
+      description: 'Admin endpoint: today''s user activity feed (searches, cart adds,
+        whatsapp clicks, logins).'
+      tags:
+      - analytics
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /analytics/daily-users/:
+    get:
+      operationId: analytics_daily_users_retrieve
+      description: 'Admin endpoint: today''s active users with aggregated activity
+        and phone.'
+      tags:
+      - analytics
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /analytics/datasource-health/:
+    get:
+      operationId: analytics_datasource_health_retrieve
+      description: |-
+        No-auth endpoint for Grafana datasource health check.
+        Returns connectivity and auth status so Grafana can verify
+        the JSON API datasource is working end-to-end.
+      tags:
+      - analytics
+      responses:
+        '200':
+          description: No response body
+  /analytics/events/:
+    post:
+      operationId: analytics_events_create
+      description: |-
+        Public endpoint to record user activity events.
+        Accepts optional session_key for anonymous tracking before login.
+      tags:
+      - analytics
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /analytics/funnel-summary/:
+    get:
+      operationId: analytics_funnel_summary_retrieve
+      description: 'Admin endpoint: aggregate marketing funnel data.'
+      tags:
+      - analytics
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /analytics/registered-users/:
+    get:
+      operationId: analytics_registered_users_retrieve
+      description: All registered users with lifetime product interaction summary.
+      tags:
+      - analytics
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /analytics/users/:
+    get:
+      operationId: analytics_users_retrieve
+      description: 'Admin endpoint: list all users with signup date, last login, event
+        counts.'
+      tags:
+      - analytics
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /analytics/users/{user_id}/:
+    get:
+      operationId: analytics_users_retrieve_2
+      description: 'Admin endpoint: full activity timeline for one user.'
+      parameters:
+      - in: path
+        name: user_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - analytics
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /analytics/whatsapp-leads/:
+    get:
+      operationId: analytics_whatsapp_leads_retrieve
+      description: |-
+        Grafana datasource endpoint — returns recent WhatsApp leads with phone,
+        product name, and timestamp. Requires valid Authorization: Token header
+        to prevent leaking contact info.
+      tags:
+      - analytics
+      responses:
+        '200':
+          description: No response body
   /article-images/:
     get:
       operationId: article_images_list
@@ -634,7 +754,6 @@ paths:
       tags:
       - article-images
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -660,7 +779,6 @@ paths:
               $ref: '#/components/schemas/ArticleImageRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '201':
@@ -685,7 +803,6 @@ paths:
       tags:
       - article-images
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -718,7 +835,6 @@ paths:
               $ref: '#/components/schemas/ArticleImageRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -750,7 +866,6 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedArticleImageRequest'
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -774,7 +889,6 @@ paths:
       tags:
       - article-images
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '204':
@@ -797,7 +911,6 @@ paths:
               $ref: '#/components/schemas/ArticleImageUploadRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -806,6 +919,196 @@ paths:
               schema:
                 $ref: '#/components/schemas/ArticleImageUpload'
           description: ''
+  /articles/:
+    get:
+      operationId: articles_list
+      description: CRUD for product buying guides / blog articles.
+      parameters:
+      - in: query
+        name: category
+        schema:
+          type: string
+          enum:
+          - buying_guide
+          - general
+          - history_guide
+          - informational_guide
+          - news
+          - tech_tip
+        description: |-
+          * `buying_guide` - Buying Guide
+          * `history_guide` - History Guide
+          * `informational_guide` - Informational Guide
+          * `tech_tip` - Tech Tip
+          * `news` - News
+          * `general` - General
+      - in: query
+        name: is_published
+        schema:
+          type: boolean
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: product
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - articles
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedProductArticleList'
+          description: ''
+    post:
+      operationId: articles_create
+      description: CRUD for product buying guides / blog articles.
+      tags:
+      - articles
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ProductArticleRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ProductArticleRequest'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductArticleRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductArticle'
+          description: ''
+  /articles/{id}/:
+    get:
+      operationId: articles_retrieve
+      description: CRUD for product buying guides / blog articles.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this product article.
+        required: true
+      tags:
+      - articles
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductArticle'
+          description: ''
+    put:
+      operationId: articles_update
+      description: CRUD for product buying guides / blog articles.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this product article.
+        required: true
+      tags:
+      - articles
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ProductArticleRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ProductArticleRequest'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductArticleRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductArticle'
+          description: ''
+    patch:
+      operationId: articles_partial_update
+      description: CRUD for product buying guides / blog articles.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this product article.
+        required: true
+      tags:
+      - articles
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedProductArticleRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedProductArticleRequest'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedProductArticleRequest'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductArticle'
+          description: ''
+    delete:
+      operationId: articles_destroy
+      description: CRUD for product buying guides / blog articles.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this product article.
+        required: true
+      tags:
+      - articles
+      security:
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
   /audit-logs/:
     get:
       operationId: audit_logs_list
@@ -822,7 +1125,6 @@ paths:
       tags:
       - audit-logs
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -847,7 +1149,6 @@ paths:
       tags:
       - audit-logs
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -870,7 +1171,6 @@ paths:
       tags:
       - brands
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -897,7 +1197,6 @@ paths:
               $ref: '#/components/schemas/BrandRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '201':
@@ -920,7 +1219,6 @@ paths:
       tags:
       - brands
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -954,7 +1252,6 @@ paths:
               $ref: '#/components/schemas/BrandRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -987,7 +1284,6 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedBrandRequest'
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -1009,7 +1305,6 @@ paths:
       tags:
       - brands
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '204':
@@ -1028,7 +1323,6 @@ paths:
       tags:
       - bundle-items
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -1055,7 +1349,6 @@ paths:
               $ref: '#/components/schemas/BundleItemRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '201':
@@ -1078,7 +1371,6 @@ paths:
       tags:
       - bundle-items
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -1112,7 +1404,6 @@ paths:
               $ref: '#/components/schemas/BundleItemRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -1145,7 +1436,6 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedBundleItemRequest'
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -1167,7 +1457,6 @@ paths:
       tags:
       - bundle-items
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '204':
@@ -1186,7 +1475,6 @@ paths:
       tags:
       - bundles
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -1213,7 +1501,6 @@ paths:
               $ref: '#/components/schemas/BundleRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '201':
@@ -1236,7 +1523,6 @@ paths:
       tags:
       - bundles
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -1270,7 +1556,6 @@ paths:
               $ref: '#/components/schemas/BundleRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -1303,7 +1588,6 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedBundleRequest'
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -1325,7 +1609,6 @@ paths:
       tags:
       - bundles
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '204':
@@ -1333,9 +1616,7 @@ paths:
   /colors/:
     get:
       operationId: colors_list
-      description: |-
-        Color lookup table. Admin-only write, public read.
-        Uses IsAdminOrReadOnly.
+      description: Color lookup table. Inventory Manager write, all staff read.
       parameters:
       - name: page
         required: false
@@ -1346,7 +1627,6 @@ paths:
       tags:
       - colors
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -1357,9 +1637,7 @@ paths:
           description: ''
     post:
       operationId: colors_create
-      description: |-
-        Color lookup table. Admin-only write, public read.
-        Uses IsAdminOrReadOnly.
+      description: Color lookup table. Inventory Manager write, all staff read.
       tags:
       - colors
       requestBody:
@@ -1375,7 +1653,6 @@ paths:
               $ref: '#/components/schemas/ColorRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '201':
@@ -1387,9 +1664,7 @@ paths:
   /colors/{id}/:
     get:
       operationId: colors_retrieve
-      description: |-
-        Color lookup table. Admin-only write, public read.
-        Uses IsAdminOrReadOnly.
+      description: Color lookup table. Inventory Manager write, all staff read.
       parameters:
       - in: path
         name: id
@@ -1400,7 +1675,6 @@ paths:
       tags:
       - colors
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -1411,9 +1685,7 @@ paths:
           description: ''
     put:
       operationId: colors_update
-      description: |-
-        Color lookup table. Admin-only write, public read.
-        Uses IsAdminOrReadOnly.
+      description: Color lookup table. Inventory Manager write, all staff read.
       parameters:
       - in: path
         name: id
@@ -1436,7 +1708,6 @@ paths:
               $ref: '#/components/schemas/ColorRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -1447,9 +1718,7 @@ paths:
           description: ''
     patch:
       operationId: colors_partial_update
-      description: |-
-        Color lookup table. Admin-only write, public read.
-        Uses IsAdminOrReadOnly.
+      description: Color lookup table. Inventory Manager write, all staff read.
       parameters:
       - in: path
         name: id
@@ -1471,7 +1740,6 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedColorRequest'
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -1482,9 +1750,7 @@ paths:
           description: ''
     delete:
       operationId: colors_destroy
-      description: |-
-        Color lookup table. Admin-only write, public read.
-        Uses IsAdminOrReadOnly.
+      description: Color lookup table. Inventory Manager write, all staff read.
       parameters:
       - in: path
         name: id
@@ -1495,7 +1761,6 @@ paths:
       tags:
       - colors
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '204':
@@ -1503,7 +1768,7 @@ paths:
   /delivery-rates/:
     get:
       operationId: delivery_rates_list
-      description: Manage delivery rates (order manager only).
+      description: Manage delivery rates (order manager write; IM, SP, OM read).
       parameters:
       - name: page
         required: false
@@ -1514,7 +1779,6 @@ paths:
       tags:
       - delivery-rates
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -1525,7 +1789,7 @@ paths:
           description: ''
     post:
       operationId: delivery_rates_create
-      description: Manage delivery rates (order manager only).
+      description: Manage delivery rates (order manager write; IM, SP, OM read).
       tags:
       - delivery-rates
       requestBody:
@@ -1541,7 +1805,6 @@ paths:
               $ref: '#/components/schemas/DeliveryRateRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '201':
@@ -1553,7 +1816,7 @@ paths:
   /delivery-rates/{id}/:
     get:
       operationId: delivery_rates_retrieve
-      description: Manage delivery rates (order manager only).
+      description: Manage delivery rates (order manager write; IM, SP, OM read).
       parameters:
       - in: path
         name: id
@@ -1564,7 +1827,6 @@ paths:
       tags:
       - delivery-rates
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -1575,7 +1837,7 @@ paths:
           description: ''
     put:
       operationId: delivery_rates_update
-      description: Manage delivery rates (order manager only).
+      description: Manage delivery rates (order manager write; IM, SP, OM read).
       parameters:
       - in: path
         name: id
@@ -1598,7 +1860,6 @@ paths:
               $ref: '#/components/schemas/DeliveryRateRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -1609,7 +1870,7 @@ paths:
           description: ''
     patch:
       operationId: delivery_rates_partial_update
-      description: Manage delivery rates (order manager only).
+      description: Manage delivery rates (order manager write; IM, SP, OM read).
       parameters:
       - in: path
         name: id
@@ -1631,7 +1892,6 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedDeliveryRateRequest'
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -1642,7 +1902,7 @@ paths:
           description: ''
     delete:
       operationId: delivery_rates_destroy
-      description: Manage delivery rates (order manager only).
+      description: Manage delivery rates (order manager write; IM, SP, OM read).
       parameters:
       - in: path
         name: id
@@ -1653,7 +1913,6 @@ paths:
       tags:
       - delivery-rates
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '204':
@@ -1704,7 +1963,6 @@ paths:
       tags:
       - financing-offers
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -1731,7 +1989,6 @@ paths:
               $ref: '#/components/schemas/FinancingOfferRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '201':
@@ -1754,7 +2011,6 @@ paths:
       tags:
       - financing-offers
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -1788,7 +2044,6 @@ paths:
               $ref: '#/components/schemas/FinancingOfferRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -1821,7 +2076,6 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedFinancingOfferRequest'
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -1843,7 +2097,6 @@ paths:
       tags:
       - financing-offers
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '204':
@@ -1874,7 +2127,6 @@ paths:
       tags:
       - financing-providers
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -1901,7 +2153,6 @@ paths:
               $ref: '#/components/schemas/FinancingProviderRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '201':
@@ -1924,7 +2175,6 @@ paths:
       tags:
       - financing-providers
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -1958,7 +2208,6 @@ paths:
               $ref: '#/components/schemas/FinancingProviderRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -1991,7 +2240,6 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedFinancingProviderRequest'
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -2013,7 +2261,6 @@ paths:
       tags:
       - financing-providers
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '204':
@@ -2033,10 +2280,13 @@ paths:
         description: A page number within the paginated result set.
         schema:
           type: integer
+      - in: query
+        name: product
+        schema:
+          type: integer
       tags:
       - images
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -2064,7 +2314,6 @@ paths:
               $ref: '#/components/schemas/ProductImageRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '201':
@@ -2091,7 +2340,6 @@ paths:
       tags:
       - images
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -2126,7 +2374,6 @@ paths:
               $ref: '#/components/schemas/ProductImageRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -2160,7 +2407,6 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedProductImageRequest'
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -2186,7 +2432,6 @@ paths:
       tags:
       - images
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '204':
@@ -2205,7 +2450,6 @@ paths:
       tags:
       - leads
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -2232,7 +2476,6 @@ paths:
               $ref: '#/components/schemas/LeadRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '201':
@@ -2254,7 +2497,6 @@ paths:
       tags:
       - leads
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -2287,7 +2529,6 @@ paths:
               $ref: '#/components/schemas/LeadRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -2319,7 +2560,6 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedLeadRequest'
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -2340,7 +2580,6 @@ paths:
       tags:
       - leads
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '204':
@@ -2371,7 +2610,6 @@ paths:
               $ref: '#/components/schemas/LeadRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -2407,7 +2645,6 @@ paths:
               $ref: '#/components/schemas/LeadRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -2442,7 +2679,6 @@ paths:
               $ref: '#/components/schemas/LeadRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -2477,7 +2713,6 @@ paths:
               $ref: '#/components/schemas/LeadRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -2508,7 +2743,6 @@ paths:
               $ref: '#/components/schemas/CustomerLoginRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       - {}
       responses:
@@ -2527,7 +2761,6 @@ paths:
       tags:
       - logout
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -2551,7 +2784,6 @@ paths:
       tags:
       - notifications
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -2574,7 +2806,6 @@ paths:
       tags:
       - notifications
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -2609,7 +2840,6 @@ paths:
               $ref: '#/components/schemas/NotificationRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -2625,7 +2855,6 @@ paths:
       tags:
       - notifications
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -2634,6 +2863,33 @@ paths:
               schema:
                 $ref: '#/components/schemas/Notification'
           description: ''
+  /observability/cart-analytics/:
+    get:
+      operationId: observability_cart_analytics_retrieve
+      description: |-
+        Internal API endpoint for Grafana JSON API datasource.
+        Provides snapshot analytics of current active (unsubmitted) carts.
+      tags:
+      - observability
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /observability/record-event/:
+    post:
+      operationId: observability_record_event_create
+      description: |-
+        Public endpoint to record user activity events.
+        Accepts optional session_key for anonymous tracking before login.
+      tags:
+      - observability
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
   /order-items/:
     get:
       operationId: order_items_list
@@ -2651,7 +2907,6 @@ paths:
       tags:
       - order-items
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -2681,7 +2936,6 @@ paths:
               $ref: '#/components/schemas/OrderItemRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '201':
@@ -2707,7 +2961,6 @@ paths:
       tags:
       - order-items
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -2744,7 +2997,6 @@ paths:
               $ref: '#/components/schemas/OrderItemRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -2780,7 +3032,6 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedOrderItemRequest'
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -2805,7 +3056,6 @@ paths:
       tags:
       - order-items
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '204':
@@ -2828,7 +3078,6 @@ paths:
       tags:
       - orders
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -2857,7 +3106,6 @@ paths:
               $ref: '#/components/schemas/OrderRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       - {}
       responses:
@@ -2887,7 +3135,6 @@ paths:
       tags:
       - orders
       security:
-      - tokenAuth: []
       - cookieAuth: []
       - {}
       responses:
@@ -2925,7 +3172,6 @@ paths:
               $ref: '#/components/schemas/OrderRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -2963,7 +3209,6 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedOrderRequest'
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -2990,7 +3235,6 @@ paths:
       tags:
       - orders
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '204':
@@ -3023,7 +3267,6 @@ paths:
               $ref: '#/components/schemas/OrderRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -3152,7 +3395,6 @@ paths:
       tags:
       - pesapal
       security:
-      - tokenAuth: []
       - cookieAuth: []
       - {}
       responses:
@@ -3169,7 +3411,6 @@ paths:
       tags:
       - pesapal
       security:
-      - tokenAuth: []
       - cookieAuth: []
       - {}
       responses:
@@ -3197,7 +3438,6 @@ paths:
       tags:
       - phone-search
       security:
-      - tokenAuth: []
       - cookieAuth: []
       - {}
       responses:
@@ -3239,7 +3479,6 @@ paths:
       tags:
       - products
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -3272,7 +3511,6 @@ paths:
               $ref: '#/components/schemas/ProductRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '201':
@@ -3296,7 +3534,6 @@ paths:
       tags:
       - products
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -3336,7 +3573,6 @@ paths:
               $ref: '#/components/schemas/ProductRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -3375,7 +3611,6 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedProductRequest'
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -3403,7 +3638,6 @@ paths:
       tags:
       - products
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '204':
@@ -3424,7 +3658,6 @@ paths:
       tags:
       - products
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -3463,7 +3696,6 @@ paths:
               $ref: '#/components/schemas/ProductRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -3498,7 +3730,6 @@ paths:
               $ref: '#/components/schemas/ProductRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -3542,7 +3773,6 @@ paths:
               $ref: '#/components/schemas/ProductRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -3569,7 +3799,6 @@ paths:
       tags:
       - products
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -3602,7 +3831,6 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedProductRequest'
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -3637,7 +3865,6 @@ paths:
               $ref: '#/components/schemas/ProductRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -3655,7 +3882,6 @@ paths:
       tags:
       - profiles
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -3674,7 +3900,6 @@ paths:
       tags:
       - profiles
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -3703,7 +3928,6 @@ paths:
             schema:
               $ref: '#/components/schemas/CustomerProfileUpdateRequest'
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -3732,7 +3956,6 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedCustomerProfileUpdateRequest'
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -3755,7 +3978,6 @@ paths:
       tags:
       - promotion-types
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -3782,7 +4004,6 @@ paths:
               $ref: '#/components/schemas/PromotionTypeRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '201':
@@ -3805,7 +4026,6 @@ paths:
       tags:
       - promotion-types
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -3839,7 +4059,6 @@ paths:
               $ref: '#/components/schemas/PromotionTypeRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -3872,7 +4091,6 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedPromotionTypeRequest'
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -3894,7 +4112,6 @@ paths:
       tags:
       - promotion-types
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '204':
@@ -3914,7 +4131,6 @@ paths:
       tags:
       - promotions
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -3942,7 +4158,6 @@ paths:
               $ref: '#/components/schemas/PromotionRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '201':
@@ -3966,7 +4181,6 @@ paths:
       tags:
       - promotions
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -4001,7 +4215,6 @@ paths:
               $ref: '#/components/schemas/PromotionRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -4035,7 +4248,6 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedPromotionRequest'
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -4058,7 +4270,6 @@ paths:
       tags:
       - promotions
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '204':
@@ -4086,7 +4297,6 @@ paths:
               $ref: '#/components/schemas/CustomerRegistrationRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       - {}
       responses:
@@ -4103,7 +4313,6 @@ paths:
       tags:
       - reports
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -4120,7 +4329,6 @@ paths:
       tags:
       - reports
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -4137,7 +4345,6 @@ paths:
       tags:
       - reports
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -4154,7 +4361,6 @@ paths:
       tags:
       - reports
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -4171,7 +4377,6 @@ paths:
       tags:
       - reports
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -4188,7 +4393,6 @@ paths:
       tags:
       - reports
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -4215,7 +4419,6 @@ paths:
       tags:
       - reservation-requests
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -4241,7 +4444,6 @@ paths:
             schema:
               $ref: '#/components/schemas/ReservationRequestRequest'
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '201':
@@ -4267,7 +4469,6 @@ paths:
       tags:
       - reservation-requests
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -4301,7 +4502,6 @@ paths:
             schema:
               $ref: '#/components/schemas/ReservationRequestRequest'
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -4337,7 +4537,6 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedReservationRequestRequest'
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -4362,7 +4561,6 @@ paths:
       tags:
       - reservation-requests
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '204':
@@ -4382,7 +4580,6 @@ paths:
       tags:
       - return-requests
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -4408,7 +4605,6 @@ paths:
             schema:
               $ref: '#/components/schemas/ReturnRequestRequest'
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '201':
@@ -4434,7 +4630,6 @@ paths:
       tags:
       - return-requests
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -4470,7 +4665,6 @@ paths:
             schema:
               $ref: '#/components/schemas/ReturnRequestRequest'
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -4506,7 +4700,6 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedReturnRequestRequest'
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -4531,7 +4724,6 @@ paths:
       tags:
       - return-requests
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '204':
@@ -4554,7 +4746,6 @@ paths:
             schema:
               $ref: '#/components/schemas/ReturnRequestRequest'
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -4599,7 +4790,6 @@ paths:
       tags:
       - reviews
       security:
-      - tokenAuth: []
       - cookieAuth: []
       - {}
       responses:
@@ -4630,7 +4820,6 @@ paths:
               $ref: '#/components/schemas/ReviewRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '201':
@@ -4659,7 +4848,6 @@ paths:
       tags:
       - reviews
       security:
-      - tokenAuth: []
       - cookieAuth: []
       - {}
       responses:
@@ -4697,7 +4885,6 @@ paths:
               $ref: '#/components/schemas/ReviewRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -4733,7 +4920,6 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedReviewRequest'
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -4761,7 +4947,6 @@ paths:
       tags:
       - reviews
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '204':
@@ -4784,7 +4969,6 @@ paths:
               $ref: '#/components/schemas/ReviewRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -4809,7 +4993,6 @@ paths:
       tags:
       - sources
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -4838,7 +5021,6 @@ paths:
               $ref: '#/components/schemas/UnitAcquisitionSourceRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '201':
@@ -4863,7 +5045,6 @@ paths:
       tags:
       - sources
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -4899,7 +5080,6 @@ paths:
               $ref: '#/components/schemas/UnitAcquisitionSourceRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -4934,7 +5114,6 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedUnitAcquisitionSourceRequest'
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -4958,7 +5137,6 @@ paths:
       tags:
       - sources
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '204':
@@ -4970,7 +5148,6 @@ paths:
       tags:
       - stock-alerts
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -4990,7 +5167,6 @@ paths:
       tags:
       - tags
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -5022,7 +5198,6 @@ paths:
               $ref: '#/components/schemas/TagRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '201':
@@ -5048,7 +5223,6 @@ paths:
       tags:
       - tags
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -5085,7 +5259,6 @@ paths:
               $ref: '#/components/schemas/TagRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -5121,7 +5294,6 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedTagRequest'
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -5146,7 +5318,6 @@ paths:
       tags:
       - tags
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '204':
@@ -5173,7 +5344,6 @@ paths:
       tags:
       - unit-images
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -5201,7 +5371,6 @@ paths:
               $ref: '#/components/schemas/InventoryUnitImageRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '201':
@@ -5228,7 +5397,6 @@ paths:
       tags:
       - unit-images
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -5263,7 +5431,6 @@ paths:
               $ref: '#/components/schemas/InventoryUnitImageRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -5297,7 +5464,6 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedInventoryUnitImageRequest'
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -5323,7 +5489,6 @@ paths:
       tags:
       - unit-images
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '204':
@@ -5345,7 +5510,6 @@ paths:
       tags:
       - unit-transfers
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -5375,7 +5539,6 @@ paths:
               $ref: '#/components/schemas/UnitTransferRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '201':
@@ -5401,7 +5564,6 @@ paths:
       tags:
       - unit-transfers
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -5438,7 +5600,6 @@ paths:
               $ref: '#/components/schemas/UnitTransferRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -5474,7 +5635,6 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedUnitTransferRequest'
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -5499,7 +5659,6 @@ paths:
       tags:
       - unit-transfers
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '204':
@@ -5617,7 +5776,6 @@ paths:
       tags:
       - units
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -5651,7 +5809,6 @@ paths:
               $ref: '#/components/schemas/InventoryUnitRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '201':
@@ -5681,7 +5838,6 @@ paths:
       tags:
       - units
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -5722,7 +5878,6 @@ paths:
               $ref: '#/components/schemas/InventoryUnitRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -5762,7 +5917,6 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedInventoryUnitRequest'
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -5791,7 +5945,6 @@ paths:
       tags:
       - units
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '204':
@@ -5827,7 +5980,6 @@ paths:
               $ref: '#/components/schemas/InventoryUnitRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -5862,7 +6014,6 @@ paths:
               $ref: '#/components/schemas/InventoryUnitRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -5887,7 +6038,6 @@ paths:
       tags:
       - units
       security:
-      - tokenAuth: []
       - cookieAuth: []
       - {}
       responses:
@@ -5925,7 +6075,6 @@ paths:
               $ref: '#/components/schemas/InventoryUnitRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -5945,7 +6094,6 @@ paths:
       tags:
       - units
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -5980,7 +6128,6 @@ paths:
               $ref: '#/components/schemas/InventoryUnitRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       responses:
         '200':
@@ -6010,7 +6157,6 @@ paths:
               $ref: '#/components/schemas/DiscountCalculatorRequest'
         required: true
       security:
-      - tokenAuth: []
       - cookieAuth: []
       - {}
       responses:
@@ -6027,7 +6173,6 @@ paths:
       tags:
       - verify-email
       security:
-      - tokenAuth: []
       - cookieAuth: []
       - {}
       responses:
@@ -6040,7 +6185,6 @@ paths:
       tags:
       - verify-email
       security:
-      - tokenAuth: []
       - cookieAuth: []
       - {}
       responses:
@@ -6068,6 +6212,8 @@ paths:
           type: integer
       tags:
       - api
+      security:
+      - {}
       responses:
         '200':
           content:
@@ -6093,6 +6239,8 @@ paths:
             schema:
               $ref: '#/components/schemas/ProductAccessoryRequest'
         required: true
+      security:
+      - {}
       responses:
         '201':
           content:
@@ -6114,6 +6262,8 @@ paths:
         required: true
       tags:
       - api
+      security:
+      - {}
       responses:
         '200':
           content:
@@ -6146,6 +6296,8 @@ paths:
             schema:
               $ref: '#/components/schemas/ProductAccessoryRequest'
         required: true
+      security:
+      - {}
       responses:
         '200':
           content:
@@ -6177,6 +6329,8 @@ paths:
           multipart/form-data:
             schema:
               $ref: '#/components/schemas/PatchedProductAccessoryRequest'
+      security:
+      - {}
       responses:
         '200':
           content:
@@ -6197,9 +6351,74 @@ paths:
         required: true
       tags:
       - api
+      security:
+      - {}
       responses:
         '204':
           description: No response body
+  /api/v1/public/articles/:
+    get:
+      operationId: api_v1_public_articles_list
+      description: Published articles for blog card carousels and article index pages.
+      parameters:
+      - in: query
+        name: brand
+        schema:
+          type: string
+      - in: query
+        name: category
+        schema:
+          type: string
+      - in: query
+        name: ordering
+        schema:
+          type: string
+        description: Sort by published_at or -published_at (default).
+      - in: query
+        name: page
+        schema:
+          type: integer
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+      - in: query
+        name: product
+        schema:
+          type: integer
+      tags:
+      - api
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPublicArticleCardList'
+          description: ''
+  /api/v1/public/articles/{slug}/:
+    get:
+      operationId: api_v1_public_articles_retrieve
+      description: Published articles for blog card carousels and article index pages.
+      parameters:
+      - in: path
+        name: slug
+        schema:
+          type: string
+          description: URL segment under /products/{product-slug}/blog/{slug}/
+        required: true
+      tags:
+      - api
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicProductArticle'
+          description: ''
   /api/v1/public/bundles/:
     get:
       operationId: api_v1_public_bundles_list
@@ -6590,6 +6809,20 @@ paths:
               schema:
                 $ref: '#/components/schemas/PublicDeliveryRate'
           description: ''
+  /api/v1/public/events/:
+    post:
+      operationId: api_v1_public_events_create
+      description: |-
+        Public endpoint to record user activity events.
+        Accepts optional session_key for anonymous tracking before login.
+      tags:
+      - api
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
   /api/v1/public/financing/inquiry/:
     post:
       operationId: api_v1_public_financing_inquiry_create
@@ -6871,8 +7104,80 @@ paths:
   /api/v1/public/products/by-slug/{product_slug}/article/:
     get:
       operationId: api_v1_public_products_by_slug_article_retrieve
-      description: Published buying guide for a product (404 if missing or draft).
+      description: Published primary buying guide for a product (404 if missing or
+        draft).
       parameters:
+      - in: path
+        name: product_slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - api
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicProductArticle'
+          description: ''
+  /api/v1/public/products/by-slug/{product_slug}/articles/:
+    get:
+      operationId: api_v1_public_products_by_slug_articles_list
+      description: All published articles for a product.
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: path
+        name: product_slug
+        schema:
+          type: string
+        required: true
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - api
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPublicArticleCardList'
+          description: ''
+  /api/v1/public/products/by-slug/{product_slug}/articles/{article_slug}/:
+    get:
+      operationId: api_v1_public_products_by_slug_articles_retrieve
+      description: Single published article for a product.
+      parameters:
+      - in: path
+        name: article_slug
+        schema:
+          type: string
+        required: true
       - in: path
         name: product_slug
         schema:
@@ -8098,12 +8403,16 @@ components:
     CategoryEnum:
       enum:
       - buying_guide
+      - history_guide
+      - informational_guide
       - tech_tip
       - news
       - general
       type: string
       description: |-
         * `buying_guide` - Buying Guide
+        * `history_guide` - History Guide
+        * `informational_guide` - Informational Guide
         * `tech_tip` - Tech Tip
         * `news` - News
         * `general` - General
@@ -8179,7 +8488,6 @@ components:
         session_key:
           type: string
           writeOnly: true
-          description: Anonymous browser session key for backfilling pre-login activity.
       required:
       - password
       - username_or_email
@@ -9935,6 +10243,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ProductAccessory'
+    PaginatedProductArticleList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductArticle'
     PaginatedProductImageList:
       type: object
       required:
@@ -10027,6 +10358,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PromotionType'
+    PaginatedPublicArticleCardList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicArticleCard'
     PaginatedPublicBundleList:
       type: object
       required:
@@ -10853,6 +11207,48 @@ components:
           type: integer
           maximum: 2147483647
           minimum: 0
+    PatchedProductArticleRequest:
+      type: object
+      description: Full product buying guide / blog (staff).
+      properties:
+        product_id:
+          type: integer
+          writeOnly: true
+        slug:
+          type: string
+          minLength: 1
+          description: URL segment under /products/{product-slug}/blog/{slug}/
+          maxLength: 255
+          pattern: ^[-a-zA-Z0-9_]+$
+        category:
+          $ref: '#/components/schemas/CategoryEnum'
+        headline:
+          type: string
+          description: 'Public H1 for the article page (e.g. ''Galaxy A42 5G in Kenya:
+            who should buy it?'')'
+          maxLength: 255
+        thumbnail_image:
+          type: string
+          format: binary
+          nullable: true
+          description: Featured image for blog lists and social sharing
+        seo_title:
+          type: string
+          description: Article page title tag (50–60 chars recommended)
+          maxLength: 60
+        seo_description:
+          type: string
+          description: Meta description (150–160 chars recommended)
+          maxLength: 160
+        body:
+          type: string
+          description: Article body (Markdown supported)
+        is_published:
+          type: boolean
+          title: Published on storefront
+        is_primary:
+          type: boolean
+          description: Default article for legacy /products/{slug}/blog URLs
     PatchedProductImageRequest:
       type: object
       description: |-
@@ -10929,6 +11325,12 @@ components:
         is_discontinued:
           type: boolean
           description: Mark product as discontinued (no longer in catalog)
+        release_date:
+          type: string
+          format: date
+          nullable: true
+          description: Device launch/release date used for storefront sorting (newest
+            first).
         meta_title:
           type: string
           description: SEO title (50-60 chars recommended)
@@ -11302,6 +11704,12 @@ components:
         is_discontinued:
           type: boolean
           description: Mark product as discontinued (no longer in catalog)
+        release_date:
+          type: string
+          format: date
+          nullable: true
+          description: Device launch/release date used for storefront sorting (newest
+            first).
         created_at:
           type: string
           format: date-time
@@ -11361,6 +11769,11 @@ components:
           allOf:
           - $ref: '#/components/schemas/ProductArticle'
           nullable: true
+        articles:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductArticle'
+          readOnly: true
         product_video_url:
           type: string
           format: uri
@@ -11472,6 +11885,14 @@ components:
       type: object
       description: Full product buying guide / blog (staff).
       properties:
+        id:
+          type: integer
+          readOnly: true
+        slug:
+          type: string
+          description: URL segment under /products/{product-slug}/blog/{slug}/
+          maxLength: 255
+          pattern: ^[-a-zA-Z0-9_]+$
         category:
           $ref: '#/components/schemas/CategoryEnum'
         headline:
@@ -11498,6 +11919,9 @@ components:
         is_published:
           type: boolean
           title: Published on storefront
+        is_primary:
+          type: boolean
+          description: Default article for legacy /products/{slug}/blog URLs
         published_at:
           type: string
           format: date-time
@@ -11516,10 +11940,21 @@ components:
           items:
             $ref: '#/components/schemas/ArticleImage'
           readOnly: true
+      required:
+      - slug
     ProductArticleRequest:
       type: object
       description: Full product buying guide / blog (staff).
       properties:
+        product_id:
+          type: integer
+          writeOnly: true
+        slug:
+          type: string
+          minLength: 1
+          description: URL segment under /products/{product-slug}/blog/{slug}/
+          maxLength: 255
+          pattern: ^[-a-zA-Z0-9_]+$
         category:
           $ref: '#/components/schemas/CategoryEnum'
         headline:
@@ -11546,10 +11981,29 @@ components:
         is_published:
           type: boolean
           title: Published on storefront
+        is_primary:
+          type: boolean
+          description: Default article for legacy /products/{slug}/blog URLs
+      required:
+      - slug
     ProductArticleSummary:
       type: object
-      description: Lightweight article payload for product list (no body).
+      description: |-
+        Article payload for product list — includes body & seo_description so the
+        admin buying-guide editor can populate its form from the list response.
       properties:
+        id:
+          type: integer
+          readOnly: true
+        slug:
+          type: string
+          readOnly: true
+          description: URL segment under /products/{product-slug}/blog/{slug}/
+          pattern: ^[-a-zA-Z0-9_]+$
+        category:
+          allOf:
+          - $ref: '#/components/schemas/CategoryEnum'
+          readOnly: true
         headline:
           type: string
           readOnly: true
@@ -11559,10 +12013,22 @@ components:
           type: string
           readOnly: true
           description: Article page title tag (50–60 chars recommended)
+        seo_description:
+          type: string
+          readOnly: true
+          description: Meta description (150–160 chars recommended)
+        body:
+          type: string
+          readOnly: true
+          description: Article body (Markdown supported)
         is_published:
           type: boolean
           readOnly: true
           title: Published on storefront
+        is_primary:
+          type: boolean
+          readOnly: true
+          description: Default article for legacy /products/{slug}/blog URLs
         published_at:
           type: string
           format: date-time
@@ -11692,6 +12158,12 @@ components:
         is_discontinued:
           type: boolean
           description: Mark product as discontinued (no longer in catalog)
+        release_date:
+          type: string
+          format: date
+          nullable: true
+          description: Device launch/release date used for storefront sorting (newest
+            first).
         created_at:
           type: string
           format: date-time
@@ -11752,6 +12224,11 @@ components:
           - $ref: '#/components/schemas/ProductArticleSummary'
           readOnly: true
           nullable: true
+        articles:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductArticleSummary'
+          readOnly: true
         product_video_url:
           type: string
           format: uri
@@ -11840,6 +12317,12 @@ components:
         is_discontinued:
           type: boolean
           description: Mark product as discontinued (no longer in catalog)
+        release_date:
+          type: string
+          format: date
+          nullable: true
+          description: Device launch/release date used for storefront sorting (newest
+            first).
         meta_title:
           type: string
           description: SEO title (50-60 chars recommended)
@@ -12189,6 +12672,41 @@ components:
       required:
       - code
       - name
+    PublicArticleCard:
+      type: object
+      description: Lightweight article payload for blog card carousels.
+      properties:
+        slug:
+          type: string
+          readOnly: true
+          description: URL segment under /products/{product-slug}/blog/{slug}/
+          pattern: ^[-a-zA-Z0-9_]+$
+        headline:
+          type: string
+          readOnly: true
+          description: 'Public H1 for the article page (e.g. ''Galaxy A42 5G in Kenya:
+            who should buy it?'')'
+        category:
+          allOf:
+          - $ref: '#/components/schemas/CategoryEnum'
+          readOnly: true
+        thumbnail_image:
+          type: string
+          format: uri
+          readOnly: true
+          nullable: true
+          description: Featured image for blog lists and social sharing
+        published_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        product_slug:
+          type: string
+          readOnly: true
+        product_name:
+          type: string
+          readOnly: true
     PublicBundle:
       type: object
       properties:
@@ -12671,12 +13189,20 @@ components:
           type: string
           nullable: true
           readOnly: true
+        published_article_count:
+          type: integer
+          readOnly: true
       required:
       - product_name
     PublicProductArticle:
       type: object
       description: Published buying guide for storefront article page (public read-only).
       properties:
+        slug:
+          type: string
+          readOnly: true
+          description: URL segment under /products/{product-slug}/blog/{slug}/
+          pattern: ^[-a-zA-Z0-9_]+$
         category:
           allOf:
           - $ref: '#/components/schemas/CategoryEnum'
@@ -12712,6 +13238,16 @@ components:
         updated_at:
           type: string
           format: date-time
+          readOnly: true
+        is_primary:
+          type: boolean
+          readOnly: true
+          description: Default article for legacy /products/{slug}/blog URLs
+        product_slug:
+          type: string
+          readOnly: true
+        product_name:
+          type: string
           readOnly: true
     PublicProductList:
       type: object
@@ -12803,6 +13339,9 @@ components:
           readOnly: true
         has_published_article:
           type: boolean
+          readOnly: true
+        published_article_count:
+          type: integer
           readOnly: true
       required:
       - product_name
@@ -13644,11 +14183,6 @@ components:
       type: apiKey
       in: cookie
       name: sessionid
-    tokenAuth:
-      type: apiKey
-      in: header
-      name: Authorization
-      description: Token-based authentication with required prefix "Token"
 servers:
 - url: /api/inventory/
   description: Inventory Management API

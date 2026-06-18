@@ -68,6 +68,7 @@ from inventory.serializers_public import (
     PublicInventoryUnitSerializer,
     PublicOrderSerializer,
     PublicProductArticleSerializer,
+    PublicArticleCardSerializer,
     PublicProductListSerializer,
     PublicProductSerializer,
     PublicPromotionSerializer,
@@ -296,19 +297,68 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
         url_path=r"by-slug/(?P<product_slug>[^/.]+)/article",
     )
     def article_by_product_slug(self, request, product_slug=None):
-        """Published buying guide for a product (404 if missing or draft)."""
+        """Published primary buying guide for a product (404 if missing or draft)."""
         brand = getattr(request, "brand", None)
         qs = Product.objects.filter(is_discontinued=False, is_published=True, slug=product_slug)
         if brand:
             qs = qs.filter(Q(brands=brand) | Q(is_global=True) | Q(brands__isnull=True)).distinct()
-        product = qs.select_related("article").first()
+        product = qs.prefetch_related("articles").first()
         if not product:
             raise exceptions.NotFound()
-        try:
-            art = product.article
-        except ObjectDoesNotExist:
+        art = product.article
+        if not art or not art.is_published:
             raise exceptions.NotFound()
-        if not art.is_published:
+        ser = PublicProductArticleSerializer(art, context=self.get_serializer_context())
+        return Response(ser.data)
+
+    @extend_schema(responses={200: PublicArticleCardSerializer(many=True)})
+    @action(
+        detail=False,
+        methods=["get"],
+        permission_classes=[permissions.AllowAny],
+        url_path=r"by-slug/(?P<product_slug>[^/.]+)/articles",
+    )
+    def articles_by_product_slug(self, request, product_slug=None):
+        """All published articles for a product."""
+        brand = getattr(request, "brand", None)
+        qs = Product.objects.filter(is_discontinued=False, is_published=True, slug=product_slug)
+        if brand:
+            qs = qs.filter(Q(brands=brand) | Q(is_global=True) | Q(brands__isnull=True)).distinct()
+        product = qs.first()
+        if not product:
+            raise exceptions.NotFound()
+        articles = (
+            ProductArticle.objects.filter(product=product, is_published=True)
+            .select_related("product")
+            .order_by("-is_primary", "-published_at", "id")
+        )
+        ser = PublicArticleCardSerializer(articles, many=True, context=self.get_serializer_context())
+        return Response(ser.data)
+
+    @extend_schema(responses={200: PublicProductArticleSerializer})
+    @action(
+        detail=False,
+        methods=["get"],
+        permission_classes=[permissions.AllowAny],
+        url_path=r"by-slug/(?P<product_slug>[^/.]+)/articles/(?P<article_slug>[^/.]+)",
+    )
+    def article_detail_by_slugs(self, request, product_slug=None, article_slug=None):
+        """Single published article for a product."""
+        brand = getattr(request, "brand", None)
+        qs = Product.objects.filter(is_discontinued=False, is_published=True, slug=product_slug)
+        if brand:
+            qs = qs.filter(Q(brands=brand) | Q(is_global=True) | Q(brands__isnull=True)).distinct()
+        product = qs.first()
+        if not product:
+            raise exceptions.NotFound()
+        art = (
+            ProductArticle.objects.filter(
+                product=product, slug=article_slug, is_published=True
+            )
+            .select_related("product")
+            .first()
+        )
+        if not art:
             raise exceptions.NotFound()
         ser = PublicProductArticleSerializer(art, context=self.get_serializer_context())
         return Response(ser.data)
@@ -1377,7 +1427,16 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
                 queryset = queryset.annotate(
                     has_published_article=Exists(
                         ProductArticle.objects.filter(product_id=OuterRef("pk"), is_published=True)
-                    )
+                    ),
+                    published_article_count=Subquery(
+                        ProductArticle.objects.filter(
+                            product_id=OuterRef("pk"), is_published=True
+                        )
+                        .values("product_id")
+                        .annotate(c=Count("id"))
+                        .values("c")[:1],
+                        output_field=IntegerField(),
+                    ),
                 )
                 return apply_public_ordering(queryset)
 
@@ -1418,7 +1477,10 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
                     "tags",
                     "brands",
                     bundles_prefetch,
-                    "article",
+                    Prefetch(
+                        "articles",
+                        queryset=ProductArticle.objects.order_by("-is_primary", "-published_at", "id"),
+                    ),
                 )
                 return queryset
 
@@ -3394,3 +3456,66 @@ class PublicProductAccessoryViewSet(_PublicAPIMixin, inventory_views.ProductAcce
     """ProductAccessoryViewSet for public API: no auth so unauthenticated clients get 200, not 401."""
 
     permission_classes = [permissions.AllowAny]
+
+
+@extend_schema_view(
+    list=extend_schema(
+        parameters=[
+            OpenApiParameter("page", OpenApiTypes.INT, OpenApiParameter.QUERY),
+            OpenApiParameter("page_size", OpenApiTypes.INT, OpenApiParameter.QUERY),
+            OpenApiParameter("category", OpenApiTypes.STR, OpenApiParameter.QUERY),
+            OpenApiParameter("product", OpenApiTypes.INT, OpenApiParameter.QUERY),
+            OpenApiParameter("brand", OpenApiTypes.STR, OpenApiParameter.QUERY),
+            OpenApiParameter(
+                "ordering",
+                OpenApiTypes.STR,
+                OpenApiParameter.QUERY,
+                description="Sort by published_at or -published_at (default).",
+            ),
+        ]
+    )
+)
+class PublicArticleViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnlyModelViewSet):
+    """Published articles for blog card carousels and article index pages."""
+
+    serializer_class = PublicArticleCardSerializer
+    permission_classes = [permissions.AllowAny]
+    pagination_class = PageNumberPagination
+    lookup_field = "slug"
+
+    def get_serializer_class(self):
+        if self.action == "retrieve":
+            return PublicProductArticleSerializer
+        return PublicArticleCardSerializer
+
+    def get_queryset(self):
+        brand = getattr(self.request, "brand", None)
+        queryset = (
+            ProductArticle.objects.filter(is_published=True, product__is_published=True)
+            .select_related("product")
+            .order_by("-published_at", "-is_primary", "id")
+        )
+        if brand:
+            queryset = queryset.filter(
+                Q(product__brands=brand)
+                | Q(product__is_global=True)
+                | Q(product__brands__isnull=True)
+            ).distinct()
+
+        category = self.request.query_params.get("category")
+        if category:
+            queryset = queryset.filter(category=category)
+
+        product_id = self.request.query_params.get("product")
+        if product_id:
+            queryset = queryset.filter(product_id=product_id)
+
+        brand_name = self.request.query_params.get("brand")
+        if brand_name:
+            queryset = queryset.filter(product__brand__iexact=brand_name)
+
+        ordering = self.request.query_params.get("ordering")
+        if ordering in {"published_at", "-published_at"}:
+            queryset = queryset.order_by(ordering, "-is_primary", "id")
+
+        return queryset

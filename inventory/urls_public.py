@@ -7,6 +7,7 @@ from . import views, views_public
 
 router = DefaultRouter()
 router.register(r"products", views_public.PublicProductViewSet, basename="public-product")
+router.register(r"articles", views_public.PublicArticleViewSet, basename="public-article")
 router.register(r"cart", views_public.CartViewSet, basename="public-cart")
 router.register(r"promotions", views_public.PublicPromotionViewSet, basename="public-promotion")
 router.register(r"bundles", views_public.PublicBundleViewSet, basename="public-bundle")
