@@ -13,6 +13,7 @@ def test_apply_product_ordering_latest_release_date_first():
         Product,
         product_name="Galaxy S24",
         brand="Samsung",
+        model_series="Galaxy S24",
         product_type=Product.ProductType.PHONE,
         release_date=date(2024, 1, 31),
     )
@@ -20,6 +21,7 @@ def test_apply_product_ordering_latest_release_date_first():
         Product,
         product_name="Galaxy S26 Ultra",
         brand="Samsung",
+        model_series="Galaxy S26 Ultra",
         product_type=Product.ProductType.PHONE,
         release_date=date(2026, 2, 25),
     )
@@ -27,6 +29,7 @@ def test_apply_product_ordering_latest_release_date_first():
         Product,
         product_name="Adapter 20W",
         brand="Apple",
+        model_series="Charger",
         product_type=Product.ProductType.ACCESSORY,
         release_date=None,
     )
