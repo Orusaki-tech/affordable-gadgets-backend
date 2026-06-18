@@ -150,10 +150,11 @@ sudo_cmd "docker run --rm -v ${COMPOSE_ROOT}/grafana_data:/var/lib/grafana busyb
   /var/lib/grafana/plugins/grafana-lokiexplore-app" 2>/dev/null || true
 
 # ── restart containers ───────────────────────────────────────────────────────
-sudo_cmd "$DOCKER_COMPOSE -f $COMPOSE_ROOT/docker-compose.monitoring.yml --env-file $COMPOSE_ROOT/monitoring/grafana.env up -d --remove-orphans"
+# --force-recreate is needed because docker-compose (v1) sometimes sees the
+# container name as conflicting rather than recognizing it needs an update.
+sudo_cmd "$DOCKER_COMPOSE -f $COMPOSE_ROOT/docker-compose.monitoring.yml --env-file $COMPOSE_ROOT/monitoring/grafana.env up -d --force-recreate --remove-orphans"
 
-# Force Grafana restart so it picks up provisioning + plugin changes.
-sudo_cmd "$DOCKER_COMPOSE -f $COMPOSE_ROOT/docker-compose.monitoring.yml --env-file $COMPOSE_ROOT/monitoring/grafana.env restart grafana" || true
+# Grafana is already recreated by --force-recreate above.
 
 # ── health check: confirm Grafana is serving before declaring success ─────────
 echo "→ Checking Grafana health..."
