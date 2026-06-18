@@ -106,12 +106,12 @@ class OrderItemInline(admin.TabularInline):
 class ProductAdmin(admin.ModelAdmin):
     """Customizes how the Product model appears in the Admin."""
 
-    list_display = ("product_name", "product_type", "brand", "model_series", "created_at")
+    list_display = ("product_name", "product_type", "brand", "release_date", "created_at")
     list_filter = ("product_type", "brand")
     search_fields = ("product_name", "product_type", "brand", "model_series")
 
     fieldsets = (
-        ("Core Details", {"fields": ("product_name", "brand", "model_series", "product_type")}),
+        ("Core Details", {"fields": ("product_name", "brand", "model_series", "product_type", "release_date")}),
         (
             "Pricing",
             {

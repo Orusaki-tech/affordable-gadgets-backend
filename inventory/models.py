@@ -263,6 +263,12 @@ class Product(models.Model):
     is_discontinued = models.BooleanField(
         default=False, help_text="Mark product as discontinued (no longer in catalog)"
     )
+    release_date = models.DateField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Device launch/release date used for storefront sorting (newest first).",
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

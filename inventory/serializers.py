@@ -1034,6 +1034,7 @@ class ProductSerializer(serializers.ModelSerializer):
             "reorder_point",
             "default_selling_price",
             "is_discontinued",
+            "release_date",
             "created_at",
             "updated_at",
             "created_by",

@@ -803,25 +803,16 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
         import traceback
 
         from inventory.models import Product, ProductImage
+        from inventory.product_ordering import apply_product_ordering
 
         # Heavy debug (per-product DB checks) only when explicitly enabled to avoid 100+ extra queries.
         run_heavy_debug = getattr(settings, "RUN_PUBLIC_PRODUCT_DEBUG_CHECKS", False)
 
         def apply_public_ordering(queryset):
             """Apply safe ordering for public list endpoints."""
-            ordering_param = self.request.query_params.get("ordering")
-            if ordering_param:
-                ordering_fields = [f.strip() for f in ordering_param.split(",")]
-                valid_fields = ["product_name", "min_price", "max_price"]
-                validated_ordering = []
-                for field in ordering_fields:
-                    field_name = field.lstrip("-")
-                    if field_name in valid_fields:
-                        validated_ordering.append(field)
-                if validated_ordering:
-                    return queryset.order_by(*validated_ordering)
-            # Default ordering for stable pagination
-            return queryset.order_by("product_name")
+            return apply_product_ordering(
+                queryset, self.request.query_params.get("ordering")
+            )
 
         # #region agent log - Entry (only when RUN_PUBLIC_PRODUCT_DEBUG_CHECKS to avoid I/O every request)
         if run_heavy_debug:
@@ -1116,7 +1107,7 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
                     ),
                 )
 
-                return qs.order_by("product_name", "id")
+                return apply_public_ordering(qs)
 
             # Normal queryset filtering for list views
             queryset = super().get_queryset()
