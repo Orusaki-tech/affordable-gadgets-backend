@@ -57,22 +57,22 @@ def migrate_productarticle_schema(apps, schema_editor):
             if "id" not in cols:
                 cursor.execute("ALTER TABLE inventory_productarticle ADD COLUMN id BIGINT")
 
-            ProductArticle = apps.get_model("inventory", "ProductArticle")
-            used = set()
-            for article in ProductArticle.objects.all().order_by("product_id"):
-                product_id = article.product_id
-                if not article.id:
-                    article.id = product_id
-                base = slugify(article.headline) or f"article-{product_id}"
-                slug = article.slug if article.slug and article.slug != "legacy" else base
-                counter = 1
-                while (product_id, slug) in used:
-                    slug = f"{base}-{counter}"
-                    counter += 1
-                used.add((product_id, slug))
-                article.slug = slug
-                article.is_primary = True
-                article.save(update_fields=["id", "slug", "is_primary"])
+            # Backfill id, slug, is_primary via raw SQL.
+            # Historical ORM model doesn't know about the new id column yet
+            # (SeparateDatabaseAndState — state_ops haven't applied), so raw
+            # SQL avoids AttributeError when accessing article.id.
+            cursor.execute("UPDATE inventory_productarticle SET id = product_id WHERE id IS NULL")
+            cursor.execute("""
+                UPDATE inventory_productarticle
+                SET slug = LOWER(
+                    REGEXP_REPLACE(
+                        COALESCE(NULLIF(headline, ''), 'article-' || product_id::text),
+                        '[^a-zA-Z0-9]+', '-', 'g'
+                    )
+                ),
+                is_primary = TRUE
+                WHERE slug IS NULL OR slug = 'legacy'
+            """)
 
             if pk_col != "id":
                 cursor.execute(
@@ -127,22 +127,22 @@ def migrate_productarticle_schema(apps, schema_editor):
             if "id" not in cols:
                 cursor.execute("ALTER TABLE inventory_productarticle ADD COLUMN id INTEGER")
 
-            ProductArticle = apps.get_model("inventory", "ProductArticle")
-            used = set()
-            for article in ProductArticle.objects.all().order_by("product_id"):
-                product_id = article.product_id
-                if not article.id:
-                    article.id = product_id
-                base = slugify(article.headline) or f"article-{product_id}"
-                slug = article.slug if article.slug and article.slug != "legacy" else base
-                counter = 1
-                while (product_id, slug) in used:
-                    slug = f"{base}-{counter}"
-                    counter += 1
-                used.add((product_id, slug))
-                article.slug = slug
-                article.is_primary = True
-                article.save(update_fields=["id", "slug", "is_primary"])
+            # Backfill via raw SQL (same reason as PostgreSQL above).
+            cursor.execute("UPDATE inventory_productarticle SET id = product_id WHERE id IS NULL")
+            cursor.execute("""
+                UPDATE inventory_productarticle
+                SET slug = LOWER(
+                    REPLACE(
+                        REPLACE(
+                            REPLACE(
+                                COALESCE(NULLIF(headline, ''), 'article-' || CAST(product_id AS TEXT)),
+                            '.', '_'),
+                        ' ', '-'),
+                    '--', '-')
+                ),
+                is_primary = 1
+                WHERE slug IS NULL OR slug = 'legacy'
+            """)
 
             cursor.execute("PRAGMA foreign_keys=OFF")
             cursor.execute(
