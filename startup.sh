@@ -10,6 +10,11 @@ PORT="${PORT:-8000}"
 echo "Running database migrations..."
 python manage.py migrate --noinput
 
+echo "Verifying critical migrations..."
+python manage.py showmigrations inventory 2>/dev/null | grep -q "0064.*\[X\]" \
+  && echo "  ✓ inventory.0064_product_release_date applied" \
+  || echo "  WARNING: inventory.0064 not applied (may cause 500 errors)"
+
 echo "🏷️  Ensuring default brand exists..."
 python manage.py create_default_brand --skip-checks 2>/dev/null || true
 

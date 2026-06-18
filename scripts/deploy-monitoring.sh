@@ -55,14 +55,32 @@ for i in 1 2 3; do
 done
 
 # ── fetch API token for Grafana datasource ────────────────────────────────────
-if [[ -n "$DJANGO_API_TOKEN" ]]; then
-  echo "→ Using provided DJANGO_API_TOKEN"
-  API_TOKEN="$DJANGO_API_TOKEN"
-else
-  if [[ -z "$DJANGO_ADMIN_PASSWORD" ]]; then
-    echo "DJANGO_ADMIN_PASSWORD or DJANGO_API_TOKEN must be set" >&2
+# Always prefer password-based token exchange for a fresh, valid token.
+# Fall back to DJANGO_API_TOKEN secret only when password is unavailable.
+API_TOKEN=""
+if [[ -n "$DJANGO_ADMIN_PASSWORD" ]]; then
+  echo "→ Fetching fresh API token from admin password..."
+  for i in 1 2 3; do
+    RESP=$(curl -s --show-error --fail \
+      -X POST "https://api.affordable-gadgetske.com/api/auth/token/login/" \
+      -H "Content-Type: application/json" \
+      -d "{\"username\":\"admin\",\"password\":\"$DJANGO_ADMIN_PASSWORD\"}" 2>&1) \
+      && API_TOKEN=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])" 2>/dev/null) \
+      && [[ -n "$API_TOKEN" ]] \
+      && break
+    echo "  Attempt $i failed (${RESP:0:200}), retrying in 10s..."
+    [ "$i" -lt 3 ] && sleep 10
+  done
+fi
+if [[ -z "$API_TOKEN" ]]; then
+  if [[ -n "$DJANGO_API_TOKEN" ]]; then
+    echo "→ Falling back to static DJANGO_API_TOKEN"
+    API_TOKEN="$DJANGO_API_TOKEN"
+  else
+    echo "ERROR: Could not obtain API token. Set DJANGO_ADMIN_PASSWORD or DJANGO_API_TOKEN." >&2
     exit 1
   fi
+fi
   echo "→ Fetching API token from admin password..."
   API_TOKEN=""
   for i in 1 2 3; do
