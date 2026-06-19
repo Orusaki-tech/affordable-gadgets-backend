@@ -270,6 +270,7 @@ _FAMILY_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"imac\s+m1"), "imac-m1"),
     # Wearables / buds
     (re.compile(r"watch\s+ultra\s+3"), "apple-watch-ultra-3"),
+    (re.compile(r"watch\s+ultra\s+1\b"), "apple-watch-ultra-1"),
     (re.compile(r"watch\s+series\s+11"), "apple-watch-series-11"),
     (re.compile(r"watch\s+series\s+10"), "apple-watch-series-10"),
     (re.compile(r"watch\s+se\s+3"), "apple-watch-se-3"),
