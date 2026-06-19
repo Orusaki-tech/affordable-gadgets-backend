@@ -703,6 +703,7 @@ from .models import (  # noqa: E402
     ProductArticle,
     ProductAccessory,
     ProductImage,
+    ProductVariant,
     Promotion,
     PromotionType,
     ReservationRequest,
@@ -769,6 +770,7 @@ from .serializers import (  # noqa: E402
     ProductListSerializer,
     ProductArticleSerializer,
     ProductSerializer,
+    ProductVariantSerializer,
     PromotionSerializer,
     PromotionTypeSerializer,
     PublicInventoryUnitSerializer,
@@ -2747,6 +2749,8 @@ class OrderViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
             "order_items__inventory_unit__product_template",
             # Prefetch the Color linked to the Inventory Unit
             "order_items__inventory_unit__product_color",
+            # Prefetch variant data (variant-based orders)
+            "order_items__variant__product",
             # Prefetch source_lead for online orders (to get delivery address and phone)
             "source_lead",
         )
@@ -3942,6 +3946,108 @@ class OrderViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                 }
             )
 
+    @extend_schema(
+        request=serializers.Serializer,
+        responses=OpenApiTypes.OBJECT,
+    )
+    @action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[IsInventoryManager | IsAdminUser],
+        url_path="fulfill-item",
+    )
+    def fulfill_item(self, request, order_id=None, pk=None):
+        """Fulfill a variant-based order item by creating an InventoryUnit with serial/IMEI."""
+        order = self.get_object()
+        item_id = request.data.get("item_id")
+        serial_number = request.data.get("serial_number", "").strip()
+        imei = request.data.get("imei", "").strip()
+
+        if not item_id:
+            return Response(
+                {"error": "item_id is required."}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            item = order.order_items.select_related("variant__product").get(id=item_id)
+        except OrderItem.DoesNotExist:
+            return Response(
+                {"error": "OrderItem not found in this order."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if not item.variant:
+            return Response(
+                {"error": "This order item is not variant-based and cannot be fulfilled."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if item.inventory_unit_id:
+            return Response(
+                {"error": "This order item has already been fulfilled."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not serial_number:
+            return Response(
+                {"error": "serial_number is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        variant = item.variant
+
+        with transaction.atomic():
+            unit = InventoryUnit.objects.create(
+                product_template=variant.product,
+                variant=variant,
+                condition=InventoryUnit.ConditionChoices.NEW,
+                source=InventoryUnit.SourceChoices.EXTERNAL_SUPPLIER,
+                sale_status=InventoryUnit.SaleStatusChoices.SOLD,
+                serial_number=serial_number,
+                imei=imei or None,
+                storage_gb=variant.storage_gb,
+                ram_gb=variant.ram_gb,
+                selling_price=variant.default_selling_price,
+                cost_of_unit=variant.default_cost_of_unit,
+                quantity=1,
+                grade=InventoryUnit.GradeChoices.GRADE_A,
+            )
+
+            item.inventory_unit = unit
+            item.save(update_fields=["inventory_unit"])
+
+        try:
+            from inventory.services.receipt_service import ReceiptService
+
+            receipt, email_sent, whatsapp_sent = ReceiptService.generate_and_send_receipt(
+                order
+            )
+            logger.info(
+                "Receipt generated after fulfillment",
+                extra={
+                    "order_id": str(order.order_id),
+                    "item_id": item_id,
+                    "receipt_number": receipt.receipt_number,
+                    "email_sent": email_sent,
+                    "whatsapp_sent": whatsapp_sent,
+                },
+            )
+        except Exception as e:
+            logger.error(
+                f"Failed to generate receipt after fulfillment for order {order.order_id}: {e}",
+                exc_info=True,
+            )
+
+        return Response(
+            {
+                "message": "Item fulfilled successfully.",
+                "inventory_unit_id": unit.id,
+                "serial_number": unit.serial_number,
+                "imei": unit.imei,
+                "item_id": item.id,
+            }
+        )
+
     @extend_schema(request=InitiatePaymentRequestSerializer, responses=OpenApiTypes.OBJECT)
     @action(
         detail=True,
@@ -4178,6 +4284,18 @@ class DeliveryRateViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
 
 
 # --- LOOKUP TABLES VIEWSETS ---
+
+
+class ProductVariantViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
+    """
+    Product Variant CRUD. Inventory Manager write, all staff read.
+    """
+
+    queryset = ProductVariant.objects.select_related("product").all()
+    serializer_class = ProductVariantSerializer
+    permission_classes = [IsInventoryManagerOrReadOnly]
+    filterset_fields = ["product", "is_active"]
+    search_fields = ["product__product_name"]
 
 
 class ColorViewSet(_SilkProfileMixin, viewsets.ModelViewSet):

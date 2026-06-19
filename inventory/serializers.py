@@ -38,6 +38,7 @@ from .models import (
     ProductAccessory,
     ProductArticle,
     ProductImage,
+    ProductVariant,
     Promotion,
     ReservationRequest,
     ReturnRequest,
@@ -996,6 +997,29 @@ class ProductArticleSerializer(serializers.ModelSerializer):
         return instance
 
 
+class ProductVariantSerializer(serializers.ModelSerializer):
+    product_id = serializers.PrimaryKeyRelatedField(
+        queryset=Product.objects.all(), source="product", write_only=True
+    )
+    product_name = serializers.CharField(source="product.product_name", read_only=True)
+
+    class Meta:
+        model = ProductVariant
+        fields = (
+            "id",
+            "product_id",
+            "product_name",
+            "storage_gb",
+            "ram_gb",
+            "default_selling_price",
+            "default_cost_of_unit",
+            "is_active",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = ("id", "created_at", "updated_at")
+
+
 class ProductSerializer(serializers.ModelSerializer):
     """
     Serializes the generic Product template.
@@ -1031,6 +1055,7 @@ class ProductSerializer(serializers.ModelSerializer):
     slug = serializers.SlugField(required=False, allow_blank=True, validators=[])
     article = ProductArticleSerializer(required=False, allow_null=True)
     articles = ProductArticleSerializer(many=True, read_only=True)
+    variants = ProductVariantSerializer(many=True, read_only=True)
 
     class Meta:
         model = Product
@@ -1066,6 +1091,8 @@ class ProductSerializer(serializers.ModelSerializer):
             # Buying guide / SEO article (legacy single-article write)
             "article",
             "articles",
+            # Variants
+            "variants",
             # Video Fields
             "product_video_url",
             "product_video_file",
@@ -1092,6 +1119,7 @@ class ProductSerializer(serializers.ModelSerializer):
             "og_image_url",
             "product_video_file_url",
             "brands",
+            "variants",
         )
 
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))
@@ -2196,11 +2224,10 @@ class ReviewSerializer(serializers.ModelSerializer):
 class OrderItemSerializer(serializers.ModelSerializer):
     """
     Nested serializer for displaying OrderItems.
+    Supports ordering by InventoryUnit OR by ProductVariant.
     """
 
-    product_template_name = serializers.CharField(
-        source="inventory_unit.product_template.product_name", read_only=True
-    )
+    product_template_name = serializers.SerializerMethodField(read_only=True)
     serial_number = serializers.CharField(
         source="inventory_unit.serial_number", read_only=True, allow_null=True
     )
@@ -2211,13 +2238,29 @@ class OrderItemSerializer(serializers.ModelSerializer):
     bundle_title = serializers.CharField(source="bundle.title", read_only=True, allow_null=True)
     bundle_group_id = serializers.UUIDField(read_only=True, allow_null=True)
 
+    # Variant-based ordering fields (read-only after creation)
+    variant_id = serializers.PrimaryKeyRelatedField(
+        queryset=ProductVariant.objects.filter(is_active=True),
+        source="variant",
+        write_only=True,
+        required=False,
+        allow_null=True,
+    )
+    variant_storage = serializers.IntegerField(
+        source="variant.storage_gb", read_only=True, allow_null=True
+    )
+    variant_ram = serializers.IntegerField(
+        source="variant.ram_gb", read_only=True, allow_null=True
+    )
+
     # This field accepts the ID from the client and resolves it to the InventoryUnit instance.
     # It passes the resolved instance under the key 'inventory_unit' to the parent create() method.
     inventory_unit_id = serializers.PrimaryKeyRelatedField(
         queryset=InventoryUnit.objects.all(),
         source="inventory_unit",
         write_only=True,
-        required=True,
+        required=False,
+        allow_null=True,
     )
 
     class Meta:
@@ -2226,6 +2269,9 @@ class OrderItemSerializer(serializers.ModelSerializer):
             "id",
             "inventory_unit",
             "inventory_unit_id",
+            "variant_id",
+            "variant_storage",
+            "variant_ram",
             "unit_id",
             "product_template_name",
             "serial_number",
@@ -2244,6 +2290,35 @@ class OrderItemSerializer(serializers.ModelSerializer):
 
     # Note: If you want to calculate sub_total on the fly for viewing, you need a get_sub_total method,
     # but since the field is read-only, DRF will use the value stored in the database.
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_product_template_name(self, obj):
+        if obj.variant:
+            return obj.variant.product.product_name
+        if obj.inventory_unit:
+            return obj.inventory_unit.product_template.product_name
+        return None
+
+    def validate(self, data):
+        """Ensure either inventory_unit_id or variant_id is provided, not both."""
+        has_unit = data.get("inventory_unit") is not None
+        has_variant = data.get("variant") is not None
+
+        if has_unit and has_variant:
+            raise serializers.ValidationError(
+                "Provide either inventory_unit_id or variant_id, not both."
+            )
+        if not has_unit and not has_variant:
+            raise serializers.ValidationError(
+                "Either inventory_unit_id or variant_id is required."
+            )
+
+        if has_variant:
+            data["inventory_unit"] = None
+            variant = data["variant"]
+            data["unit_price_at_purchase"] = variant.default_selling_price
+
+        return data
 
 
 class DeliveryRateSerializer(serializers.ModelSerializer):
@@ -2492,97 +2567,111 @@ class OrderSerializer(serializers.ModelSerializer):
             final_total = Decimal("0.00")
 
             for item_data in order_items_data:
+                variant = item_data.get("variant")
                 inventory_unit = item_data.get("inventory_unit")
                 quantity = item_data["quantity"]
 
-                if not inventory_unit:
-                    raise serializers.ValidationError(
-                        "Inventory Unit must be provided for an order item."
-                    )
-
-                # For online orders (ONLINE source), allow AVAILABLE units and automatically reserve them
-                # For walk-in orders, require RESERVED status (salesperson workflow)
-                order_source = validated_data.get("order_source", Order.OrderSourceChoices.ONLINE)
-
-                if inventory_unit.sale_status not in [
-                    InventoryUnit.SaleStatusChoices.RESERVED,
-                    InventoryUnit.SaleStatusChoices.PENDING_PAYMENT,  # Allow if already pending
-                    InventoryUnit.SaleStatusChoices.AVAILABLE,  # Allow AVAILABLE for online orders
-                ]:
-                    raise serializers.ValidationError(
-                        f"Unit ID {inventory_unit.id} cannot be added to an order. "
-                        f"Current status: {inventory_unit.get_sale_status_display()}. "
-                        f"Unit must be AVAILABLE or RESERVED."
-                    )
-
-                # For online orders with AVAILABLE units, automatically reserve them
-                if (
-                    order_source == Order.OrderSourceChoices.ONLINE
-                    and inventory_unit.sale_status == InventoryUnit.SaleStatusChoices.AVAILABLE
-                ):
-                    inventory_unit.sale_status = InventoryUnit.SaleStatusChoices.RESERVED
-                    inventory_unit.save(update_fields=["sale_status"])
-
-                if inventory_unit.product_template.product_type != Product.ProductType.ACCESSORY:
-                    # Unique item (Phone/Laptop/Tablet) - must have quantity 1
+                if variant:
+                    # Variant-based order (no InventoryUnit yet — fulfilled after payment)
                     if quantity != 1:
                         raise serializers.ValidationError(
-                            f"Unique item {inventory_unit.id} must have quantity 1."
+                            f"Variant-based items must have quantity 1."
                         )
+                    unit_price = item_data.get(
+                        "unit_price_at_purchase", variant.default_selling_price
+                    )
+                    OrderItem.objects.create(
+                        order=order,
+                        variant=variant,
+                        inventory_unit=None,
+                        quantity=quantity,
+                        unit_price_at_purchase=unit_price,
+                    )
+                    sub_total = unit_price * quantity
 
-                    # Transition RESERVED → PENDING_PAYMENT for unique items (will be SOLD when payment confirmed)
-                    if inventory_unit.sale_status == InventoryUnit.SaleStatusChoices.RESERVED:
-                        inventory_unit.sale_status = InventoryUnit.SaleStatusChoices.PENDING_PAYMENT
-                    inventory_unit.reserved_by = None  # Clear reservation
-                    inventory_unit.reserved_until = None
-                    inventory_unit.save()
-
-                else:
-                    # Accessory - check available quantity (don't deduct yet, wait for payment confirmation)
-                    # Calculate available quantity: total quantity minus pending order quantities
-                    from django.db.models import Sum
-
-                    pending_orders_qty = (
-                        OrderItem.objects.filter(
-                            inventory_unit=inventory_unit,
-                            order__status__in=[
-                                Order.StatusChoices.PENDING,
-                                Order.StatusChoices.PAID,
-                            ],
-                        ).aggregate(total=Sum("quantity"))["total"]
-                        or 0
+                elif inventory_unit:
+                    # Existing flow: inventory_unit-based order
+                    order_source = validated_data.get(
+                        "order_source", Order.OrderSourceChoices.ONLINE
                     )
 
-                    available_qty = inventory_unit.quantity - pending_orders_qty
-
-                    if quantity > available_qty:
+                    if inventory_unit.sale_status not in [
+                        InventoryUnit.SaleStatusChoices.RESERVED,
+                        InventoryUnit.SaleStatusChoices.PENDING_PAYMENT,
+                        InventoryUnit.SaleStatusChoices.AVAILABLE,
+                    ]:
                         raise serializers.ValidationError(
-                            f"Accessory unit {inventory_unit.id} only has {available_qty} available in stock "
-                            f"(total: {inventory_unit.quantity}, reserved: {pending_orders_qty}), "
-                            f"but {quantity} were requested."
+                            f"Unit ID {inventory_unit.id} cannot be added to an order. "
+                            f"Current status: {inventory_unit.get_sale_status_display()}. "
+                            f"Unit must be AVAILABLE or RESERVED."
                         )
 
-                    # For accessories: Don't decrement quantity when order is created
-                    # Keep quantity as is, and keep status as AVAILABLE if quantity > 0
-                    # The ordered quantity is "reserved" via the OrderItem record
-                    # When payment is confirmed, quantity will be decremented
-                    inventory_unit.sale_status = InventoryUnit.SaleStatusChoices.AVAILABLE
+                    if (
+                        order_source == Order.OrderSourceChoices.ONLINE
+                        and inventory_unit.sale_status
+                        == InventoryUnit.SaleStatusChoices.AVAILABLE
+                    ):
+                        inventory_unit.sale_status = InventoryUnit.SaleStatusChoices.RESERVED
+                        inventory_unit.save(update_fields=["sale_status"])
 
-                    # Clear reservation info for accessories
-                    inventory_unit.reserved_by = None
-                    inventory_unit.reserved_until = None
-                    inventory_unit.save()
+                    if (
+                        inventory_unit.product_template.product_type
+                        != Product.ProductType.ACCESSORY
+                    ):
+                        if quantity != 1:
+                            raise serializers.ValidationError(
+                                f"Unique item {inventory_unit.id} must have quantity 1."
+                            )
+                        if (
+                            inventory_unit.sale_status
+                            == InventoryUnit.SaleStatusChoices.RESERVED
+                        ):
+                            inventory_unit.sale_status = (
+                                InventoryUnit.SaleStatusChoices.PENDING_PAYMENT
+                            )
+                        inventory_unit.reserved_by = None
+                        inventory_unit.reserved_until = None
+                        inventory_unit.save()
+                    else:
+                        from django.db.models import Sum
 
-                # Create the OrderItem
-                unit_price = inventory_unit.selling_price
-                sub_total = unit_price * quantity
+                        pending_orders_qty = (
+                            OrderItem.objects.filter(
+                                inventory_unit=inventory_unit,
+                                order__status__in=[
+                                    Order.StatusChoices.PENDING,
+                                    Order.StatusChoices.PAID,
+                                ],
+                            ).aggregate(total=Sum("quantity"))["total"]
+                            or 0
+                        )
+                        available_qty = inventory_unit.quantity - pending_orders_qty
+                        if quantity > available_qty:
+                            raise serializers.ValidationError(
+                                f"Accessory unit {inventory_unit.id} only has "
+                                f"{available_qty} available in stock "
+                                f"(total: {inventory_unit.quantity}, "
+                                f"reserved: {pending_orders_qty}), "
+                                f"but {quantity} were requested."
+                            )
+                        inventory_unit.sale_status = InventoryUnit.SaleStatusChoices.AVAILABLE
+                        inventory_unit.reserved_by = None
+                        inventory_unit.reserved_until = None
+                        inventory_unit.save()
 
-                OrderItem.objects.create(
-                    order=order,
-                    inventory_unit=inventory_unit,
-                    quantity=quantity,
-                    unit_price_at_purchase=unit_price,
-                )
+                    unit_price = inventory_unit.selling_price
+                    OrderItem.objects.create(
+                        order=order,
+                        inventory_unit=inventory_unit,
+                        quantity=quantity,
+                        unit_price_at_purchase=unit_price,
+                    )
+                    sub_total = unit_price * quantity
+
+                else:
+                    raise serializers.ValidationError(
+                        "Either variant_id or inventory_unit_id must be provided for each order item."
+                    )
 
                 final_total += sub_total
 

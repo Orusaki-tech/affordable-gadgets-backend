@@ -23,6 +23,7 @@ from .models import (
     ProductAccessory,
     ProductArticle,
     ProductImage,
+    ProductVariant,
     Promotion,
     Review,
     UnitAcquisitionSource,
@@ -89,6 +90,14 @@ class ProductAccessoryInline(admin.TabularInline):
     extra = 1
 
 
+class ProductVariantInline(admin.TabularInline):
+    """Inline for editing product variants (storage/RAM combinations)."""
+
+    model = ProductVariant
+    extra = 1
+    fields = ("storage_gb", "ram_gb", "default_selling_price", "default_cost_of_unit", "is_active")
+
+
 class OrderItemInline(admin.TabularInline):
     """Inline for viewing all items linked to a specific Order."""
 
@@ -106,12 +115,23 @@ class OrderItemInline(admin.TabularInline):
 class ProductAdmin(admin.ModelAdmin):
     """Customizes how the Product model appears in the Admin."""
 
-    list_display = ("product_name", "product_type", "brand", "release_date", "created_at")
+    list_display = (
+        "product_name", "product_type", "brand",
+        "storage_gb", "ram_gb", "release_date", "created_at"
+    )
     list_filter = ("product_type", "brand")
     search_fields = ("product_name", "product_type", "brand", "model_series")
 
     fieldsets = (
         ("Core Details", {"fields": ("product_name", "brand", "model_series", "product_type", "release_date")}),
+        (
+            "Storage & RAM",
+            {
+                "fields": ("storage_gb", "ram_gb"),
+                "description": "Set storage and RAM directly on the product (e.g., 128GB, 8GB). "
+                "Use ProductVariants below for multiple storage/RAM options.",
+            },
+        ),
         (
             "Pricing",
             {
@@ -119,7 +139,6 @@ class ProductAdmin(admin.ModelAdmin):
                 "description": "Shown when no listable units; seeds unit selling price if omitted on create.",
             },
         ),
-        # FIXED: Removed 'product_image' from the fields list, as it's handled by the Inline.
         (
             "Description & Media",
             {
@@ -129,7 +148,7 @@ class ProductAdmin(admin.ModelAdmin):
     )
 
     # ADDED ProductImageInline and ProductArticleInline to the list of inlines
-    inlines = [ProductAccessoryInline, ProductImageInline, ProductArticleInline]
+    inlines = [ProductAccessoryInline, ProductImageInline, ProductArticleInline, ProductVariantInline]
 
     class Media:
         js = ("admin/js/char_counter.js",)

@@ -356,6 +356,14 @@ class Product(models.Model):
         help_text="If True, product is available to all brands regardless of brand assignment",
     )
 
+    # Storage / RAM for direct product-level specification
+    storage_gb = models.IntegerField(
+        null=True, blank=True, help_text="Storage capacity in GB (e.g., 128, 256, 512)"
+    )
+    ram_gb = models.IntegerField(
+        null=True, blank=True, help_text="RAM in GB (e.g., 4, 8, 12, 16)"
+    )
+
     class Meta:
         ordering = ["id"]
         indexes = [
@@ -526,6 +534,39 @@ class Product(models.Model):
         return (
             self.articles.filter(is_primary=True).first() or self.articles.order_by("id").first()
         )
+
+
+class ProductVariant(models.Model):
+    """
+    A specific configuration of a product (storage + RAM combination)
+    with default pricing. Used for brand-new unit sales where the
+    actual unit (serial/IMEI) is fulfilled after payment.
+    """
+
+    product = models.ForeignKey(
+        Product, on_delete=models.CASCADE, related_name="variants"
+    )
+    storage_gb = models.PositiveIntegerField(null=True, blank=True)
+    ram_gb = models.PositiveIntegerField(null=True, blank=True)
+    default_selling_price = models.DecimalField(max_digits=10, decimal_places=2)
+    default_cost_of_unit = models.DecimalField(max_digits=10, decimal_places=2)
+    is_active = models.BooleanField(
+        default=True, help_text="Whether this variant is available for purchase"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("product", "storage_gb", "ram_gb")
+        ordering = ["product", "storage_gb", "ram_gb"]
+
+    def __str__(self):
+        parts = [self.product.product_name]
+        if self.storage_gb:
+            parts.append(f"{self.storage_gb}GB")
+        if self.ram_gb:
+            parts.append(f"{self.ram_gb}GB RAM")
+        return " / ".join(parts)
 
 
 class ProductArticle(models.Model):
@@ -913,6 +954,14 @@ class InventoryUnit(models.Model):
         related_name="inventory_units",
         verbose_name="Product Model/Template",
     )
+    variant = models.ForeignKey(
+        ProductVariant,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="inventory_units",
+        help_text="Product variant this unit was created from (if applicable)",
+    )
     product_color = models.ForeignKey(Color, on_delete=models.PROTECT, null=True, blank=True)
 
     # Conditional link to external contact details
@@ -1193,6 +1242,15 @@ class OrderItem(models.Model):
         help_text="The specific InventoryUnit sold (required for unique items like phones).",
     )
 
+    variant = models.ForeignKey(
+        ProductVariant,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="order_items",
+        help_text="Product variant ordered (before InventoryUnit is assigned at fulfillment).",
+    )
+
     quantity = models.PositiveIntegerField(
         default=1, help_text="Quantity of this item bought in the order."
     )
@@ -1225,11 +1283,12 @@ class OrderItem(models.Model):
         pass
 
     def __str__(self):
-        unit_name = (
-            self.inventory_unit.product_template.product_name
-            if self.inventory_unit
-            else "Bulk Item"
-        )
+        if self.variant:
+            unit_name = self.variant.product.product_name
+        elif self.inventory_unit:
+            unit_name = self.inventory_unit.product_template.product_name
+        else:
+            unit_name = "Bulk Item"
         return f"{unit_name} in Order #{self.order.order_id}"
 
 

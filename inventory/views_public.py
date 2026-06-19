@@ -2036,6 +2036,31 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
                 if hasattr(backend, "filter_queryset") and backend != filters.OrderingFilter:
                     queryset = backend().filter_queryset(self.request, queryset, self)
 
+            # Also search variant storage/RAM when search term is numeric
+            search_term = self.request.query_params.get("search", "").strip().lower()
+            if search_term:
+                import re as _re
+                m = _re.search(r"(\d+)\s*(gb|tb)", search_term)
+                if m:
+                    value = int(m.group(1))
+                    if m.group(2) == "tb":
+                        value *= 1024
+                    from django.db.models import Q
+                    queryset = queryset.filter(
+                        Q(storage_gb=value)
+                        | Q(variants__storage_gb=value)
+                        | Q(inventory_units__storage_gb=value)
+                    ).distinct()
+                m_ram = _re.search(r"(\d+)\s*(?:gb)?\s*ram", search_term)
+                if m_ram:
+                    value = int(m_ram.group(1))
+                    from django.db.models import Q
+                    queryset = queryset.filter(
+                        Q(ram_gb=value)
+                        | Q(variants__ram_gb=value)
+                        | Q(inventory_units__ram_gb=value)
+                    ).distinct()
+
             # Log final queryset count (DEBUG only to avoid extra queries in production)
             if settings.DEBUG:
                 import logging

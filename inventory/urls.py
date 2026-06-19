@@ -24,6 +24,7 @@ router.register(r"order-items", views.OrderItemViewSet, basename="order-item")  
 router.register(r"delivery-rates", views.DeliveryRateViewSet, basename="delivery-rate")
 
 # Lookup Tables Endpoints (Read-Only/Admin)
+router.register(r"variants", views.ProductVariantViewSet, basename="product-variant")
 router.register(r"colors", views.ColorViewSet, basename="color")
 router.register(r"sources", views.UnitAcquisitionSourceViewSet, basename="acquisition-source")
 router.register(r"accessories-link", views.ProductAccessoryViewSet, basename="product-accessory")

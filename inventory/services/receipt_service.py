@@ -73,7 +73,10 @@ class ReceiptService:
         """Prepare context data for receipt template."""
         # Get order items with all related data
         order_items = order.order_items.select_related(
-            "inventory_unit__product_template", "inventory_unit__product_color", "bundle"
+            "inventory_unit__product_template",
+            "inventory_unit__product_color",
+            "variant__product",
+            "bundle",
         ).all()
         items_total = sum((item.sub_total for item in order_items), Decimal("0.00"))
         delivery_fee = order.delivery_fee or Decimal("0.00")
@@ -139,6 +142,13 @@ class ReceiptService:
         except Exception as e:
             logger.warning(f"Could not determine payment method: {e}")
 
+        def _item_product_name(item):
+            if item.inventory_unit:
+                return item.inventory_unit.product_template.product_name
+            if item.variant:
+                return item.variant.product.product_name
+            return "Item"
+
         # Build bundle groups (if any)
         bundle_groups = {}
         for item in order_items:
@@ -154,9 +164,7 @@ class ReceiptService:
             item_total = item.unit_price_at_purchase * item.quantity
             bundle_groups[group_key]["items"].append(
                 {
-                    "product_name": item.inventory_unit.product_template.product_name
-                    if item.inventory_unit
-                    else "Item",
+                    "product_name": _item_product_name(item),
                     "quantity": item.quantity,
                     "unit_price": item.unit_price_at_purchase,
                     "total": item_total,
@@ -212,10 +220,18 @@ class ReceiptService:
             "amount_words": ReceiptService.number_to_words(items_total),
             "item_description": inventory_unit.product_template.product_name
             if inventory_unit
-            else "",
+            else (
+                order_item.variant.product.product_name
+                if order_item and order_item.variant
+                else ""
+            ),
             "storage": f"{inventory_unit.storage_gb}GB"
             if inventory_unit and inventory_unit.storage_gb
-            else "",
+            else (
+                f"{order_item.variant.storage_gb}GB"
+                if order_item and order_item.variant and order_item.variant.storage_gb
+                else ""
+            ),
             "serial_no": inventory_unit.serial_number if inventory_unit else "",
             "imei": inventory_unit.imei if inventory_unit else "",
             "served_by": served_by,

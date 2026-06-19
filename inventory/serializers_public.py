@@ -24,6 +24,7 @@ from inventory.models import (
     Product,
     ProductArticle,
     ProductImage,
+    ProductVariant,
     Promotion,
     Review,
     WishlistItem,
@@ -362,6 +363,12 @@ class PublicArticleCardSerializer(serializers.ModelSerializer):
         return None
 
 
+class PublicProductVariantSerializer(serializers.Serializer):
+    storage_gb = serializers.IntegerField(allow_null=True)
+    ram_gb = serializers.IntegerField(allow_null=True)
+    selling_price = serializers.DecimalField(max_digits=10, decimal_places=2, source="default_selling_price")
+
+
 class PublicProductSerializer(serializers.ModelSerializer):
     """Public product serializer (stripped down)."""
 
@@ -388,6 +395,7 @@ class PublicProductSerializer(serializers.ModelSerializer):
     has_published_article = serializers.SerializerMethodField()
     article_headline = serializers.SerializerMethodField()
     published_article_count = serializers.SerializerMethodField()
+    variants = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
@@ -418,11 +426,14 @@ class PublicProductSerializer(serializers.ModelSerializer):
             "tags",
             "has_active_bundle",
             "bundle_price_preview",
+            "variants",
             "meta_title",
             "meta_description",  # SEO fields
             "has_published_article",
             "article_headline",
             "published_article_count",
+            "storage_gb",
+            "ram_gb",
         ]
 
     @extend_schema_field(OpenApiTypes.BOOL)
@@ -436,6 +447,12 @@ class PublicProductSerializer(serializers.ModelSerializer):
         if hasattr(obj, "published_article_count"):
             return int(obj.published_article_count or 0)
         return ProductArticle.objects.filter(product=obj, is_published=True).count()
+
+    @extend_schema_field(PublicProductVariantSerializer(many=True))
+    def get_variants(self, obj):
+        return PublicProductVariantSerializer(
+            obj.variants.filter(is_active=True), many=True, context=self.context
+        ).data
 
     @extend_schema_field(serializers.CharField(allow_null=True))
     def get_article_headline(self, obj):
@@ -723,21 +740,45 @@ class PublicProductSerializer(serializers.ModelSerializer):
         prices = units.values_list("selling_price", flat=True)
         return float(max(prices)) if prices else None
 
+    def _price_range_from_variants(self, obj):
+        """Min/max from active variant prices. Returns (min, max) or (None, None)."""
+        variants = getattr(obj, "variants", None)
+        if variants is None:
+            variants = []
+        elif hasattr(variants, "all"):
+            variants = variants.filter(is_active=True)
+        prices = [
+            float(v.default_selling_price)
+            for v in variants
+            if v.default_selling_price is not None
+        ]
+        if prices:
+            return min(prices), max(prices)
+        return None, None
+
     @extend_schema_field(OpenApiTypes.NUMBER)
     def get_min_price(self, obj):
-        """Get min price for available units; fall back to Product.default_selling_price when none."""
+        """Get min price: units → default_selling_price → variant prices."""
         v = self._min_price_from_listable_units(obj)
         if v is not None:
             return v
-        return self._default_selling_price_float(obj)
+        v = self._default_selling_price_float(obj)
+        if v is not None:
+            return v
+        v, _ = self._price_range_from_variants(obj)
+        return v
 
     @extend_schema_field(OpenApiTypes.NUMBER)
     def get_max_price(self, obj):
-        """Get max price for available units; fall back to Product.default_selling_price when none."""
+        """Get max price: units → default_selling_price → variant prices."""
         v = self._max_price_from_listable_units(obj)
         if v is not None:
             return v
-        return self._default_selling_price_float(obj)
+        v = self._default_selling_price_float(obj)
+        if v is not None:
+            return v
+        _, v = self._price_range_from_variants(obj)
+        return v
 
     @extend_schema_field(OpenApiTypes.NUMBER)
     def get_compare_at_min_price(self, obj):

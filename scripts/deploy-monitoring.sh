@@ -150,9 +150,10 @@ sudo_cmd "docker run --rm -v ${COMPOSE_ROOT}/grafana_data:/var/lib/grafana busyb
   /var/lib/grafana/plugins/grafana-lokiexplore-app" 2>/dev/null || true
 
 # ── restart containers ───────────────────────────────────────────────────────
-# down + up avoids container-name conflict when env/config changes.
-# --remove-orphans cleans up any containers from old compose files.
-sudo_cmd "$DOCKER_COMPOSE -f $COMPOSE_ROOT/docker-compose.monitoring.yml --env-file $COMPOSE_ROOT/monitoring/grafana.env down --remove-orphans"
+# Remove old containers that may have been created by a different compose
+# project name (docker-compose v1 vs v2). The stale ag-grafana container
+# blocks recreation with a name conflict error.
+sudo_cmd "docker rm -f ag-grafana ag-prometheus ag-grafana-renderer 2>/dev/null; true"
 sudo_cmd "$DOCKER_COMPOSE -f $COMPOSE_ROOT/docker-compose.monitoring.yml --env-file $COMPOSE_ROOT/monitoring/grafana.env up -d --remove-orphans"
 
 # ── health check: confirm Grafana is serving before declaring success ─────────
