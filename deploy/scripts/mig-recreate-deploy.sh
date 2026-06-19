@@ -27,10 +27,15 @@ ensure_gcloud_ssh() {
 }
 
 parse_instance_zone() {
-  local instance_url="$1"
-  if [[ "${instance_url}" == *"/zones/"* ]]; then
-    local z="${instance_url#*/zones/}"
+  local instance_ref="$1"
+  if [[ "${instance_ref}" == *"/zones/"* ]]; then
+    local z="${instance_ref#*/zones/}"
     echo "${z%%/*}"
+    return 0
+  fi
+  # Regional MIG list-instances --format="value(name,instance)" returns zone basename only.
+  if [[ "${instance_ref}" =~ ^[a-z]+-[a-z]+[0-9]+-[a-z]$ ]]; then
+    echo "${instance_ref}"
     return 0
   fi
   return 1
@@ -156,6 +161,10 @@ cd "\${COMPOSE_ROOT}"
 sudo docker-compose -f "\${COMPOSE_FILE}" pull -q
 sudo docker-compose -f "\${COMPOSE_FILE}" up -d
 sleep 10
+if [[ "${SERVICE}" == "api" ]]; then
+  sudo docker-compose -f "\${COMPOSE_FILE}" exec -T web python manage.py migrate --noinput || true
+  sudo docker-compose -f "\${COMPOSE_FILE}" exec -T web python manage.py sync_product_release_dates --force || true
+fi
 curl -sf "http://127.0.0.1:${HEALTH_PORT}${HEALTH_PATH}" >/dev/null && echo "\$(hostname)_OK" || echo "\$(hostname)_WARN_health"
 REMOTE
 )"; then
