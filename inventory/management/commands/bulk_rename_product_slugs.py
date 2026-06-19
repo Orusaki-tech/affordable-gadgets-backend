@@ -80,7 +80,14 @@ class Command(BaseCommand):
                 continue
             proposals.append((product.id, new_slug))
 
-        assigned = allocate_unique_slugs(proposals)
+        assigned = allocate_unique_slugs(
+            proposals,
+            reserved=set(
+                Product.objects.exclude(id__in=[product_id for product_id, _ in proposals])
+                .exclude(slug="")
+                .values_list("slug", flat=True)
+            ),
+        )
         changes = []
         for product in products:
             new_slug = assigned.get(product.id)
