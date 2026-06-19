@@ -91,6 +91,7 @@ from inventory.services.customer_service import CustomerService
 from inventory.services.delivery_service import get_delivery_fee
 from inventory.services.lead_service import LeadService
 from inventory.services.otp_service import OtpService
+from inventory.slug_utils import resolve_product_for_slug
 
 from . import views as inventory_views
 
@@ -137,6 +138,25 @@ class _PublicAPIMixin:
     Use with permission_classes = [AllowAny] so unauthenticated clients can access the API."""
 
     authentication_classes = []
+
+
+def _published_products_queryset():
+    return Product.objects.filter(is_discontinued=False, is_published=True)
+
+
+def _resolve_published_product_by_slug(slug, brand=None):
+    product, _legacy = resolve_product_for_slug(slug, queryset=_published_products_queryset())
+    if not product:
+        return None
+    if brand:
+        allowed = (
+            Product.objects.filter(pk=product.pk)
+            .filter(Q(brands=brand) | Q(is_global=True) | Q(brands__isnull=True))
+            .exists()
+        )
+        if not allowed:
+            return None
+    return product
 
 
 class PublicProductListPagination(PageNumberPagination):
@@ -301,12 +321,14 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
     def article_by_product_slug(self, request, product_slug=None):
         """Published primary buying guide for a product (404 if missing or draft)."""
         brand = getattr(request, "brand", None)
-        qs = Product.objects.filter(is_discontinued=False, is_published=True, slug=product_slug)
-        if brand:
-            qs = qs.filter(Q(brands=brand) | Q(is_global=True) | Q(brands__isnull=True)).distinct()
-        product = qs.prefetch_related("articles").first()
+        product = _resolve_published_product_by_slug(product_slug, brand=brand)
         if not product:
             raise exceptions.NotFound()
+        product = (
+            Product.objects.filter(pk=product.pk)
+            .prefetch_related("articles")
+            .first()
+        )
         art = product.article
         if not art or not art.is_published:
             raise exceptions.NotFound()
@@ -328,10 +350,7 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
     def articles_by_product_slug(self, request, product_slug=None):
         """All published articles for a product."""
         brand = getattr(request, "brand", None)
-        qs = Product.objects.filter(is_discontinued=False, is_published=True, slug=product_slug)
-        if brand:
-            qs = qs.filter(Q(brands=brand) | Q(is_global=True) | Q(brands__isnull=True)).distinct()
-        product = qs.first()
+        product = _resolve_published_product_by_slug(product_slug, brand=brand)
         if not product:
             raise exceptions.NotFound()
         articles = (
@@ -363,10 +382,7 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
     def article_detail_by_slugs(self, request, product_slug=None, article_slug=None):
         """Single published article for a product."""
         brand = getattr(request, "brand", None)
-        qs = Product.objects.filter(is_discontinued=False, is_published=True, slug=product_slug)
-        if brand:
-            qs = qs.filter(Q(brands=brand) | Q(is_global=True) | Q(brands__isnull=True)).distinct()
-        product = qs.first()
+        product = _resolve_published_product_by_slug(product_slug, brand=brand)
         if not product:
             raise exceptions.NotFound()
         art = (
@@ -947,9 +963,11 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
             # This ensures accessories and other products are accessible by slug
             slug = self.request.query_params.get("slug")
             if slug:
-                # For slug-based lookups, return product directly if it exists and is published
-                # This bypasses brand filtering and available units filtering
-                queryset = super().get_queryset().filter(slug=slug)
+                brand = getattr(self.request, "brand", None)
+                product = _resolve_published_product_by_slug(slug, brand=brand)
+                if not product:
+                    return super().get_queryset().none()
+                queryset = super().get_queryset().filter(pk=product.pk)
 
                 # Still apply optimizations for the single product
                 brand = getattr(self.request, "brand", None)
@@ -3556,7 +3574,11 @@ class PublicArticleViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
 
         product_slug = self.request.query_params.get("product_slug")
         if product_slug:
-            queryset = queryset.filter(product__slug=product_slug)
+            product = _resolve_published_product_by_slug(product_slug, brand=brand)
+            if product:
+                queryset = queryset.filter(product_id=product.id)
+            else:
+                queryset = queryset.none()
 
         brand_name = self.request.query_params.get("brand")
         if brand_name:

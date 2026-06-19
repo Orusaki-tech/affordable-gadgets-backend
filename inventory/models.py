@@ -397,8 +397,7 @@ class Product(models.Model):
         from django.db import IntegrityError
         from django.utils.text import slugify
 
-        def _is_missing(value) -> bool:
-            return not value or value.strip() == "" or value.strip().upper() == "N/A"
+        from inventory.slug_utils import build_seo_product_slug, is_missing as _is_missing
 
         base_slug = None
 
@@ -442,19 +441,13 @@ class Product(models.Model):
             #   the current admin auto-generator), regenerate with full info so
             #   accessories like "iPhone Pocket" get meaningful unique slugs.
             if self.pk is None and normalized_slug:
-                structured_without_name = slugify(
-                    f"{self.brand}-{self.model_series}-{self.product_type}".strip("-")
-                )
-                should_regenerate = len(normalized_slug) < 3 or (
-                    normalized_slug == structured_without_name
-                    and not _is_missing(self.product_name)
-                )
-
+                should_regenerate = len(normalized_slug) < 3
                 if should_regenerate:
-                    base_slug = slugify(
-                        f"{self.brand}-{self.model_series}-{self.product_name}-{self.product_type}".strip(
-                            "-"
-                        )
+                    base_slug = build_seo_product_slug(
+                        brand=self.brand,
+                        model_series=self.model_series,
+                        product_name=self.product_name,
+                        product_type=self.product_type,
                     )
                 else:
                     base_slug = normalized_slug
@@ -462,11 +455,6 @@ class Product(models.Model):
                 base_slug = normalized_slug
         else:
             # Generate from structured fields when slug is empty.
-            # We treat empty/"N/A" values as missing so we don't end up with "na" slugs.
-            brand = self.brand
-            model_series = self.model_series
-            product_type = self.product_type
-
             # Prevent accidental URL changes: if this is an update and the slug
             # was cleared, keep the existing slug instead of regenerating.
             if self.pk:
@@ -477,18 +465,12 @@ class Product(models.Model):
                     self.slug = existing_slug
                     return super().save(*args, **kwargs)
 
-            if not _is_missing(brand) and not _is_missing(model_series):
-                # Prefer brand + model_series + product_name + product_type for
-                # readable, stable, collision-resistant slugs (including accessories).
-                if not _is_missing(self.product_name):
-                    base_slug = slugify(
-                        f"{brand}-{model_series}-{self.product_name}-{product_type}".strip("-")
-                    )
-                else:
-                    base_slug = slugify(f"{brand}-{model_series}-{product_type}".strip("-"))
-            elif self.product_name:
-                # Defensive fallback: product_name is always required for Product.
-                base_slug = slugify(self.product_name)
+            base_slug = build_seo_product_slug(
+                brand=self.brand,
+                model_series=self.model_series,
+                product_name=self.product_name,
+                product_type=self.product_type,
+            )
 
         if not base_slug:
             # product_name is required by the model; this is a defensive fallback.
@@ -534,6 +516,37 @@ class Product(models.Model):
         return (
             self.articles.filter(is_primary=True).first() or self.articles.order_by("id").first()
         )
+
+    def compute_seo_slug(self) -> str:
+        from inventory.slug_utils import build_seo_product_slug
+
+        return build_seo_product_slug(
+            brand=self.brand,
+            model_series=self.model_series,
+            product_name=self.product_name,
+            product_type=self.product_type,
+        )
+
+
+class ProductSlugRedirect(models.Model):
+    """Maps legacy product slugs to the current canonical slug (301 support)."""
+
+    old_slug = models.SlugField(max_length=255, unique=True, db_index=True)
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name="slug_redirects",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["product", "created_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.old_slug} -> {self.product_id}"
 
 
 class ProductReleaseDate(models.Model):
