@@ -259,7 +259,10 @@ class Command(BaseCommand):
             csv_price = _parse_decimal(row.get("default_selling_price"))
 
             existing = existing_by_name.get(name)
+            if existing is None:
+                existing = existing_by_key.get((brand, model_series, ptype))
             if existing is not None:
+                existing_by_name[name] = existing
                 stats["skipped"] += 1
                 if update_prices and csv_price is not None:
                     if existing.default_selling_price is not None and not overwrite:
@@ -323,6 +326,21 @@ class Command(BaseCommand):
             rows = list(csv.DictReader(fh))
 
         products_by_name = {p.product_name: p for p in Product.objects.all()}
+        products_by_model_series = {
+            p.model_series: p for p in Product.objects.all() if p.model_series
+        }
+
+        def resolve_product(csv_name: str) -> Product | None:
+            product = products_by_name.get(csv_name)
+            if product is not None:
+                return product
+            product = products_by_model_series.get(csv_name)
+            if product is not None:
+                return product
+            prefixed = Product.objects.filter(product_name__iexact=f"Samsung {csv_name}").first()
+            if prefixed is not None:
+                return prefixed
+            return Product.objects.filter(product_name__iendswith=csv_name).first()
 
         for idx, row in enumerate(rows, start=2):
             name = (row.get("product_name") or "").strip()
@@ -330,7 +348,7 @@ class Command(BaseCommand):
                 stats["invalid"] += 1
                 continue
 
-            product = products_by_name.get(name)
+            product = resolve_product(name)
             if product is None:
                 stats["missing_product"] += 1
                 self.stdout.write(
