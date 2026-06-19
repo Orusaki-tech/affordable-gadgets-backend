@@ -53,6 +53,9 @@ def test_resolve_product_for_slug_uses_redirect():
         Product,
         slug="samsung-galaxy-a57",
         product_name="Samsung Galaxy A57",
+        brand="Samsung",
+        model_series="Galaxy A57",
+        product_type=Product.ProductType.PHONE,
         is_published=True,
         is_discontinued=False,
     )
