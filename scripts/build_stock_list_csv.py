@@ -65,19 +65,20 @@ def p(
     desc: str,
     *variants: tuple[int | None, int | None, int],
 ) -> ProductRow:
-    return ProductRow(product_type, name, brand, series, desc, True, list(variants))
+    # model_series must be unique per (brand, product_type) — use product name.
+    return ProductRow(product_type, name, brand, name, desc, True, list(variants))
 
 
 def acc(name: str, brand: str, series: str, price: int, desc: str = "") -> ProductRow:
-    return ProductRow("AC", name, brand, series, desc, True, [(None, None, price)])
+    return ProductRow("AC", name, brand, name, desc, True, [(None, None, price)])
 
 
 def tb(name: str, brand: str, series: str, desc: str, *variants: tuple[int | None, int | None, int]) -> ProductRow:
-    return p("TB", name, brand, series, desc, *variants)
+    return p("TB", name, brand, name, desc, *variants)
 
 
 def lt(name: str, brand: str, series: str, desc: str, *variants: tuple[int | None, int | None, int]) -> ProductRow:
-    return p("LT", name, brand, series, desc, *variants)
+    return p("LT", name, brand, name, desc, *variants)
 
 
 APPLE_WARRANTY = (

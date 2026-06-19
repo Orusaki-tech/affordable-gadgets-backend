@@ -258,9 +258,7 @@ class Command(BaseCommand):
             model_series = (row.get("model_series") or "").strip() or "N/A"
             csv_price = _parse_decimal(row.get("default_selling_price"))
 
-            existing = existing_by_name.get(name) or existing_by_key.get(
-                (brand, model_series, ptype)
-            )
+            existing = existing_by_name.get(name)
             if existing is not None:
                 stats["skipped"] += 1
                 if update_prices and csv_price is not None:
