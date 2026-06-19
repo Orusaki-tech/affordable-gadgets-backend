@@ -4,7 +4,7 @@ from django.utils.text import slugify
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from inventory.models import Product, ProductArticle
+from inventory.models import Product, ProductArticle, Tag
 
 
 class PublicProductArticleApiTests(APITestCase):
@@ -102,6 +102,43 @@ class PublicArticleListApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         results = response.data.get("results") or response.data
         self.assertTrue(any(row["headline"] == "Carousel headline" for row in results))
+
+    def test_featured_articles_match_featured_products(self):
+        featured_tag, _ = Tag.objects.get_or_create(name="Featured", defaults={"slug": "featured"})
+        non_featured = Product.objects.create(
+            product_name="Non Featured Phone",
+            brand="OtherBrand",
+            model_series="NF",
+            product_type=Product.ProductType.PHONE,
+            slug="non-featured-phone",
+            is_published=True,
+        )
+        ProductArticle.objects.create(
+            product=non_featured,
+            slug="non-featured-guide",
+            headline="Non featured guide",
+            body="body",
+            is_published=True,
+            is_primary=True,
+        )
+        self.product.tags.add(featured_tag)
+        featured_only = Product.objects.create(
+            product_name="Featured No Article",
+            brand="CarouselBrand",
+            model_series="M2",
+            product_type=Product.ProductType.PHONE,
+            slug="featured-no-article",
+            is_published=True,
+        )
+        featured_only.tags.add(featured_tag)
+
+        url = reverse("public-article-list")
+        response = self.client.get(url, {"featured": "1"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = response.data.get("results") or response.data
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["headline"], "Carousel headline")
+        self.assertEqual(results[0]["product_slug"], "carousel-product")
 
     def test_slug_uniqueness_per_product(self):
         ProductArticle.objects.create(

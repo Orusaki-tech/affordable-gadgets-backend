@@ -3507,6 +3507,12 @@ class PublicProductAccessoryViewSet(_PublicAPIMixin, inventory_views.ProductAcce
                 OpenApiParameter.QUERY,
                 description="Sort by release_date, -release_date, published_at, or -published_at.",
             ),
+            OpenApiParameter(
+                "featured",
+                OpenApiTypes.BOOL,
+                OpenApiParameter.QUERY,
+                description='If true, return one published article per product tagged "Featured", in the same order as the featured products carousel.',
+            ),
         ]
     )
 )
@@ -3555,6 +3561,37 @@ class PublicArticleViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
         brand_name = self.request.query_params.get("brand")
         if brand_name:
             queryset = queryset.filter(product__brand__iexact=brand_name)
+
+        if self.request.query_params.get("featured") in ("1", "true", "yes"):
+            from inventory.product_ordering import apply_product_ordering
+
+            featured_products = Product.objects.filter(
+                is_published=True, tags__name__iexact="Featured"
+            ).distinct()
+            if brand:
+                featured_products = featured_products.filter(
+                    Q(brands=brand) | Q(is_global=True) | Q(brands__isnull=True)
+                ).distinct()
+            featured_product_ids = list(
+                apply_product_ordering(
+                    featured_products, self.request.query_params.get("ordering")
+                ).values_list("id", flat=True)
+            )
+            if not featured_product_ids:
+                return queryset.none()
+
+            queryset = queryset.filter(product_id__in=featured_product_ids)
+            queryset = queryset.order_by(
+                "product_id", "-is_primary", "-published_at", "id"
+            ).distinct("product_id")
+            preserved = Case(
+                *[
+                    When(product_id=product_id, then=position)
+                    for position, product_id in enumerate(featured_product_ids)
+                ],
+                output_field=IntegerField(),
+            )
+            return queryset.annotate(_featured_order=preserved).order_by("_featured_order")
 
         ordering = self.request.query_params.get("ordering")
         if ordering in {"release_date", "-release_date", "published_at", "-published_at"}:
