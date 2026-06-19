@@ -1,6 +1,8 @@
 import glob
 import json
 import os
+import re
+from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone as django_timezone
@@ -15,6 +17,23 @@ BATCHES_DIR = os.path.join(
     "blog_content",
     "batches",
 )
+STOCK_LIST_CSV = (
+    Path(__file__).resolve().parents[2] / "data" / "stock_list_2026_06_19_products.csv"
+)
+
+
+def _blog_name_tokens(name: str) -> set[str]:
+    text = name.lower().replace('"', " inch ").replace("'", "")
+    text = re.sub(r"[^\w\s]", " ", text)
+    stop = {"gb", "tb", "ram", "wifi", "cellular", "sim", "inch", "gen", "dubai", "official"}
+    return {t for t in text.split() if t and t not in stop and not t.isdigit()}
+
+
+def _blog_name_similarity(left: str, right: str) -> float:
+    a, b = _blog_name_tokens(left), _blog_name_tokens(right)
+    if not a or not b:
+        return 0.0
+    return len(a & b) / len(a | b)
 
 
 class Command(BaseCommand):
@@ -99,6 +118,28 @@ class Command(BaseCommand):
             summary = f"[DRY RUN] Would create/update: {total_created} (skipped {total_skipped})"
         self.stdout.write(self.style.SUCCESS(summary))
 
+    def _stock_list_product_names(self) -> list[tuple[str, Product]]:
+        """Published stock-list products for blog JSON matching."""
+        if not STOCK_LIST_CSV.is_file():
+            return []
+        import csv
+
+        names: list[str] = []
+        with STOCK_LIST_CSV.open(newline="", encoding="utf-8-sig") as fh:
+            for row in csv.DictReader(fh):
+                names.append(row["product_name"])
+
+        matches: list[tuple[str, Product]] = []
+        for name in names:
+            product = Product.objects.filter(product_name=name, is_published=True).first()
+            if product is None:
+                product = Product.objects.filter(
+                    product_name__iexact=f"Samsung {name}", is_published=True
+                ).first()
+            if product is not None:
+                matches.append((name, product))
+        return matches
+
     def _resolve_product(self, data):
         """Find product by product_name (primary) or slug (fallback).
 
@@ -108,6 +149,24 @@ class Command(BaseCommand):
         product_name = data.get("product_name")
         if product_name:
             name = product_name.strip()
+            # Prefer stock-list catalog names (short template names over Dubai SKUs).
+            stock_names = self._stock_list_product_names()
+            stock_matches = [
+                p
+                for stock_name, p in stock_names
+                if _blog_name_similarity(name, stock_name) >= 0.35
+                or name.lower() in stock_name.lower()
+                or stock_name.lower() in name.lower()
+            ]
+            if stock_matches:
+                stock_matches.sort(
+                    key=lambda p: (
+                        0 if p.product_name.lower() == name.lower() else 1,
+                        len(p.product_name),
+                    )
+                )
+                return stock_matches[0]
+
             # Try forward match (DB contains JSON name)
             candidates = list(
                 Product.objects.filter(
