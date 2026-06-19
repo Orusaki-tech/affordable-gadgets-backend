@@ -10,7 +10,6 @@ class Command(BaseCommand):
         "Import release month/year into ProductReleaseDate from JSON, "
         "then sync Product.release_date for all matched catalog items."
     )
-
     def add_arguments(self, parser):
         parser.add_argument(
             "--import-only",
