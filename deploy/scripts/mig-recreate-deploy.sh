@@ -9,16 +9,20 @@
 #   DEPLOY_CONFIG_BUCKET    (if set, refresh compose from GCS before pull)
 #   ENV_NAME=production     (GCS prefix under bucket)
 #   SKIP_IMAGE_PULL=1       (recreate only, no SSH pull)
-#   WAIT_TIMEOUT=900        (seconds per wait-until --stable)
+#   DEPLOY_MODE=pull        (default in CI: SSH docker pull only — fast, no VM reboot)
+#   DEPLOY_MODE=recreate    (recreate each VM, then pull; slow, quota-safe cold boot)
+#   WAIT_TIMEOUT=1800       (seconds per wait-until --stable)
+#   HEALTH_URL=             (optional URL to verify after deploy, e.g. https://api.../health/)
 set -euo pipefail
 
 ensure_gcloud_ssh() {
   # GitHub Actions runners have no ~/.ssh by default; gcloud ssh prompts and crashes in CI.
+  # RSA avoids gcloud "quote_from_bytes() expected bytes" crashes with ed25519 on some SDK versions.
   export CLOUDSDK_CORE_DISABLE_PROMPTS=1
   mkdir -p "${HOME}/.ssh"
   chmod 700 "${HOME}/.ssh"
   if [[ ! -f "${HOME}/.ssh/google_compute_engine" ]]; then
-    ssh-keygen -t ed25519 -f "${HOME}/.ssh/google_compute_engine" -N "" -q
+    ssh-keygen -t rsa -b 2048 -f "${HOME}/.ssh/google_compute_engine" -N "" -q
   fi
 }
 
@@ -37,23 +41,27 @@ REGION="${GCP_REGION:?GCP_REGION required}"
 MIG="${MIG_NAME:?MIG_NAME required}"
 SERVICE="${SERVICE:-shop}"
 ENV_NAME="${ENV_NAME:-production}"
-WAIT_TIMEOUT="${WAIT_TIMEOUT:-900}"
+DEPLOY_MODE="${DEPLOY_MODE:-recreate}"
+WAIT_TIMEOUT="${WAIT_TIMEOUT:-1800}"
 AR_HOST="${GCP_REGION}-docker.pkg.dev"
 
 case "${SERVICE}" in
   shop)
     COMPOSE_FILE="docker-compose.shop.yml"
     HEALTH_PORT=3000
+    HEALTH_PATH="/"
     GCS_PREFIX="shop"
     ;;
   admin)
     COMPOSE_FILE="docker-compose.admin.yml"
     HEALTH_PORT=80
+    HEALTH_PATH="/"
     GCS_PREFIX="admin"
     ;;
   api)
     COMPOSE_FILE="docker-compose.api.yml"
     HEALTH_PORT=8000
+    HEALTH_PATH="/health/"
     GCS_PREFIX="api"
     ;;
   *)
@@ -62,23 +70,35 @@ case "${SERVICE}" in
     ;;
 esac
 
-echo "==> MIG recreate deploy: ${MIG} (${SERVICE}) project=${PROJECT} region=${REGION}"
+echo "==> MIG deploy (${DEPLOY_MODE}): ${MIG} (${SERVICE}) project=${PROJECT} region=${REGION}"
 
-while read -r name; do
-  echo "==> Recreating ${name}..."
-  gcloud compute instance-groups managed recreate-instances "${MIG}" \
-    --instances="${name}" \
-    --region="${REGION}" \
-    --project="${PROJECT}"
-  echo "==> Waiting for MIG stable..."
-  gcloud compute instance-groups managed wait-until --stable "${MIG}" \
+if [[ "${DEPLOY_MODE}" == "recreate" ]]; then
+  while read -r name; do
+    echo "==> Recreating ${name}..."
+    gcloud compute instance-groups managed recreate-instances "${MIG}" \
+      --instances="${name}" \
+      --region="${REGION}" \
+      --project="${PROJECT}"
+    echo "==> Waiting for MIG stable (timeout=${WAIT_TIMEOUT}s)..."
+    if ! gcloud compute instance-groups managed wait-until --stable "${MIG}" \
+      --region="${REGION}" \
+      --project="${PROJECT}" \
+      --timeout="${WAIT_TIMEOUT}"; then
+      echo "ERROR: MIG did not stabilize within ${WAIT_TIMEOUT}s." >&2
+      gcloud compute instance-groups managed describe "${MIG}" \
+        --region="${REGION}" \
+        --project="${PROJECT}" \
+        --format="yaml(status)" || true
+      exit 1
+    fi
+  done < <(gcloud compute instance-groups managed list-instances "${MIG}" \
     --region="${REGION}" \
     --project="${PROJECT}" \
-    --timeout="${WAIT_TIMEOUT}"
-done < <(gcloud compute instance-groups managed list-instances "${MIG}" \
-  --region="${REGION}" \
-  --project="${PROJECT}" \
-  --format="value(name)")
+    --format="value(name)")
+elif [[ "${DEPLOY_MODE}" != "pull" ]]; then
+  echo "DEPLOY_MODE must be pull or recreate (got: ${DEPLOY_MODE})" >&2
+  exit 1
+fi
 
 if [[ "${SKIP_IMAGE_PULL:-}" == "1" ]]; then
   echo "==> SKIP_IMAGE_PULL=1; done."
@@ -136,7 +156,7 @@ cd "\${COMPOSE_ROOT}"
 sudo docker-compose -f "\${COMPOSE_FILE}" pull -q
 sudo docker-compose -f "\${COMPOSE_FILE}" up -d
 sleep 10
-curl -sf "http://127.0.0.1:${HEALTH_PORT}/" >/dev/null && echo "\$(hostname)_OK" || echo "\$(hostname)_WARN_health"
+curl -sf "http://127.0.0.1:${HEALTH_PORT}${HEALTH_PATH}" >/dev/null && echo "\$(hostname)_OK" || echo "\$(hostname)_WARN_health"
 REMOTE
 )"; then
     echo "WARN: image pull failed for ${inst_name}" >&2
@@ -148,7 +168,27 @@ done < <(gcloud compute instance-groups managed list-instances "${MIG}" \
   --format="value(name,instance)")
 
 if [[ "${PULL_FAILED}" -eq 1 ]]; then
+  if [[ "${DEPLOY_MODE}" == "pull" ]]; then
+    echo "ERROR: image pull failed on one or more instances." >&2
+    exit 1
+  fi
   echo "WARN: one or more image pulls failed; instance startup scripts may still have pulled production-latest on recreate." >&2
 fi
 
-echo "==> MIG recreate deploy complete."
+if [[ -n "${HEALTH_URL:-}" ]]; then
+  echo "==> Verifying ${HEALTH_URL}..."
+  for attempt in 1 2 3 4 5 6; do
+    if curl -sf --max-time 20 "${HEALTH_URL}" >/dev/null; then
+      echo "==> Health check OK"
+      break
+    fi
+    if [[ "${attempt}" -eq 6 ]]; then
+      echo "ERROR: health check failed after 6 attempts: ${HEALTH_URL}" >&2
+      exit 1
+    fi
+    echo "==> Health check attempt ${attempt} failed; retrying in 15s..."
+    sleep 15
+  done
+fi
+
+echo "==> MIG deploy complete (${DEPLOY_MODE})."

@@ -116,6 +116,9 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     needs: build-and-push
     runs-on: ubuntu-latest
+    concurrency:
+      group: production-api-deploy
+      cancel-in-progress: false
     permissions:
       id-token: write
       contents: write
@@ -127,7 +130,7 @@ jobs:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_DEPLOY_SA }}
 
-      - name: Deploy API MIG (recreate + pull images)
+      - name: Deploy API MIG (pull images via SSH)
         env:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           GCP_REGION: ${{ env.REGION }}
@@ -135,6 +138,8 @@ jobs:
           SERVICE: api
           DEPLOY_CONFIG_BUCKET: ${{ secrets.DEPLOY_CONFIG_BUCKET }}
           ENV_NAME: production
+          DEPLOY_MODE: pull
+          HEALTH_URL: https://api.affordable-gadgetske.com/health/
         run: bash deploy/scripts/mig-recreate-deploy.sh
 
       - name: Log deployment completion to Cloud Logging
