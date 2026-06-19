@@ -3580,18 +3580,30 @@ class PublicArticleViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
             if not featured_product_ids:
                 return queryset.none()
 
-            queryset = queryset.filter(product_id__in=featured_product_ids)
-            queryset = queryset.order_by(
-                "product_id", "-is_primary", "-published_at", "id"
-            ).distinct("product_id")
+            article_ids: list[int] = []
+            for product_id in featured_product_ids:
+                article_id = (
+                    queryset.filter(product_id=product_id)
+                    .order_by("-is_primary", "-published_at", "id")
+                    .values_list("id", flat=True)
+                    .first()
+                )
+                if article_id is not None:
+                    article_ids.append(article_id)
+
+            if not article_ids:
+                return queryset.none()
+
             preserved = Case(
                 *[
-                    When(product_id=product_id, then=position)
-                    for position, product_id in enumerate(featured_product_ids)
+                    When(pk=article_id, then=position)
+                    for position, article_id in enumerate(article_ids)
                 ],
                 output_field=IntegerField(),
             )
-            return queryset.annotate(_featured_order=preserved).order_by("_featured_order")
+            return queryset.filter(id__in=article_ids).annotate(
+                _featured_order=preserved
+            ).order_by("_featured_order")
 
         ordering = self.request.query_params.get("ordering")
         if ordering in {"release_date", "-release_date", "published_at", "-published_at"}:
