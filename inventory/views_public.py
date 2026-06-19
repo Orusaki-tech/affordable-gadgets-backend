@@ -48,6 +48,7 @@ from inventory.models import (
     Product,
     ProductArticle,
     ProductImage,
+    ProductVariant,
     Promotion,
     Review,
     WishlistItem,
@@ -829,6 +830,10 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
             queryset=active_bundles_qs.prefetch_related("items__product"),
             to_attr="active_bundles_list",
         )
+        variants_prefetch = Prefetch(
+            "variants",
+            queryset=ProductVariant.objects.filter(is_active=True),
+        )
         return Product.objects.filter(pk=pk).prefetch_related(
             "tags",
             "images",
@@ -836,6 +841,7 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
             primary_images_prefetch,
             Prefetch("reviews", queryset=Review.objects.all(), to_attr="reviews_for_aggregates"),
             active_bundles_prefetch,
+            variants_prefetch,
         )
 
     def retrieve(self, request, *args, **kwargs):
@@ -1435,11 +1441,16 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
                     to_attr="reviews_for_aggregates",
                 )
                 # Omit tags/brands prefetch for list; PublicProductListSerializer does not expose them.
+                variants_prefetch = Prefetch(
+                    "variants",
+                    queryset=ProductVariant.objects.filter(is_active=True),
+                )
                 queryset = queryset.prefetch_related(
                     primary_images_prefetch_list,
                     available_units_prefetch,
                     bundles_prefetch,
                     reviews_prefetch_list,
+                    variants_prefetch,
                 )
                 queryset = queryset.annotate(
                     has_published_article=Exists(

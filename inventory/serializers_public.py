@@ -953,6 +953,7 @@ class PublicProductListSerializer(PublicProductSerializer):
             "bundle_price_preview",
             "has_published_article",
             "published_article_count",
+            "variants",
         ]
 
 
