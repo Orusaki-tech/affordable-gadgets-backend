@@ -1,0 +1,248 @@
+product_name,storage_gb,ram_gb,ref_sell_kes,ref_cost_kes,is_active
+AirPods 4,,,19000,0,true
+AirPods 4 ANC,,,26500,0,true
+AirPods Max (Type-C),,,76000,0,true
+AirPods Pro 2,,,30000,0,true
+AirPods Pro 3 (2 Years Warranty),,,35000,0,true
+Apple 20W Adapter (2-pin),,,4800,0,true
+Apple Pencil 2,,,12500,0,true
+Apple Pencil 2 (Type-C),,,14000,0,true
+Apple Pencil 2 Pro,,,19999,0,true
+Apple Watch SE 2 40mm,,,29000,0,true
+Apple Watch SE 2 44mm,,,31000,0,true
+Apple Watch SE 3 40mm,,,38000,0,true
+Apple Watch SE 3 44mm,,,42000,0,true
+Apple Watch Series 10 42mm,,,47500,0,true
+Apple Watch Series 10 46mm,,,48000,0,true
+Apple Watch Series 11 42mm,,,49000,0,true
+Apple Watch Series 11 46mm,,,54000,0,true
+Apple Watch Ultra 3 49mm (2025),,,108500,0,true
+Apple Watch Ultra 3 49mm Milanese (2025),,,132000,0,true
+Mac Mini M4,256,16,110000,0,true
+Mac Mini M4,512,16,172000,0,true
+"MacBook 13"" Neo",256,8,94500,0,true
+"MacBook 13"" Neo",512,8,975000,0,true
+"MacBook Air M4 13""",256,16,147000,0,true
+"MacBook Air M4 13""",512,16,149000,0,true
+"MacBook Air M5 13""",512,16,155000,0,true
+"MacBook Pro M4 Pro 14.2""",512,24,267000,0,true
+"MacBook Pro M5 14.2""",512,16,227000,0,true
+"MacBook Pro M5 14.2""",1024,24,258000,0,true
+"MacBook Pro M5 Pro 14.2""",1024,24,304000,0,true
+Magic Mouse (Black),,,16000,0,true
+Magic Mouse (White),,,13500,0,true
+iPad 11th Gen Cellular,128,,73500,0,true
+iPad 11th Gen Cellular,256,,96000,0,true
+iPad 11th Gen WiFi,128,,53000,0,true
+iPad 11th Gen WiFi,256,,74000,0,true
+iPad Air M3 Cellular,128,,101000,0,true
+iPad Air M3 Cellular,256,,122000,0,true
+iPad Air M3 WiFi,128,,83000,0,true
+iPad Air M3 WiFi,256,,100000,0,true
+iPad Mini 7 Cellular,128,,91000,0,true
+iPad Mini 7 Cellular,256,,115000,0,true
+"iPad Pro M4 11"" Cellular",256,,137000,0,true
+"iPad Pro M4 11"" WiFi",256,,127000,0,true
+"iPad Pro M4 13"" Cellular",256,,151000,0,true
+"iPad Pro M5 11"" Cellular",256,,152000,0,true
+"iPad Pro M5 11"" WiFi",256,,140500,0,true
+iPhone 13 SIM,128,,79000,0,true
+iPhone 13 SIM,256,,88500,0,true
+iPhone 14 SIM,256,,92000,0,true
+iPhone 15 Plus SIM,128,,101000,0,true
+iPhone 15 Pro SIM,128,,125000,0,true
+iPhone 15 SIM,128,,91000,0,true
+iPhone 15 SIM,256,,101000,0,true
+iPhone 15 SIM 2 Year Warranty,256,,103500,0,true
+iPhone 16 Plus SIM,128,,113000,0,true
+iPhone 16 Plus SIM,256,,122000,0,true
+iPhone 16 Pro Max SIM,256,,162000,0,true
+iPhone 16 Pro Max SIM,512,,193000,0,true
+iPhone 16 Pro Max SIM Active,512,,175000,0,true
+iPhone 16 Pro Max SIM Natural,256,,167500,0,true
+iPhone 16 Pro SIM,128,,140000,0,true
+iPhone 16 SIM,128,,98000,0,true
+iPhone 16E E-SIM,128,,88000,0,true
+iPhone 17 Air E-SIM 2 Year Warranty Blue/Black,256,,127000,0,true
+iPhone 17 Air E-SIM Blue/Black,256,,125000,0,true
+iPhone 17 Air E-SIM White/Gold,256,,128500,0,true
+iPhone 17 E-SIM,256,,114000,0,true
+iPhone 17 Pro E-SIM,256,,162000,0,true
+iPhone 17 Pro E-SIM,512,,186000,0,true
+iPhone 17 Pro E-SIM,1024,,216000,0,true
+iPhone 17 Pro Max E-SIM,1024,,226000,0,true
+iPhone 17 Pro Max E-SIM All Colors,256,,172000,0,true
+iPhone 17 Pro Max E-SIM Orange,512,,203000,0,true
+iPhone 17 Pro Max E-SIM Silver/Blue,512,,204000,0,true
+iPhone 17 Pro Max SIM,256,,189000,0,true
+iPhone 17 Pro Max SIM,512,,219500,0,true
+iPhone 17 Pro SIM,256,,176000,0,true
+iPhone 17 Pro SIM,512,,207000,0,true
+iPhone 17 Pro SIM,1024,,229000,0,true
+iPhone 17 Pro SIM 2 Year Warranty,256,,177000,0,true
+iPhone 17 SIM,256,,118500,0,true
+iPhone 17 SIM 2 Year Warranty,256,,120500,0,true
+iPhone 17E SIM,256,,93500,0,true
+Pixel 10,128,12,90000,0,true
+Pixel 10,256,12,100500,0,true
+Pixel 10 Pro,256,12,125000,0,true
+Pixel 10 Pro XL,256,12,128000,0,true
+Pixel 10 Pro XL,512,12,157000,0,true
+Pixel 10A,128,8,69000,0,true
+Pixel 10A,256,8,72500,0,true
+Pixel 9 Pro XL,256,12,104000,0,true
+Pixel 9A,256,8,63500,0,true
+Honor 7D,256,8,28000,0,true
+Honor H400,512,12,61000,0,true
+Honor H400 Pro,512,12,82000,0,true
+Honor Play10,64,3,13300,0,true
+Honor X5B,64,4,13400,0,true
+Honor X5C,64,4,15500,0,true
+Honor X5C Plus,128,4,16800,0,true
+Honor X6c,128,6,20900,0,true
+Honor X6c,256,6,22100,0,true
+Honor X7D,256,8,25500,0,true
+Honor X7c,256,8,24200,0,true
+Honor X9D,256,8,48000,0,true
+Infinix Hot 60 Pro,128,8,21000,0,true
+Infinix Hot 60 Pro+,256,8,28500,0,true
+Infinix Hot 60i,128,6,16900,0,true
+Infinix Hot 60i,256,8,19700,0,true
+Infinix Note 60 Pro,256,8,43800,0,true
+Infinix Note Edge,256,8,37900,0,true
+Infinix Smart 10,64,4,13300,0,true
+Infinix Smart 10,128,4,14700,0,true
+Infinix Smart 20,64,4,14700,0,true
+Infinix Smart 20,128,4,15900,0,true
+Itel A04,32,2,10300,0,true
+Itel A100c,,,12400,0,true
+Itel A200,128,3,14600,0,true
+Itel City 200,128,4,16700,0,true
+Itel P70,128,4,13800,0,true
+Itel S26 Ultra,,,25600,0,true
+Nothing Phone 3,256,12,87500,0,true
+Nothing Phone 3A Pro,256,12,65000,0,true
+OnePlus 13,256,12,96000,0,true
+OnePlus 13,512,16,101000,0,true
+OnePlus 13s,256,12,75500,0,true
+OnePlus 15,256,12,109000,0,true
+OnePlus Nord CE 5,256,8,42000,0,true
+Oppo A3,256,8,29700,0,true
+Oppo A3,128,6,24400,0,true
+Oppo A3x,128,4,18900,0,true
+Oppo A5,128,6,25300,0,true
+Oppo A6 4G,256,8,36700,0,true
+Oppo A6 4G,256,6,36700,0,true
+Oppo A6 Pro 4G,256,8,45900,0,true
+Oppo A6X,256,8,23100,0,true
+Oppo A6X,128,4,19900,0,true
+Oppo A6X,64,4,16200,0,true
+Oppo Reno 15 5G,512,12,75000,0,true
+Oppo Reno 15 Pro 5G,512,12,83800,0,true
+Oppo Reno 15F 5G,512,12,62400,0,true
+Realme 12+,512,12,49800,0,true
+Realme C100i,64,4,20300,0,true
+Realme C100i,128,4,21800,0,true
+Realme C75,128,8,24400,0,true
+Realme C75,256,8,26100,0,true
+Realme C75,512,8,30100,0,true
+Realme C85 Pro,256,8,32200,0,true
+Realme Note 50,128,4,15300,0,true
+Realme Note 60x,64,3,15300,0,true
+Realme Note 60x,64,4,16300,0,true
+Realme Note 70,128,4,18900,0,true
+Redmi 15,128,6,20900,0,true
+Redmi 15,256,8,31900,0,true
+Redmi 15C,128,4,17900,0,true
+Redmi 15C,256,8,22900,0,true
+Redmi A7,64,3,14000,0,true
+Redmi A7 Pro,64,4,15000,0,true
+Redmi A7 Pro,128,4,16900,0,true
+Redmi Note 15,128,6,28700,0,true
+Redmi Note 15,256,8,34200,0,true
+Redmi Note 15 Pro,256,8,41300,0,true
+Galaxy A06,64,4,13500,0,true
+Galaxy A07,64,4,15100,0,true
+Galaxy A07,128,4,16400,0,true
+Galaxy A16,128,4,18700,0,true
+Galaxy A17,128,4,20700,0,true
+Galaxy A17,128,6,23500,0,true
+Galaxy A17 4G,256,8,26000,0,true
+Galaxy A17 5G,256,8,28500,0,true
+Galaxy A36,256,8,41000,0,true
+Galaxy A36,256,12,41000,0,true
+Galaxy A37,128,8,42000,0,true
+Galaxy A37,256,8,52500,0,true
+Galaxy A37,256,12,53500,0,true
+Galaxy A56,256,8,49500,0,true
+Galaxy A56,256,12,52000,0,true
+Galaxy A57,128,8,51000,0,true
+Galaxy A57,256,8,60000,0,true
+Galaxy A57,256,12,63000,0,true
+Galaxy Buds 3,,,13000,0,true
+Galaxy Buds 3 FE,,,12700,0,true
+Galaxy Buds 3 Pro,,,19000,0,true
+Galaxy Buds 4,,,19000,0,true
+Galaxy Buds 4 Pro,,,25599,0,true
+Galaxy Buds Core,,,7500,0,true
+Galaxy S24,128,8,68000,0,true
+Galaxy S24,256,8,73000,0,true
+Galaxy S24 FE,128,8,54000,0,true
+Galaxy S25,128,12,84000,0,true
+Galaxy S25,256,12,89000,0,true
+Galaxy S25 Edge,256,12,87500,0,true
+Galaxy S25 FE,128,8,71000,0,true
+Galaxy S25 FE,256,8,75000,0,true
+Galaxy S25 Plus,256,12,95000,0,true
+Galaxy S25 Ultra,256,12,119000,0,true
+Galaxy S25 Ultra,512,12,134000,0,true
+Galaxy S26,256,12,100000,0,true
+Galaxy S26 Ultra,256,12,139000,0,true
+Galaxy S26 Ultra,512,12,158000,0,true
+Galaxy Tab A11 Cellular,128,,26000,0,true
+Galaxy Tab A11 Plus Cellular,128,,37000,0,true
+Galaxy Tab A11 Plus Cellular,256,,43000,0,true
+Galaxy Tab S10 FE Cellular,128,,73000,0,true
+Galaxy Tab S10 FE WiFi,128,,60000,0,true
+Galaxy Tab S10 Lite Cellular,256,,68000,0,true
+Galaxy Tab S10 Ultra WiFi,256,,116000,0,true
+Galaxy Tab S11 Ultra Cellular,256,,155000,0,true
+Galaxy Tab S11 Ultra WiFi,256,,122000,0,true
+Galaxy Tab S9 Cellular,256,,100000,0,true
+Galaxy Watch 6 Classic 47mm,,,24000,0,true
+Galaxy Watch 7 44mm,,,24500,0,true
+Galaxy Watch 8 40mm,,,29500,0,true
+Galaxy Watch 8 44mm,,,31500,0,true
+Galaxy Watch 8 Classic 46mm,,,30500,0,true
+Galaxy Z Flip 5,256,8,70000,0,true
+Galaxy Z Flip 5,512,8,74500,0,true
+Galaxy Z Flip 7,256,12,119000,0,true
+Galaxy Z Fold 7,256,12,180000,0,true
+Galaxy Z Fold 7,512,12,196000,0,true
+Samsung 25W Adapter,,,1000,0,true
+Tecno Camon 50,256,8,37000,0,true
+Tecno Camon 50 Pro,256,8,40900,0,true
+Tecno Camon 50 Ultra,512,12,65000,0,true
+Tecno Pop 10,64,3,13500,0,true
+Tecno Pop 20,64,4,14200,0,true
+Tecno Pop 20,128,4,16300,0,true
+Tecno Spark 40 Pro,128,8,22400,0,true
+Tecno Spark 50,128,4,18800,0,true
+Tecno Spark 50,256,8,21600,0,true
+Vivo V60 Lite 4G,256,8,36000,0,true
+Vivo V60 Lite 5G,256,8,44000,0,true
+Vivo V70,512,12,83800,0,true
+Vivo V70 FE,512,12,60500,0,true
+Vivo V70 FE,512,8,69500,0,true
+Vivo Y04,64,4,15900,0,true
+Vivo Y04,128,4,17400,0,true
+Vivo Y04e,64,4,14100,0,true
+Vivo Y05,64,4,17500,0,true
+Vivo Y05,128,4,20200,0,true
+Vivo Y21D,128,4,20800,0,true
+Vivo Y21D,256,6,25100,0,true
+Vivo Y28,128,8,24000,0,true
+Vivo Y31D,128,6,26900,0,true
+Vivo Y31D,256,8,30100,0,true
+Xiaomi 17 Pro Max,512,12,135000,0,true
+Xiaomi 17 Pro Max,512,16,139000,0,true
