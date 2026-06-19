@@ -177,7 +177,7 @@ class Command(BaseCommand):
         if product_images.exists():
             for pi in product_images:
                 try:
-                    url = get_optimized_image_url(pi.image, width=800, height=800)
+                    url = get_optimized_image_url(pi.image, width=800, crop="limit")
                     if url:
                         image_urls.append(url)
                 except Exception:
