@@ -149,6 +149,20 @@ class Command(BaseCommand):
         product_name = data.get("product_name")
         if product_name:
             name = product_name.strip()
+
+            # Exact published name always wins (e.g. iPhone 17e vs iPhone 17E SIM).
+            exact = Product.objects.filter(product_name__iexact=name, is_published=True).first()
+            if exact is None:
+                exact = Product.objects.filter(product_name__iexact=name).first()
+            if exact is not None:
+                return exact
+
+            product_slug = data.get("product_slug")
+            if product_slug:
+                by_slug = Product.objects.filter(slug=product_slug, is_published=True).first()
+                if by_slug is not None:
+                    return by_slug
+
             # Prefer stock-list catalog names (short template names over Dubai SKUs).
             stock_names = self._stock_list_product_names()
             stock_matches = [
@@ -158,6 +172,18 @@ class Command(BaseCommand):
                 or name.lower() in stock_name.lower()
                 or stock_name.lower() in name.lower()
             ]
+            # e-series blogs (iPhone 17e) must not attach to *E SIM* stock SKUs.
+            if re.match(r"^iPhone \d+e$", name, re.I):
+                stock_matches = [
+                    p for p in stock_matches if " sim" not in p.product_name.lower()
+                ]
+            # iPhone Air blog must not attach to colour/warranty stock SKUs.
+            if name.lower() == "iphone air":
+                stock_matches = [
+                    p
+                    for p in stock_matches
+                    if "air e-sim" not in p.product_name.lower()
+                ]
             if stock_matches:
                 stock_matches.sort(
                     key=lambda p: (
@@ -182,11 +208,24 @@ class Command(BaseCommand):
                             break
             if candidates:
                 # Prefer exact match, then shortest name (base model, not variant)
-                exact = [p for p in candidates if p.product_name.strip().lower() == name.lower()]
-                if exact:
-                    return exact[0]
-                candidates.sort(key=lambda p: len(p.product_name))
-                return candidates[0]
+                exact_candidates = [
+                    p for p in candidates if p.product_name.strip().lower() == name.lower()
+                ]
+                if exact_candidates:
+                    return exact_candidates[0]
+                if re.match(r"^iPhone \d+e$", name, re.I):
+                    candidates = [
+                        p for p in candidates if " sim" not in p.product_name.lower()
+                    ]
+                if name.lower() == "iphone air":
+                    candidates = [
+                        p
+                        for p in candidates
+                        if "air e-sim" not in p.product_name.lower()
+                    ]
+                if candidates:
+                    candidates.sort(key=lambda p: len(p.product_name))
+                    return candidates[0]
 
         # Fallback to slug
         product_slug = data.get("product_slug")

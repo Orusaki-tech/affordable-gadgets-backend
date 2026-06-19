@@ -39,6 +39,9 @@ def _is_legacy_generic_apple_phone(name: str) -> bool:
     if re.match(r"^iphone \d+e$", lower):
         # e-series models (17e, 16e) are canonical product names — not superseded by *E SIM SKUs.
         return False
+    if lower == "iphone air":
+        # Apple marketing name — stock list uses colour/warranty SKUs (iPhone 17 Air E-SIM …).
+        return False
     return not any(marker in lower for marker in _LEGACY_MARKERS)
 
 

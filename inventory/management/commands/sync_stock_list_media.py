@@ -31,72 +31,28 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.db.models import Count, Q
 
+from inventory.catalog_matching import (
+    name_similarity,
+    normalize_product_key,
+    should_skip_article_copy,
+)
 from inventory.cloudinary_utils import upload_image_to_cloudinary
 from inventory.models import Product, ProductArticle, ProductImage
 
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
-PRODUCTS_CSV = DATA_DIR / "stock_list_2026_06_19_products.csv"
+DEFAULT_PRODUCTS_CSV = DATA_DIR / "stock_list_2026_06_19_products.csv"
 
 APPLE_CDN = "https://store.storeimages.cdn-apple.com/1/as-images.apple.com/is"
 APPLE_FALLBACKS: list[tuple[re.Pattern[str], str, str]] = [
     (re.compile(r"iphone 17 pro max|iphone 17 pro\b", re.I), "iphone-get-ready-iphone-17-pro-hero-202509", "wid=664&hei=840&fmt=png-alpha"),
     (re.compile(r"iphone 17|iphone 16|iphone 15|iphone 1[0-4]", re.I), "store-card-40-iphone-17-202509", "wid=1200&hei=1500&fmt=png-alpha"),
     (re.compile(r"ipad", re.I), "store-card-40-ipad-air-202603", "wid=1200&hei=1500&fmt=jpeg&qlt=90"),
-    (re.compile(r"macbook|mac mini|macbook", re.I), "store-card-40-macbook-air-202603", "wid=1200&hei=1500&fmt=jpeg&qlt=90"),
+    (re.compile(r"macbook|mac mini", re.I), "store-card-40-macbook-air-202603", "wid=1200&hei=1500&fmt=jpeg&qlt=90"),
     (re.compile(r"watch", re.I), "store-card-40-watch-s11-202509", "wid=1200&hei=1500&fmt=jpeg&qlt=90"),
     (re.compile(r"airpods max", re.I), "store-card-40-airpods-max-202409_GEO_US", "wid=1200&hei=1500&fmt=jpeg&qlt=90"),
     (re.compile(r"airpods", re.I), "airpods-pro-3-hero-select-202509", "wid=800&hei=800&fmt=png-alpha"),
     (re.compile(r"pencil|magic mouse|adapter", re.I), "store-card-13-airpods-nav-202509", "wid=400&hei=520&fmt=png-alpha"),
 ]
-
-STOP_TOKENS = frozenset(
-    {
-        "gb",
-        "tb",
-        "ram",
-        "wifi",
-        "cellular",
-        "sim",
-        "e",
-        "non",
-        "act",
-        "dubai",
-        "official",
-        "year",
-        "years",
-        "warranty",
-        "the",
-        "and",
-        "for",
-        "with",
-        "inch",
-        "gen",
-        "generation",
-    }
-)
-
-
-def normalize_tokens(name: str) -> set[str]:
-    text = name.lower().replace('"', " inch ").replace("'", "")
-    text = re.sub(r"[^\w\s]", " ", text)
-    tokens: set[str] = set()
-    for raw in text.split():
-        token = raw.strip()
-        if not token or token in STOP_TOKENS:
-            continue
-        if token.isdigit():
-            continue
-        tokens.add(token)
-        if token.endswith("e") and len(token) > 2 and token[-2].isdigit():
-            tokens.add(token[:-1] + "e")
-    return tokens
-
-
-def name_similarity(left: str, right: str) -> float:
-    a, b = normalize_tokens(left), normalize_tokens(right)
-    if not a or not b:
-        return 0.0
-    return len(a & b) / len(a | b)
 
 
 def resolve_stock_product(name: str) -> Product | None:
@@ -109,7 +65,47 @@ def resolve_stock_product(name: str) -> Product | None:
     return Product.objects.filter(model_series=name).first()
 
 
-def find_donor(target: Product, min_score: float = 0.35) -> Product | None:
+def _donor_score(
+    target: Product,
+    candidate: Product,
+    *,
+    stock_names: set[str],
+) -> float:
+    score = name_similarity(target.product_name, candidate.product_name)
+    if candidate.brand == "Samsung" and not candidate.product_name.startswith("Samsung"):
+        score = max(
+            score,
+            name_similarity(f"Samsung {target.product_name}", candidate.product_name),
+        )
+    if target.brand == "Samsung" and candidate.brand == "Samsung":
+        score = max(
+            score,
+            name_similarity(
+                target.product_name.removeprefix("Samsung ").strip(),
+                candidate.product_name.removeprefix("Samsung ").strip(),
+            ),
+        )
+
+    image_count = getattr(candidate, "image_count", 0) or 0
+    article_count = getattr(candidate, "article_count", 0) or 0
+    score += min(0.12, (image_count + article_count) * 0.015)
+
+    if len(candidate.product_name) < len(target.product_name):
+        score += 0.04
+
+    if normalize_product_key(candidate.product_name) in stock_names:
+        score -= 0.08
+
+    return score
+
+
+def find_donor(
+    target: Product,
+    *,
+    min_score: float = 0.35,
+    stock_names: set[str] | None = None,
+) -> Product | None:
+    stock_names = stock_names or set()
     donors = (
         Product.objects.exclude(pk=target.pk)
         .annotate(
@@ -124,9 +120,7 @@ def find_donor(target: Product, min_score: float = 0.35) -> Product | None:
     for candidate in donors:
         if target.brand and candidate.brand and target.brand.lower() != candidate.brand.lower():
             continue
-        score = name_similarity(target.product_name, candidate.product_name)
-        if candidate.brand == "Samsung" and not candidate.product_name.startswith("Samsung"):
-            score = max(score, name_similarity(f"Samsung {target.product_name}", candidate.product_name))
+        score = _donor_score(target, candidate, stock_names=stock_names)
         if score > best_score:
             best_score = score
             best = candidate
@@ -167,6 +161,8 @@ def copy_images(source: Product, target: Product, *, dry_run: bool) -> int:
 
 def copy_articles(source: Product, target: Product, *, dry_run: bool) -> int:
     if target.articles.filter(is_published=True).exists():
+        return 0
+    if should_skip_article_copy(source.product_name, target.product_name):
         return 0
     source_articles = list(source.articles.order_by("-is_primary", "-published_at", "id"))
     if not source_articles:
@@ -229,11 +225,91 @@ def apple_fallback_image(product: Product, *, dry_run: bool) -> bool:
     return False
 
 
+def sync_stock_list_media(
+    *,
+    products_csv: Path | None = None,
+    dry_run: bool = False,
+    skip_blog_reload: bool = False,
+    min_score: float = 0.35,
+    stdout=None,
+    style=None,
+) -> dict[str, int]:
+    """Copy images/articles from similar catalog rows onto stock-list products."""
+    csv_path = products_csv or DEFAULT_PRODUCTS_CSV
+    if not csv_path.is_file():
+        raise FileNotFoundError(f"Missing {csv_path}")
+
+    with csv_path.open(newline="", encoding="utf-8-sig") as fh:
+        stock_rows = list(csv.DictReader(fh))
+
+    stock_names = {normalize_product_key(row["product_name"]) for row in stock_rows}
+
+    stats = {
+        "products": len(stock_rows),
+        "images_copied": 0,
+        "articles_copied": 0,
+        "apple_fallbacks": 0,
+        "donors_used": 0,
+        "already_complete": 0,
+        "missing_product": 0,
+    }
+
+    write = stdout.write if stdout is not None else print
+
+    for row in stock_rows:
+        name = row["product_name"]
+        target = resolve_stock_product(name)
+        if target is None:
+            stats["missing_product"] += 1
+            if stdout and style:
+                write(style.WARNING(f"  SKIP missing product: {name}"))
+            continue
+
+        has_image = target.images.exists()
+        has_blog = target.articles.filter(is_published=True).exists()
+        if has_image and has_blog:
+            stats["already_complete"] += 1
+            continue
+
+        donor = find_donor(target, min_score=min_score, stock_names=stock_names)
+        if donor is not None:
+            stats["donors_used"] += 1
+            with transaction.atomic():
+                stats["images_copied"] += copy_images(donor, target, dry_run=dry_run)
+                stats["articles_copied"] += copy_articles(donor, target, dry_run=dry_run)
+            write(f"  donor {donor.product_name!r} -> {target.product_name!r}")
+
+        if not dry_run:
+            target.refresh_from_db()
+        if not target.images.exists():
+            if apple_fallback_image(target, dry_run=dry_run):
+                stats["apple_fallbacks"] += 1
+                write(f"  apple CDN image -> {target.product_name!r}")
+
+    if skip_blog_reload or dry_run:
+        return stats
+
+    call_command("load_blog_batch", force=True)
+
+    from django.core.cache import cache
+
+    cache.clear()
+    if stdout and style:
+        write(style.SUCCESS("Cache cleared."))
+    return stats
+
+
 class Command(BaseCommand):
     help = "Copy images and blog articles onto stock-list products from similar catalog rows."
 
     def add_arguments(self, parser):
         parser.add_argument("--dry-run", action="store_true")
+        parser.add_argument(
+            "--products-csv",
+            type=str,
+            default=str(DEFAULT_PRODUCTS_CSV),
+            help=f"Stock-list products CSV (default: {DEFAULT_PRODUCTS_CSV})",
+        )
         parser.add_argument(
             "--skip-blog-reload",
             action="store_true",
@@ -250,55 +326,19 @@ class Command(BaseCommand):
         dry_run = bool(options["dry_run"])
         skip_blog = bool(options["skip_blog_reload"])
         min_score = float(options["min_score"])
-
-        if not PRODUCTS_CSV.is_file():
-            self.stderr.write(self.style.ERROR(f"Missing {PRODUCTS_CSV}"))
-            return
-
-        with PRODUCTS_CSV.open(newline="", encoding="utf-8-sig") as fh:
-            stock_rows = list(csv.DictReader(fh))
-
-        stats = {
-            "products": len(stock_rows),
-            "images_copied": 0,
-            "articles_copied": 0,
-            "apple_fallbacks": 0,
-            "donors_used": 0,
-            "already_complete": 0,
-        }
+        products_csv = Path(options["products_csv"]).expanduser()
 
         if dry_run:
             self.stdout.write(self.style.WARNING("DRY RUN — no database writes."))
 
-        for row in stock_rows:
-            name = row["product_name"]
-            target = resolve_stock_product(name)
-            if target is None:
-                self.stdout.write(self.style.WARNING(f"  SKIP missing product: {name}"))
-                continue
-
-            has_image = target.images.exists()
-            has_blog = target.articles.filter(is_published=True).exists()
-            if has_image and has_blog:
-                stats["already_complete"] += 1
-                continue
-
-            donor = find_donor(target, min_score=min_score)
-            if donor is not None:
-                stats["donors_used"] += 1
-                with transaction.atomic():
-                    stats["images_copied"] += copy_images(donor, target, dry_run=dry_run)
-                    stats["articles_copied"] += copy_articles(donor, target, dry_run=dry_run)
-                self.stdout.write(
-                    f"  donor {donor.product_name!r} -> {target.product_name!r}"
-                )
-
-            if not dry_run:
-                target.refresh_from_db()
-            if not target.images.exists():
-                if apple_fallback_image(target, dry_run=dry_run):
-                    stats["apple_fallbacks"] += 1
-                    self.stdout.write(f"  apple CDN image -> {target.product_name!r}")
+        stats = sync_stock_list_media(
+            products_csv=products_csv,
+            dry_run=dry_run,
+            skip_blog_reload=skip_blog,
+            min_score=min_score,
+            stdout=self.stdout,
+            style=self.style,
+        )
 
         self.stdout.write("")
         self.stdout.write(self.style.HTTP_INFO("=== Sync summary ==="))
@@ -312,11 +352,3 @@ class Command(BaseCommand):
         self.stdout.write(self.style.HTTP_INFO("=== Reloading blog batches ==="))
         if dry_run:
             self.stdout.write("  (skipped in dry-run)")
-            return
-
-        call_command("load_blog_batch", force=True)
-
-        from django.core.cache import cache
-
-        cache.clear()
-        self.stdout.write(self.style.SUCCESS("Cache cleared."))

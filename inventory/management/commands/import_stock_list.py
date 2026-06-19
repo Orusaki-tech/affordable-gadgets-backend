@@ -137,6 +137,14 @@ class Command(BaseCommand):
                 "(default: unpublish when E-SIM/SIM replacements exist)"
             ),
         )
+        parser.add_argument(
+            "--skip-sync-media",
+            action="store_true",
+            help=(
+                "Do not copy images/blogs from similar catalog rows after import "
+                "(default: run sync_stock_list_media)"
+            ),
+        )
 
     def handle(self, *args, **options):
         products_csv = Path(options["products_csv"]).expanduser()
@@ -148,6 +156,7 @@ class Command(BaseCommand):
         products_only = bool(options["products_only"])
         variants_only = bool(options["variants_only"])
         skip_unpublish = bool(options["skip_unpublish_superseded"])
+        skip_sync_media = bool(options["skip_sync_media"])
 
         if products_only and variants_only:
             raise CommandError("Cannot pass both --products-only and --variants-only.")
@@ -231,6 +240,23 @@ class Command(BaseCommand):
             )
             unpublish_stats = unpublish_superseded_apple_phones(dry_run=dry_run)
             for key, value in unpublish_stats.items():
+                self.stdout.write(f"  {key}: {value}")
+
+        if not skip_sync_media and not products_only:
+            from inventory.management.commands.sync_stock_list_media import (
+                sync_stock_list_media,
+            )
+
+            self.stdout.write("")
+            self.stdout.write(self.style.HTTP_INFO("=== Sync stock-list images and blogs ==="))
+            sync_stats = sync_stock_list_media(
+                products_csv=products_csv,
+                dry_run=dry_run,
+                skip_blog_reload=False,
+                stdout=self.stdout,
+                style=self.style,
+            )
+            for key, value in sync_stats.items():
                 self.stdout.write(f"  {key}: {value}")
 
         if dry_run:
