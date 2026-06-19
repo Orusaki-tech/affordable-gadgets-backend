@@ -299,7 +299,7 @@ def normalize_product_name(product_name: str) -> str:
     name = (product_name or "").lower()
     # Remove storage/RAM clusters as a unit so model numbers (e.g. Z Fold 7) are kept.
     name = re.sub(
-        r"\b\d+\s*gb(?:\s+\d+\s*gb)?(?:\s+\d+\s*ram)?\b",
+        r"\b\d+\s*gb(?:\s+\d+\s*gb)?(?:\s*ram)?\b",
         " ",
         name,
         flags=re.I,
