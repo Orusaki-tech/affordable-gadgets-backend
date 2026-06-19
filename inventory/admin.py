@@ -23,6 +23,7 @@ from .models import (
     ProductAccessory,
     ProductArticle,
     ProductImage,
+    ProductReleaseDate,
     ProductVariant,
     Promotion,
     Review,
@@ -635,3 +636,12 @@ class PaymentNotificationAdmin(admin.ModelAdmin):
     list_filter = ("notification_type", "created_at")
     search_fields = ("order__order_id", "recipient", "message")
     readonly_fields = ("created_at",)
+
+
+@admin.register(ProductReleaseDate)
+class ProductReleaseDateAdmin(admin.ModelAdmin):
+    list_display = ("family_key", "product_label", "release_month", "release_year", "source_url", "updated_at")
+    list_filter = ("release_year", "release_month")
+    search_fields = ("family_key", "product_label", "notes")
+    readonly_fields = ("updated_at",)
+    ordering = ("-release_year", "-release_month", "family_key")

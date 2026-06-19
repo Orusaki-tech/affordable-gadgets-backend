@@ -17,6 +17,8 @@ from .models import (
     InventoryUnit,
     Notification,
     Order,
+    Product,
+    ProductReleaseDate,
     ReservationRequest,
     ReturnRequest,
     UnitTransfer,
@@ -24,6 +26,25 @@ from .models import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+@receiver(pre_save, sender=Product)
+def infer_product_release_date(sender, instance, **kwargs):
+    """Fill release_date from curated lookup when admin has not set one."""
+    if instance.release_date or not (instance.product_name or "").strip():
+        return
+    from inventory.release_date_inference import infer_release_date
+
+    inferred = infer_release_date(instance.product_name)
+    if inferred:
+        instance.release_date = inferred
+
+
+@receiver(post_save, sender=ProductReleaseDate)
+def clear_release_date_cache_on_table_update(sender, **kwargs):
+    from inventory.release_date_inference import clear_release_date_lookup_cache
+
+    clear_release_date_lookup_cache()
 
 
 @receiver(pre_save, sender=Order)

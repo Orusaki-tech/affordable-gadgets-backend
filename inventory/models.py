@@ -6,7 +6,7 @@ from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
-from django.core.validators import MinValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models import Q
 from django.utils import timezone
@@ -534,6 +534,41 @@ class Product(models.Model):
         return (
             self.articles.filter(is_primary=True).first() or self.articles.order_by("id").first()
         )
+
+
+class ProductReleaseDate(models.Model):
+    """Curated release month/year per product family (used for catalog sorting)."""
+
+    family_key = models.CharField(
+        max_length=120,
+        unique=True,
+        db_index=True,
+        help_text="Slug matched from product name inference (e.g. iphone-17-pro-max).",
+    )
+    product_label = models.CharField(max_length=255, blank=True)
+    release_month = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(12)],
+    )
+    release_year = models.PositiveSmallIntegerField()
+    source_url = models.URLField(
+        blank=True,
+        help_text="Manufacturer or newsroom URL confirming the release date.",
+    )
+    notes = models.TextField(blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-release_year", "-release_month", "family_key"]
+        verbose_name = "Product release date"
+        verbose_name_plural = "Product release dates"
+
+    def __str__(self) -> str:
+        return f"{self.family_key} ({self.release_month:02d}/{self.release_year})"
+
+    def to_date(self):
+        from datetime import date
+
+        return date(self.release_year, self.release_month, 1)
 
 
 class ProductVariant(models.Model):

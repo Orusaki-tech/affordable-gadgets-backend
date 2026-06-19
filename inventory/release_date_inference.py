@@ -10,6 +10,7 @@ from pathlib import Path
 
 _FAMILY_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     # Apple iPhone (specific variants before generic)
+    (re.compile(r"iphone\s+17e"), "iphone-17e"),
     (re.compile(r"iphone\s+17\s+pro\s+max"), "iphone-17-pro-max"),
     (re.compile(r"iphone\s+17\s+pro"), "iphone-17-pro"),
     (re.compile(r"iphone\s+17\s+air"), "iphone-17-air"),
@@ -37,7 +38,18 @@ _FAMILY_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"iphone\s+12"), "iphone-12"),
     (re.compile(r"iphone\s+11\s+pro\s+max"), "iphone-11-pro-max"),
     (re.compile(r"iphone\s+11\s+pro"), "iphone-11-pro"),
-    (re.compile(r"iphone\s+11"), "iphone-11"),
+    (re.compile(r"iphone\s+11\b"), "iphone-11"),
+    (re.compile(r"iphone\s+xs\s+max"), "iphone-xs-max"),
+    (re.compile(r"iphone\s+xs\b"), "iphone-xs"),
+    (re.compile(r"iphone\s+xr\b"), "iphone-xr"),
+    (re.compile(r"iphone\s+x\b"), "iphone-x"),
+    (re.compile(r"iphone\s+8\s+plus"), "iphone-8-plus"),
+    (re.compile(r"iphone\s+8\b"), "iphone-8"),
+    (re.compile(r"iphone\s+7\s+plus"), "iphone-7-plus"),
+    (re.compile(r"iphone\s+7\b"), "iphone-7"),
+    (re.compile(r"iphone\s+se\s*(?:\(\s*3|3rd|\b3\b)"), "iphone-se-3"),
+    (re.compile(r"iphone\s+se\b"), "iphone-se-3"),
+    (re.compile(r"iphone\s+air\b"), "iphone-17-air"),
     # Samsung Galaxy S / Z / Note
     (re.compile(r"galaxy\s+s26\s+ultra"), "galaxy-s26-ultra"),
     (re.compile(r"galaxy\s+s26\+"), "galaxy-s26-plus"),
@@ -69,6 +81,7 @@ _FAMILY_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"galaxy\s+s10\+"), "galaxy-s10-plus"),
     (re.compile(r"galaxy\s+s10e"), "galaxy-s10e"),
     (re.compile(r"galaxy\s+s10\b"), "galaxy-s10"),
+    (re.compile(r"galaxy\s+fold\s*5"), "galaxy-z-fold-5"),
     (re.compile(r"galaxy\s+z\s*fold\s*7"), "galaxy-z-fold-7"),
     (re.compile(r"galaxy\s+z\s*fold\s*6"), "galaxy-z-fold-6"),
     (re.compile(r"galaxy\s+z\s*fold\s*5"), "galaxy-z-fold-5"),
@@ -117,6 +130,77 @@ _FAMILY_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"galaxy\s+a13\b"), "galaxy-a13"),
     (re.compile(r"galaxy\s+a12\b"), "galaxy-a12"),
     (re.compile(r"galaxy\s+a10\b"), "galaxy-a10"),
+    (re.compile(r"galaxy\s+a07\b"), "galaxy-a07"),
+    (re.compile(r"galaxy\s+a06\b"), "galaxy-a06"),
+    (re.compile(r"galaxy\s+buds\s+core"), "galaxy-buds-core"),
+    (re.compile(r"galaxy\s+buds\s+3\b"), "galaxy-buds-3"),
+    (re.compile(r"galaxy\s+tab\s+s10\s+fe"), "galaxy-tab-s10-fe"),
+    (re.compile(r"pixel\s+10a\b"), "pixel-10a"),
+    (re.compile(r"pixel\s+9a\b"), "pixel-9a"),
+    (re.compile(r"mac\s+mini\s+m4"), "mac-mini-m4"),
+    (re.compile(r"macbook\s+13.*neo"), "macbook-13-neo"),
+    (re.compile(r"macbook\s+air\b"), "macbook-air-m5"),
+    (re.compile(r"apple\s+pencil\s+2\s+pro"), "apple-pencil-2-pro"),
+    (re.compile(r"apple\s+pencil\s+2"), "apple-pencil-2"),
+    (re.compile(r"honor\s+x5c\s+plus"), "honor-x5c-plus"),
+    (re.compile(r"honor\s+x5c\b"), "honor-x5c"),
+    (re.compile(r"honor\s+x5b\b"), "honor-x5b"),
+    (re.compile(r"honor\s+x7d\b"), "honor-x7d"),
+    (re.compile(r"honor\s+x7c\b"), "honor-x7c"),
+    (re.compile(r"honor\s+7d\b"), "honor-7d"),
+    (re.compile(r"honor\s+play\s*10"), "honor-play10"),
+    (re.compile(r"oppo\s+reno\s+15\s+pro"), "oppo-reno-15-pro-5g"),
+    (re.compile(r"oppo\s+reno\s+15f"), "oppo-reno-15f-5g"),
+    (re.compile(r"oppo\s+reno\s+15"), "oppo-reno-15-5g"),
+    (re.compile(r"oppo\s+a6\s+pro"), "oppo-a6-pro-4g"),
+    (re.compile(r"oppo\s+a6x\b"), "oppo-a6x"),
+    (re.compile(r"oppo\s+a6\b"), "oppo-a6-4g"),
+    (re.compile(r"oppo\s+a5\b"), "oppo-a5"),
+    (re.compile(r"oppo\s+a3x\b"), "oppo-a3x"),
+    (re.compile(r"oppo\s+a3\b"), "oppo-a3"),
+    (re.compile(r"redmi\s+note\s+15\s+pro"), "redmi-note-15-pro"),
+    (re.compile(r"redmi\s+note\s+15\b"), "redmi-note-15"),
+    (re.compile(r"redmi\s+15c\b"), "redmi-15c"),
+    (re.compile(r"redmi\s+15\b"), "redmi-15"),
+    (re.compile(r"redmi\s+a7\s+pro"), "redmi-a7-pro"),
+    (re.compile(r"redmi\s+a7\b"), "redmi-a7"),
+    (re.compile(r"infinix\s+hot\s+60\s+pro\+"), "infinix-hot-60-pro+"),
+    (re.compile(r"infinix\s+hot\s+60\s+pro"), "infinix-hot-60-pro"),
+    (re.compile(r"infinix\s+hot\s+60i\b"), "infinix-hot-60i"),
+    (re.compile(r"infinix\s+note\s+60\s+pro"), "infinix-note-60-pro"),
+    (re.compile(r"infinix\s+note\s+edge"), "infinix-note-edge"),
+    (re.compile(r"infinix\s+smart\s+20\b"), "infinix-smart-20"),
+    (re.compile(r"infinix\s+smart\s+10\b"), "infinix-smart-10"),
+    (re.compile(r"tecno\s+camon\s+50\s+ultra"), "tecno-camon-50-ultra"),
+    (re.compile(r"tecno\s+camon\s+50\s+pro"), "tecno-camon-50-pro"),
+    (re.compile(r"tecno\s+camon\s+50\b"), "tecno-camon-50"),
+    (re.compile(r"tecno\s+spark\s+50\b"), "tecno-spark-50"),
+    (re.compile(r"tecno\s+spark\s+40\s+pro"), "tecno-spark-40-pro"),
+    (re.compile(r"tecno\s+pop\s+20\b"), "tecno-pop-20"),
+    (re.compile(r"tecno\s+pop\s+10\b"), "tecno-pop-10"),
+    (re.compile(r"vivo\s+v70\s+fe"), "vivo-v70-fe"),
+    (re.compile(r"vivo\s+v70\b"), "vivo-v70"),
+    (re.compile(r"vivo\s+v60\s+lite\s+5g"), "vivo-v60-lite-5g"),
+    (re.compile(r"vivo\s+v60\s+lite\s+4g"), "vivo-v60-lite-4g"),
+    (re.compile(r"vivo\s+y31d\b"), "vivo-y31d"),
+    (re.compile(r"vivo\s+y21d\b"), "vivo-y21d"),
+    (re.compile(r"vivo\s+y05\b"), "vivo-y05"),
+    (re.compile(r"vivo\s+y04e\b"), "vivo-y04e"),
+    (re.compile(r"vivo\s+y04\b"), "vivo-y04"),
+    (re.compile(r"vivo\s+y28\b"), "vivo-y28"),
+    (re.compile(r"realme\s+note\s+70\b"), "realme-note-70"),
+    (re.compile(r"realme\s+note\s+60x\b"), "realme-note-60x"),
+    (re.compile(r"realme\s+note\s+50\b"), "realme-note-50"),
+    (re.compile(r"realme\s+c85\s+pro"), "realme-c85-pro"),
+    (re.compile(r"realme\s+c100i\b"), "realme-c100i"),
+    (re.compile(r"realme\s+c75\b"), "realme-c75"),
+    (re.compile(r"realme\s+12\+"), "realme-12+"),
+    (re.compile(r"itel\s+s26\s+ultra"), "itel-s26-ultra"),
+    (re.compile(r"itel\s+city\s+200"), "itel-city-200"),
+    (re.compile(r"itel\s+a100c\b"), "itel-a100c"),
+    (re.compile(r"itel\s+a200\b"), "itel-a200"),
+    (re.compile(r"itel\s+p70\b"), "itel-p70"),
+    (re.compile(r"itel\s+a04\b"), "itel-a04"),
     (re.compile(r"galaxy\s+a05\b"), "galaxy-a05"),
     (re.compile(r"galaxy\s+a04\b"), "galaxy-a04"),
     (re.compile(r"galaxy\s+a03\b"), "galaxy-a03"),
@@ -124,6 +208,14 @@ _FAMILY_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"galaxy\s+a01\b"), "galaxy-a01"),
     (re.compile(r"galaxy\s+a70\b"), "galaxy-a70"),
     (re.compile(r"galaxy\s+a71\b"), "galaxy-a71"),
+    (re.compile(r"galaxy\s+m54\b"), "galaxy-m54"),
+    (re.compile(r"galaxy\s+m53\b"), "galaxy-m53"),
+    (re.compile(r"galaxy\s+m52\b"), "galaxy-m52"),
+    (re.compile(r"galaxy\s+m51\b"), "galaxy-m51"),
+    (re.compile(r"galaxy\s+m40\b"), "galaxy-m40"),
+    (re.compile(r"galaxy\s+m33\s*5g"), "galaxy-m33"),
+    (re.compile(r"galaxy\s+m32\b"), "galaxy-m32"),
+    (re.compile(r"galaxy\s+m31\b"), "galaxy-m31"),
     (re.compile(r"galaxy\s+m30s\b"), "galaxy-m30s"),
     (re.compile(r"galaxy\s+m23\b"), "galaxy-m23"),
     (re.compile(r"galaxy\s+m22\b"), "galaxy-m22"),
@@ -165,7 +257,7 @@ _FAMILY_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"ipad\s+pro\s+m4.*11"), "ipad-pro-m4-11"),
     (re.compile(r"ipad\s+air\s+m3"), "ipad-air-m3"),
     (re.compile(r"ipad\s+mini\s+7"), "ipad-mini-7"),
-    (re.compile(r"ipad\s+11\b"), "ipad-11"),
+    (re.compile(r"ipad\s+11(?:th)?(?:\s+gen)?"), "ipad-11"),
     (re.compile(r"ipad\s+10\b"), "ipad-10"),
     (re.compile(r"ipad\s+6\b"), "ipad-6"),
     (re.compile(r"macbook\s+air\s+m5"), "macbook-air-m5"),
@@ -205,10 +297,15 @@ _FAMILY_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
 def normalize_product_name(product_name: str) -> str:
     """Strip storage, RAM, and region tags for family matching."""
     name = (product_name or "").lower()
-    name = re.sub(r"\b\d+\s*gb\b", "", name, flags=re.I)
-    name = re.sub(r"\b\d+\s*tb\b", "", name, flags=re.I)
-    name = re.sub(r"\b\d+\s*mb\b", "", name, flags=re.I)
-    name = re.sub(r"\b\d+\s*ram\b", "", name, flags=re.I)
+    # Remove storage/RAM clusters as a unit so model numbers (e.g. Z Fold 7) are kept.
+    name = re.sub(
+        r"\b\d+\s*gb(?:\s+\d+\s*gb)?(?:\s+\d+\s*ram)?\b",
+        " ",
+        name,
+        flags=re.I,
+    )
+    name = re.sub(r"\b\d+\s*tb\b", " ", name, flags=re.I)
+    name = re.sub(r"\b\d+\s*mb\b", " ", name, flags=re.I)
     name = re.sub(r"\([^)]*\)", "", name)
     name = re.sub(
         r"\b(e-?sim|sim|official|dubai|black|desert|silver|orange|blue|white|gold)\b",
@@ -216,8 +313,14 @@ def normalize_product_name(product_name: str) -> str:
         name,
         flags=re.I,
     )
+    name = re.sub(r"\b(\d+)(?:st|nd|rd|th)\s+gen\b", r"\1", name, flags=re.I)
     name = re.sub(r"[^a-z0-9+ ]+", " ", name)
     return re.sub(r"\s+", " ", name).strip()
+
+
+def slugify_product_name(product_name: str) -> str:
+    normalized = normalize_product_name(product_name)
+    return re.sub(r"[^a-z0-9+]+", "-", normalized).strip("-")
 
 
 def match_family_key(product_name: str) -> str | None:
@@ -225,20 +328,48 @@ def match_family_key(product_name: str) -> str | None:
     for pattern, family_key in _FAMILY_PATTERNS:
         if pattern.search(normalized):
             return family_key
+    slug = slugify_product_name(product_name)
+    if slug and slug in load_release_date_lookup():
+        return slug
     return None
 
 
 @lru_cache(maxsize=1)
 def load_release_date_lookup() -> dict[str, date]:
-    path = Path(__file__).resolve().parent.parent / "data" / "product-release-dates.json"
+    """Return family_key -> release date (1st of month). DB first, JSON fallback."""
+    try:
+        from inventory.models import ProductReleaseDate
+
+        rows = list(ProductReleaseDate.objects.all())
+        if rows:
+            return {row.family_key: row.to_date() for row in rows}
+    except Exception:
+        # Table may not exist before migrations run.
+        pass
+
+    data_dir = Path(__file__).resolve().parent.parent / "data"
+    path = data_dir / "product-release-dates.json"
     with path.open(encoding="utf-8") as handle:
         raw = json.load(handle)
-    return {key: date.fromisoformat(value) for key, value in raw.items()}
+    exact_path = data_dir / "product-release-dates-exact.json"
+    if exact_path.exists():
+        with exact_path.open(encoding="utf-8") as handle:
+            raw.update(json.load(handle))
+    return {
+        key: date.fromisoformat(value).replace(day=1)
+        for key, value in raw.items()
+    }
+
+
+def clear_release_date_lookup_cache() -> None:
+    load_release_date_lookup.cache_clear()
 
 
 def infer_release_date(product_name: str) -> date | None:
     """Return a release date for a product name, or None if unknown."""
+    lookup = load_release_date_lookup()
     family_key = match_family_key(product_name)
-    if not family_key:
-        return None
-    return load_release_date_lookup().get(family_key)
+    if family_key:
+        return lookup.get(family_key)
+    slug = slugify_product_name(product_name)
+    return lookup.get(slug) if slug else None

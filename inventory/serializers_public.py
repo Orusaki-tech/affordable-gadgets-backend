@@ -434,6 +434,7 @@ class PublicProductSerializer(serializers.ModelSerializer):
             "published_article_count",
             "storage_gb",
             "ram_gb",
+            "release_date",
         ]
 
     @extend_schema_field(OpenApiTypes.BOOL)

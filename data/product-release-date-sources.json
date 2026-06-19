@@ -1,0 +1,118 @@
+{
+  "iphone-17-pro-max": {
+    "product_label": "iPhone 17 Pro Max",
+    "release_month": 9,
+    "release_year": 2025,
+    "source_url": "https://www.apple.com/newsroom/2025/09/apple-unveils-iphone-17-pro-and-iphone-17-pro-max/",
+    "notes": "Available September 19, 2025"
+  },
+  "iphone-17-pro": {
+    "product_label": "iPhone 17 Pro",
+    "release_month": 9,
+    "release_year": 2025,
+    "source_url": "https://www.apple.com/newsroom/2025/09/apple-unveils-iphone-17-pro-and-iphone-17-pro-max/"
+  },
+  "iphone-17-air": {
+    "product_label": "iPhone Air",
+    "release_month": 9,
+    "release_year": 2025,
+    "source_url": "https://www.apple.com/newsroom/2025/09/get-ready-to-discover-the-next-generation-of-iphone-apple-watch-and-airpods/"
+  },
+  "iphone-17": {
+    "product_label": "iPhone 17",
+    "release_month": 9,
+    "release_year": 2025,
+    "source_url": "https://www.apple.com/newsroom/2025/09/apple-introduces-iphone-17/"
+  },
+  "iphone-17e": {
+    "product_label": "iPhone 17e",
+    "release_month": 3,
+    "release_year": 2026,
+    "source_url": "https://www.apple.com/newsroom/2026/03/apple-introduces-iphone-17e/",
+    "notes": "Available March 11, 2026"
+  },
+  "iphone-16e": {
+    "product_label": "iPhone 16e",
+    "release_month": 2,
+    "release_year": 2025,
+    "source_url": "https://www.apple.com/newsroom/2025/02/apple-debuts-iphone-16e-a-powerful-new-member-of-the-iphone-16-family/",
+    "notes": "Available February 28, 2025"
+  },
+  "galaxy-s26-ultra": {
+    "product_label": "Samsung Galaxy S26 Ultra",
+    "release_month": 2,
+    "release_year": 2026,
+    "source_url": "https://news.samsung.com/uk/samsung-unveils-galaxy-s26-series-the-most-intuitive-galaxy-ai-phone-yet",
+    "notes": "Announced February 25, 2026; retail from March 11, 2026"
+  },
+  "galaxy-s26-plus": {
+    "product_label": "Samsung Galaxy S26+",
+    "release_month": 2,
+    "release_year": 2026,
+    "source_url": "https://news.samsung.com/uk/samsung-unveils-galaxy-s26-series-the-most-intuitive-galaxy-ai-phone-yet"
+  },
+  "galaxy-s26": {
+    "product_label": "Samsung Galaxy S26",
+    "release_month": 2,
+    "release_year": 2026,
+    "source_url": "https://news.samsung.com/uk/samsung-unveils-galaxy-s26-series-the-most-intuitive-galaxy-ai-phone-yet"
+  },
+  "galaxy-z-fold-7": {
+    "product_label": "Samsung Galaxy Z Fold7",
+    "release_month": 7,
+    "release_year": 2025,
+    "source_url": "https://news.samsung.com/global/samsung-galaxy-z-fold7-raising-the-bar-for-smartphones",
+    "notes": "Available July 25, 2025"
+  },
+  "galaxy-z-flip-7": {
+    "product_label": "Samsung Galaxy Z Flip7",
+    "release_month": 7,
+    "release_year": 2025,
+    "source_url": "https://news.samsung.com/global/samsung-launches-galaxy-z-fold7-galaxy-z-flip7-and-galaxy-watch8-series-globally-starting-today"
+  },
+  "galaxy-s25-ultra": {
+    "product_label": "Samsung Galaxy S25 Ultra",
+    "release_month": 2,
+    "release_year": 2025,
+    "source_url": "https://news.samsung.com/global/samsung-galaxy-s25-series-the-next-chapter-in-ai-phones"
+  },
+  "pixel-10": {
+    "product_label": "Google Pixel 10",
+    "release_month": 10,
+    "release_year": 2025,
+    "source_url": "https://blog.google/products/pixel/pixel-10-series/",
+    "notes": "Made by Google 2025 event"
+  },
+  "pixel-10-pro": {
+    "product_label": "Google Pixel 10 Pro",
+    "release_month": 10,
+    "release_year": 2025,
+    "source_url": "https://blog.google/products/pixel/pixel-10-series/"
+  },
+  "pixel-10-pro-xl": {
+    "product_label": "Google Pixel 10 Pro XL",
+    "release_month": 10,
+    "release_year": 2025,
+    "source_url": "https://blog.google/products/pixel/pixel-10-series/"
+  },
+  "ipad-11": {
+    "product_label": "iPad (11th generation)",
+    "release_month": 3,
+    "release_year": 2025,
+    "source_url": "https://www.apple.com/newsroom/2025/03/apple-introduces-powerful-new-ipad-air-with-m3-and-new-ipad/"
+  },
+  "macbook-air-m5": {
+    "product_label": "MacBook Air (M5)",
+    "release_month": 3,
+    "release_year": 2026,
+    "source_url": "https://www.apple.com/newsroom/2026/03/apple-introduces-the-new-macbook-air-with-m5/",
+    "notes": "Available March 11, 2026"
+  },
+  "macbook-pro-m5": {
+    "product_label": "MacBook Pro (M5)",
+    "release_month": 3,
+    "release_year": 2026,
+    "source_url": "https://www.apple.com/newsroom/2026/03/apple-introduces-macbook-pro-with-m5/",
+    "notes": "March 2026 Apple launch"
+  }
+}

@@ -36,20 +36,16 @@ def _is_legacy_generic_apple_phone(name: str) -> bool:
     if not name.startswith("iPhone"):
         return False
     lower = name.lower()
+    if re.match(r"^iphone \d+e$", lower):
+        # e-series models (17e, 16e) are canonical product names — not superseded by *E SIM SKUs.
+        return False
     return not any(marker in lower for marker in _LEGACY_MARKERS)
 
 
 def _replacement_names(generic_name: str) -> list[str]:
     """Candidate stock-list product names that replace a generic iPhone row."""
     base = generic_name.strip()
-    names = [f"{base} E-SIM", f"{base} SIM"]
-
-    # iPhone 17e -> iPhone 17E SIM
-    match = re.match(r"^(iPhone \d+)e$", base, re.IGNORECASE)
-    if match:
-        names.append(f"{match.group(1)}E SIM")
-
-    return names
+    return [f"{base} E-SIM", f"{base} SIM"]
 
 
 def _is_direct_sim_variant(key: str, base_key: str) -> tuple[bool, bool]:
