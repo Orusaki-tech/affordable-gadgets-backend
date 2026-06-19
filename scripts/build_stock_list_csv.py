@@ -84,6 +84,8 @@ def lt(name: str, brand: str, series: str, desc: str, *variants: tuple[int | Non
 APPLE_WARRANTY = (
     "Official Apple Service Center warranty only. No in-house shop warranty. Non-activated."
 )
+# Apple iPhones: E-SIM and physical SIM are separate products (different prices).
+# Product names must include ``E-SIM`` or ``SIM`` — never a generic ``iPhone 17`` row.
 CARRIER_LOCKED = "Carrier-locked units only. No warranty."
 NOTHING_DESC = "Carrier-locked units only."
 

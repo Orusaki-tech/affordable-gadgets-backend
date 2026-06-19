@@ -14,6 +14,10 @@ Usage::
     python manage.py import_stock_list --dry-run
     python manage.py import_stock_list
     python manage.py import_stock_list --overwrite-existing-prices
+
+After a full import, generic legacy Apple rows (e.g. plain ``iPhone 17``) are
+unpublished when E-SIM / SIM stock-list products exist — pass
+``--skip-unpublish-superseded`` to disable.
 """
 
 from __future__ import annotations
@@ -125,6 +129,14 @@ class Command(BaseCommand):
             action="store_true",
             help="Import variants CSV only (products must already exist)",
         )
+        parser.add_argument(
+            "--skip-unpublish-superseded",
+            action="store_true",
+            help=(
+                "Do not unpublish generic legacy Apple iPhone products after import "
+                "(default: unpublish when E-SIM/SIM replacements exist)"
+            ),
+        )
 
     def handle(self, *args, **options):
         products_csv = Path(options["products_csv"]).expanduser()
@@ -135,6 +147,7 @@ class Command(BaseCommand):
         overwrite = bool(options["overwrite_existing_prices"])
         products_only = bool(options["products_only"])
         variants_only = bool(options["variants_only"])
+        skip_unpublish = bool(options["skip_unpublish_superseded"])
 
         if products_only and variants_only:
             raise CommandError("Cannot pass both --products-only and --variants-only.")
@@ -206,6 +219,20 @@ class Command(BaseCommand):
                 f"invalid: {variant_stats['invalid']}, "
                 f"failed: {variant_stats['failed']}"
             )
+
+        if not skip_unpublish and not products_only:
+            from inventory.management.commands.unpublish_superseded_apple_phones import (
+                unpublish_superseded_apple_phones,
+            )
+
+            self.stdout.write("")
+            self.stdout.write(
+                self.style.HTTP_INFO("=== Unpublish superseded generic Apple iPhones ===")
+            )
+            unpublish_stats = unpublish_superseded_apple_phones(dry_run=dry_run)
+            for key, value in unpublish_stats.items():
+                self.stdout.write(f"  {key}: {value}")
+
         if dry_run:
             self.stdout.write(self.style.WARNING("(dry-run — nothing written)"))
 
