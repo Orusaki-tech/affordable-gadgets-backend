@@ -4294,6 +4294,7 @@ class ProductVariantViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     queryset = ProductVariant.objects.select_related("product").all()
     serializer_class = ProductVariantSerializer
     permission_classes = [IsInventoryManagerOrReadOnly]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = ["product", "is_active"]
     search_fields = ["product__product_name"]
 

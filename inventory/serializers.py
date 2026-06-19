@@ -1001,12 +1001,14 @@ class ProductVariantSerializer(serializers.ModelSerializer):
     product_id = serializers.PrimaryKeyRelatedField(
         queryset=Product.objects.all(), source="product", write_only=True
     )
+    product = serializers.PrimaryKeyRelatedField(read_only=True)
     product_name = serializers.CharField(source="product.product_name", read_only=True)
 
     class Meta:
         model = ProductVariant
         fields = (
             "id",
+            "product",
             "product_id",
             "product_name",
             "storage_gb",
