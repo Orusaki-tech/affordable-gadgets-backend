@@ -1,0 +1,93 @@
+name: Sync DB to Render Postgres
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip_dump:
+        description: 'Skip GCP dump; restore existing artifact only (not supported in CI — always dumps)'
+        type: boolean
+        default: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Resume Cloud SQL if suspended
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          SQL_INSTANCE: affordable-gadgets-production-pg
+        run: |
+          STATE=$(gcloud sql instances describe "${SQL_INSTANCE}" \
+            --project="${GCP_PROJECT_ID}" --format='value(state)' 2>/dev/null || echo UNKNOWN)
+          if [[ "${STATE}" == "SUSPENDED" || "${STATE}" == "STOPPED" ]]; then
+            gcloud sql instances patch "${SQL_INSTANCE}" \
+              --activation-policy=ALWAYS \
+              --project="${GCP_PROJECT_ID}"
+          fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -y postgresql-client
+          pip install -r requirements.txt
+
+      - name: Dump GCP production and restore to Render
+        env:
+          CONNECTION: ${{ secrets.CLOUD_SQL_CONNECTION_NAME }}
+          PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          RENDER_DATABASE_URL: ${{ secrets.RENDER_DATABASE_URL }}
+          SECRET_KEY: ci-render-db-sync
+          ALLOWED_HOSTS: localhost
+          FRONTEND_BASE_URL: https://affordable-gadgetske.com
+          DJANGO_SETTINGS_MODULE: store.settings_production
+        run: |
+          set -euo pipefail
+          if [[ -z "${RENDER_DATABASE_URL}" ]]; then
+            echo "ERROR: Add GitHub secret RENDER_DATABASE_URL (Render Postgres external URL with ?sslmode=require)"
+            exit 1
+          fi
+          if [[ "${PRODUCTION_DATABASE_URL}" != *"127.0.0.1"* && "${PRODUCTION_DATABASE_URL}" != *"localhost"* ]]; then
+            echo "ERROR: PRODUCTION_DATABASE_URL must use 127.0.0.1 with Cloud SQL Auth Proxy"
+            exit 1
+          fi
+
+          curl -sSf -o cloud-sql-proxy https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.14.3/cloud-sql-proxy.linux.amd64
+          chmod +x cloud-sql-proxy
+          ./cloud-sql-proxy "${CONNECTION}" --port=5432 &
+          PROXY_PID=$!
+          trap 'kill ${PROXY_PID} 2>/dev/null || true' EXIT
+
+          for i in $(seq 1 30); do
+            if python3 -c "import os, psycopg; psycopg.connect(os.environ['PRODUCTION_DATABASE_URL'], connect_timeout=3).close()" 2>/dev/null; then
+              echo "Cloud SQL proxy OK"
+              break
+            fi
+            sleep 2
+          done
+
+          chmod +x scripts/sync-gcp-to-render-postgres.sh
+          export CLOUD_SQL_CONNECTION_NAME="${CONNECTION}"
+          ./scripts/sync-gcp-to-render-postgres.sh
+
+      - name: Summary
+        run: |
+          echo "Sync complete. In Render dashboard set:"
+          echo "  DATABASE_URL = (same as RENDER_DATABASE_URL secret)"
+          echo "Remove DB_HOST, DB_NAME, DB_USER, DB_PASSWORD, DB_PORT if present."
+          echo "Then Manual Deploy the web service."
