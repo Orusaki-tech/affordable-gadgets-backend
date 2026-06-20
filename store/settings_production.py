@@ -250,11 +250,31 @@ CORS_ALLOW_ALL_ORIGINS = False
 SESSION_COOKIE_SAMESITE = "None"
 CSRF_COOKIE_SAMESITE = "None"
 
-# Cache: use Redis in production when REDIS_URL is set (e.g. Railway Redis add-on).
-# This makes product list cache survive restarts and cold starts; first request after
-# cold start is still slow until the service is warm.
+# Cache: use Redis in production when REDIS_URL is set and reachable.
+# Fall back to in-process LocMem when Redis is missing or unreachable (e.g. Render
+# without a linked Redis instance) so public API cache/Silk do not 500.
+_locmem_caches = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "ag-default",
+    }
+}
 _redis_url = os.environ.get("REDIS_URL", "").strip()
+_redis_ok = False
 if _redis_url:
+    try:
+        import redis
+
+        redis.from_url(_redis_url, socket_connect_timeout=3).ping()
+        _redis_ok = True
+    except Exception as exc:
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "REDIS_URL is set but unreachable (%s); using LocMemCache instead.", exc
+        )
+
+if _redis_url and _redis_ok:
     CACHES = {
         "default": {
             "BACKEND": "django.core.cache.backends.redis.RedisCache",
@@ -265,12 +285,7 @@ if _redis_url:
         }
     }
 else:
-    CACHES = {
-        "default": {
-            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-            "LOCATION": "ag-default",
-        }
-    }
+    CACHES = _locmem_caches
 
 # ── Logging ─────────────────────────────────────────────────────────
 # In production, use JSON structured logging for easier ingestion by

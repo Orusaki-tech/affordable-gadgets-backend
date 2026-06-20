@@ -101,6 +101,27 @@ PUBLIC_PRODUCT_DETAIL_CACHE_TTL = getattr(settings, "PUBLIC_PRODUCT_DETAIL_CACHE
 PUBLIC_WISHLIST_CACHE_TTL = getattr(
     settings, "PUBLIC_WISHLIST_CACHE_TTL", 60
 )  # 1 min (short so add/remove feels fresh)
+
+
+def _safe_cache_get(key):
+    try:
+        return cache.get(key)
+    except Exception:
+        return None
+
+
+def _safe_cache_set(key, value, timeout):
+    try:
+        cache.set(key, value, timeout)
+    except Exception:
+        return None
+
+
+def _safe_cache_delete(key):
+    try:
+        cache.delete(key)
+    except Exception:
+        return None
 # Optional Silk profiling: when SILKY_ENABLED, wrap views so the Silk "Profiling" tab has data
 try:
     if getattr(settings, "SILKY_ENABLED", False):
@@ -605,7 +626,7 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
                 + ":"
                 + urlencode(sorted(request.query_params.items()))
             )
-            cached = cache.get(cache_key)
+            cached = _safe_cache_get(cache_key)
             if cached is not None:
                 return Response(cached)
 
@@ -770,7 +791,7 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
                 request.query_params.get("page_size", "24"),
             )
             if cache_enabled and hasattr(response, "data"):
-                cache.set(cache_key, response.data, PUBLIC_PRODUCTS_LIST_CACHE_TTL)
+                _safe_cache_set(cache_key, response.data, PUBLIC_PRODUCTS_LIST_CACHE_TTL)
             return response
         except Exception as e:
             # #region agent log - List exception
@@ -871,7 +892,7 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
                 + ":"
                 + str(kwargs.get("pk"))
             )
-            cached = cache.get(cache_key)
+            cached = _safe_cache_get(cache_key)
             if cached is not None:
                 return Response(cached)
 
@@ -882,7 +903,7 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
         serializer = self.get_serializer(product)
         response = Response(serializer.data)
         if cache_enabled:
-            cache.set(cache_key, response.data, PUBLIC_PRODUCT_DETAIL_CACHE_TTL)
+            _safe_cache_set(cache_key, response.data, PUBLIC_PRODUCT_DETAIL_CACHE_TTL)
         return response
 
     def get_queryset(self):
@@ -3294,18 +3315,18 @@ class PublicWishlistViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ModelVi
             return super().list(request, *args, **kwargs)
         cache_key = self._wishlist_cache_key(request)
         if cache_key:
-            cached = cache.get(cache_key)
+            cached = _safe_cache_get(cache_key)
             if cached is not None:
                 return Response(cached)
         response = super().list(request, *args, **kwargs)
         if cache_key and response.status_code == 200 and hasattr(response, "data"):
-            cache.set(cache_key, response.data, PUBLIC_WISHLIST_CACHE_TTL)
+            _safe_cache_set(cache_key, response.data, PUBLIC_WISHLIST_CACHE_TTL)
         return response
 
     def _invalidate_wishlist_cache(self, request):
         cache_key = self._wishlist_cache_key(request)
         if cache_key:
-            cache.delete(cache_key)
+            _safe_cache_delete(cache_key)
 
     def create(self, request, *args, **kwargs):
         product_id = request.data.get("product_id")
