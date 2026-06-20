@@ -29,11 +29,29 @@ cleanup() {
 }
 trap cleanup EXIT
 
+rewrite_db_url_for_proxy() {
+  python3 - <<'PY'
+import os
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+
+raw = os.environ.get("PRODUCTION_DATABASE_URL", "").strip()
+if not raw:
+    raise SystemExit("PRODUCTION_DATABASE_URL is empty")
+parsed = urlparse(raw)
+port = parsed.port or 5432
+query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+query.setdefault("sslmode", "disable")
+netloc = f"{parsed.username}:{parsed.password}@127.0.0.1:{port}"
+print(urlunparse(parsed._replace(netloc=netloc, query=urlencode(query))))
+PY
+}
+
 if [[ "${SKIP_DUMP:-0}" != "1" ]]; then
   if [[ -z "${PRODUCTION_DATABASE_URL:-}" ]]; then
-    echo "ERROR: Set PRODUCTION_DATABASE_URL (via Cloud SQL proxy @ 127.0.0.1:5432)" >&2
+    echo "ERROR: Set PRODUCTION_DATABASE_URL (Cloud SQL credentials; host is rewritten to 127.0.0.1 for proxy)" >&2
     exit 1
   fi
+  PROXY_DATABASE_URL="$(rewrite_db_url_for_proxy)"
   if [[ -n "${CLOUD_SQL_CONNECTION_NAME:-}" ]] && ! nc -z 127.0.0.1 5432 2>/dev/null; then
     PROXY_BIN="${PROXY_BIN:-cloud-sql-proxy}"
     echo "Starting Cloud SQL Auth Proxy..."
@@ -42,7 +60,7 @@ if [[ "${SKIP_DUMP:-0}" != "1" ]]; then
     sleep 5
   fi
   echo "Dumping production database to ${DUMP}..."
-  pg_dump "${PRODUCTION_DATABASE_URL}" -Fc --no-owner --no-acl -f "${DUMP}"
+  pg_dump "${PROXY_DATABASE_URL}" -Fc --no-owner --no-acl -f "${DUMP}"
   echo "Dump complete ($(du -h "${DUMP}" | cut -f1))"
 fi
 

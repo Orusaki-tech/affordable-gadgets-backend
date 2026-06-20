@@ -62,19 +62,26 @@ jobs:
             echo "ERROR: Add GitHub secret RENDER_DATABASE_URL (Render Postgres external URL with ?sslmode=require)"
             exit 1
           fi
-          if [[ "${PRODUCTION_DATABASE_URL}" != *"127.0.0.1"* && "${PRODUCTION_DATABASE_URL}" != *"localhost"* ]]; then
-            echo "ERROR: PRODUCTION_DATABASE_URL must use 127.0.0.1 with Cloud SQL Auth Proxy"
-            exit 1
-          fi
-
           curl -sSf -o cloud-sql-proxy https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.14.3/cloud-sql-proxy.linux.amd64
           chmod +x cloud-sql-proxy
           ./cloud-sql-proxy "${CONNECTION}" --port=5432 &
           PROXY_PID=$!
           trap 'kill ${PROXY_PID} 2>/dev/null || true' EXIT
 
+          PROXY_DATABASE_URL="$(python3 - <<'PY'
+          import os
+          from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+          parsed = urlparse(os.environ["PRODUCTION_DATABASE_URL"])
+          port = parsed.port or 5432
+          query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+          query.setdefault("sslmode", "disable")
+          netloc = f"{parsed.username}:{parsed.password}@127.0.0.1:{port}"
+          print(urlunparse(parsed._replace(netloc=netloc, query=urlencode(query))))
+          PY
+          )"
+          export PROXY_DATABASE_URL
           for i in $(seq 1 30); do
-            if python3 -c "import os, psycopg; psycopg.connect(os.environ['PRODUCTION_DATABASE_URL'], connect_timeout=3).close()" 2>/dev/null; then
+            if python3 -c "import os, psycopg; psycopg.connect(os.environ['PROXY_DATABASE_URL'], connect_timeout=3).close()" 2>/dev/null; then
               echo "Cloud SQL proxy OK"
               break
             fi
