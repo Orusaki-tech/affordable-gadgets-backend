@@ -6389,6 +6389,11 @@ paths:
         schema:
           type: string
       - in: query
+        name: product_type
+        schema:
+          type: string
+        description: Filter by product type code (PH, LT, TB, or AC).
+      - in: query
         name: search
         schema:
           type: string
@@ -12704,6 +12709,20 @@ components:
         product_name:
           type: string
           readOnly: true
+        product_type:
+          type: string
+          readOnly: true
+          description: Product type code (PH, LT, TB, or AC).
+        product_brand:
+          type: string
+          readOnly: true
+          description: Product brand name (e.g. Apple, Samsung).
+        product_primary_image:
+          type: string
+          format: uri
+          readOnly: true
+          nullable: true
+          description: Product hero image fallback when article has no thumbnail
     PublicBundle:
       type: object
       properties:

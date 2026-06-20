@@ -330,6 +330,8 @@ class PublicArticleCardSerializer(serializers.ModelSerializer):
 
     product_slug = serializers.CharField(source="product.slug", read_only=True)
     product_name = serializers.CharField(source="product.product_name", read_only=True)
+    product_type = serializers.CharField(source="product.product_type", read_only=True)
+    product_brand = serializers.CharField(source="product.brand", read_only=True)
     product_primary_image = serializers.SerializerMethodField()
 
     class Meta:
@@ -343,6 +345,8 @@ class PublicArticleCardSerializer(serializers.ModelSerializer):
             "published_at",
             "product_slug",
             "product_name",
+            "product_type",
+            "product_brand",
         )
         read_only_fields = fields
 

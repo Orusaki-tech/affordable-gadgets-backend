@@ -3520,6 +3520,12 @@ class PublicProductAccessoryViewSet(_PublicAPIMixin, inventory_views.ProductAcce
             OpenApiParameter("search", OpenApiTypes.STR, OpenApiParameter.QUERY),
             OpenApiParameter("brand", OpenApiTypes.STR, OpenApiParameter.QUERY),
             OpenApiParameter(
+                "product_type",
+                OpenApiTypes.STR,
+                OpenApiParameter.QUERY,
+                description="Filter by product type code: PH, LT, TB, or AC.",
+            ),
+            OpenApiParameter(
                 "ordering",
                 OpenApiTypes.STR,
                 OpenApiParameter.QUERY,
@@ -3583,6 +3589,12 @@ class PublicArticleViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
         brand_name = self.request.query_params.get("brand")
         if brand_name:
             queryset = queryset.filter(product__brand__iexact=brand_name)
+
+        product_type = self.request.query_params.get("product_type")
+        if product_type:
+            valid_types = {code for code, _ in Product.ProductType.choices}
+            if product_type in valid_types:
+                queryset = queryset.filter(product__product_type=product_type)
 
         if self.request.query_params.get("featured") in ("1", "true", "yes"):
             from inventory.product_ordering import apply_product_ordering
