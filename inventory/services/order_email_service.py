@@ -84,7 +84,7 @@ class OrderEmailService:
                 "Items:\n"
                 f"{items_text}\n\n"
                 f"Total Amount: Ksh {display_total:,.2f}\n\n"
-                "If you have any questions, please contact us at +254768431216.\n\n"
+                "If you have any questions, please contact us at +254142530781.\n\n"
                 "Best regards,\n"
                 "Affordable Gadgets Team\n"
             )

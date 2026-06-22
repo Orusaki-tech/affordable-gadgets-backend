@@ -239,7 +239,7 @@ class ReceiptService:
             "payment_methods_checked": payment_methods_checked,
             "payment_reference": payment_reference,
             "payment_channel": payment_channel,
-            "phone_number": "+254768431216",  # Company phone
+            "phone_number": "+254142530781",  # Company phone
             "bundle_summary": bundle_summary,
         }
 
@@ -394,7 +394,7 @@ Product Amount: Ksh {items_total:,.2f}
 Shipping Fee: Ksh {delivery_fee:,.2f}
 Total (Product + Shipping): Ksh {grand_total:,.2f}
 
-If you have any questions, please contact us at +254768431216.
+If you have any questions, please contact us at +254142530781.
 
 Best regards,
 Affordable Gadgets Team
