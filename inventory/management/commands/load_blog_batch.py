@@ -264,59 +264,38 @@ class Command(BaseCommand):
 
         # Check for product images to include as thumbnail
         thumbnail_image = None
-        body_with_images = body_markdown
 
-        # Generate image gallery from existing ProductImage records
+        # Use the first product image as thumbnail and a single aside image in the body
         product_images = ProductImage.objects.filter(product=product).order_by(
             "display_order"
         )
-        image_section = ""
-        image_urls = []
+        primary_image_url = None
+        primary_image_alt = product.product_name
         if product_images.exists():
-            for pi in product_images:
-                try:
-                    url = get_optimized_image_url(pi.image, width=800, crop="limit")
-                    if url:
-                        image_urls.append(url)
-                except Exception:
-                    pass
+            first_image = product_images.first()
+            try:
+                primary_image_url = get_optimized_image_url(
+                    first_image.image, width=800, crop="limit"
+                )
+                primary_image_alt = first_image.alt_text or product.product_name
+            except Exception:
+                primary_image_url = None
 
-            if image_urls:
-                image_section = "\n\n<div class=\"product-gallery\">\n"
-                for i, url in enumerate(image_urls):
-                    alt = product_images[i].alt_text or f"{product.product_name} - Image {i + 1}"
-                    image_section += f'<img src="{url}" alt="{alt}" loading="lazy" />\n'
-                image_section += "</div>\n"
-
-                # Set first image as article thumbnail
+            if primary_image_url:
                 try:
                     thumbnail_url = get_optimized_image_url(
-                        product_images.first().image, width=1200, height=630
+                        first_image.image, width=1200, height=630
                     )
                     if thumbnail_url:
                         thumbnail_image = thumbnail_url
                 except Exception:
                     pass
 
-        # Insert gallery after the H1/headline
-        body_lines = body_with_images.split("\n", 1)
-        if len(body_lines) > 1:
-            body_with_images = body_lines[0] + image_section + "\n" + body_lines[1]
-        else:
-            body_with_images = body_with_images + image_section
-
-        # Build image markdown references for the body (if images exist)
-        # The body already includes markdown image refs; we also add the gallery div above
-        # For Markdown rendering, convert gallery div images to markdown too
         gallery_markdown = ""
-        if image_urls:
-            gallery_markdown = "\n\n"
-            for i, url in enumerate(image_urls):
-                alt = product_images[i].alt_text or f"{product.product_name} - Image {i + 1}"
-                gallery_markdown += f"![{alt}]({url})\n\n"
+        if primary_image_url:
+            gallery_markdown = f"\n\n![{primary_image_alt}]({primary_image_url})\n\n"
 
-        # Inject gallery markdown after first heading
-        body_with_images = body_markdown
+        # Inject the single image after the first heading
         lines = body_markdown.split("\n", 1)
         if len(lines) > 1:
             body_with_images = lines[0] + gallery_markdown + lines[1]
