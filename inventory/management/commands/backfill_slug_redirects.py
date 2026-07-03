@@ -184,7 +184,7 @@ class Command(BaseCommand):
         products_by_id = {p.id: p for p in products}
 
         existing_redirects = {
-            row.old_slug: row.product_id
+            row["old_slug"]: row["product_id"]
             for row in ProductSlugRedirect.objects.values("old_slug", "product_id")
         }
 
