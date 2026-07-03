@@ -86,5 +86,9 @@ if [[ "$ACTION" == "load-blogs" ]]; then
   exit 0
 fi
 
-echo "Unknown action: $ACTION (plan|apply|push-image|migrate|load-blogs)" >&2
+if [[ "$ACTION" == "seo-maintenance" ]]; then
+  exec "$SCRIPT_DIR/run-seo-maintenance.sh" "${2:-audit}"
+fi
+
+echo "Unknown action: $ACTION (plan|apply|push-image|migrate|load-blogs|seo-maintenance)" >&2
 exit 1

@@ -15,8 +15,46 @@ def is_missing(value: str | None) -> bool:
     return not value or value.strip() == "" or value.strip().upper() == "N/A"
 
 
+def normalize_possessives_for_slug(value: str) -> str:
+    """
+    Normalize possessive apostrophes before slugify so "Apple's" and "Apple s"
+    both become the same token sequence (apples, not apple-s).
+    """
+    text = value or ""
+    text = re.sub(r"(\w)'s\b", r"\1s", text, flags=re.IGNORECASE)
+    text = re.sub(r"'s\b", "s", text, flags=re.IGNORECASE)
+    text = text.replace("'", "")
+    return text
+
+
+def slugify_seo(value: str) -> str:
+    """Slugify text with consistent apostrophe / possessive handling."""
+    return slugify(normalize_possessives_for_slug(value))
+
+
+def apostrophe_bug_slug_variants(slug: str) -> set[str]:
+    """
+    Return slug variants caused by the legacy apostrophe bug.
+
+    Correct: apples-latest-phone
+    Buggy:   apple-s-latest-phone
+    """
+    slug = (slug or "").strip()
+    if not slug:
+        return set()
+
+    variants = {slug}
+    fixed = re.sub(r"([a-z]+)-s-", r"\1s-", slug)
+    if fixed != slug:
+        variants.add(fixed)
+    buggy = re.sub(r"([a-z]+)s-", r"\1-s-", slug)
+    if buggy != slug:
+        variants.add(buggy)
+    return variants
+
+
 def _slug_tokens(value: str) -> list[str]:
-    return [token for token in slugify(value or "").split("-") if token]
+    return [token for token in slugify_seo(value or "").split("-") if token]
 
 
 def _strip_leading_duplicate_tokens(prefix_tokens: list[str], tokens: list[str]) -> list[str]:
@@ -121,7 +159,7 @@ def build_seo_product_slug(
 
     if not slug:
         fallback = product_name or model_series or brand
-        slug = slugify(fallback)
+        slug = slugify_seo(fallback)
 
     slug = re.sub(r"-{2,}", "-", slug).strip("-")
     return _trim_slug(slug)
@@ -192,3 +230,37 @@ def resolve_product_for_slug(slug: str, queryset=None):
             return None, False
 
     return product, True
+
+
+def resolve_article_for_slug(product, slug: str):
+    """
+    Resolve a published article slug under a product.
+
+    Returns (article, is_legacy_redirect).
+    """
+    from inventory.models import ProductArticle, ProductArticleSlugRedirect
+
+    if not product or not slug:
+        return None, False
+
+    article = (
+        ProductArticle.objects.filter(product=product, slug=slug, is_published=True)
+        .select_related("product")
+        .first()
+    )
+    if article:
+        return article, False
+
+    redirect_entry = (
+        ProductArticleSlugRedirect.objects.filter(product=product, old_slug=slug)
+        .select_related("article", "article__product")
+        .order_by("-created_at")
+        .first()
+    )
+    if not redirect_entry:
+        return None, False
+
+    article = redirect_entry.article
+    if not article.is_published or not article.product.is_published:
+        return None, False
+    return article, True

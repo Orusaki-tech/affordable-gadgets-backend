@@ -414,6 +414,10 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
             .first()
         )
         if not art:
+            from inventory.slug_utils import resolve_article_for_slug
+
+            art, _legacy = resolve_article_for_slug(product, article_slug)
+        if not art:
             raise exceptions.NotFound()
         ser = PublicProductArticleSerializer(art, context=self.get_serializer_context())
         return Response(ser.data)

@@ -395,9 +395,8 @@ class Product(models.Model):
         """
         from django.core.exceptions import ValidationError
         from django.db import IntegrityError
-        from django.utils.text import slugify
 
-        from inventory.slug_utils import build_seo_product_slug, is_missing as _is_missing
+        from inventory.slug_utils import build_seo_product_slug, is_missing as _is_missing, slugify_seo
 
         base_slug = None
 
@@ -434,7 +433,7 @@ class Product(models.Model):
 
         if slug_input:
             # Normalize any provided slug
-            normalized_slug = slugify(slug_input)
+            normalized_slug = slugify_seo(slug_input)
             # Harden create flow:
             # - ignore weak slugs from clients and regenerate from structured fields
             # - if the incoming slug looks like it's missing product_name (common with
@@ -547,6 +546,38 @@ class ProductSlugRedirect(models.Model):
 
     def __str__(self):
         return f"{self.old_slug} -> {self.product_id}"
+
+
+class ProductArticleSlugRedirect(models.Model):
+    """Maps legacy article slugs to the current canonical slug under a product (301 support)."""
+
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name="article_slug_redirects",
+    )
+    old_slug = models.SlugField(max_length=255, db_index=True)
+    article = models.ForeignKey(
+        "ProductArticle",
+        on_delete=models.CASCADE,
+        related_name="slug_redirects",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["product", "old_slug"],
+                name="unique_product_article_slug_redirect",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["article", "created_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.product_id}:{self.old_slug} -> {self.article_id}"
 
 
 class ProductReleaseDate(models.Model):
@@ -690,11 +721,11 @@ class ProductArticle(models.Model):
         return f"Article for {self.product_id} ({self.slug})"
 
     def _ensure_slug(self):
-        from django.utils.text import slugify
+        from inventory.slug_utils import slugify_seo
 
         if self.slug:
             return
-        base = slugify(self.headline) or f"article-{self.product_id or 'new'}"
+        base = slugify_seo(self.headline) or f"article-{self.product_id or 'new'}"
         slug = base
         counter = 1
         qs = ProductArticle.objects.filter(product_id=self.product_id)

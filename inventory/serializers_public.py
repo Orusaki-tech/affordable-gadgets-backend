@@ -343,6 +343,7 @@ class PublicArticleCardSerializer(serializers.ModelSerializer):
             "thumbnail_image",
             "product_primary_image",
             "published_at",
+            "updated_at",
             "product_slug",
             "product_name",
             "product_type",
@@ -958,6 +959,7 @@ class PublicProductListSerializer(PublicProductSerializer):
             "bundle_price_preview",
             "has_published_article",
             "published_article_count",
+            "updated_at",
             "variants",
         ]
 
