@@ -72,6 +72,7 @@ def test_unpublish_test_products_command():
         slug="test-payment-product",
         product_name="test payment product",
         brand="test",
+        model_series="test payment",
         product_type=Product.ProductType.ACCESSORY,
         is_published=True,
         is_discontinued=False,

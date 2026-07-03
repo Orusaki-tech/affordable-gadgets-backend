@@ -226,7 +226,7 @@ def consolidate_duplicate_products(
         if not old_slug or old_slug == new_slug:
             stats.skipped += 1
             continue
-        if old_slug in by_slug and by_slug[old_slug].id != canonical.id:
+        if old_slug in by_slug and by_slug[old_slug].id not in {canonical.id, dupe.id}:
             stats.skipped += 1
             stats.notes.append(f"skip {old_slug}: live slug owned by another product")
             continue

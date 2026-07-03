@@ -24,6 +24,8 @@ def normalize_possessives_for_slug(value: str) -> str:
     text = re.sub(r"(\w)'s\b", r"\1s", text, flags=re.IGNORECASE)
     text = re.sub(r"'s\b", "s", text, flags=re.IGNORECASE)
     text = text.replace("'", "")
+    # Stray possessive split across words: "Apple s Latest" → "Apples Latest"
+    text = re.sub(r"(\w+) s ", r"\1s ", text)
     return text
 
 
