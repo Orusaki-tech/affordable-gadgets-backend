@@ -1,12 +1,12 @@
 ---
-- name: Deploy Prometheus + Grafana monitoring stack
+- name: Deploy Prometheus + Grafana on AWS monitoring EC2
   hosts: monitoring
   become: true
   vars_files:
     - ../group_vars/all/00_system.yml
-    - ../group_vars/{{ env_name | default('production') }}.yml
+    - ../group_vars/production.yml
     - ../vars/generated_from_terraform.yml
-    - ../secrets/{{ env_name | default('production') }}.vault.yml
+    - ../secrets/production.vault.yml
   roles:
     - common
     - monitoring_compose

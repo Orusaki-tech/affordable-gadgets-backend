@@ -32,6 +32,42 @@ class CartService:
                     raise ValueError("Unit not available for this company brand")
 
     @staticmethod
+    def get_or_create_cart_for_customer(customer, brand):
+        """Get or create the active cart for a logged-in customer."""
+        if not brand:
+            raise ValueError("Brand is required")
+        if not customer:
+            raise ValueError("Customer is required")
+
+        active_carts = Cart.objects.filter(
+            customer=customer, brand=brand, is_submitted=False
+        ).order_by("-updated_at")
+        cart = active_carts.first()
+
+        if active_carts.count() > 1:
+            active_carts.exclude(pk=cart.pk).delete()
+
+        if not cart:
+            cart = Cart.objects.create(
+                customer=customer,
+                brand=brand,
+                customer_email=customer.email or "",
+                customer_phone=customer.phone or "",
+            )
+            from inventory.observability import CARTS_TOTAL
+
+            try:
+                CARTS_TOTAL.labels(brand=brand.code if brand else "unknown", status="total").inc()
+            except Exception:
+                pass
+
+        if cart.is_expired():
+            cart.delete()
+            return CartService.get_or_create_cart_for_customer(customer, brand)
+
+        return cart
+
+    @staticmethod
     def get_or_create_cart(session_key=None, customer_phone=None, brand=None):
         """Get existing cart or create new one."""
         if not brand:

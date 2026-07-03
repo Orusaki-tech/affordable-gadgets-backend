@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 
-from inventory.models import Cart, Customer, ObservabilityEvent
+from inventory.models import Cart, CartItem, Customer, ObservabilityEvent
 from inventory.services.analytics_service import (
     backfill_session_events_to_user,
     link_cart_to_authenticated_user,
@@ -198,3 +198,38 @@ def test_link_cart_to_authenticated_user_sets_customer(brand):
     link_cart_to_authenticated_user(cart, user)
     cart.refresh_from_db()
     assert cart.customer_id == customer.id
+
+
+@pytest.mark.django_db
+def test_registered_users_carts_endpoint(brand, available_unit):
+    admin = User.objects.create_user(username="admincart", email="admin@test.com", password="pass")
+    admin.is_staff = True
+    admin.save()
+    token, _ = Token.objects.get_or_create(user=admin)
+
+    shopper = User.objects.create_user(username="shopper", email="shopper@test.com", password="pass")
+    customer = Customer.objects.create(
+        user=shopper,
+        email=shopper.email,
+        phone="+254711111111",
+        email_verified=True,
+    )
+    cart_with_items = Cart.objects.create(session_key="sess-table1", brand=brand, customer=customer)
+    CartItem.objects.create(cart=cart_with_items, inventory_unit=available_unit, quantity=1)
+    Cart.objects.create(session_key="sess-empty-linked", brand=brand, customer=customer)
+    Cart.objects.create(session_key="sess-anon", brand=brand)
+
+    client = APIClient()
+    client.credentials(HTTP_AUTHORIZATION=f"Token {token.key}")
+    response = client.get("/api/inventory/analytics/registered-users-carts/")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["summary"]["total_active_carts"] == 1
+    assert data["summary"]["anonymous_active_carts"] == 0
+    assert data["summary"]["user_linked_active_carts"] == 1
+    assert data["summary"]["users_with_active_carts"] == 1
+    assert len(data["users"]) == 1
+    shopper_row = data["users"][0]
+    assert shopper_row["email"] == "shopper@test.com"
+    assert shopper_row["active_cart_count"] == 1
+    assert shopper_row["cart_item_count"] == 1

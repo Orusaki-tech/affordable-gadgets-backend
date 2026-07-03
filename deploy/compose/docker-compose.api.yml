@@ -1,6 +1,6 @@
 services:
   api:
-    image: us-east1-docker.pkg.dev/project-07850c05-c54d-486b-80a/ag-api/ag-api:production-latest
+    image: 549116505700.dkr.ecr.eu-north-1.amazonaws.com/ag-api:production-latest
     container_name: ag-api-web
     restart: unless-stopped
     ports:

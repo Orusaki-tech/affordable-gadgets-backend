@@ -8,18 +8,13 @@ on:
     paths-ignore:
       - 'AGENTS.md'
       - 'README.md'
-      - 'deploy/**'
-      - 'scripts/**'
+      - 'deploy/archive/**'
       - '.github/workflows/validate-*.yml'
-      - '.github/workflows/terraform-*.yml'
-      - '.github/workflows/rollback-*.yml'
-      - '.github/workflows/deploy-*.yml'
-      - '.github/workflows/keep-warm.yml'
       - '.github/workflows/health-cron.yml'
 
 env:
-  REGION: us-east1
-  REPOSITORY: ag-api
+  AWS_REGION: eu-north-1
+  ECR_REPOSITORY: ag-api
 
 jobs:
   test:
@@ -84,70 +79,101 @@ jobs:
       - name: Build Docker image
         run: docker build -t ag-api:ci .
 
-  build-and-push:
+  build-and-deploy:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     needs: test
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@v4
-
-      - id: auth
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
-          service_account: ${{ secrets.GCP_DEPLOY_SA }}
-
-      - name: Configure Docker for Artifact Registry
-        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
-
-      - name: Build and push to Artifact Registry
-        env:
-          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-        run: |
-          IMAGE="${{ env.REGION }}-docker.pkg.dev/${PROJECT_ID}/${{ env.REPOSITORY }}/ag-api"
-          docker build -t "${IMAGE}:${{ github.sha }}" -t "${IMAGE}:production-latest" .
-          docker push "${IMAGE}:${{ github.sha }}"
-          docker push "${IMAGE}:production-latest"
-
-  deploy:
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    needs: build-and-push
     runs-on: ubuntu-latest
     concurrency:
       group: production-api-deploy
       cancel-in-progress: false
     permissions:
+      contents: read
       id-token: write
-      contents: write
+    environment: production
     steps:
       - uses: actions/checkout@v4
 
-      - uses: google-github-actions/auth@v2
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
-          service_account: ${{ secrets.GCP_DEPLOY_SA }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Deploy API MIG (pull images via SSH)
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Docker image
         env:
-          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-          GCP_REGION: ${{ env.REGION }}
-          MIG_NAME: ${{ secrets.PRODUCTION_API_MIG_NAME }}
-          SERVICE: api
-          DEPLOY_CONFIG_BUCKET: ${{ secrets.DEPLOY_CONFIG_BUCKET }}
-          ENV_NAME: production
-          DEPLOY_MODE: pull
-          HEALTH_URL: https://api.affordable-gadgetske.com/health/
-        run: bash deploy/scripts/mig-recreate-deploy.sh
-
-      - name: Log deployment completion to Cloud Logging
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
         run: |
-          gcloud logging write production-deployment \
-            "{\"event\":\"deployment_complete\",\"commit\":\"${{ github.sha }}\",\"workflow\":\"${{ github.run_id }}\",\"status\":\"success\"}" \
-            --project="${{ secrets.GCP_PROJECT_ID }}" \
-            --severity=NOTICE \
-            --payload-type=json
+          IMAGE="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}"
+          docker build -t "${IMAGE}:${{ github.sha }}" -t "${IMAGE}:production-latest" .
+          docker push "${IMAGE}:${{ github.sha }}"
+          docker push "${IMAGE}:production-latest"
 
+      - name: Install Ansible
+        run: pip install ansible
 
+      - name: Render and upload API config to S3
+        env:
+          AWS_DEPLOY_CONFIG_BUCKET: ${{ secrets.AWS_DEPLOY_CONFIG_BUCKET }}
+          ANSIBLE_VAULT_PASSWORD: ${{ secrets.AWS_ANSIBLE_VAULT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          cat > deploy/ansible/vars/generated_from_terraform.yml <<EOF
+          aws_region: ${{ env.AWS_REGION }}
+          deploy_config_bucket: "${AWS_DEPLOY_CONFIG_BUCKET}"
+          api_instance_id: "${{ secrets.AWS_API_INSTANCE_ID }}"
+          monitoring_instance_id: "${{ secrets.AWS_MONITORING_INSTANCE_ID }}"
+          api_private_ip: "${{ secrets.AWS_API_PRIVATE_IP }}"
+          rds_endpoint: "${{ secrets.AWS_RDS_ENDPOINT }}"
+          api_image: "${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}"
+          EOF
+          echo "$ANSIBLE_VAULT_PASSWORD" > /tmp/vault-pass
+          chmod 600 /tmp/vault-pass
+          ansible-playbook deploy/ansible/playbooks/api.yml \
+            --vault-password-file /tmp/vault-pass \
+            -e aws_deploy_restart=false
+          rm -f /tmp/vault-pass
+
+      - name: Restart API on EC2 via SSM
+        env:
+          AWS_API_INSTANCE_ID: ${{ secrets.AWS_API_INSTANCE_ID }}
+          AWS_DEPLOY_CONFIG_BUCKET: ${{ secrets.AWS_DEPLOY_CONFIG_BUCKET }}
+        run: |
+          CMD_ID=$(aws ssm send-command \
+            --region "${{ env.AWS_REGION }}" \
+            --instance-ids "$AWS_API_INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --comment "GitHub deploy ${{ github.sha }}" \
+            --parameters "commands=[
+              \"cd /opt/affordable-gadgets\",
+              \"aws s3 sync s3://${AWS_DEPLOY_CONFIG_BUCKET}/production/api/ .\",
+              \"aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ steps.ecr.outputs.registry }}\",
+              \"docker compose -f docker-compose.api.yml pull\",
+              \"docker compose -f docker-compose.api.yml up -d\",
+              \"docker exec ag-api-web python manage.py load_blog_batch --force || true\"
+            ]" \
+            --query 'Command.CommandId' --output text)
+          echo "SSM command: $CMD_ID"
+          for i in $(seq 1 20); do
+            STATUS=$(aws ssm get-command-invocation \
+              --region "${{ env.AWS_REGION }}" \
+              --command-id "$CMD_ID" \
+              --instance-id "$AWS_API_INSTANCE_ID" \
+              --query 'Status' --output text 2>/dev/null || echo Pending)
+            echo "Status: $STATUS"
+            [[ "$STATUS" == "Success" ]] && break
+            [[ "$STATUS" == "Failed" || "$STATUS" == "Cancelled" ]] && exit 1
+            sleep 5
+          done
+
+      - name: Health check
+        run: |
+          for i in 1 2 3 4 5 6; do
+            curl -sf --max-time 15 "https://api.affordable-gadgetske.com/health/" && exit 0
+            sleep 10
+          done
+          echo "Health check failed" >&2
+          exit 1

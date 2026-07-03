@@ -1,23 +1,38 @@
 ---
+cloud_provider: aws
 env_name: production
-frontend_base_url: "https://{{ shop_public_host }}"
-merchant_feed_site_base_url: "https://{{ shop_public_host }}"
-cors_allowed_origins: "https://{{ shop_public_host }},https://www.{{ domain_root }},https://{{ admin_public_host }},https://{{ grafana_public_host }}"
-allowed_hosts: "{{ api_public_host }},www.{{ domain_root }},{{ domain_root }},localhost,127.0.0.1,{{ grafana_public_host }}"
-csrf_trusted_origins: "https://{{ shop_public_host }},https://www.{{ domain_root }},https://{{ admin_public_host }}"
-pesapal_environment: live
-api_gunicorn_workers: 6
-api_mig_min: 1
-shop_mig_min: 1
+deploy_s3_prefix: production
+
+aws_region: eu-north-1
+aws_account_id: "549116505700"
+
+# Set after terraform apply (or from generated_from_terraform.yml)
+deploy_config_bucket: ""
+api_instance_id: ""
+monitoring_instance_id: ""
+rds_endpoint: ""
+api_private_ip: ""
+
+api_image: "{{ aws_account_id }}.dkr.ecr.{{ aws_region }}.amazonaws.com/ag-api"
 image_tag: production-latest
-gcp_region: us-east1
-gcp_zone: us-east1-b
 
-# Supabase (Google OAuth)
-supabase_url: "https://esyyjswqnheibjbfsycx.supabase.co"
-supabase_anon_key: "sb_publishable_ueGt43IRaS_VjXrHzmz8uA_0K212yxu"
+api_gunicorn_workers: 2
+gunicorn_workers: 2
+run_migrations_on_startup: "1"
 
-# Observability
-sentry_traces_sample_rate: 0
-sentry_profiles_sample_rate: 0
-# sentry_dsn: set in vault
+otel_enabled: "false"
+
+allowed_hosts: "api.affordable-gadgetske.com,www.affordable-gadgetske.com,affordable-gadgetske.com,localhost,127.0.0.1,{{ api_private_ip }},{{ monitoring_private_ip }}"
+cors_allowed_origins: "https://www.affordable-gadgetske.com,https://affordable-gadgetske.com,https://affordable-gadgets-frontend.vercel.app,https://affordable-gadgets-admin.vercel.app,https://admin.affordable-gadgetske.com"
+frontend_base_url: "https://www.affordable-gadgetske.com"
+csrf_trusted_origins: "https://api.affordable-gadgetske.com,https://www.affordable-gadgetske.com"
+
+pesapal_environment: production
+pesapal_callback_url: "https://api.affordable-gadgetske.com/api/payments/pesapal/callback/"
+pesapal_ipn_url: "https://api.affordable-gadgetske.com/api/payments/pesapal/ipn/"
+
+prometheus_api_target: "{{ api_private_ip }}:8000"
+
+deploy_tunnel_on_monitoring: true
+
+common_force_docker_install: false

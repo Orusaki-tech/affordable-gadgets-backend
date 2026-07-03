@@ -101,3 +101,4 @@
   command: docker compose -f {{ compose_root }}/docker-compose.tunnel.yml --env-file {{ compose_root }}/monitoring/tunnel/tunnel.env up -d
   args:
     chdir: "{{ compose_root }}"
+  when: deploy_tunnel_on_monitoring | default(false) | bool

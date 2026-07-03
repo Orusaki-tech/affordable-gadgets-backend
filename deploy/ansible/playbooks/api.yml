@@ -1,13 +1,13 @@
 ---
-# Pushes api.env + compose to GCS; MIG startup + rolling replace pull config on boot.
-- name: Deploy API to platform MIG
+# Deploy API config to S3 and optionally restart via SSM (AWS production).
+- name: Deploy API to AWS
   hosts: localhost
   connection: local
   gather_facts: false
   vars_files:
     - ../group_vars/all/00_system.yml
-    - ../group_vars/{{ env_name | default('staging') }}.yml
+    - ../group_vars/production.yml
     - ../vars/generated_from_terraform.yml
-    - ../secrets/{{ env_name | default('staging') }}.vault.yml
+    - ../secrets/production.vault.yml
   roles:
     - api_compose

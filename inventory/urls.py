@@ -95,6 +95,11 @@ urlpatterns = [
         views.RegisteredUsersActivityView.as_view(),
         name='registered-users-activity',
     ),
+    path(
+        'analytics/registered-users-carts/',
+        views.RegisteredUsersCartsView.as_view(),
+        name='registered-users-carts',
+    ),
     path('analytics/blog-summary/', views.BlogSummaryView.as_view(), name='blog-summary'),
     path('analytics/datasource-health/', views.DatasourceHealthView.as_view(), name='datasource-health'),
     path('analytics/whatsapp-leads/', views.WhatsAppLeadsView.as_view(), name='whatsapp-leads'),

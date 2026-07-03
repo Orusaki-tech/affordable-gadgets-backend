@@ -10,6 +10,7 @@ ENV PYTHONUNBUFFERED=1 \
 # Install runtime deps (Postgres + WeasyPrint native libraries)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
+    curl \
     libglib2.0-0 \
     libgobject-2.0-0 \
     libcairo2 \

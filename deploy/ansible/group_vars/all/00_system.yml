@@ -2,9 +2,7 @@
 # Platform-wide non-secret variables (single source of truth).
 # Secrets: deploy/ansible/secrets/<env>.vault.yml (ansible-vault)
 
-gcp_project_id: "project-07850c05-c54d-486b-80a"
-gcp_region: us-central1
-gcp_zone: us-central1-a
+cloud_provider: aws
 name_prefix: affordable-gadgets
 
 domain_root: affordable-gadgetske.com
@@ -13,26 +11,11 @@ shop_public_host: "www.{{ domain_root }}"
 admin_public_host: "admin.{{ domain_root }}"
 grafana_public_host: "grafana.{{ domain_root }}"
 
-# Staging hostnames (override in group_vars/staging.yml)
-api_staging_host: "api-staging.{{ domain_root }}"
-shop_staging_host: "staging.{{ domain_root }}"
-admin_staging_host: "admin-staging.{{ domain_root }}"
-
-artifact_registry_host: "{{ gcp_region }}-docker.pkg.dev/{{ gcp_project_id }}"
-api_image: "{{ artifact_registry_host }}/ag-api/ag-api"
-shop_image: "{{ artifact_registry_host }}/ag-shop/ag-shop"
-admin_image: "{{ artifact_registry_host }}/ag-admin/ag-admin"
-image_tag: production-latest
-
 compose_root: /opt/affordable-gadgets
 api_compose_file: "{{ compose_root }}/docker-compose.api.yml"
-shop_compose_file: "{{ compose_root }}/docker-compose.shop.yml"
-admin_compose_file: "{{ compose_root }}/docker-compose.admin.yml"
 tunnel_compose_file: "{{ compose_root }}/docker-compose.tunnel.yml"
 
 api_listen_port: 8000
-shop_port: 3000
-admin_port: 80
 
 django_settings_module: store.settings_production
 gunicorn_workers: 4
@@ -41,15 +24,7 @@ run_migrations_on_startup: "0"
 
 db_name: affordable_gadgets
 db_user: affordable
-# db_password, cloud_sql_private_ip, redis_host: from vault / generated_from_terraform.yml
-
-# MIG autoscale (documentation; live values in Terraform environments/*.tfvars)
-api_mig_min: 2
-api_mig_max: 25
-shop_mig_min: 2
-shop_mig_max: 40
-admin_mig_min: 1
-admin_mig_max: 5
+# db_password, rds_endpoint: from vault / generated_from_terraform.yml
 
 brand_code: AFFORDABLE_GADGETS
 brand_name: Affordable Gadgets

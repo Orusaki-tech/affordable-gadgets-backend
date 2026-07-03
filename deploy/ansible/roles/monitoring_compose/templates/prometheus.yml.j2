@@ -14,24 +14,21 @@ scrape_configs:
   - job_name: 'django'
     scrape_interval: 10s
     metrics_path: /metrics/
-    gce_sd_configs:
-      - project: {{ gcp_project_id }}
-        zone: us-east1-b
-        port: 8000
-      - project: {{ gcp_project_id }}
-        zone: us-east1-c
-        port: 8000
-    relabel_configs:
-      - source_labels: [__meta_gce_tags]
-        regex: ".*,api,.*"
-        action: keep
-      - source_labels: [__meta_gce_instance_name]
-        target_label: instance
-      - source_labels: [__meta_gce_zone]
-        target_label: zone
-      - source_labels: [__address__]
-        target_label: service
-        replacement: 'django-api'
+{% if cloud_provider | default('gcp') == 'aws' %}
+    scheme: http
+    static_configs:
+      - targets: ['{{ prometheus_api_target | default("127.0.0.1:8000") }}']
+        labels:
+          service: django-api
+          environment: {{ deploy_s3_prefix | default(env_name) }}
+{% else %}
+    scheme: https
+    static_configs:
+      - targets: ['{{ prometheus_api_target | default(api_public_host) }}']
+        labels:
+          service: django-api
+          instance: production
+{% endif %}
 
   - job_name: 'monitoring-vm'
     scrape_interval: 15s

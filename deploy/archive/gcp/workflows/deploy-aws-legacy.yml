@@ -1,0 +1,155 @@
+name: Deploy AWS (Phase 1)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    paths:
+      - 'inventory/**'
+      - 'store/**'
+      - 'Dockerfile'
+      - 'requirements.txt'
+      - 'startup.sh'
+      - '.github/workflows/deploy-aws.yml'
+
+concurrency:
+  group: aws-production-api-deploy
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: eu-north-1
+  ECR_REPOSITORY: ag-api
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: test_db
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test_password
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Django check
+        run: python manage.py check
+        env:
+          DJANGO_SETTINGS_MODULE: store.settings
+          SECRET_KEY: ci-secret-key
+          DEBUG: "True"
+          DATABASE_URL: postgresql://postgres:test_password@127.0.0.1:5432/test_db
+      - name: Run tests
+        run: pytest inventory/tests/ -v --tb=short -q
+        env:
+          DJANGO_SETTINGS_MODULE: store.settings
+          SECRET_KEY: ci-secret-key
+          DEBUG: "True"
+          DATABASE_URL: postgresql://postgres:test_password@127.0.0.1:5432/test_db
+
+  build-and-deploy:
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Docker image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          IMAGE="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}"
+          docker build -t "${IMAGE}:${{ github.sha }}" -t "${IMAGE}:production-latest" .
+          docker push "${IMAGE}:${{ github.sha }}"
+          docker push "${IMAGE}:production-latest"
+
+      - name: Install Ansible
+        run: pip install ansible
+
+      - name: Render and upload API config to S3
+        env:
+          AWS_DEPLOY_CONFIG_BUCKET: ${{ secrets.AWS_DEPLOY_CONFIG_BUCKET }}
+          ANSIBLE_VAULT_PASSWORD: ${{ secrets.AWS_ANSIBLE_VAULT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          cat > deploy/ansible/vars/generated_from_terraform_aws.yml <<EOF
+          aws_region: ${{ env.AWS_REGION }}
+          deploy_config_bucket: "${AWS_DEPLOY_CONFIG_BUCKET}"
+          api_instance_id: "${{ secrets.AWS_API_INSTANCE_ID }}"
+          monitoring_instance_id: "${{ secrets.AWS_MONITORING_INSTANCE_ID }}"
+          api_private_ip: "${{ secrets.AWS_API_PRIVATE_IP }}"
+          rds_endpoint: "${{ secrets.AWS_RDS_ENDPOINT }}"
+          api_image: "${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}"
+          EOF
+          echo "$ANSIBLE_VAULT_PASSWORD" > /tmp/vault-pass
+          chmod 600 /tmp/vault-pass
+          ansible-playbook deploy/ansible/playbooks/api-aws.yml \
+            --vault-password-file /tmp/vault-pass \
+            -e aws_deploy_restart=false
+          rm -f /tmp/vault-pass
+
+      - name: Restart API on EC2 via SSM
+        env:
+          AWS_API_INSTANCE_ID: ${{ secrets.AWS_API_INSTANCE_ID }}
+          AWS_DEPLOY_CONFIG_BUCKET: ${{ secrets.AWS_DEPLOY_CONFIG_BUCKET }}
+        run: |
+          CMD_ID=$(aws ssm send-command \
+            --region "${{ env.AWS_REGION }}" \
+            --instance-ids "$AWS_API_INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --comment "GitHub deploy ${{ github.sha }}" \
+            --parameters "commands=[
+              \"cd /opt/affordable-gadgets\",
+              \"aws s3 sync s3://${AWS_DEPLOY_CONFIG_BUCKET}/production/api/ .\",
+              \"aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ steps.ecr.outputs.registry }}\",
+              \"docker compose -f docker-compose.api.yml pull\",
+              \"docker compose -f docker-compose.api.yml up -d\"
+            ]" \
+            --query 'Command.CommandId' --output text)
+          echo "SSM command: $CMD_ID"
+          for i in $(seq 1 20); do
+            STATUS=$(aws ssm get-command-invocation \
+              --region "${{ env.AWS_REGION }}" \
+              --command-id "$CMD_ID" \
+              --instance-id "$AWS_API_INSTANCE_ID" \
+              --query 'Status' --output text 2>/dev/null || echo Pending)
+            echo "Status: $STATUS"
+            [[ "$STATUS" == "Success" ]] && exit 0
+            [[ "$STATUS" == "Failed" || "$STATUS" == "Cancelled" ]] && exit 1
+            sleep 5
+          done
+          exit 1
+
+      - name: Health check
+        run: |
+          for i in 1 2 3 4 5 6; do
+            curl -sf --max-time 15 "https://api.affordable-gadgetske.com/health/" && exit 0
+            sleep 10
+          done
+          echo "Health check failed" >&2
+          exit 1

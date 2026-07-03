@@ -3,14 +3,9 @@ services:
     image: cloudflare/cloudflared:2024.2.1
     container_name: ag-cloudflared
     restart: always
+    network_mode: host
     env_file:
       - {{ compose_root }}/monitoring/tunnel/tunnel.env
     environment:
       CLOUDFLARE_TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
-    healthcheck:
-      test: ["CMD", "cloudflared", "tunnel", "info"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
+    command: tunnel --no-autoupdate run --protocol http2 --token ${CLOUDFLARE_TUNNEL_TOKEN}

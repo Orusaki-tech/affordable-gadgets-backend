@@ -27,7 +27,6 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq yamllint
-          # Download promtool
           wget -q https://github.com/prometheus/prometheus/releases/download/v2.53.0/prometheus-2.53.0.linux-amd64.tar.gz
           tar xzf prometheus-2.53.0.linux-amd64.tar.gz
           sudo mv prometheus-2.53.0.linux-amd64/promtool /usr/local/bin/promtool
@@ -73,23 +72,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Authenticate to GCP
-        uses: google-github-actions/auth@v2
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
-          service_account: ${{ secrets.GCP_DEPLOY_SA }}
-
-      - name: Set up gcloud
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: Install Ansible
-        run: pip install ansible
-
-      - name: Setup SSH key
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/ci_deploy_key
-          chmod 600 ~/.ssh/ci_deploy_key
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: eu-north-1
 
       - name: Deploy monitoring stack
         env:
@@ -97,7 +84,9 @@ jobs:
           CLOUDFLARE_TUNNEL_TOKEN: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
           DJANGO_ADMIN_PASSWORD: ${{ secrets.DJANGO_ADMIN_PASSWORD }}
           DJANGO_API_TOKEN: ${{ secrets.DJANGO_API_TOKEN }}
-          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-          GCP_ZONE: us-east1-b
-          SSH_KEY_PATH: ~/.ssh/ci_deploy_key
-        run: bash scripts/deploy-monitoring.sh
+          AWS_REGION: eu-north-1
+          MONITORING_INSTANCE_ID: ${{ secrets.AWS_MONITORING_INSTANCE_ID }}
+          API_PRIVATE_IP: ${{ secrets.AWS_API_PRIVATE_IP }}
+          AWS_DEPLOY_CONFIG_BUCKET: ${{ secrets.AWS_DEPLOY_CONFIG_BUCKET }}
+          DEPLOY_TUNNEL_ON_MONITORING: "1"
+        run: bash deploy/scripts/deploy-monitoring.sh

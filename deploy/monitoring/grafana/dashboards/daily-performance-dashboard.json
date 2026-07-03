@@ -1421,7 +1421,7 @@
               "type": "string"
             }
           ],
-          "root_selector": "$"
+          "root_selector": "$.summary"
         }
       ],
       "fieldConfig": {
@@ -1479,7 +1479,7 @@
               "type": "string"
             }
           ],
-          "root_selector": "$"
+          "root_selector": "$.summary"
         }
       ],
       "fieldConfig": {
@@ -1501,6 +1501,264 @@
           ],
           "noValue": "\u26d4 Unreachable"
         }
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "json-api"
+      }
+    },
+    {
+      "id": 30,
+      "title": "Anonymous Active Carts",
+      "description": "Active carts with no registered user account linked",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 36,
+        "w": 8,
+        "h": 3
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "json-api"
+          },
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "format": "table",
+          "url": "/api/inventory/analytics/registered-users-carts/",
+          "parser": "backend",
+          "url_options": {
+            "method": "GET",
+            "params": [],
+            "headers": []
+          },
+          "columns": [
+            {
+              "selector": "anonymous_active_carts",
+              "text": "anonymous_active_carts",
+              "type": "number"
+            }
+          ],
+          "root_selector": "$.summary"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "0"
+        }
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "json-api"
+      }
+    },
+    {
+      "id": 31,
+      "title": "User-Linked Active Carts",
+      "description": "Active carts tied to a registered user account",
+      "type": "stat",
+      "gridPos": {
+        "x": 8,
+        "y": 36,
+        "w": 8,
+        "h": 3
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "json-api"
+          },
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "format": "table",
+          "url": "/api/inventory/analytics/registered-users-carts/",
+          "parser": "backend",
+          "url_options": {
+            "method": "GET",
+            "params": [],
+            "headers": []
+          },
+          "columns": [
+            {
+              "selector": "user_linked_active_carts",
+              "text": "user_linked_active_carts",
+              "type": "number"
+            }
+          ],
+          "root_selector": "$.summary"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "0"
+        }
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "json-api"
+      }
+    },
+    {
+      "id": 32,
+      "title": "Registered Users With Active Carts",
+      "type": "stat",
+      "gridPos": {
+        "x": 16,
+        "y": 36,
+        "w": 8,
+        "h": 3
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "json-api"
+          },
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "format": "table",
+          "url": "/api/inventory/analytics/registered-users-carts/",
+          "parser": "backend",
+          "url_options": {
+            "method": "GET",
+            "params": [],
+            "headers": []
+          },
+          "columns": [
+            {
+              "selector": "users_with_active_carts",
+              "text": "users_with_active_carts",
+              "type": "number"
+            }
+          ],
+          "root_selector": "$.summary"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "0"
+        }
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "json-api"
+      }
+    },
+    {
+      "id": 33,
+      "title": "Registered Users — Carts & Items",
+      "description": "Per registered user: active cart count, item count, and products currently in cart",
+      "type": "table",
+      "gridPos": {
+        "x": 0,
+        "y": 39,
+        "w": 24,
+        "h": 12
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "json-api"
+          },
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "format": "table",
+          "url": "/api/inventory/analytics/registered-users-carts/",
+          "parser": "backend",
+          "url_options": {
+            "method": "GET",
+            "params": [],
+            "headers": []
+          },
+          "columns": [],
+          "root_selector": "$.users"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          },
+          "noValue": ""
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "email"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 220
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "phone"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 140
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cart_products"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 420
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "date_joined"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "date_time"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "last_login"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "date_time"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "sortBy": [
+          {
+            "displayName": "cart_item_count",
+            "desc": true
+          }
+        ]
       },
       "datasource": {
         "type": "yesoreyeram-infinity-datasource",

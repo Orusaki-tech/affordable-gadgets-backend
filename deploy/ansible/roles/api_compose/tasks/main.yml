@@ -24,25 +24,36 @@
   delegate_to: localhost
   become: false
 
-- name: Upload API config to GCS
+- name: Upload API config to S3
   command: >-
-    gsutil -m cp
+    aws s3 cp
     /tmp/ag-deploy/{{ env_name }}/api/api.env
-    /tmp/ag-deploy/{{ env_name }}/api/docker-compose.api.yml
-    gs://{{ deploy_config_bucket }}/{{ env_name }}/api/
+    s3://{{ deploy_config_bucket }}/{{ deploy_s3_prefix | default(env_name) }}/api/api.env
   delegate_to: localhost
   become: false
-  when: deploy_config_bucket | length > 0
+  when:
+    - deploy_config_bucket | length > 0
 
-- name: Recreate API MIG instances and pull images (quota-safe)
-  command: "{{ role_path }}/../../../scripts/mig-recreate-deploy.sh"
-  environment:
-    GCP_PROJECT_ID: "{{ gcp_project_id }}"
-    GCP_REGION: "{{ gcp_region }}"
-    MIG_NAME: "{{ api_mig_name }}"
-    SERVICE: api
-    DEPLOY_CONFIG_BUCKET: "{{ deploy_config_bucket }}"
-    ENV_NAME: "{{ env_name }}"
+- name: Upload API docker-compose to S3
+  command: >-
+    aws s3 cp
+    /tmp/ag-deploy/{{ env_name }}/api/docker-compose.api.yml
+    s3://{{ deploy_config_bucket }}/{{ deploy_s3_prefix | default(env_name) }}/api/docker-compose.api.yml
   delegate_to: localhost
   become: false
-  when: api_mig_name | default('') | length > 0
+  when:
+    - deploy_config_bucket | length > 0
+
+- name: Restart API via SSM (AWS)
+  command: >-
+    aws ssm send-command
+    --region {{ aws_region }}
+    --instance-ids {{ api_instance_id }}
+    --document-name AWS-RunShellScript
+    --comment "Deploy API compose"
+    --parameters commands="cd {{ compose_root }} && aws s3 sync s3://{{ deploy_config_bucket }}/{{ deploy_s3_prefix | default(env_name) }}/api/ . && aws ecr get-login-password --region {{ aws_region }} | docker login --username AWS --password-stdin {{ api_image | regex_replace('/[^/]+$','') }} && docker compose -f docker-compose.api.yml pull && docker compose -f docker-compose.api.yml up -d"
+  delegate_to: localhost
+  become: false
+  when:
+    - api_instance_id | default('') | length > 0
+    - aws_deploy_restart | default(true) | bool

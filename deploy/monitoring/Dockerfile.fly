@@ -1,0 +1,40 @@
+# Fly.io monitoring image: Prometheus + Grafana in one container.
+# GCP VM monitoring uses docker-compose.monitoring.yml (separate containers).
+# Do not use this Dockerfile for the Django API (see repo-root Dockerfile).
+
+FROM grafana/grafana:13.0.1
+
+USER root
+
+ARG PROMETHEUS_VERSION=2.53.0
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl ca-certificates \
+    && curl -fsSL \
+      "https://github.com/prometheus/prometheus/releases/download/v${PROMETHEUS_VERSION}/prometheus-${PROMETHEUS_VERSION}.linux-amd64.tar.gz" \
+      | tar xz -C /tmp \
+    && mv "/tmp/prometheus-${PROMETHEUS_VERSION}.linux-amd64/prometheus" /usr/local/bin/prometheus \
+    && mv "/tmp/prometheus-${PROMETHEUS_VERSION}.linux-amd64/promtool" /usr/local/bin/promtool \
+    && rm -rf "/tmp/prometheus-${PROMETHEUS_VERSION}.linux-amd64" \
+    && apt-get purge -y curl \
+    && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /etc/prometheus /prometheus /var/lib/grafana \
+    && chown -R grafana:472 /prometheus /var/lib/grafana
+
+COPY prometheus/prometheus.yml /etc/prometheus/prometheus.yml
+COPY prometheus/alerts.yml /etc/prometheus/alerts.yml
+COPY grafana/datasources/datasource.fly.yml /etc/grafana/provisioning/datasources/datasource.yml
+COPY grafana/dashboards/dashboards.yml /etc/grafana/provisioning/dashboards/dashboards.yml
+COPY grafana/dashboards/*.json /etc/grafana/provisioning/dashboards/
+COPY fly-entrypoint.sh /fly-entrypoint.sh
+RUN chmod +x /fly-entrypoint.sh
+
+ENV GF_INSTALL_PLUGINS=yesoreyeram-infinity-datasource \
+    GF_PATHS_PROVISIONING=/etc/grafana/provisioning \
+    GF_PATHS_DATA=/var/lib/grafana \
+    GF_SECURITY_ADMIN_USER=admin
+
+EXPOSE 3000
+
+USER grafana
+ENTRYPOINT ["/fly-entrypoint.sh"]

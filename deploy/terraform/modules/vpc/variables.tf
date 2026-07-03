@@ -1,21 +1,25 @@
-variable "project_id" {
-  type = string
-}
-
-variable "region" {
-  type = string
-}
-
 variable "name_prefix" {
   type = string
 }
 
-variable "app_subnet_cidr" {
-  type    = string
-  default = "10.10.1.0/24"
+variable "vpc_cidr" {
+  type = string
 }
 
-variable "data_subnet_cidr" {
+variable "public_subnet_cidr" {
+  type = string
+}
+
+variable "availability_zone" {
+  type = string
+}
+
+variable "secondary_availability_zone" {
   type    = string
-  default = "10.10.2.0/24"
+  default = "eu-north-1b"
+}
+
+variable "public_subnet_cidr_b" {
+  type    = string
+  default = "10.0.2.0/24"
 }

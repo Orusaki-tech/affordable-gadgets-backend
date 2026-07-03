@@ -1,0 +1,21 @@
+# GCP Snapshot Inventory - 2026-06-20T152229Z
+
+## KEEP (Affordable Gadgets Production)
+NAME                                      ZONE        STATUS   MACHINE_TYPE
+affordable-gadgets-production-api-zz2z    us-east1-b  RUNNING  e2-standard-2
+affordable-gadgets-production-bastion     us-east1-b  RUNNING  e2-micro
+affordable-gadgets-production-monitoring  us-east1-b  RUNNING  e2-standard-2
+affordable-gadgets-production-tunnel      us-east1-b  RUNNING  e2-small
+affordable-gadgets-production-admin-kzw1  us-east1-c  RUNNING  e2-small
+affordable-gadgets-production-shop-s4fv   us-east1-c  RUNNING  e2-standard-2
+
+NAME                              REGION    STATUS
+affordable-gadgets-production-pg  us-east1  RUNNABLE
+
+INSTANCE_NAME                        STATUS
+affordable-gadgets-production-redis
+
+## DELETE (RealitySync leftovers)
+- Artifact Registry: us-central1/realitysync (~20GB)
+- Bucket: gs://realitysync-cogs
+- Bucket: gs://realitysync-tfstate-111963419931

@@ -66,6 +66,16 @@ from rest_framework.throttling import AnonRateThrottle
 from inventory.services.analytics_service import attach_session_activity_to_user, get_client_ip
 
 from .models import ObservabilityEvent, User, Cart, CartItem, Customer
+
+
+def _active_carts_with_items_queryset(brand_code: str):
+    """Unsubmitted carts that contain at least one line item."""
+    return Cart.objects.filter(
+        brand__code=brand_code,
+        is_submitted=False,
+    ).filter(
+        Exists(CartItem.objects.filter(cart_id=OuterRef("pk")))
+    )
 from .serializers import (
     ObservabilityEventSerializer,
     UserAnalyticsSerializer,
@@ -84,8 +94,8 @@ class CartAnalyticsView(APIView):
         brand_code = getattr(request, 'brand', None)
         brand_code = brand_code.code if brand_code else "AFFORDABLE_GADGETS"
 
-        # 1. Base Queryset: Active (unsubmitted) carts for the brand
-        active_carts = Cart.objects.filter(brand__code=brand_code, is_submitted=False)
+        # 1. Base Queryset: Active (unsubmitted) carts with at least one item
+        active_carts = _active_carts_with_items_queryset(brand_code)
 
         # 2. Total active carts
         total_active_carts = active_carts.count()
@@ -423,6 +433,96 @@ def _format_user_activity_rows(user_data, extra_fields=None):
     return sorted(rows, key=lambda x: x["last_seen"], reverse=True)
 
 
+def _cart_product_summary(items):
+    """Format cart line items as 'Product A x2, Product B x1'."""
+    counts = {}
+    for item in items:
+        template = getattr(item.inventory_unit, "product_template", None)
+        name = template.product_name if template else f"Unit {item.inventory_unit_id}"
+        counts[name] = counts.get(name, 0) + item.quantity
+    return ", ".join(
+        f"{name} x{qty}" for name, qty in sorted(counts.items(), key=lambda x: (-x[1], x[0]))
+    )
+
+
+class RegisteredUsersCartsView(APIView):
+    """Registered users with active cart counts, item totals, and product names."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        brand_code = getattr(request, "brand", None)
+        brand_code = brand_code.code if brand_code else "AFFORDABLE_GADGETS"
+
+        active_carts_qs = _active_carts_with_items_queryset(brand_code)
+        total_active_carts = active_carts_qs.count()
+        user_linked_active_carts = active_carts_qs.filter(
+            customer__user__isnull=False
+        ).count()
+        total_active_cart_items = (
+            CartItem.objects.filter(cart__in=active_carts_qs).aggregate(
+                total=Sum("quantity")
+            )["total"]
+            or 0
+        )
+
+        carts_by_user = {}
+        for cart in (
+            active_carts_qs.filter(customer__user__isnull=False)
+            .select_related("customer__user")
+            .prefetch_related("items__inventory_unit__product_template")
+        ):
+            uid = cart.customer.user_id
+            entry = carts_by_user.setdefault(uid, {"carts": [], "items": []})
+            entry["carts"].append(cart)
+            entry["items"].extend(cart.items.all())
+
+        users_list = []
+        users_with_carts = 0
+        for user in User.objects.select_related("customer").order_by("-date_joined"):
+            phone = ""
+            try:
+                phone = user.customer.phone or ""
+            except Exception:
+                pass
+
+            user_carts = carts_by_user.get(user.id, {"carts": [], "items": []})
+            cart_count = len(user_carts["carts"])
+            item_count = sum(item.quantity for item in user_carts["items"])
+            if cart_count == 0:
+                continue
+
+            users_with_carts += 1
+            users_list.append({
+                "user_id": user.id,
+                "email": user.email,
+                "phone": phone,
+                "date_joined": user.date_joined.isoformat() if user.date_joined else "",
+                "last_login": user.last_login.isoformat() if user.last_login else "",
+                "active_cart_count": cart_count,
+                "cart_item_count": item_count,
+                "cart_products": _cart_product_summary(user_carts["items"]),
+            })
+
+        users_list.sort(
+            key=lambda row: (-row["cart_item_count"], -row["active_cart_count"], row["email"])
+        )
+
+        return Response({
+            "summary": {
+                "registered_users": User.objects.count(),
+                "users_with_active_carts": users_with_carts,
+                "total_active_carts": total_active_carts,
+                "user_linked_active_carts": user_linked_active_carts,
+                "anonymous_active_carts": total_active_carts - user_linked_active_carts,
+                "total_active_cart_items": total_active_cart_items,
+                "submitted_carts_all_time": Cart.objects.filter(
+                    brand__code=brand_code, is_submitted=True
+                ).count(),
+            },
+            "users": users_list,
+        })
+
+
 class DailyActivityView(APIView):
     """Admin endpoint: today's user activity feed (searches, cart adds, whatsapp clicks, logins)."""
     permission_classes = [IsAuthenticated]
@@ -612,6 +712,11 @@ class DatasourceHealthView(APIView):
         )
 
         return Response({
+            "summary": {
+                "status": status,
+                "grafana_token_valid": "true" if grafana_token_valid else "false",
+                "authenticated_as": authenticated_as,
+            },
             "status": status,
             "authenticated_as": authenticated_as,
             "grafana_token_valid": "true" if grafana_token_valid else "false",
@@ -645,7 +750,13 @@ class WhatsAppLeadsView(APIView):
 
     def get(self, request):
         if not self._token_is_valid(request):
-            return Response({"leads": [], "count": 0, "today_count": 0, "limit": 50})
+            return Response({
+                "summary": {"today_count": 0, "count": 0},
+                "leads": [],
+                "count": 0,
+                "today_count": 0,
+                "limit": 50,
+            })
 
         LIMIT = 50
         today = timezone.localdate()
@@ -663,6 +774,10 @@ class WhatsAppLeadsView(APIView):
             for lead in leads
         ]
         return Response({
+            "summary": {
+                "today_count": today_count,
+                "count": len(data),
+            },
             "leads": data,
             "count": len(data),
             "today_count": today_count,
@@ -4507,6 +4622,11 @@ class SupabaseAuthView(APIView):
                 {"error": "Could not authenticate. No user found for this Google account."},
                 status=status.HTTP_403_FORBIDDEN,
             )
+
+        if not user.is_staff:
+            from inventory.services.analytics_service import ensure_customer_for_user
+
+            ensure_customer_for_user(user, email_verified=True)
 
         user.last_login = timezone.now()
         update_fields = ["last_login"]

@@ -44,6 +44,33 @@ def get_customer_for_user(user):
         return None
 
 
+def ensure_customer_for_user(user, *, email_verified: bool = False):
+    """Create a Customer profile for shop users who authenticated without one."""
+    customer = get_customer_for_user(user)
+    if customer:
+        return customer
+    if not user or getattr(user, "is_staff", False):
+        return None
+
+    email = (getattr(user, "email", "") or "").strip().lower()
+    username = getattr(user, "username", "") or "Customer"
+    name = email.split("@")[0] if email and "@" in email else username
+
+    customer = Customer.objects.create(
+        user=user,
+        email=email or None,
+        name=name[:255],
+        email_verified=email_verified,
+    )
+    try:
+        from inventory.observability import CUSTOMERS_REGISTERED
+
+        CUSTOMERS_REGISTERED.labels(brand="all").inc()
+    except Exception:
+        pass
+    return customer
+
+
 def link_cart_to_authenticated_user(cart, user):
     """Attach cart to the logged-in customer's profile when possible."""
     customer = get_customer_for_user(user)

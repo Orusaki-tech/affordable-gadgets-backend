@@ -435,9 +435,15 @@ def refresh_business_metrics():
             CARTS_TOTAL.labels(brand=bc, status="total").set(all_carts)
             CARTS_TOTAL.labels(brand=bc, status="submitted").set(submitted)
 
-            # Cart analytics (active unsubmitted carts)
+            # Cart analytics (active unsubmitted carts with items)
             try:
-                active_carts = Cart.objects.filter(brand__code=bc, is_submitted=False)
+                from django.db.models import Exists, OuterRef
+
+                active_carts = Cart.objects.filter(
+                    brand__code=bc, is_submitted=False
+                ).filter(
+                    Exists(CartItem.objects.filter(cart_id=OuterRef("pk")))
+                )
                 total_active_carts = active_carts.count()
                 total_items = CartItem.objects.filter(cart__in=active_carts).aggregate(
                     total_qty=Sum("quantity")

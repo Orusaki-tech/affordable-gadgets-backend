@@ -1,65 +1,69 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# reload-blogs-production.sh — Reload blog articles into production Cloud SQL.
+# reload-blogs-production.sh — Reload blog articles on AWS production API via SSM.
 #
 # Usage:
-#   export CLOUD_SQL_CONNECTION_NAME="project:region:instance"
-#   export PRODUCTION_DATABASE_URL="postgresql://user:pass@127.0.0.1:5432/affordable_gadgets"
+#   export AWS_API_INSTANCE_ID=i-...
+#   export AWS_REGION=eu-north-1
 #   ./scripts/reload-blogs-production.sh
 #
-# Or with proxy already running:
-#   DATABASE_URL="$PRODUCTION_DATABASE_URL" ./scripts/reload-blogs-production.sh
-#
-# Optional: merge from a Cloud SQL clone first:
-#   export RESTORE_DATABASE_URL="postgresql://..."
-#   python manage.py merge_from_restore_db --dry-run
-#   python manage.py merge_from_restore_db
+# Or with terraform output:
+#   AWS_API_INSTANCE_ID=$(terraform -chdir=deploy/terraform output -raw api_instance_id) \
+#     ./scripts/reload-blogs-production.sh
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "${ROOT}"
 
-if [[ -z "${DATABASE_URL:-}" ]]; then
-  if [[ -z "${PRODUCTION_DATABASE_URL:-}" ]]; then
-    echo "ERROR: Set DATABASE_URL or PRODUCTION_DATABASE_URL" >&2
-    exit 1
-  fi
-  export DATABASE_URL="${PRODUCTION_DATABASE_URL}"
+AWS_REGION="${AWS_REGION:-eu-north-1}"
+if [[ -z "${AWS_API_INSTANCE_ID:-}" ]] && [[ -d deploy/terraform ]]; then
+  AWS_API_INSTANCE_ID="$(terraform -chdir=deploy/terraform output -raw api_instance_id 2>/dev/null || true)"
 fi
+AWS_API_INSTANCE_ID="${AWS_API_INSTANCE_ID:?Set AWS_API_INSTANCE_ID or run terraform apply first}"
 
-PROXY_PID=""
-if [[ -n "${CLOUD_SQL_CONNECTION_NAME:-}" ]] && ! nc -z 127.0.0.1 5432 2>/dev/null; then
-  PROXY_BIN="${PROXY_BIN:-cloud-sql-proxy}"
-  if ! command -v "${PROXY_BIN}" >/dev/null 2>&1; then
-    echo "ERROR: cloud-sql-proxy not found; start proxy manually or install it." >&2
-    exit 1
-  fi
-  echo "Starting Cloud SQL Auth Proxy for ${CLOUD_SQL_CONNECTION_NAME}..."
-  "${PROXY_BIN}" "${CLOUD_SQL_CONNECTION_NAME}" &
-  PROXY_PID=$!
-  trap 'kill ${PROXY_PID} 2>/dev/null || true' EXIT
-  sleep 5
-fi
+echo "Dry run load_blog_batch on ${AWS_API_INSTANCE_ID}..."
+CMD_ID=$(aws ssm send-command \
+  --region "$AWS_REGION" \
+  --instance-ids "$AWS_API_INSTANCE_ID" \
+  --document-name AWS-RunShellScript \
+  --comment "reload-blogs dry-run" \
+  --parameters 'commands=["docker exec ag-api-web python manage.py load_blog_batch --dry-run"]' \
+  --query 'Command.CommandId' --output text)
 
-export DJANGO_SETTINGS_MODULE="${DJANGO_SETTINGS_MODULE:-store.settings_production}"
-export SECRET_KEY="${SECRET_KEY:-blog-reload-local-only}"
-export ALLOWED_HOSTS="${ALLOWED_HOSTS:-localhost}"
-export FRONTEND_BASE_URL="${FRONTEND_BASE_URL:-https://shop.affordable-gadgetske.com}"
-
-echo "Auditing catalog vs blog JSON..."
-python manage.py audit_blog_recovery
-
-echo ""
-echo "Dry run load_blog_batch..."
-python manage.py load_blog_batch --dry-run
+for i in $(seq 1 30); do
+  STATUS=$(aws ssm get-command-invocation \
+    --region "$AWS_REGION" --command-id "$CMD_ID" --instance-id "$AWS_API_INSTANCE_ID" \
+    --query 'Status' --output text 2>/dev/null || echo Pending)
+  [[ "$STATUS" == "Success" || "$STATUS" == "Failed" ]] && break
+  sleep 3
+done
+aws ssm get-command-invocation \
+  --region "$AWS_REGION" --command-id "$CMD_ID" --instance-id "$AWS_API_INSTANCE_ID" \
+  --query 'StandardOutputContent' --output text
 
 echo ""
 echo "Loading all blog batches (--force)..."
-python manage.py load_blog_batch --force
+CMD_ID=$(aws ssm send-command \
+  --region "$AWS_REGION" \
+  --instance-ids "$AWS_API_INSTANCE_ID" \
+  --document-name AWS-RunShellScript \
+  --comment "reload-blogs force" \
+  --parameters 'commands=["docker exec ag-api-web python manage.py load_blog_batch --force"]' \
+  --query 'Command.CommandId' --output text)
 
-echo ""
-echo "Post-load audit..."
-python manage.py audit_blog_recovery
-
-echo ""
-echo "Done. Verify: curl -s 'https://api.affordable-gadgetske.com/api/v1/public/products/?page_size=5' | grep has_published_article"
+for i in $(seq 1 60); do
+  STATUS=$(aws ssm get-command-invocation \
+    --region "$AWS_REGION" --command-id "$CMD_ID" --instance-id "$AWS_API_INSTANCE_ID" \
+    --query 'Status' --output text 2>/dev/null || echo Pending)
+  if [[ "$STATUS" == "Success" ]]; then
+    aws ssm get-command-invocation \
+      --region "$AWS_REGION" --command-id "$CMD_ID" --instance-id "$AWS_API_INSTANCE_ID" \
+      --query 'StandardOutputContent' --output text
+    echo "Done."
+    exit 0
+  fi
+  [[ "$STATUS" == "Failed" || "$STATUS" == "Cancelled" ]] && exit 1
+  sleep 5
+done
+echo "Timed out waiting for load_blog_batch" >&2
+exit 1

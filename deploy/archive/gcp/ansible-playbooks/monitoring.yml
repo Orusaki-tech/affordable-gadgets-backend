@@ -1,0 +1,12 @@
+---
+- name: Deploy Prometheus + Grafana monitoring stack
+  hosts: monitoring
+  become: true
+  vars_files:
+    - ../group_vars/all/00_system.yml
+    - ../group_vars/{{ env_name | default('production') }}.yml
+    - ../vars/generated_from_terraform.yml
+    - ../secrets/{{ env_name | default('production') }}.vault.yml
+  roles:
+    - common
+    - monitoring_compose

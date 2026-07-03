@@ -1,15 +1,30 @@
 terraform {
-  required_version = ">= 1.0"
+  required_version = ">= 1.5.0"
+
   required_providers {
-    google = {
-      source  = "hashicorp/google"
+    aws = {
+      source  = "hashicorp/aws"
       version = "~> 5.0"
     }
-
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.6"
+    }
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.0"
+    }
   }
 }
 
-provider "google" {
-  project = var.project_id
-  region  = var.region
+provider "aws" {
+  region = var.aws_region
+
+  default_tags {
+    tags = {
+      Project     = "affordable-gadgets"
+      Environment = var.environment
+      ManagedBy   = "terraform"
+    }
+  }
 }

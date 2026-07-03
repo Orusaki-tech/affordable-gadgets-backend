@@ -1,0 +1,43 @@
+# Fly.io app for Grafana + Prometheus (off-GCP monitoring).
+#
+# Connect GitHub repo: affordable-gadgets-backend
+# Root directory:      deploy/monitoring
+#
+# First-time setup:
+#   cd deploy/monitoring
+#   fly launch --no-deploy --copy-config
+#   fly volumes create monitoring_data --region iad --size 1
+#   fly secrets set GF_SECURITY_ADMIN_PASSWORD='...' GF_JSON_API_TOKEN='...'
+#   fly deploy
+
+app = "affordable-gadgets-monitoring"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile.fly"
+
+[env]
+  GF_INSTALL_PLUGINS = "yesoreyeram-infinity-datasource"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    grace_period = "45s"
+    interval = "15s"
+    method = "GET"
+    path = "/api/health"
+    timeout = "5s"
+
+[mounts]
+  source = "monitoring_data"
+  destination = "/data"
+
+[[vm]]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1

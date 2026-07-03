@@ -80,11 +80,11 @@ from inventory.serializers_public import (
     ReviewEligibilityRequestSerializer,
     ReviewOtpRequestSerializer,
 )
-from inventory.auth import OptionalTrackingTokenAuthentication
+from inventory.auth import OptionalTrackingTokenAuthentication, TrackingTokenAuthentication
 from inventory.services.analytics_service import (
     get_client_ip,
-    link_cart_to_authenticated_user,
-    resolve_request_session_key,
+    get_customer_for_user,
+    ensure_customer_for_user,
 )
 from inventory.services.cart_service import CartService
 from inventory.services.customer_service import CustomerService
@@ -155,10 +155,10 @@ class _SilkProfileMixin:
 
 
 class _PublicAPIMixin:
-    """Skip DRF authentication for public endpoints so invalid/missing tokens don't cause 401.
-    Use with permission_classes = [AllowAny] so unauthenticated clients can access the API."""
+    """Skip mandatory auth for public endpoints, but accept tokens when present so
+    signed-in shoppers get user rate limits instead of anonymous throttling."""
 
-    authentication_classes = []
+    authentication_classes = [OptionalTrackingTokenAuthentication]
 
 
 def _published_products_queryset():
@@ -2363,53 +2363,45 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
     ),
 )
 class CartViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ModelViewSet):
-    """Cart management."""
+    """Cart management — requires a signed-in customer account."""
 
     serializer_class = CartSerializer
-    permission_classes = [permissions.AllowAny]
-    authentication_classes = [OptionalTrackingTokenAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+    authentication_classes = [TrackingTokenAuthentication]
 
-    def _resolve_session_key(self, request):
-        return resolve_request_session_key(request)
-
-    def _maybe_link_cart_to_user(self, cart, request):
-        if request.user and request.user.is_authenticated:
-            link_cart_to_authenticated_user(cart, request.user)
-        return cart
+    def _get_customer(self, request):
+        customer = get_customer_for_user(request.user)
+        if not customer:
+            customer = ensure_customer_for_user(
+                request.user,
+                email_verified=bool(getattr(request.user, "supabase_uid", None)),
+            )
+        if not customer:
+            raise exceptions.PermissionDenied(
+                "A customer profile is required to use the cart. Please sign in."
+            )
+        return customer
 
     def get_queryset(self):
         brand = getattr(self.request, "brand", None)
 
-        if not brand:
+        if not brand or not self.request.user.is_authenticated:
             return Cart.objects.none()
 
-        # For list view, only show non-submitted carts
+        customer = get_customer_for_user(self.request.user)
+        if not customer:
+            return Cart.objects.none()
+
+        queryset = Cart.objects.filter(brand=brand, customer=customer)
         if self.action == "list":
-            queryset = Cart.objects.filter(brand=brand, is_submitted=False)
-            session_key = self._resolve_session_key(self.request)
-            customer_phone = self.request.data.get(
-                "customer_phone"
-            ) or self.request.query_params.get("phone")
-
-            if customer_phone:
-                queryset = queryset.filter(customer_phone=customer_phone)
-            elif session_key:
-                queryset = queryset.filter(session_key=session_key)
-            else:
-                # No session or phone - return empty for list view
-                return Cart.objects.none()
-            return queryset
-
-        # For detail/action views (retrieve, items, checkout), allow access to submitted carts by ID
-        # This allows frontend to refresh cart after checkout
-        return Cart.objects.filter(brand=brand)
+            return queryset.filter(is_submitted=False)
+        return queryset
 
     @extend_schema(request=CartCreateSerializer, responses=CartSerializer)
     def create(self, request):
-        """Create or get existing cart."""
+        """Create or get existing cart for the authenticated customer."""
         brand = getattr(request, "brand", None)
         if not brand:
-            # Get brand code from header for better error message
             brand_code = request.headers.get("X-Brand-Code", "Not provided")
             return Response(
                 {
@@ -2420,12 +2412,10 @@ class CartViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        session_key = self._resolve_session_key(request)
-        customer_phone = request.data.get("customer_phone", "")
+        customer = self._get_customer(request)
 
         try:
-            cart = CartService.get_or_create_cart(session_key, customer_phone, brand)
-            self._maybe_link_cart_to_user(cart, request)
+            cart = CartService.get_or_create_cart_for_customer(customer, brand)
             serializer = self.get_serializer(cart)
             return Response(serializer.data)
         except Exception as e:
@@ -2448,7 +2438,6 @@ class CartViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ModelViewSet):
     def items(self, request, pk=None):
         """Add item to cart."""
         cart = self.get_object()
-        self._maybe_link_cart_to_user(cart, request)
         inventory_unit_id = request.data.get("inventory_unit_id")
         quantity = request.data.get("quantity", 1)
         promotion_id = request.data.get("promotion_id")

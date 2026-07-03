@@ -1,4 +1,5 @@
 secrets/*.vault.yml
 vars/generated_from_terraform.yml
+vars/generated_from_terraform_aws.yml
 production.vault_pass
 playbooks/group_vars
