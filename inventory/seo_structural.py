@@ -289,6 +289,24 @@ def _article_model_mismatch(article_slug: str, product: Product) -> bool:
     return False
 
 
+def _infer_product_type_from_slug(article_slug: str, default: str = "PH") -> str:
+    anchors = _category_anchors(article_slug)
+    if "tab" in anchors or "ipad" in anchors:
+        return Product.ProductType.TABLET
+    if "macbook" in anchors or "imac" in anchors:
+        return Product.ProductType.LAPTOP
+    if "watch" in anchors or "buds" in anchors or "airpods" in anchors:
+        return Product.ProductType.ACCESSORY
+    return default
+
+
+def _resolve_search_product_type(article_slug: str, parent: Product) -> str:
+    parent_slug = (parent.slug or "").strip()
+    if not _categories_compatible(article_slug, parent_slug):
+        return _infer_product_type_from_slug(article_slug, default=parent.product_type)
+    return parent.product_type
+
+
 def find_best_product_for_article_slug(
     article_slug: str,
     *,
@@ -301,22 +319,26 @@ def find_best_product_for_article_slug(
     if not article_tokens:
         return None, 0.0
 
-    candidates = list(
-        Product.objects.filter(
-            brand__iexact=brand,
-            product_type=product_type,
-            is_discontinued=False,
-            is_published=True,
-        ).order_by("id")
-    )
-    scored: list[tuple[float, tuple, Product, set[str]]] = []
-    for product in candidates:
-        if exclude_product_id and product.id == exclude_product_id:
-            continue
-        match_score, overlap = _score_product_match(article_slug, product)
-        if match_score <= 0:
-            continue
-        scored.append((match_score, _canonical_product_score(product), product, overlap))
+    def _score_candidates(candidates: list[Product]) -> list[tuple[float, tuple, Product, set[str]]]:
+        scored: list[tuple[float, tuple, Product, set[str]]] = []
+        for product in candidates:
+            if exclude_product_id and product.id == exclude_product_id:
+                continue
+            match_score, overlap = _score_product_match(article_slug, product)
+            if match_score <= 0:
+                continue
+            scored.append((match_score, _canonical_product_score(product), product, overlap))
+        return scored
+
+    base_qs = Product.objects.filter(
+        brand__iexact=brand,
+        is_discontinued=False,
+        is_published=True,
+    ).order_by("id")
+
+    scored = _score_candidates(list(base_qs.filter(product_type=product_type)))
+    if not scored:
+        scored = _score_candidates(list(base_qs))
 
     if not scored:
         return None, 0.0
@@ -350,7 +372,7 @@ def detect_article_mismatches(
         target, confidence = find_best_product_for_article_slug(
             article_slug,
             brand=article.product.brand or "",
-            product_type=article.product.product_type,
+            product_type=_resolve_search_product_type(article_slug, article.product),
             exclude_product_id=article.product_id,
         )
         if not target or target.id == article.product_id or confidence < min_confidence:
@@ -383,7 +405,7 @@ def _propose_reparent_from_slug(article: ProductArticle) -> Product | None:
     target, confidence = find_best_product_for_article_slug(
         article_slug,
         brand=article.product.brand or "",
-        product_type=article.product.product_type,
+        product_type=_resolve_search_product_type(article_slug, article.product),
         exclude_product_id=article.product_id,
     )
     if not target or confidence < 0.5:
