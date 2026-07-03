@@ -5,7 +5,9 @@ from inventory.models import Product, ProductArticle, ProductArticleSlugRedirect
 from inventory.seo_structural import (
     consolidate_duplicate_products,
     deduplicate_product_articles,
+    detect_article_mismatches,
     extract_model_from_headline,
+    extract_model_tokens_from_slug,
     fix_apostrophe_article_slugs,
     reparent_product_articles,
 )
@@ -102,8 +104,8 @@ def test_reparent_product_articles_moves_mismatched_iphone_post():
     )
     right_parent = baker.make(
         Product,
-        slug="apple-iphone-15-pro",
-        product_name="iPhone 15 Pro",
+        slug="apple-iphone-15-pro-sim",
+        product_name="iPhone 15 Pro SIM",
         brand="Apple",
         model_series="iPhone 15 Pro",
         product_type=Product.ProductType.PHONE,
@@ -112,18 +114,233 @@ def test_reparent_product_articles_moves_mismatched_iphone_post():
     )
     article = ProductArticle.objects.create(
         product=wrong_parent,
-        slug="iphone-15-pro-review",
+        slug="iphone-15-pro-review-the-pro-iphone-that-does-it-all",
         headline="iPhone 15 Pro Review: still worth it in 2026",
         is_published=True,
     )
 
     assert extract_model_from_headline(article.headline, brand="Apple") == "15 pro"
+    assert "15" in extract_model_tokens_from_slug(article.slug)
 
     stats = reparent_product_articles(dry_run=False, auto_detect=True)
     article.refresh_from_db()
 
     assert article.product_id == right_parent.id
     assert stats.updated >= 1
+
+
+@pytest.mark.django_db
+def test_reparent_leaves_correct_iphone_13_review_on_iphone_13():
+    parent = baker.make(
+        Product,
+        slug="apple-iphone-13-sim",
+        product_name="iPhone 13 SIM",
+        brand="Apple",
+        model_series="iPhone 13",
+        product_type=Product.ProductType.PHONE,
+        is_published=True,
+        is_discontinued=False,
+    )
+    other = baker.make(
+        Product,
+        slug="apple-iphone-15-sim",
+        product_name="iPhone 15 SIM",
+        brand="Apple",
+        model_series="iPhone 15",
+        product_type=Product.ProductType.PHONE,
+        is_published=True,
+        is_discontinued=False,
+    )
+    article = ProductArticle.objects.create(
+        product=parent,
+        slug="iphone-13-review-why-its-still-a-great-buy-in-2026",
+        headline="iPhone 13 Review: Why It's Still a Great Buy in 2026",
+        is_published=True,
+    )
+
+    stats = reparent_product_articles(dry_run=False, auto_detect=True)
+    article.refresh_from_db()
+
+    assert article.product_id == parent.id
+    assert stats.updated == 0
+
+
+@pytest.mark.django_db
+def test_reparent_moves_pixel_8_off_pixel_10():
+    wrong_parent = baker.make(
+        Product,
+        slug="google-pixel-10",
+        product_name="Google Pixel 10",
+        brand="Google",
+        model_series="Pixel 10",
+        product_type=Product.ProductType.PHONE,
+        is_published=True,
+        is_discontinued=False,
+    )
+    right_parent = baker.make(
+        Product,
+        slug="google-pixel-8",
+        product_name="Google Pixel 8",
+        brand="Google",
+        model_series="Pixel 8",
+        product_type=Product.ProductType.PHONE,
+        is_published=True,
+        is_discontinued=False,
+    )
+    article = ProductArticle.objects.create(
+        product=wrong_parent,
+        slug="google-pixel-8-review",
+        headline="Google Pixel 8 Review",
+        is_published=True,
+    )
+
+    stats = reparent_product_articles(dry_run=False, auto_detect=True)
+    article.refresh_from_db()
+
+    assert article.product_id == right_parent.id
+    assert stats.updated >= 1
+
+
+@pytest.mark.django_db
+def test_reparent_moves_galaxy_s10_phone_off_tab_s10_fe():
+    wrong_parent = baker.make(
+        Product,
+        slug="samsung-galaxy-tab-s10-fe-wifi",
+        product_name="Galaxy Tab S10 FE WiFi",
+        brand="Samsung",
+        model_series="Galaxy Tab S10 FE",
+        product_type=Product.ProductType.TABLET,
+        is_published=True,
+        is_discontinued=False,
+    )
+    right_parent = baker.make(
+        Product,
+        slug="samsung-galaxy-s10",
+        product_name="Samsung Galaxy S10",
+        brand="Samsung",
+        model_series="Galaxy S10",
+        product_type=Product.ProductType.PHONE,
+        is_published=True,
+        is_discontinued=False,
+    )
+    article = ProductArticle.objects.create(
+        product=wrong_parent,
+        slug="samsung-galaxy-s10-review",
+        headline="Samsung Galaxy S10 Review",
+        is_published=True,
+    )
+
+    stats = reparent_product_articles(dry_run=False, auto_detect=True)
+    article.refresh_from_db()
+
+    assert article.product_id == right_parent.id
+    assert stats.updated >= 1
+
+
+@pytest.mark.django_db
+def test_reparent_moves_z_flip_5_off_z_flip_5_duplicate_host():
+    wrong_parent = baker.make(
+        Product,
+        slug="samsung-galaxy-z-flip-5-2",
+        product_name="Galaxy Z Flip 5 duplicate",
+        brand="Samsung",
+        model_series="Galaxy Z Flip 5",
+        product_type=Product.ProductType.PHONE,
+        is_published=True,
+        is_discontinued=False,
+    )
+    right_parent = baker.make(
+        Product,
+        slug="samsung-galaxy-z-flip-5",
+        product_name="Samsung Galaxy Z Flip 5",
+        brand="Samsung",
+        model_series="Galaxy Z Flip 5",
+        product_type=Product.ProductType.PHONE,
+        is_published=True,
+        is_discontinued=False,
+    )
+    article = ProductArticle.objects.create(
+        product=wrong_parent,
+        slug="samsung-galaxy-z-flip-5-review",
+        headline="Samsung Galaxy Z Flip 5 Review",
+        is_published=True,
+    )
+
+    stats = reparent_product_articles(dry_run=False, auto_detect=True)
+    article.refresh_from_db()
+
+    assert article.product_id == right_parent.id
+    assert stats.updated >= 1
+
+
+@pytest.mark.django_db
+def test_reparent_moves_airpods_pro_3_off_airpods_4():
+    wrong_parent = baker.make(
+        Product,
+        slug="apple-airpods-4",
+        product_name="AirPods 4",
+        brand="Apple",
+        product_type=Product.ProductType.ACCESSORY,
+        is_published=True,
+        is_discontinued=False,
+    )
+    right_parent = baker.make(
+        Product,
+        slug="apple-airpods-pro-3",
+        product_name="AirPods Pro 3",
+        brand="Apple",
+        product_type=Product.ProductType.ACCESSORY,
+        is_published=True,
+        is_discontinued=False,
+    )
+    article = ProductArticle.objects.create(
+        product=wrong_parent,
+        slug="airpods-pro-3-review",
+        headline="AirPods Pro 3 Review",
+        is_published=True,
+    )
+
+    stats = reparent_product_articles(dry_run=False, auto_detect=True)
+    article.refresh_from_db()
+
+    assert article.product_id == right_parent.id
+    assert stats.updated >= 1
+
+
+@pytest.mark.django_db
+def test_detect_article_mismatches_flags_wrong_parent():
+    wrong_parent = baker.make(
+        Product,
+        slug="samsung-galaxy-s25-ultra",
+        product_name="Galaxy S25 Ultra",
+        brand="Samsung",
+        model_series="Galaxy S25 Ultra",
+        product_type=Product.ProductType.PHONE,
+        is_published=True,
+        is_discontinued=False,
+    )
+    right_parent = baker.make(
+        Product,
+        slug="samsung-galaxy-s20-ultra",
+        product_name="Galaxy S20 Ultra",
+        brand="Samsung",
+        model_series="Galaxy S20 Ultra",
+        product_type=Product.ProductType.PHONE,
+        is_published=True,
+        is_discontinued=False,
+    )
+    article = ProductArticle.objects.create(
+        product=wrong_parent,
+        slug="samsung-galaxy-s20-ultra-review",
+        headline="Samsung Galaxy S20 Ultra Review",
+        is_published=True,
+    )
+
+    mismatches = detect_article_mismatches(min_confidence=0.5)
+    matched = [row for row in mismatches if row.article_id == article.id]
+
+    assert matched
+    assert matched[0].suggested_product_slug == right_parent.slug
 
 
 @pytest.mark.django_db

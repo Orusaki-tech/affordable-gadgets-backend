@@ -21,6 +21,7 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand
 from django.db import transaction
+from django.utils.text import slugify
 
 from inventory.models import Product, ProductArticle
 
@@ -35,11 +36,13 @@ def _load_fixture_rows() -> list[dict]:
         headline = (data.get("headline") or "").strip()
         product_name = (data.get("product_name") or "").strip()
         product_slug = (data.get("product_slug") or "").strip()
+        article_slug = (data.get("slug") or slugify(headline) or "").strip()
         if not headline or not product_name:
             continue
         rows.append(
             {
                 "headline": headline,
+                "article_slug": article_slug,
                 "product_name": product_name,
                 "product_slug": product_slug,
                 "source_file": os.path.relpath(json_path, BATCHES_DIR.parent.parent),
@@ -106,11 +109,6 @@ class Command(BaseCommand):
         already_ok = 0
 
         for row in rows:
-            article = ProductArticle.objects.filter(headline=row["headline"]).select_related("product").first()
-            if not article:
-                missing_article += 1
-                continue
-
             target = _resolve_target_product(row["product_name"], row["product_slug"])
             if not target:
                 missing_product += 1
@@ -119,6 +117,11 @@ class Command(BaseCommand):
                         f"  No product for {row['product_name']!r} ({row['source_file']})"
                     )
                 )
+                continue
+
+            article = self._find_misassigned_article(row, target)
+            if not article:
+                missing_article += 1
                 continue
 
             if article.product_id == target.id:
@@ -167,12 +170,38 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS(f"\nReparented {len(proposals)} article(s)."))
 
+    def _find_misassigned_article(self, row: dict, target: Product) -> ProductArticle | None:
+        """Locate an article that belongs on ``target`` but is filed elsewhere."""
+        article_slug = row.get("article_slug") or slugify(row["headline"])
+        headline = row["headline"]
+
+        if article_slug:
+            by_slug = list(
+                ProductArticle.objects.filter(slug=article_slug)
+                .exclude(product_id=target.id)
+                .select_related("product")
+            )
+            if len(by_slug) == 1:
+                return by_slug[0]
+            if by_slug:
+                for article in by_slug:
+                    if article.headline == headline:
+                        return article
+                return by_slug[0]
+
+        return (
+            ProductArticle.objects.filter(headline=headline)
+            .exclude(product_id=target.id)
+            .select_related("product")
+            .first()
+        )
+
     def _write_csv(self, path: Path, rows: list[dict]) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("w", newline="", encoding="utf-8") as handle:
             writer = csv.DictWriter(
                 handle,
-                fieldnames=["headline", "product_name", "product_slug", "source_file"],
+                fieldnames=["headline", "article_slug", "product_name", "product_slug", "source_file"],
             )
             writer.writeheader()
             writer.writerows(rows)

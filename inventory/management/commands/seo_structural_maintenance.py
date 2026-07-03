@@ -19,13 +19,14 @@ from inventory.seo_structural import (
     consolidate_duplicate_products,
     deduplicate_product_articles,
     fix_apostrophe_article_slugs,
+    reparent_product_articles,
 )
 
 DEFAULT_SLUG_PAIRS_CSV = Path(__file__).resolve().parents[3] / "data" / "seo_duplicate_slug_pairs.csv"
 
 ISSUE_COVERAGE = [
     ("4", "Duplicate product URLs → consolidate + slug redirects"),
-    ("5", "Misassigned blog parents → reparent from fixtures"),
+    ("5", "Misassigned blog parents → reparent from fixtures + slug token detection"),
     ("6", "Cross-product duplicate articles → deduplicate"),
     ("7", "Apostrophe article slug bugs → fix + article redirects"),
     ("8", "Test products in sitemap → unpublish test products"),
@@ -93,6 +94,10 @@ class Command(BaseCommand):
                 explicit_pairs=all_pairs,
             )),
             ("Reparent misassigned articles (from blog fixtures)", None),
+            ("Reparent misassigned articles (slug token detection)", lambda: reparent_product_articles(
+                dry_run=dry_run,
+                auto_detect=True,
+            )),
             ("Deduplicate cross-product articles", lambda: deduplicate_product_articles(
                 dry_run=dry_run,
             )),

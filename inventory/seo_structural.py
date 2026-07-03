@@ -28,6 +28,48 @@ GALAXY_MODEL_RE = re.compile(
     r"\b(galaxy\s+[a-z]?\d+[^\s,.:;)]*|galaxy\s+z\s+\w+[^\s,.:;)]*)\b",
     re.IGNORECASE,
 )
+PIXEL_MODEL_RE = re.compile(r"\bpixel\s+(\d+[a-z]?)\b", re.IGNORECASE)
+MACBOOK_MODEL_RE = re.compile(r"\bmacbook\s+(air|pro)\b", re.IGNORECASE)
+AIRPODS_MODEL_RE = re.compile(r"\bairpods\s+(pro\s+\d+|\d+)\b", re.IGNORECASE)
+WATCH_MODEL_RE = re.compile(r"\b(?:galaxy\s+)?watch\s+(\d+)\b", re.IGNORECASE)
+BUDS_MODEL_RE = re.compile(r"\b(?:galaxy\s+)?buds\s+(\d+(?:\s+pro|\s+fe)?)\b", re.IGNORECASE)
+
+ARTICLE_REVIEW_PREFIX_RE = re.compile(r"^(.+?)(?:-review(?:-|$)|-is-the-|-why-|-and-|-in-kenya)")
+DUPLICATE_HOST_SUFFIX_RE = re.compile(r"-[2-9]$")
+STORAGE_TOKEN_RE = re.compile(r"^\d+(?:gb|tb)$")
+YEAR_TOKEN_RE = re.compile(r"^20\d\d$")
+
+GENERIC_SLUG_TOKENS = frozenset(
+    {
+        "apple", "samsung", "google", "xiaomi", "oneplus", "vivo", "tecno", "infinix", "oppo",
+        "huawei", "nokia", "realme", "galaxy", "iphone", "ipad", "macbook", "pixel", "airpods",
+        "imac", "sim", "esim", "wifi", "cellular", "lte", "5g", "4g", "gb", "ram", "tb", "mm",
+        "inch", "review", "why", "its", "still", "great", "buy", "the", "and", "for", "with",
+        "in", "kenya", "performance", "battery", "value", "affordable", "price", "solid", "phone",
+        "accessory", "is", "are", "a", "an", "of", "to", "at", "on", "your", "that", "this",
+        "most", "best", "period", "yet", "gets", "even", "better", "refined", "base", "model",
+        "all", "does", "it", "do", "who", "should", "right", "you", "guide", "explained", "chip",
+        "ai", "running", "laptop", "local", "everyday", "use", "reliable", "wired", "audio",
+        "dubai", "official", "orange", "blue", "orangeblue", "silver", "desert", "titanium",
+        "black", "white", "gold", "pink", "green", "purple", "red", "s", "series", "gen",
+        "256gb", "512gb", "128gb", "1tb", "64gb", "12gb", "8gb", "16gb", "24gb", "32gb",
+    }
+)
+
+CATEGORY_ANCHOR_TOKENS = frozenset(
+    {"tab", "watch", "buds", "airpods", "macbook", "ipad", "imac", "flip", "fold", "note", "pocket", "air"}
+)
+
+
+@dataclass
+class ArticleMismatch:
+    article_id: int
+    article_slug: str
+    headline: str
+    current_product_slug: str
+    suggested_product_slug: str
+    confidence: float
+    reason: str
 
 
 @dataclass
@@ -103,11 +145,259 @@ def extract_model_from_headline(headline: str, brand: str = "") -> str | None:
         match = IPHONE_MODEL_RE.search(text)
         if match:
             return re.sub(r"\s+", " ", match.group(1).strip().lower())
+        match = MACBOOK_MODEL_RE.search(text)
+        if match:
+            return f"macbook {match.group(1).strip().lower()}"
+        match = AIRPODS_MODEL_RE.search(text)
+        if match:
+            return f"airpods {match.group(1).strip().lower()}"
     if brand_lower in {"", "samsung"} or "galaxy" in text.lower():
         match = GALAXY_MODEL_RE.search(text)
         if match:
             return re.sub(r"\s+", " ", match.group(1).strip().lower())
+        match = WATCH_MODEL_RE.search(text)
+        if match:
+            return f"galaxy watch {match.group(1).strip()}"
+        match = BUDS_MODEL_RE.search(text)
+        if match:
+            return f"galaxy buds {match.group(1).strip().lower()}"
+    if brand_lower in {"", "google"} or "pixel" in text.lower():
+        match = PIXEL_MODEL_RE.search(text)
+        if match:
+            return f"pixel {match.group(1).strip().lower()}"
     return None
+
+
+def _slug_tokens(slug: str) -> list[str]:
+    return [token for token in slugify_seo(slug or "").split("-") if token]
+
+
+def _article_model_prefix(article_slug: str) -> str:
+    slug = (article_slug or "").strip().lower()
+    match = ARTICLE_REVIEW_PREFIX_RE.match(slug)
+    if match:
+        return match.group(1).strip("-")
+    return slug
+
+
+def extract_model_tokens_from_slug(slug: str) -> set[str]:
+    """Return model-identifying tokens stripped of brand, spec, and review noise."""
+    prefix = _article_model_prefix(slug)
+    tokens: set[str] = set()
+    for token in _slug_tokens(prefix):
+        if token in GENERIC_SLUG_TOKENS:
+            continue
+        if STORAGE_TOKEN_RE.match(token) or YEAR_TOKEN_RE.match(token):
+            continue
+        tokens.add(token)
+    return tokens
+
+
+def _category_anchors(slug: str) -> set[str]:
+    return extract_model_tokens_from_slug(slug) & CATEGORY_ANCHOR_TOKENS
+
+
+def _categories_compatible(article_slug: str, product_slug: str) -> bool:
+    article_cats = _category_anchors(article_slug)
+    product_cats = _category_anchors(product_slug)
+    if not article_cats and not product_cats:
+        return True
+    if article_cats != product_cats:
+        # Phone S10 articles must not land on Tab S10 products and vice versa.
+        if "tab" in article_cats or "tab" in product_cats:
+            return "tab" in article_cats and "tab" in product_cats
+        if article_cats and product_cats:
+            return bool(article_cats & product_cats)
+        return not product_cats
+    return True
+
+
+def _meaningful_overlap(left: set[str], right: set[str]) -> set[str]:
+    return left & right
+
+
+def _has_meaningful_model_overlap(article_tokens: set[str], product_tokens: set[str]) -> bool:
+    overlap = _meaningful_overlap(article_tokens, product_tokens)
+    if not overlap:
+        return False
+    if len(overlap) >= 2:
+        return True
+    token = next(iter(overlap))
+    return bool(re.search(r"\d", token)) or token in CATEGORY_ANCHOR_TOKENS
+
+
+def _score_product_match(article_slug: str, product: Product) -> tuple[float, set[str]]:
+    article_tokens = extract_model_tokens_from_slug(article_slug)
+    if not article_tokens:
+        return 0.0, set()
+
+    product_slug = (product.slug or "").strip()
+    product_tokens = extract_model_tokens_from_slug(product_slug)
+    product_tokens |= extract_model_tokens_from_slug(product.product_name or "")
+    product_tokens |= extract_model_tokens_from_slug(product.model_series or "")
+
+    if not _categories_compatible(article_slug, product_slug):
+        return 0.0, set()
+
+    overlap = _meaningful_overlap(article_tokens, product_tokens)
+    if not overlap:
+        return 0.0, set()
+
+    score = float(len(overlap))
+    if any(re.search(r"\d", token) for token in overlap):
+        score += 1.0
+    prefix = _article_model_prefix(article_slug)
+    if prefix and prefix in product_slug:
+        score += 2.0
+    return score, overlap
+
+
+def _distinguishing_tokens(tokens: set[str]) -> set[str]:
+    modifiers = {"ultra", "fe", "mini", "plus", "max", "pro", "edge", "lite", "se", "e", "air", "pocket"}
+    result = tokens & (CATEGORY_ANCHOR_TOKENS | modifiers)
+    result |= {token for token in tokens if re.search(r"\d", token)}
+    return result
+
+
+def _article_model_mismatch(article_slug: str, product: Product) -> bool:
+    """True when the article slug references a different model than the parent product."""
+    article_tokens = extract_model_tokens_from_slug(article_slug)
+    if not article_tokens:
+        return False
+
+    product_slug = (product.slug or "").strip()
+    product_tokens = extract_model_tokens_from_slug(product_slug)
+    product_tokens |= extract_model_tokens_from_slug(product.product_name or "")
+    product_tokens |= extract_model_tokens_from_slug(product.model_series or "")
+
+    if DUPLICATE_HOST_SUFFIX_RE.search(product_slug):
+        article_prefix = _article_model_prefix(article_slug)
+        canonical_slug = NUMERIC_SLUG_SUFFIX_RE.sub("", product_slug)
+        if article_prefix and article_prefix in canonical_slug:
+            return True
+
+    if not _categories_compatible(article_slug, product_slug):
+        return True
+
+    article_key = _distinguishing_tokens(article_tokens)
+    if article_key and not article_key <= product_tokens:
+        return True
+
+    if not _has_meaningful_model_overlap(article_tokens, product_tokens):
+        return True
+
+    return False
+
+
+def find_best_product_for_article_slug(
+    article_slug: str,
+    *,
+    brand: str,
+    product_type: str = "PH",
+    exclude_product_id: int | None = None,
+) -> tuple[Product | None, float]:
+    """Pick the published catalog product whose slug best matches the article slug."""
+    article_tokens = extract_model_tokens_from_slug(article_slug)
+    if not article_tokens:
+        return None, 0.0
+
+    candidates = list(
+        Product.objects.filter(
+            brand__iexact=brand,
+            product_type=product_type,
+            is_discontinued=False,
+            is_published=True,
+        ).order_by("id")
+    )
+    scored: list[tuple[float, tuple, Product, set[str]]] = []
+    for product in candidates:
+        if exclude_product_id and product.id == exclude_product_id:
+            continue
+        match_score, overlap = _score_product_match(article_slug, product)
+        if match_score <= 0:
+            continue
+        scored.append((match_score, _canonical_product_score(product), product, overlap))
+
+    if not scored:
+        return None, 0.0
+
+    scored.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    best_score = scored[0][0]
+    confidence = min(1.0, best_score / 4.0)
+    return scored[0][2], confidence
+
+
+def detect_article_mismatches(
+    *,
+    min_confidence: float = 0.5,
+    published_only: bool = True,
+) -> list[ArticleMismatch]:
+    """
+    Flag articles whose slug model tokens don't overlap the parent product slug.
+
+    Returns blog_id, current_parent, suggested_parent, confidence for each mismatch.
+    """
+    qs = ProductArticle.objects.select_related("product")
+    if published_only:
+        qs = qs.filter(is_published=True)
+
+    mismatches: list[ArticleMismatch] = []
+    for article in qs:
+        article_slug = (article.slug or "").strip()
+        if not _article_model_mismatch(article_slug, article.product):
+            continue
+
+        target, confidence = find_best_product_for_article_slug(
+            article_slug,
+            brand=article.product.brand or "",
+            product_type=article.product.product_type,
+            exclude_product_id=article.product_id,
+        )
+        if not target or target.id == article.product_id or confidence < min_confidence:
+            continue
+
+        current_slug = (article.product.slug or "").strip()
+        article_tokens = extract_model_tokens_from_slug(article_slug)
+        product_tokens = extract_model_tokens_from_slug(current_slug)
+
+        mismatches.append(
+            ArticleMismatch(
+                article_id=article.id,
+                article_slug=article_slug,
+                headline=(article.headline or "").strip(),
+                current_product_slug=current_slug,
+                suggested_product_slug=(target.slug or "").strip(),
+                confidence=confidence,
+                reason=f"slug tokens {sorted(article_tokens)} not in parent {sorted(product_tokens)}",
+            )
+        )
+    return mismatches
+
+
+def _propose_reparent_from_slug(article: ProductArticle) -> Product | None:
+    """Suggest a better parent product using article slug token matching."""
+    article_slug = (article.slug or "").strip()
+    if not _article_model_mismatch(article_slug, article.product):
+        return None
+
+    target, confidence = find_best_product_for_article_slug(
+        article_slug,
+        brand=article.product.brand or "",
+        product_type=article.product.product_type,
+        exclude_product_id=article.product_id,
+    )
+    if not target or confidence < 0.5:
+        return None
+
+    current_score, _ = _score_product_match(article_slug, article.product)
+    best_score, _ = _score_product_match(article_slug, target)
+    if best_score < current_score:
+        return None
+    if best_score == current_score and _canonical_product_score(target) <= _canonical_product_score(
+        article.product
+    ):
+        return None
+    return target
 
 
 def find_product_for_model(model_key: str, *, brand: str, product_type: str = "PH") -> Product | None:
@@ -322,19 +612,17 @@ def reparent_product_articles(
         for article in articles:
             if article.id in proposals:
                 continue
-            model_key = extract_model_from_headline(article.headline, brand=article.product.brand)
-            if not model_key:
-                continue
-            target = find_product_for_model(
-                model_key,
-                brand=article.product.brand or "Apple",
-                product_type=article.product.product_type,
-            )
+
+            target = _propose_reparent_from_slug(article)
+            if not target:
+                model_key = extract_model_from_headline(article.headline, brand=article.product.brand)
+                if model_key:
+                    target = find_product_for_model(
+                        model_key,
+                        brand=article.product.brand or "Apple",
+                        product_type=article.product.product_type,
+                    )
             if not target or target.id == article.product_id:
-                continue
-            current_slug = (article.product.slug or "").strip()
-            model_slug = slugify_seo(model_key)
-            if model_slug and model_slug in current_slug:
                 continue
             proposals[article.id] = target
 
