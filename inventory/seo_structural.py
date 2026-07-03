@@ -213,7 +213,7 @@ def consolidate_duplicate_products(
         deduped_actions.append((dupe, canonical, source))
 
     existing_redirects = {
-        row.old_slug: row.product_id
+        row["old_slug"]: row["product_id"]
         for row in ProductSlugRedirect.objects.values("old_slug", "product_id")
     }
 
