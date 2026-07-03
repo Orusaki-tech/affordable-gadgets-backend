@@ -128,6 +128,7 @@ jobs:
           api_instance_id: "${{ secrets.AWS_API_INSTANCE_ID }}"
           monitoring_instance_id: "${{ secrets.AWS_MONITORING_INSTANCE_ID }}"
           api_private_ip: "${{ secrets.AWS_API_PRIVATE_IP }}"
+          monitoring_private_ip: "${{ secrets.AWS_MONITORING_PRIVATE_IP }}"
           rds_endpoint: "${{ secrets.AWS_RDS_ENDPOINT }}"
           api_image: "${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}"
           EOF
