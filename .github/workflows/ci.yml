@@ -119,9 +119,10 @@ jobs:
         env:
           AWS_DEPLOY_CONFIG_BUCKET: ${{ secrets.AWS_DEPLOY_CONFIG_BUCKET }}
           ANSIBLE_VAULT_PASSWORD: ${{ secrets.AWS_ANSIBLE_VAULT_PASSWORD }}
+        working-directory: deploy/ansible
         run: |
           set -euo pipefail
-          cat > deploy/ansible/vars/generated_from_terraform.yml <<EOF
+          cat > vars/generated_from_terraform.yml <<EOF
           aws_region: ${{ env.AWS_REGION }}
           deploy_config_bucket: "${AWS_DEPLOY_CONFIG_BUCKET}"
           api_instance_id: "${{ secrets.AWS_API_INSTANCE_ID }}"
@@ -132,7 +133,7 @@ jobs:
           EOF
           echo "$ANSIBLE_VAULT_PASSWORD" > /tmp/vault-pass
           chmod 600 /tmp/vault-pass
-          ansible-playbook deploy/ansible/playbooks/api.yml \
+          ansible-playbook playbooks/api.yml \
             --vault-password-file /tmp/vault-pass \
             -e aws_deploy_restart=false
           rm -f /tmp/vault-pass
