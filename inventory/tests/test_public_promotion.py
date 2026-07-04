@@ -3,34 +3,39 @@ from decimal import Decimal
 
 import pytest
 from django.utils import timezone
-from model_bakery import baker
 
-from inventory.models import Product, Promotion
+from inventory.models import InventoryUnit, Product, Promotion
 from inventory.serializers_public import PublicPromotionSerializer
 
 
 @pytest.mark.django_db
-def test_public_promotion_exposes_featured_override_and_promo_card_without_online_units():
-    brand = baker.make("inventory.Brand")
-    product = baker.make(
-        Product,
+def test_public_promotion_exposes_featured_override_and_promo_card_without_online_units(brand):
+    product = Product.objects.create(
         product_name="iPhone 17 Pro E-SIM",
-        brand="Apple",
+        brand=brand.name,
         model_series="iPhone 17 Pro E-SIM",
         product_type=Product.ProductType.PHONE,
         slug="apple-iphone-17-pro-e-sim",
+        is_published=True,
     )
-    baker.make(
-        "inventory.InventoryUnit",
-        product=product,
+    InventoryUnit.objects.create(
+        product_template=product,
         selling_price=Decimal("162000.00"),
-        sale_status="AV",
+        cost_of_unit=Decimal("150000.00"),
+        quantity=1,
+        sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
         available_online=False,
+        condition=InventoryUnit.ConditionChoices.NEW,
+        grade="A",
+        source=InventoryUnit.SourceChoices.EXTERNAL_SUPPLIER,
+        storage_gb=256,
+        ram_gb=8,
+        serial_number="SN-PROMO-OVERRIDE-001",
+        imei="357865098741299",
     )
 
     now = timezone.now()
-    promotion = baker.make(
-        Promotion,
+    promotion = Promotion.objects.create(
         brand=brand,
         title="Override promo",
         start_date=now - timedelta(days=1),

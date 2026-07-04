@@ -13472,6 +13472,16 @@ components:
           items:
             type: integer
           readOnly: true
+        featured_product:
+          type: integer
+          nullable: true
+          description: Product showcased in storefront promo cards.
+        featured_sale_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+          description: Explicit sale price for the featured product.
         promo_card:
           allOf:
           - $ref: '#/components/schemas/PublicPromotionCard'
