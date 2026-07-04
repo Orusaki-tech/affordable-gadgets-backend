@@ -492,6 +492,25 @@ def _merge_active_cart_products_into_activity(user_data, brand_code: str):
                 existing.add(name)
 
 
+def _merge_active_cart_phone_into_activity(user_data, brand_code: str):
+    """Fill phone from cart.customer_phone when customer profile has no phone."""
+    from inventory.services.whatsapp_lead_service import resolve_cart_contact
+
+    for cart in (
+        _active_carts_with_items_queryset(brand_code)
+        .filter(customer__user__isnull=False)
+        .select_related("customer__user")
+    ):
+        uid = cart.customer.user_id
+        if uid not in user_data:
+            continue
+        if (user_data[uid].get("phone") or "").strip():
+            continue
+        phone, _ = resolve_cart_contact(cart)
+        if phone:
+            user_data[uid]["phone"] = phone
+
+
 class RegisteredUsersCartsView(APIView):
     """Registered users with active cart counts, item totals, and product names."""
     permission_classes = [IsAuthenticated]
@@ -526,17 +545,15 @@ class RegisteredUsersCartsView(APIView):
         users_list = []
         users_with_carts = 0
         for user in User.objects.select_related("customer").order_by("-date_joined"):
-            phone = ""
-            try:
-                phone = user.customer.phone or ""
-            except Exception:
-                pass
-
             user_carts = carts_by_user.get(user.id, {"carts": [], "items": []})
             cart_count = len(user_carts["carts"])
             item_count = sum(item.quantity for item in user_carts["items"])
             if cart_count == 0:
                 continue
+
+            from inventory.services.whatsapp_lead_service import resolve_user_contact
+
+            phone, _ = resolve_user_contact(user, user_carts["carts"])
 
             users_with_carts += 1
             users_list.append({
@@ -633,6 +650,7 @@ class DailyUsersView(APIView):
 
         user_data = _aggregate_user_activity(events)
         _merge_active_cart_products_into_activity(user_data, brand_code)
+        _merge_active_cart_phone_into_activity(user_data, brand_code)
         users_list = _format_user_activity_rows(user_data)
 
         return Response({
@@ -691,6 +709,7 @@ class RegisteredUsersActivityView(APIView):
                 user_data[uid][key] = data[key]
 
         _merge_active_cart_products_into_activity(user_data, brand_code)
+        _merge_active_cart_phone_into_activity(user_data, brand_code)
         users_list = _format_user_activity_rows(user_data, extra_fields)
 
         return Response({

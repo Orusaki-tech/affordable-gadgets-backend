@@ -88,6 +88,28 @@ def resolve_cart_contact(cart) -> tuple[str, str]:
     return phone, email
 
 
+def resolve_user_contact(user, carts=None) -> tuple[str, str]:
+    """Phone and email from customer profile, falling back to linked cart fields."""
+    phone = ""
+    email = (getattr(user, "email", None) or "").strip()
+    try:
+        customer = user.customer
+        phone = (customer.phone or "").strip()
+        if not email:
+            email = (customer.email or "").strip()
+    except Customer.DoesNotExist:
+        pass
+
+    for cart in carts or []:
+        cart_phone, cart_email = resolve_cart_contact(cart)
+        if not phone and cart_phone:
+            phone = cart_phone
+            sync_customer_phone_from_cart(cart)
+        if not email and cart_email:
+            email = cart_email
+    return phone, email
+
+
 def notify_cart_add(*, cart, product, quantity: int, inventory_unit_id: int | None = None) -> None:
     """Email the shop when a signed-in user adds an item to cart (phone required)."""
     try:

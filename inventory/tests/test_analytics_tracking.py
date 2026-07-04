@@ -238,7 +238,35 @@ def test_registered_users_carts_endpoint(brand, available_unit):
 
 
 @pytest.mark.django_db
-def test_registered_users_activity_includes_active_cart_without_events(brand, available_unit):
+def test_registered_users_carts_shows_phone_from_cart_when_customer_empty(brand, available_unit):
+    admin = User.objects.create_user(username="adminphone", email="adminphone@test.com", password="pass")
+    admin.is_staff = True
+    admin.save()
+    token, _ = Token.objects.get_or_create(user=admin)
+
+    shopper = User.objects.create_user(username="nophone", email="nophone@test.com", password="pass")
+    customer = Customer.objects.create(
+        user=shopper,
+        email=shopper.email,
+        email_verified=True,
+    )
+    cart = Cart.objects.create(
+        session_key="sess-phone1",
+        brand=brand,
+        customer=customer,
+        customer_phone="254712345678",
+    )
+    CartItem.objects.create(cart=cart, inventory_unit=available_unit, quantity=1)
+
+    client = APIClient()
+    client.credentials(HTTP_AUTHORIZATION=f"Token {token.key}")
+    response = client.get("/api/inventory/analytics/registered-users-carts/")
+    assert response.status_code == 200
+
+    shopper_row = response.json()["users"][0]
+    assert shopper_row["phone"] == "254712345678"
+    customer.refresh_from_db()
+    assert customer.phone == "254712345678"
     admin = User.objects.create_user(username="adminact", email="adminact@test.com", password="pass")
     admin.is_staff = True
     admin.save()
