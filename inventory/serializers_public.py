@@ -1301,6 +1301,8 @@ class PublicPromotionSerializer(serializers.ModelSerializer):
             "display_locations",
             "carousel_position",
             "products",
+            "featured_product",
+            "featured_sale_price",
             "promo_card",
         )
         read_only_fields = (
@@ -1568,6 +1570,17 @@ class PublicPromotionSerializer(serializers.ModelSerializer):
 
         return " • ".join(parts) if parts else None
 
+    def _get_product_reference_price(self, product):
+        if hasattr(product, "min_price") and product.min_price is not None:
+            return Decimal(str(product.min_price))
+
+        from django.db.models import Min
+
+        min_selling_price = product.inventory_units.aggregate(min_p=Min("selling_price"))["min_p"]
+        if min_selling_price is not None:
+            return Decimal(str(min_selling_price))
+        return None
+
     def _get_promotional_price(self, obj, product, units):
         if (
             getattr(obj, "featured_product_id", None) == product.id
@@ -1593,20 +1606,25 @@ class PublicPromotionSerializer(serializers.ModelSerializer):
             return None
 
         units = self._get_available_product_units(product)
-        if not units:
-            return None
-
-        original_price = min(Decimal(str(unit.selling_price)) for unit in units)
         promotional_price = self._get_promotional_price(obj, product, units)
         if promotional_price is None:
             return None
+
+        if units:
+            original_price = min(Decimal(str(unit.selling_price)) for unit in units)
+            option_summary = self._get_option_summary(units)
+        else:
+            original_price = self._get_product_reference_price(product)
+            if original_price is None:
+                return None
+            option_summary = None
 
         return {
             "product_id": product.id,
             "product_name": product.product_name,
             "product_slug": product.slug,
             "product_image_url": self._get_product_image_url(product),
-            "option_summary": self._get_option_summary(units),
+            "option_summary": option_summary,
             "original_price": original_price,
             "promotional_price": promotional_price,
         }
