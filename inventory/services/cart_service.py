@@ -195,18 +195,63 @@ class CartService:
             cart_item.promotion = promotion
             cart_item.save()
 
-        cart_user = cart.customer.user if cart.customer_id and hasattr(cart.customer, 'user') else None
+        CartService._record_cart_add_event(
+            cart,
+            product,
+            inventory_unit,
+            quantity,
+            ip_address=ip_address,
+            send_notification=created,
+        )
+
+        return cart_item
+
+    @staticmethod
+    def _resolve_cart_user_id(cart):
+        if not cart.customer_id:
+            return None
+        from inventory.models import Customer
+
+        return (
+            Customer.objects.filter(pk=cart.customer_id)
+            .values_list("user_id", flat=True)
+            .first()
+        )
+
+    @staticmethod
+    def _record_cart_add_event(
+        cart, product, inventory_unit, quantity, ip_address=None, *, send_notification=True
+    ):
+        """Record cart_add observability event and backfill orphaned session events."""
+        cart_user_id = CartService._resolve_cart_user_id(cart)
+        session_key = cart.session_key or ""
         ObservabilityEvent.objects.create(
-            user=cart_user,
-            session_key=cart.session_key or "",
+            user_id=cart_user_id,
+            session_key=session_key,
             event_type=ObservabilityEvent.EventType.CART_ADD,
             product_id=product.id,
             brand_code=getattr(cart.brand, "code", "AFFORDABLE_GADGETS"),
             metadata={"quantity": quantity, "inventory_unit_id": inventory_unit.id},
             ip_address=ip_address or None,
         )
+        if cart_user_id and session_key:
+            ObservabilityEvent.objects.filter(
+                session_key=session_key,
+                event_type=ObservabilityEvent.EventType.CART_ADD,
+                user__isnull=True,
+            ).update(user_id=cart_user_id)
 
-        return cart_item
+        if not send_notification:
+            return
+
+        from inventory.services.whatsapp_lead_service import notify_cart_add
+
+        notify_cart_add(
+            cart=cart,
+            product=product,
+            quantity=quantity,
+            inventory_unit_id=inventory_unit.id,
+        )
 
     @staticmethod
     def add_bundle_to_cart(cart, bundle, main_inventory_unit_id=None, bundle_item_ids=None):
@@ -308,7 +353,26 @@ class CartService:
                 cart_item.bundle = bundle
                 cart_item.bundle_group_id = group_id
                 cart_item.save()
+            CartService._record_cart_add_event(
+                cart,
+                item.product,
+                unit,
+                item.quantity,
+                ip_address=None,
+                send_notification=False,
+            )
             created_items.append(cart_item)
+
+        if created_items:
+            first_item, first_unit = selected_units[0]
+            from inventory.services.whatsapp_lead_service import notify_cart_add
+
+            notify_cart_add(
+                cart=cart,
+                product=first_item.product,
+                quantity=sum(ci.quantity for ci in created_items),
+                inventory_unit_id=first_unit.id,
+            )
 
         return created_items, group_id
 

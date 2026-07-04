@@ -65,7 +65,7 @@ from rest_framework.throttling import AnonRateThrottle
 
 from inventory.services.analytics_service import attach_session_activity_to_user, get_client_ip
 
-from .models import ObservabilityEvent, User, Cart, CartItem, Customer
+from .models import ObservabilityEvent, User, Cart, CartItem, Customer, Order
 
 
 def _active_carts_with_items_queryset(brand_code: str):
@@ -303,11 +303,21 @@ class FunnelSummaryView(APIView):
             product_views.exclude(user__isnull=True).values("user").distinct().count()
         )
 
+        cart_adds = events_qs.filter(event_type="cart_add")
+        users_with_cart_add_events = (
+            cart_adds.exclude(user__isnull=True).values("user").distinct().count()
+        )
+        users_with_active_carts = (
+            _active_carts_with_items_queryset(brand_code)
+            .filter(customer__user__isnull=False)
+            .values("customer__user")
+            .distinct()
+            .count()
+        )
+
         total_users = User.objects.count()
         users_with_orders = (
-            Customer.objects.exclude(user__isnull=True)
-            .filter(total_orders__gt=0)
-            .count()
+            Order.objects.exclude(user__isnull=True).values("user").distinct().count()
         )
 
         acquisition_sources = (
@@ -331,10 +341,13 @@ class FunnelSummaryView(APIView):
             "unique_users_with_events": unique_users_with_events,
             "unique_users_with_searches": users_with_searches,
             "unique_users_with_product_views": users_with_product_views,
+            "users_with_cart_add_events": users_with_cart_add_events,
+            "users_with_active_carts": users_with_active_carts,
             "total_events": total_events,
             "total_searches": searches.count(),
             "total_product_views": product_views.count(),
             "total_page_views": page_views.count(),
+            "total_cart_adds": cart_adds.count(),
         }
         acquisition_list = [
             {"source": s["utm_source"], "count": s["count"]}
@@ -443,6 +456,40 @@ def _cart_product_summary(items):
     return ", ".join(
         f"{name} x{qty}" for name, qty in sorted(counts.items(), key=lambda x: (-x[1], x[0]))
     )
+
+
+def _active_cart_product_names_by_user(brand_code: str) -> dict:
+    """Map registered user id -> product names currently in their active cart(s)."""
+    by_user = {}
+    for cart in (
+        _active_carts_with_items_queryset(brand_code)
+        .filter(customer__user__isnull=False)
+        .select_related("customer__user")
+        .prefetch_related("items__inventory_unit__product_template")
+    ):
+        uid = cart.customer.user_id
+        names = by_user.setdefault(uid, [])
+        seen = set(names)
+        for item in cart.items.all():
+            template = getattr(item.inventory_unit, "product_template", None)
+            name = template.product_name if template else ""
+            if name and name not in seen:
+                names.append(name)
+                seen.add(name)
+    return by_user
+
+
+def _merge_active_cart_products_into_activity(user_data, brand_code: str):
+    """Include live cart contents in products_added_to_cart when events are missing."""
+    for uid, product_names in _active_cart_product_names_by_user(brand_code).items():
+        if uid not in user_data:
+            user_data[uid] = _empty_user_activity_entry()
+        entry = user_data[uid]
+        existing = set(entry["products_added_to_cart"])
+        for name in product_names:
+            if name not in existing:
+                entry["products_added_to_cart"].append(name)
+                existing.add(name)
 
 
 class RegisteredUsersCartsView(APIView):
@@ -585,6 +632,7 @@ class DailyUsersView(APIView):
         )
 
         user_data = _aggregate_user_activity(events)
+        _merge_active_cart_products_into_activity(user_data, brand_code)
         users_list = _format_user_activity_rows(user_data)
 
         return Response({
@@ -642,6 +690,7 @@ class RegisteredUsersActivityView(APIView):
             ):
                 user_data[uid][key] = data[key]
 
+        _merge_active_cart_products_into_activity(user_data, brand_code)
         users_list = _format_user_activity_rows(user_data, extra_fields)
 
         return Response({

@@ -2437,6 +2437,14 @@ class CartViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+    def partial_update(self, request, *args, **kwargs):
+        response = super().partial_update(request, *args, **kwargs)
+        if "customer_phone" in request.data:
+            from inventory.services.whatsapp_lead_service import sync_customer_phone_from_cart
+
+            sync_customer_phone_from_cart(self.get_object())
+        return response
+
     @action(detail=True, methods=["post"])
     @extend_schema(request=CartItemCreateSerializer, responses=CartItemSerializer)
     def items(self, request, pk=None):

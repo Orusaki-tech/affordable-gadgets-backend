@@ -507,6 +507,9 @@ EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "True").lower() == "true"
 EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER)
+# Cart-add and WhatsApp lead alerts
+WHATSAPP_LEAD_NOTIFICATION_EMAIL = "affordablegadgetske@gmail.com"
+SHOP_LEAD_NOTIFICATION_EMAIL = "affordablegadgetske@gmail.com"
 EMAIL_TIMEOUT = int(os.environ.get("EMAIL_TIMEOUT", "10"))
 EMAIL_SSL_CA_FILE = os.environ.get("EMAIL_SSL_CA_FILE", "")
 EMAIL_TLS_ALLOW_INVALID_CERTS = (

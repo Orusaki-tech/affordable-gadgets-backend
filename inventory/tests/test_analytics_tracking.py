@@ -1,5 +1,7 @@
 """Tests for user activity tracking and session backfill."""
 
+from unittest.mock import patch
+
 import pytest
 from django.contrib.auth import get_user_model
 from rest_framework.authtoken.models import Token
@@ -233,3 +235,89 @@ def test_registered_users_carts_endpoint(brand, available_unit):
     assert shopper_row["email"] == "shopper@test.com"
     assert shopper_row["active_cart_count"] == 1
     assert shopper_row["cart_item_count"] == 1
+
+
+@pytest.mark.django_db
+def test_registered_users_activity_includes_active_cart_without_events(brand, available_unit):
+    admin = User.objects.create_user(username="adminact", email="adminact@test.com", password="pass")
+    admin.is_staff = True
+    admin.save()
+    admin_token, _ = Token.objects.get_or_create(user=admin)
+
+    shopper = User.objects.create_user(username="cartshop", email="cartshop@test.com", password="pass")
+    customer = Customer.objects.create(
+        user=shopper,
+        email=shopper.email,
+        phone="+254722222222",
+        email_verified=True,
+    )
+    cart = Cart.objects.create(session_key="sess-activity1", brand=brand, customer=customer)
+    CartItem.objects.create(cart=cart, inventory_unit=available_unit, quantity=1)
+
+    client = APIClient()
+    client.credentials(HTTP_AUTHORIZATION=f"Token {admin_token.key}")
+    response = client.get("/api/inventory/analytics/registered-users/")
+    assert response.status_code == 200
+
+    shopper_row = next(
+        row for row in response.json()["users"] if row["email"] == "cartshop@test.com"
+    )
+    product_name = available_unit.product_template.product_name
+    assert product_name in shopper_row["products_added_to_cart"]
+    assert ObservabilityEvent.objects.filter(event_type="cart_add").count() == 0
+
+
+@pytest.mark.django_db
+def test_cart_add_item_records_observability_event(brand, available_unit):
+    user = User.objects.create_user(username="buyer2", email="buyer2@test.com", password="pass")
+    Customer.objects.create(
+        user=user,
+        email=user.email,
+        phone="+254733333333",
+        email_verified=True,
+    )
+    token, _ = Token.objects.get_or_create(user=user)
+
+    client = APIClient()
+    client.credentials(HTTP_AUTHORIZATION=f"Token {token.key}", HTTP_X_BRAND_CODE=brand.code)
+    cart_resp = client.post("/api/v1/public/cart/", {}, format="json")
+    assert cart_resp.status_code == 200
+
+    add_resp = client.post(
+        f"/api/v1/public/cart/{cart_resp.data['id']}/items/",
+        {"inventory_unit_id": available_unit.id, "quantity": 1},
+        format="json",
+    )
+    assert add_resp.status_code == 201
+    event = ObservabilityEvent.objects.get(event_type="cart_add", user=user)
+    assert event.product_id == available_unit.product_template_id
+
+
+@pytest.mark.django_db
+@patch("inventory.services.whatsapp_lead_service._send_shop_lead_email", return_value=True)
+def test_cart_add_item_triggers_notification_email(mock_send, brand, available_unit):
+    user = User.objects.create_user(username="buyer3", email="buyer3@test.com", password="pass")
+    Customer.objects.create(
+        user=user,
+        email=user.email,
+        phone="254788877766",
+        email_verified=True,
+    )
+    token, _ = Token.objects.get_or_create(user=user)
+
+    client = APIClient()
+    client.credentials(HTTP_AUTHORIZATION=f"Token {token.key}", HTTP_X_BRAND_CODE=brand.code)
+    cart_resp = client.post("/api/v1/public/cart/", {}, format="json")
+    cart_id = cart_resp.data["id"]
+    client.patch(
+        f"/api/v1/public/cart/{cart_id}/",
+        {"customer_phone": "254788877766"},
+        format="json",
+    )
+    add_resp = client.post(
+        f"/api/v1/public/cart/{cart_id}/items/",
+        {"inventory_unit_id": available_unit.id, "quantity": 1},
+        format="json",
+    )
+    assert add_resp.status_code == 201
+    mock_send.assert_called_once()
