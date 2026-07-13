@@ -155,8 +155,7 @@ jobs:
               \"aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ steps.ecr.outputs.registry }}\",
               \"docker compose -f docker-compose.api.yml pull\",
               \"docker compose -f docker-compose.api.yml up -d\",
-              \"if [ -f docker-compose.tunnel.yml ] && [ -f tunnel/tunnel.env ]; then docker compose -f docker-compose.tunnel.yml --env-file tunnel/tunnel.env up -d; fi\",
-              \"docker exec ag-api-web python manage.py load_blog_batch --force --create-missing || true\"
+              \"if [ -f docker-compose.tunnel.yml ] && [ -f tunnel/tunnel.env ]; then docker compose -f docker-compose.tunnel.yml --env-file tunnel/tunnel.env up -d; fi\"
             ]" \
             --query 'Command.CommandId' --output text)
           echo "SSM command: $CMD_ID"

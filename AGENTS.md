@@ -24,13 +24,14 @@
 ## CI/CD (AWS)
 | What | Trigger | Mechanism |
 |------|---------|-----------|
-| **API** | Push to `main` | `ci.yml` → ECR → S3 config → SSM restart → `load_blog_batch` |
+| **API** | Push to `main` | `ci.yml` → ECR → S3 config → SSM restart |
 | **Monitoring** | Push touching `deploy/` | `validate-infra.yml` → `deploy/scripts/deploy-monitoring.sh` (SSM) |
 | **Terraform** | Manual | `./deploy/scripts/deploy.sh plan\|apply` |
 
 ## Blog content
 - Fixtures: `blog_content/batches/`
-- Load: `python manage.py load_blog_batch --force --create-missing` (tombstones block recreating deleted blogs)
+- Load only when intentional: `./deploy/scripts/deploy.sh load-blogs` or `python manage.py load_blog_batch --force --create-missing`
+- Deleted blogs are tombstoned and will not be recreated by the loader
 - Batch `038-apple-m5-ai-guide` — M5 AI guide on MacBook/iPad products
 
 ## Datasource auth fix
