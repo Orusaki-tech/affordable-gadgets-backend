@@ -305,6 +305,7 @@ class PublicProductArticleSerializer(serializers.ModelSerializer):
 
     product_slug = serializers.SerializerMethodField()
     product_name = serializers.SerializerMethodField()
+    products = serializers.SerializerMethodField()
 
     class Meta:
         model = ProductArticle
@@ -321,6 +322,7 @@ class PublicProductArticleSerializer(serializers.ModelSerializer):
             "is_primary",
             "product_slug",
             "product_name",
+            "products",
         )
         read_only_fields = fields
 
@@ -329,6 +331,12 @@ class PublicProductArticleSerializer(serializers.ModelSerializer):
 
     def get_product_name(self, obj):
         return obj.product.product_name if obj.product_id else None
+
+    def get_products(self, obj):
+        return [
+            {"id": p.id, "product_name": p.product_name, "slug": p.slug}
+            for p in obj.associated_products()
+        ]
 
 
 class PublicArticleCardSerializer(serializers.ModelSerializer):
@@ -339,6 +347,7 @@ class PublicArticleCardSerializer(serializers.ModelSerializer):
     product_type = serializers.SerializerMethodField()
     product_brand = serializers.SerializerMethodField()
     product_primary_image = serializers.SerializerMethodField()
+    products = serializers.SerializerMethodField()
 
     class Meta:
         model = ProductArticle
@@ -354,6 +363,7 @@ class PublicArticleCardSerializer(serializers.ModelSerializer):
             "product_name",
             "product_type",
             "product_brand",
+            "products",
         )
         read_only_fields = fields
 
@@ -369,9 +379,18 @@ class PublicArticleCardSerializer(serializers.ModelSerializer):
     def get_product_brand(self, obj):
         return obj.product.brand if obj.product_id else None
 
+    def get_products(self, obj):
+        return [
+            {"id": p.id, "product_name": p.product_name, "slug": p.slug}
+            for p in obj.associated_products()
+        ]
+
     @extend_schema_field(serializers.URLField(allow_null=True))
     def get_product_primary_image(self, obj):
         product = obj.product
+        if product is None:
+            linked = obj.associated_products()
+            product = linked[0] if linked else None
         if product is None:
             return None
         prefetched = getattr(product, "_prefetched_objects_cache", {}).get("images")

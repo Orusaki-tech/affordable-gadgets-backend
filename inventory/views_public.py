@@ -375,9 +375,11 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
         if not product:
             raise exceptions.NotFound()
         articles = (
-            ProductArticle.objects.filter(product=product, is_published=True)
+            ProductArticle.objects.filter(is_published=True)
+            .filter(Q(product=product) | Q(products=product))
             .select_related("product")
-            .prefetch_related("product__images")
+            .prefetch_related("product__images", "products")
+            .distinct()
             .order_by("-is_primary", "-published_at", "id")
         )
         page = self.paginate_queryset(articles)
@@ -408,9 +410,12 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
             raise exceptions.NotFound()
         art = (
             ProductArticle.objects.filter(
-                product=product, slug=article_slug, is_published=True
+                slug=article_slug, is_published=True
             )
+            .filter(Q(product=product) | Q(products=product))
             .select_related("product")
+            .prefetch_related("products")
+            .distinct()
             .first()
         )
         if not art:
@@ -3595,7 +3600,7 @@ class PublicArticleViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
             ProductArticle.objects.filter(is_published=True)
             .filter(Q(product__isnull=True) | Q(product__is_published=True))
             .select_related("product")
-            .prefetch_related("product__images")
+            .prefetch_related("product__images", "products")
             .order_by("-published_at", "-is_primary", "id")
         )
         if brand:

@@ -670,7 +670,13 @@ class ProductArticle(models.Model):
         related_name="articles",
         null=True,
         blank=True,
-        help_text="Optional product association. Leave empty for a general blog post.",
+        help_text="Primary product for URL /products/{slug}/blog/... Leave empty for a general blog.",
+    )
+    products = models.ManyToManyField(
+        Product,
+        related_name="linked_articles",
+        blank=True,
+        help_text="All products associated with this blog (may include the primary product).",
     )
     slug = models.SlugField(
         max_length=255,
@@ -735,6 +741,47 @@ class ProductArticle(models.Model):
         if self.product_id:
             return f"Article for product {self.product_id} ({self.slug})"
         return f"Standalone article ({self.slug})"
+
+    def associated_products(self):
+        """Primary + M2M products, de-duplicated, primary first."""
+        seen = set()
+        ordered = []
+        if self.product_id and self.product is not None:
+            ordered.append(self.product)
+            seen.add(self.product_id)
+        for product in self.products.all():
+            if product.id in seen:
+                continue
+            ordered.append(product)
+            seen.add(product.id)
+        return ordered
+
+    def set_associated_products(self, product_ids):
+        """
+        Replace M2M associations. Keeps `product` (primary) in sync:
+        - first id becomes primary when current primary is missing/cleared
+        - empty list clears primary
+        """
+        ids = []
+        for raw in product_ids or []:
+            try:
+                pid = int(raw)
+            except (TypeError, ValueError):
+                continue
+            if pid not in ids:
+                ids.append(pid)
+        self.products.set(ids)
+        if not ids:
+            if self.product_id is not None:
+                self.product = None
+                self.is_primary = False
+                self.save(update_fields=["product", "is_primary", "updated_at"])
+            return
+        if self.product_id not in ids:
+            self.product_id = ids[0]
+            self.save(update_fields=["product", "updated_at"])
+        elif self.product_id and self.product_id not in {p.id for p in self.products.all()}:
+            self.products.add(self.product_id)
 
     def _ensure_slug(self):
         from inventory.slug_utils import slugify_seo

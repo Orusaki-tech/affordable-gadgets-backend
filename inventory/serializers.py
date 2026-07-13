@@ -914,6 +914,7 @@ class ProductArticleSummarySerializer(serializers.ModelSerializer):
 
     product_name = serializers.CharField(source="product.product_name", read_only=True, allow_null=True)
     product_slug = serializers.CharField(source="product.slug", read_only=True, allow_null=True)
+    products = serializers.SerializerMethodField()
 
     class Meta:
         model = ProductArticle
@@ -922,6 +923,7 @@ class ProductArticleSummarySerializer(serializers.ModelSerializer):
             "product",
             "product_name",
             "product_slug",
+            "products",
             "slug",
             "category",
             "headline",
@@ -936,9 +938,15 @@ class ProductArticleSummarySerializer(serializers.ModelSerializer):
         )
         read_only_fields = fields
 
+    def get_products(self, obj):
+        return [
+            {"id": p.id, "product_name": p.product_name, "slug": p.slug}
+            for p in obj.associated_products()
+        ]
+
 
 class ProductArticleSerializer(serializers.ModelSerializer):
-    """Full blog / buying guide (staff). Product association is optional."""
+    """Full blog / buying guide (staff). Product association is optional (many products)."""
 
     images = ArticleImageSerializer(many=True, read_only=True)
     product_id = serializers.PrimaryKeyRelatedField(
@@ -948,9 +956,16 @@ class ProductArticleSerializer(serializers.ModelSerializer):
         required=False,
         write_only=True,
     )
+    product_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        required=False,
+        write_only=True,
+        allow_empty=True,
+    )
     product = serializers.PrimaryKeyRelatedField(read_only=True, allow_null=True)
     product_name = serializers.CharField(source="product.product_name", read_only=True, allow_null=True)
     product_slug = serializers.CharField(source="product.slug", read_only=True, allow_null=True)
+    products = serializers.SerializerMethodField()
 
     class Meta:
         model = ProductArticle
@@ -958,8 +973,10 @@ class ProductArticleSerializer(serializers.ModelSerializer):
             "id",
             "product",
             "product_id",
+            "product_ids",
             "product_name",
             "product_slug",
+            "products",
             "slug",
             "category",
             "headline",
@@ -979,6 +996,7 @@ class ProductArticleSerializer(serializers.ModelSerializer):
             "product",
             "product_name",
             "product_slug",
+            "products",
             "published_at",
             "created_at",
             "updated_at",
@@ -987,6 +1005,12 @@ class ProductArticleSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             "slug": {"required": False, "allow_blank": True},
         }
+
+    def get_products(self, obj):
+        return [
+            {"id": p.id, "product_name": p.product_name, "slug": p.slug}
+            for p in obj.associated_products()
+        ]
 
     def validate_seo_title(self, value):
         if value and len(value) > 60:
@@ -998,9 +1022,24 @@ class ProductArticleSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("SEO description must be 160 characters or less.")
         return value
 
+    def _apply_product_links(self, instance, product_ids, primary_product):
+        if product_ids is not None:
+            ids = list(product_ids)
+            if primary_product is not None and primary_product.id not in ids:
+                ids.insert(0, primary_product.id)
+            instance.set_associated_products(ids)
+            return
+        if primary_product is not None:
+            instance.products.add(primary_product)
+        elif instance.product_id:
+            instance.products.add(instance.product_id)
+
     def create(self, validated_data):
+        product_ids = validated_data.pop("product_ids", None)
         thumbnail_image = validated_data.pop("thumbnail_image", None)
+        primary_product = validated_data.get("product")
         instance = super().create(validated_data)
+        self._apply_product_links(instance, product_ids, primary_product)
         if thumbnail_image:
             from .cloudinary_utils import upload_image_to_cloudinary
 
@@ -1011,8 +1050,19 @@ class ProductArticleSerializer(serializers.ModelSerializer):
         return instance
 
     def update(self, instance, validated_data):
+        product_ids = validated_data.pop("product_ids", None)
         thumbnail_image = validated_data.pop("thumbnail_image", serializers.empty)
+        primary_product = validated_data.get("product", serializers.empty)
         instance = super().update(instance, validated_data)
+        primary = None if primary_product is serializers.empty else primary_product
+        # When product_ids omitted but product_id explicitly cleared/set, still sync M2M.
+        if product_ids is not None or primary_product is not serializers.empty:
+            if product_ids is None and primary is not None:
+                existing = list(instance.products.values_list("id", flat=True))
+                product_ids = existing if primary.id in existing else [primary.id, *existing]
+            elif product_ids is None and primary is None:
+                product_ids = []
+            self._apply_product_links(instance, product_ids, primary if primary is not None else instance.product)
         if thumbnail_image is not serializers.empty:
             if thumbnail_image:
                 from .cloudinary_utils import upload_image_to_cloudinary

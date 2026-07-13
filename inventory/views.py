@@ -1862,7 +1862,7 @@ class ProductImageViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
 class ProductArticleViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     """CRUD for product buying guides / blog articles."""
 
-    queryset = ProductArticle.objects.all().select_related("product").prefetch_related("images")
+    queryset = ProductArticle.objects.all().select_related("product").prefetch_related("images", "products")
     serializer_class = ProductArticleSerializer
     permission_classes = [IsContentCreatorOrInventoryManagerOrReadOnly]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
