@@ -39,9 +39,27 @@ class Migration(migrations.Migration):
                 help_text="Default article for legacy /products/{slug}/blog URLs (product-linked only)",
             ),
         ),
-        migrations.RemoveConstraint(
-            model_name="productarticle",
-            name="unique_product_article_slug",
+        # 0066 created this uniqueness as a UNIQUE INDEX via raw SQL on some DBs,
+        # while Django state expects a constraint. Drop both forms safely.
+        migrations.SeparateDatabaseAndState(
+            state_operations=[
+                migrations.RemoveConstraint(
+                    model_name="productarticle",
+                    name="unique_product_article_slug",
+                ),
+            ],
+            database_operations=[
+                migrations.RunSQL(
+                    sql=[
+                        "ALTER TABLE inventory_productarticle DROP CONSTRAINT IF EXISTS unique_product_article_slug;",
+                        "DROP INDEX IF EXISTS unique_product_article_slug;",
+                    ],
+                    reverse_sql=[
+                        "CREATE UNIQUE INDEX IF NOT EXISTS unique_product_article_slug "
+                        "ON inventory_productarticle (product_id, slug);",
+                    ],
+                ),
+            ],
         ),
         migrations.AddConstraint(
             model_name="productarticle",
