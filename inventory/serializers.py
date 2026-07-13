@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 from decimal import Decimal
@@ -909,12 +910,18 @@ class TagSerializer(serializers.ModelSerializer):
 
 class ProductArticleSummarySerializer(serializers.ModelSerializer):
     """Article payload for product list — includes body & seo_description so the
-    admin buying-guide editor can populate its form from the list response."""
+    admin blog editor can populate its form from the list response."""
+
+    product_name = serializers.CharField(source="product.product_name", read_only=True, allow_null=True)
+    product_slug = serializers.CharField(source="product.slug", read_only=True, allow_null=True)
 
     class Meta:
         model = ProductArticle
         fields = (
             "id",
+            "product",
+            "product_name",
+            "product_slug",
             "slug",
             "category",
             "headline",
@@ -931,15 +938,28 @@ class ProductArticleSummarySerializer(serializers.ModelSerializer):
 
 
 class ProductArticleSerializer(serializers.ModelSerializer):
-    """Full product buying guide / blog (staff)."""
+    """Full blog / buying guide (staff). Product association is optional."""
 
     images = ArticleImageSerializer(many=True, read_only=True)
+    product_id = serializers.PrimaryKeyRelatedField(
+        source="product",
+        queryset=Product.objects.all(),
+        allow_null=True,
+        required=False,
+        write_only=True,
+    )
+    product = serializers.PrimaryKeyRelatedField(read_only=True, allow_null=True)
+    product_name = serializers.CharField(source="product.product_name", read_only=True, allow_null=True)
+    product_slug = serializers.CharField(source="product.slug", read_only=True, allow_null=True)
 
     class Meta:
         model = ProductArticle
         fields = (
             "id",
             "product",
+            "product_id",
+            "product_name",
+            "product_slug",
             "slug",
             "category",
             "headline",
@@ -954,7 +974,16 @@ class ProductArticleSerializer(serializers.ModelSerializer):
             "updated_at",
             "images",
         )
-        read_only_fields = ("id", "published_at", "created_at", "updated_at", "images", "product")
+        read_only_fields = (
+            "id",
+            "product",
+            "product_name",
+            "product_slug",
+            "published_at",
+            "created_at",
+            "updated_at",
+            "images",
+        )
         extra_kwargs = {
             "slug": {"required": False, "allow_blank": True},
         }
@@ -1072,6 +1101,9 @@ class ProductSerializer(serializers.ModelSerializer):
             "min_stock_threshold",
             "reorder_point",
             "default_selling_price",
+            # Spec Fields
+            "storage_gb",
+            "ram_gb",
             "is_discontinued",
             "release_date",
             "created_at",
@@ -1235,6 +1267,52 @@ class ProductSerializer(serializers.ModelSerializer):
                 "Meta description should be 160 characters or less for optimal SEO."
             )
         return value
+
+    @staticmethod
+    def _coerce_product_highlights(raw):
+        """
+        Accept highlights from JSON body (list) or multipart/form-data
+        (JSON string, or repeated plain-string keys).
+        """
+        if raw is None or raw == "":
+            return []
+        if isinstance(raw, list):
+            return [str(item).strip() for item in raw if str(item).strip()]
+        if isinstance(raw, str):
+            try:
+                parsed = json.loads(raw)
+            except json.JSONDecodeError:
+                return [raw.strip()] if raw.strip() else []
+            if isinstance(parsed, list):
+                return [str(item).strip() for item in parsed if str(item).strip()]
+            if parsed is None:
+                return []
+            return [str(parsed).strip()] if str(parsed).strip() else []
+        return []
+
+    def to_internal_value(self, data):
+        # Multipart clients often send JSONField values as strings (or repeated keys).
+        # Convert QueryDict to a plain dict first so we can store a real list value.
+        if hasattr(data, "lists"):
+            plain = {}
+            for key, values in data.lists():
+                if key == "product_highlights":
+                    continue
+                plain[key] = values[0] if len(values) == 1 else values
+            if "product_highlights" in data:
+                values = data.getlist("product_highlights")
+                if len(values) == 1:
+                    plain["product_highlights"] = self._coerce_product_highlights(values[0])
+                else:
+                    plain["product_highlights"] = self._coerce_product_highlights(values)
+            data = plain
+        elif isinstance(data, dict) and "product_highlights" in data:
+            plain = dict(data)
+            plain["product_highlights"] = self._coerce_product_highlights(
+                plain.get("product_highlights")
+            )
+            data = plain
+        return super().to_internal_value(data)
 
     def create(self, validated_data):
         article_data = validated_data.pop("article", serializers.empty)

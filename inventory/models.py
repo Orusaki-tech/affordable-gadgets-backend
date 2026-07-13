@@ -650,8 +650,10 @@ class ProductVariant(models.Model):
 
 class ProductArticle(models.Model):
     """
-    SEO-oriented buying guide / blog content for a product template.
-    Public site serves published articles at /products/{product.slug}/blog/{article.slug}.
+    SEO-oriented blog / buying-guide content.
+
+    - With a product: storefront at /products/{product.slug}/blog/{article.slug}
+    - Without a product (standalone): storefront at /blog/{article.slug}
     """
 
     class ArticleCategory(models.TextChoices):
@@ -666,14 +668,17 @@ class ProductArticle(models.Model):
         Product,
         on_delete=models.PROTECT,
         related_name="articles",
+        null=True,
+        blank=True,
+        help_text="Optional product association. Leave empty for a general blog post.",
     )
     slug = models.SlugField(
         max_length=255,
-        help_text="URL segment under /products/{product-slug}/blog/{slug}/",
+        help_text="URL segment: /products/{product-slug}/blog/{slug}/ or /blog/{slug}/",
     )
     is_primary = models.BooleanField(
         default=False,
-        help_text="Default article for legacy /products/{slug}/blog URLs",
+        help_text="Default article for legacy /products/{slug}/blog URLs (product-linked only)",
     )
     category = models.CharField(
         max_length=50,
@@ -714,21 +719,35 @@ class ProductArticle(models.Model):
             models.Index(fields=["slug"]),
         ]
         constraints = [
-            models.UniqueConstraint(fields=["product", "slug"], name="unique_product_article_slug"),
+            models.UniqueConstraint(
+                fields=["product", "slug"],
+                condition=models.Q(product__isnull=False),
+                name="unique_product_article_slug",
+            ),
+            models.UniqueConstraint(
+                fields=["slug"],
+                condition=models.Q(product__isnull=True),
+                name="unique_standalone_article_slug",
+            ),
         ]
 
     def __str__(self):
-        return f"Article for {self.product_id} ({self.slug})"
+        if self.product_id:
+            return f"Article for product {self.product_id} ({self.slug})"
+        return f"Standalone article ({self.slug})"
 
     def _ensure_slug(self):
         from inventory.slug_utils import slugify_seo
 
         if self.slug:
             return
-        base = slugify_seo(self.headline) or f"article-{self.product_id or 'new'}"
+        base = slugify_seo(self.headline) or f"article-{self.pk or 'new'}"
         slug = base
         counter = 1
-        qs = ProductArticle.objects.filter(product_id=self.product_id)
+        if self.product_id:
+            qs = ProductArticle.objects.filter(product_id=self.product_id)
+        else:
+            qs = ProductArticle.objects.filter(product__isnull=True)
         if self.pk:
             qs = qs.exclude(pk=self.pk)
         while qs.filter(slug=slug).exists():
@@ -737,7 +756,9 @@ class ProductArticle(models.Model):
         self.slug = slug
 
     def save(self, *args, **kwargs):
-        if self.product_id and not self.slug:
+        if not self.product_id:
+            self.is_primary = False
+        if not self.slug:
             self._ensure_slug()
         if self.is_published and self.published_at is None:
             self.published_at = timezone.now()

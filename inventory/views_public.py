@@ -3577,17 +3577,31 @@ class PublicArticleViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
             return PublicProductArticleSerializer
         return PublicArticleCardSerializer
 
+    def get_object(self):
+        """Resolve by slug; prefer standalone when multiple product-scoped slugs collide."""
+        queryset = self.filter_queryset(self.get_queryset())
+        lookup = self.kwargs.get(self.lookup_field)
+        matches = list(queryset.filter(**{self.lookup_field: lookup})[:10])
+        if not matches:
+            from rest_framework.exceptions import NotFound
+
+            raise NotFound("No article matches the given query.")
+        standalone = next((article for article in matches if article.product_id is None), None)
+        return standalone or matches[0]
+
     def get_queryset(self):
         brand = getattr(self.request, "brand", None)
         queryset = (
-            ProductArticle.objects.filter(is_published=True, product__is_published=True)
+            ProductArticle.objects.filter(is_published=True)
+            .filter(Q(product__isnull=True) | Q(product__is_published=True))
             .select_related("product")
             .prefetch_related("product__images")
             .order_by("-published_at", "-is_primary", "id")
         )
         if brand:
             queryset = queryset.filter(
-                Q(product__brands=brand)
+                Q(product__isnull=True)
+                | Q(product__brands=brand)
                 | Q(product__is_global=True)
                 | Q(product__brands__isnull=True)
             ).distinct()
@@ -3607,6 +3621,10 @@ class PublicArticleViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
                 queryset = queryset.filter(product_id=product.id)
             else:
                 queryset = queryset.none()
+
+        standalone = self.request.query_params.get("standalone")
+        if standalone in ("1", "true", "True"):
+            queryset = queryset.filter(product__isnull=True)
 
         brand_name = self.request.query_params.get("brand")
         if brand_name:

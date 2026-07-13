@@ -301,10 +301,10 @@ class PublicReviewSubmitSerializer(serializers.Serializer):
 
 
 class PublicProductArticleSerializer(serializers.ModelSerializer):
-    """Published buying guide for storefront article page (public read-only)."""
+    """Published blog / buying guide for storefront article page (public read-only)."""
 
-    product_slug = serializers.CharField(source="product.slug", read_only=True)
-    product_name = serializers.CharField(source="product.product_name", read_only=True)
+    product_slug = serializers.SerializerMethodField()
+    product_name = serializers.SerializerMethodField()
 
     class Meta:
         model = ProductArticle
@@ -324,14 +324,20 @@ class PublicProductArticleSerializer(serializers.ModelSerializer):
         )
         read_only_fields = fields
 
+    def get_product_slug(self, obj):
+        return obj.product.slug if obj.product_id else None
+
+    def get_product_name(self, obj):
+        return obj.product.product_name if obj.product_id else None
+
 
 class PublicArticleCardSerializer(serializers.ModelSerializer):
     """Lightweight article payload for blog card carousels."""
 
-    product_slug = serializers.CharField(source="product.slug", read_only=True)
-    product_name = serializers.CharField(source="product.product_name", read_only=True)
-    product_type = serializers.CharField(source="product.product_type", read_only=True)
-    product_brand = serializers.CharField(source="product.brand", read_only=True)
+    product_slug = serializers.SerializerMethodField()
+    product_name = serializers.SerializerMethodField()
+    product_type = serializers.SerializerMethodField()
+    product_brand = serializers.SerializerMethodField()
     product_primary_image = serializers.SerializerMethodField()
 
     class Meta:
@@ -351,9 +357,23 @@ class PublicArticleCardSerializer(serializers.ModelSerializer):
         )
         read_only_fields = fields
 
+    def get_product_slug(self, obj):
+        return obj.product.slug if obj.product_id else None
+
+    def get_product_name(self, obj):
+        return obj.product.product_name if obj.product_id else None
+
+    def get_product_type(self, obj):
+        return obj.product.product_type if obj.product_id else None
+
+    def get_product_brand(self, obj):
+        return obj.product.brand if obj.product_id else None
+
     @extend_schema_field(serializers.URLField(allow_null=True))
     def get_product_primary_image(self, obj):
         product = obj.product
+        if product is None:
+            return None
         prefetched = getattr(product, "_prefetched_objects_cache", {}).get("images")
         if prefetched is not None:
             primary_image = next((img for img in prefetched if img.is_primary), None) or (
