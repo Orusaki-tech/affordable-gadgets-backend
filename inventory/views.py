@@ -889,6 +889,7 @@ from .models import (  # noqa: E402
     Order,
     OrderItem,
     ProductArticle,
+    ProductArticleTombstone,
     ProductAccessory,
     ProductImage,
     ProductVariant,
@@ -1876,6 +1877,14 @@ class ProductArticleViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     search_fields = ("headline", "slug", "product__product_name")
     ordering_fields = ("published_at", "updated_at", "created_at", "headline")
     ordering = ("-updated_at",)
+
+    def perform_destroy(self, instance):
+        ProductArticleTombstone.record_from_article(instance)
+        super().perform_destroy(instance)
+
+    def perform_create(self, serializer):
+        article = serializer.save()
+        ProductArticleTombstone.clear(product_id=article.product_id, slug=article.slug)
 
 
 class ArticleImageViewSet(_SilkProfileMixin, viewsets.ModelViewSet):

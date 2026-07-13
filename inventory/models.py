@@ -821,6 +821,70 @@ class ProductArticle(models.Model):
             self.is_primary = True
 
 
+class ProductArticleTombstone(models.Model):
+    """
+    Remembers intentionally deleted blogs so load_blog_batch cannot recreate them.
+
+    Keyed by primary product + article slug (same uniqueness as ProductArticle).
+    Creating a new article with the same key should clear the tombstone.
+    """
+
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name="article_tombstones",
+        null=True,
+        blank=True,
+    )
+    slug = models.SlugField(max_length=255)
+    headline = models.CharField(max_length=255, blank=True)
+    deleted_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-deleted_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["product", "slug"],
+                condition=models.Q(product__isnull=False),
+                name="unique_product_article_tombstone",
+            ),
+            models.UniqueConstraint(
+                fields=["slug"],
+                condition=models.Q(product__isnull=True),
+                name="unique_standalone_article_tombstone",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["slug"]),
+        ]
+
+    def __str__(self):
+        if self.product_id:
+            return f"Tombstone {self.product_id}:{self.slug}"
+        return f"Tombstone standalone:{self.slug}"
+
+    @classmethod
+    def record_from_article(cls, article: "ProductArticle") -> "ProductArticleTombstone":
+        obj, _ = cls.objects.update_or_create(
+            product_id=article.product_id,
+            slug=article.slug,
+            defaults={"headline": (article.headline or "")[:255]},
+        )
+        return obj
+
+    @classmethod
+    def blocks(cls, *, product_id: int | None, slug: str) -> bool:
+        if product_id is None:
+            return cls.objects.filter(product__isnull=True, slug=slug).exists()
+        return cls.objects.filter(product_id=product_id, slug=slug).exists()
+
+    @classmethod
+    def clear(cls, *, product_id: int | None, slug: str) -> int:
+        if product_id is None:
+            return cls.objects.filter(product__isnull=True, slug=slug).delete()[0]
+        return cls.objects.filter(product_id=product_id, slug=slug).delete()[0]
+
+
 class ArticleImage(models.Model):
     """Images uploaded for embedding within a ProductArticle body."""
 

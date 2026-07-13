@@ -9,7 +9,7 @@ from django.utils import timezone as django_timezone
 from django.utils.text import slugify
 
 from inventory.cloudinary_utils import get_optimized_image_url
-from inventory.models import Product, ProductArticle, ProductImage
+from inventory.models import Product, ProductArticle, ProductArticleTombstone, ProductImage
 
 
 BATCHES_DIR = os.path.join(
@@ -48,7 +48,15 @@ class Command(BaseCommand):
         parser.add_argument(
             "--force",
             action="store_true",
-            help="Re-process already-loaded articles (replaces existing).",
+            help="Update already-loaded articles from fixtures (does not recreate deleted ones).",
+        )
+        parser.add_argument(
+            "--create-missing",
+            action="store_true",
+            help=(
+                "Create articles that are not in the DB yet. Skips tombstoned "
+                "(intentionally deleted) product+slug pairs."
+            ),
         )
         parser.add_argument(
             "--dry-run",
@@ -59,6 +67,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         batch_filter = options.get("batch")
         force = options.get("force", False)
+        create_missing = options.get("create_missing", False)
         dry_run = options.get("dry_run", False)
 
         if not os.path.isdir(BATCHES_DIR):
@@ -79,7 +88,9 @@ class Command(BaseCommand):
             return
 
         total_created = 0
+        total_updated = 0
         total_skipped = 0
+        total_tombstoned = 0
         total_errors = 0
 
         for batch_dir in batch_dirs:
@@ -95,7 +106,10 @@ class Command(BaseCommand):
             for json_path in json_files:
                 basename = os.path.basename(json_path)
                 result = self._load_single_article(
-                    json_path, dry_run=dry_run, force=force
+                    json_path,
+                    dry_run=dry_run,
+                    force=force,
+                    create_missing=create_missing,
                 )
                 if result == "created":
                     total_created += 1
@@ -103,19 +117,30 @@ class Command(BaseCommand):
                 elif result == "skipped":
                     total_skipped += 1
                     self.stdout.write(f"  → {basename} — skipped (already exists)")
+                elif result == "skipped-missing":
+                    total_skipped += 1
+                    self.stdout.write(
+                        f"  → {basename} — skipped (missing; pass --create-missing to add)"
+                    )
+                elif result == "tombstoned":
+                    total_tombstoned += 1
+                    self.stdout.write(f"  ✂ {basename} — skipped (deleted tombstone)")
                 elif result == "updated":
-                    total_created += 1
+                    total_updated += 1
                     self.stdout.write(f"  ↻ {basename} — updated")
                 else:
                     total_errors += 1
                     self.stdout.write(self.style.ERROR(f"  ✗ {basename} — {result}"))
 
         summary = (
-            f"\nDone. Created/updated: {total_created}, "
-            f"Skipped: {total_skipped}, Errors: {total_errors}"
+            f"\nDone. Created: {total_created}, Updated: {total_updated}, "
+            f"Skipped: {total_skipped}, Tombstoned: {total_tombstoned}, Errors: {total_errors}"
         )
         if dry_run:
-            summary = f"[DRY RUN] Would create/update: {total_created} (skipped {total_skipped})"
+            summary = (
+                f"[DRY RUN] Would create: {total_created}, update: {total_updated} "
+                f"(skipped {total_skipped}, tombstoned {total_tombstoned})"
+            )
         self.stdout.write(self.style.SUCCESS(summary))
 
     def _stock_list_product_names(self) -> list[tuple[str, Product]]:
@@ -237,7 +262,7 @@ class Command(BaseCommand):
 
         return None
 
-    def _load_single_article(self, json_path, dry_run=False, force=False):
+    def _load_single_article(self, json_path, dry_run=False, force=False, create_missing=False):
         with open(json_path) as f:
             data = json.load(f)
 
@@ -248,12 +273,17 @@ class Command(BaseCommand):
 
         # Check if article already exists (same product + slug)
         article_slug = data.get("slug") or slugify(data.get("headline", "")) or f"article-{product.slug}"
+        if ProductArticleTombstone.blocks(product_id=product.id, slug=article_slug):
+            return "tombstoned"
+
         article_exists = ProductArticle.objects.filter(product=product, slug=article_slug).exists()
         if article_exists and not force:
             return "skipped"
+        if not article_exists and not create_missing:
+            return "skipped-missing"
 
         if dry_run:
-            return "created"
+            return "updated" if article_exists else "created"
 
         body_markdown = data.get("body_markdown", "")
         headline = data.get("headline", "")
@@ -320,6 +350,8 @@ class Command(BaseCommand):
             slug=article_slug,
             defaults=defaults,
         )
+        if created:
+            ProductArticleTombstone.clear(product_id=product.id, slug=article_slug)
 
         # Save thumbnail note (ImageField not set here since we reference URLs directly in body)
         return "created" if created else "updated"

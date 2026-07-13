@@ -80,7 +80,7 @@ if [[ "$ACTION" == "load-blogs" ]]; then
     --region "$REGION" \
     --instance-ids "$INSTANCE_ID" \
     --document-name AWS-RunShellScript \
-    --parameters 'commands=["docker exec ag-api-web python manage.py load_blog_batch --force"]' \
+    --parameters 'commands=["docker exec ag-api-web python manage.py load_blog_batch --force --create-missing"]' \
     --query 'Command.CommandId' --output text)
   echo "→ load_blog_batch command: $CMD_ID"
   exit 0

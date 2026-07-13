@@ -156,7 +156,7 @@ for i in $(seq 1 30); do
   if curl -sf http://127.0.0.1:8000/health/ >/dev/null; then
     echo "HEALTH_OK"
     docker exec ag-api-web python manage.py cleanup_carts --purge-anonymous --stale-months 2 || true
-    docker exec ag-api-web python manage.py load_blog_batch --force || true
+    docker exec ag-api-web python manage.py load_blog_batch --force --create-missing || true
     exit 0
   fi
   sleep 10

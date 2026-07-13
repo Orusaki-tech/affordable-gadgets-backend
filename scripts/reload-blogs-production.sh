@@ -48,7 +48,7 @@ CMD_ID=$(aws ssm send-command \
   --instance-ids "$AWS_API_INSTANCE_ID" \
   --document-name AWS-RunShellScript \
   --comment "reload-blogs force" \
-  --parameters 'commands=["docker exec ag-api-web python manage.py load_blog_batch --force"]' \
+  --parameters 'commands=["docker exec ag-api-web python manage.py load_blog_batch --force --create-missing"]' \
   --query 'Command.CommandId' --output text)
 
 for i in $(seq 1 60); do

@@ -289,7 +289,7 @@ def sync_stock_list_media(
     if skip_blog_reload or dry_run:
         return stats
 
-    call_command("load_blog_batch", force=True)
+    call_command("load_blog_batch", force=True, create_missing=True)
 
     from django.core.cache import cache
 
