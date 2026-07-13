@@ -912,8 +912,8 @@ class ProductArticleSummarySerializer(serializers.ModelSerializer):
     """Article payload for product list — includes body & seo_description so the
     admin blog editor can populate its form from the list response."""
 
-    product_name = serializers.CharField(source="product.product_name", read_only=True, allow_null=True)
-    product_slug = serializers.CharField(source="product.slug", read_only=True, allow_null=True)
+    product_name = serializers.SerializerMethodField()
+    product_slug = serializers.SerializerMethodField()
     products = serializers.SerializerMethodField()
 
     class Meta:
@@ -937,6 +937,18 @@ class ProductArticleSummarySerializer(serializers.ModelSerializer):
             "updated_at",
         )
         read_only_fields = fields
+
+    def get_product_name(self, obj):
+        if obj.product_id and getattr(obj, "product", None) is not None:
+            return obj.product.product_name
+        linked = obj.associated_products()
+        return linked[0].product_name if linked else None
+
+    def get_product_slug(self, obj):
+        if obj.product_id and getattr(obj, "product", None) is not None:
+            return obj.product.slug
+        linked = obj.associated_products()
+        return linked[0].slug if linked else None
 
     def get_products(self, obj):
         return [
@@ -963,8 +975,8 @@ class ProductArticleSerializer(serializers.ModelSerializer):
         allow_empty=True,
     )
     product = serializers.PrimaryKeyRelatedField(read_only=True, allow_null=True)
-    product_name = serializers.CharField(source="product.product_name", read_only=True, allow_null=True)
-    product_slug = serializers.CharField(source="product.slug", read_only=True, allow_null=True)
+    product_name = serializers.SerializerMethodField()
+    product_slug = serializers.SerializerMethodField()
     products = serializers.SerializerMethodField()
 
     class Meta:
@@ -1005,6 +1017,18 @@ class ProductArticleSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             "slug": {"required": False, "allow_blank": True},
         }
+
+    def get_product_name(self, obj):
+        if obj.product_id and getattr(obj, "product", None) is not None:
+            return obj.product.product_name
+        linked = obj.associated_products()
+        return linked[0].product_name if linked else None
+
+    def get_product_slug(self, obj):
+        if obj.product_id and getattr(obj, "product", None) is not None:
+            return obj.product.slug
+        linked = obj.associated_products()
+        return linked[0].slug if linked else None
 
     def get_products(self, obj):
         return [
