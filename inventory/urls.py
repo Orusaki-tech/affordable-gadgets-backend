@@ -79,6 +79,13 @@ product_bulk_destroy = path(
     name="product-bulk-destroy",
 )
 
+# Must be before router: otherwise /article-images/upload/ matches {pk}="upload" → 405 on POST
+article_image_upload = path(
+    "article-images/upload/",
+    views.ArticleImageUploadView.as_view(),
+    name="article-image-upload",
+)
+
 urlpatterns = [
     # Cart Analytics Endpoint (Internal)
     path('observability/cart-analytics/', views.CartAnalyticsView.as_view(), name='cart-analytics'),
@@ -114,6 +121,7 @@ urlpatterns = [
     # --- Order Receipt Endpoint (Clean implementation) ---
     receipt_pattern,
     product_bulk_destroy,
+    article_image_upload,
     # Include all generated routes from the DefaultRouter
     path("", include(router.urls)),
     # --- Account & Auth Endpoints ---
@@ -147,11 +155,5 @@ urlpatterns = [
         "admin/fix-product-visibility/",
         views.FixProductVisibilityView.as_view(),
         name="fix-product-visibility",
-    ),
-    # --- Article Image Upload (lightweight, no model association) ---
-    path(
-        "article-images/upload/",
-        views.ArticleImageUploadView.as_view(),
-        name="article-image-upload",
     ),
 ]

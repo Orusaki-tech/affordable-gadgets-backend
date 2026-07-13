@@ -1884,6 +1884,14 @@ class ArticleImageViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     permission_classes = [IsContentCreatorOrInventoryManagerOrReadOnly]
     parser_classes = [MultiPartParser, FormParser]
 
+    @action(detail=False, methods=["post"], url_path="upload")
+    def upload(self, request):
+        """Upload an image for embedding in article body; returns Cloudinary URL."""
+        serializer = ArticleImageUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result = serializer.save()
+        return Response(result, status=status.HTTP_201_CREATED)
+
 
 class InventoryUnitImageViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     """
