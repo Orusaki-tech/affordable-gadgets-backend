@@ -63,7 +63,12 @@ from .observability import WHATSAPP_CLICKS_TOTAL
 
 from rest_framework.throttling import AnonRateThrottle
 
-from inventory.services.analytics_service import attach_session_activity_to_user, get_client_ip
+from inventory.services.analytics_service import (
+    attach_session_activity_to_user,
+    ensure_customer_for_user,
+    get_client_ip,
+    get_customer_for_user,
+)
 
 from .models import ObservabilityEvent, User, Cart, CartItem, Customer, Order
 
@@ -4699,10 +4704,9 @@ class SupabaseAuthView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        if not user.is_staff:
-            from inventory.services.analytics_service import ensure_customer_for_user
+        from inventory.services.analytics_service import ensure_customer_for_user
 
-            ensure_customer_for_user(user, email_verified=True)
+        ensure_customer_for_user(user, email_verified=True)
 
         user.last_login = timezone.now()
         update_fields = ["last_login"]
@@ -4792,6 +4796,15 @@ class CustomerLoginView(generics.GenericAPIView):
                 )
             if update_fields:
                 user.save(update_fields=update_fields)
+
+            # Ensure a Customer row exists so cart works immediately after login
+            # (including staff accounts used to test the storefront).
+            existing = get_customer_for_user(user)
+            ensure_customer_for_user(
+                user,
+                email_verified=bool(getattr(user, "supabase_uid", None))
+                or bool(getattr(existing, "email_verified", False)),
+            )
 
             session_key = request.data.get("session_key", "")
             if session_key:

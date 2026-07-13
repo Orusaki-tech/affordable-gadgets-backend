@@ -60,6 +60,26 @@ def test_cart_create_for_user_without_customer_profile(brand):
 
 
 @pytest.mark.django_db
+def test_cart_create_for_staff_user_without_customer_profile(brand):
+    """Staff accounts used on the storefront must still get a Customer + cart."""
+    user = User.objects.create_user(
+        username="shop_admin",
+        email="admin-shop@test.com",
+        password="pass",
+        is_staff=True,
+    )
+    token, _ = Token.objects.get_or_create(user=user)
+
+    client = APIClient()
+    client.credentials(HTTP_AUTHORIZATION=f"Token {token.key}", HTTP_X_BRAND_CODE=brand.code)
+    response = client.post("/api/v1/public/cart/", {}, format="json")
+    assert response.status_code == 200
+    customer = Customer.objects.get(user=user)
+    cart = Cart.objects.get(customer=customer, brand=brand, is_submitted=False)
+    assert cart.id == response.data["id"]
+
+
+@pytest.mark.django_db
 def test_cart_add_item_requires_auth(brand):
     cart = Cart.objects.create(session_key="anon", brand=brand)
     client = APIClient()

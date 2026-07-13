@@ -45,29 +45,44 @@ def get_customer_for_user(user):
 
 
 def ensure_customer_for_user(user, *, email_verified: bool = False):
-    """Create a Customer profile for shop users who authenticated without one."""
+    """Create a Customer profile for shop users who authenticated without one.
+
+    Staff accounts may also shop on the storefront (e.g. owners testing), so we
+    no longer skip is_staff — only inactive / missing users are rejected.
+    """
     customer = get_customer_for_user(user)
     if customer:
         return customer
-    if not user or getattr(user, "is_staff", False):
+    if not user or not getattr(user, "is_authenticated", False):
+        return None
+    if not getattr(user, "is_active", True):
         return None
 
     email = (getattr(user, "email", "") or "").strip().lower()
     username = getattr(user, "username", "") or "Customer"
     name = email.split("@")[0] if email and "@" in email else username
 
-    customer = Customer.objects.create(
-        user=user,
-        email=email or None,
-        name=name[:255],
-        email_verified=email_verified,
-    )
     try:
-        from inventory.observability import CUSTOMERS_REGISTERED
-
-        CUSTOMERS_REGISTERED.labels(brand="all").inc()
+        customer = Customer.objects.create(
+            user=user,
+            email=email or None,
+            name=name[:255],
+            email_verified=email_verified,
+        )
     except Exception:
-        pass
+        # Concurrent create or rare integrity race — re-read.
+        customer = get_customer_for_user(user)
+        if customer:
+            return customer
+        raise
+
+    if not getattr(user, "is_staff", False):
+        try:
+            from inventory.observability import CUSTOMERS_REGISTERED
+
+            CUSTOMERS_REGISTERED.labels(brand="all").inc()
+        except Exception:
+            pass
     return customer
 
 
