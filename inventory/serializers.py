@@ -1017,6 +1017,36 @@ class ProductArticleSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             "slug": {"required": False, "allow_blank": True},
         }
+        # UniqueConstraint(product, slug) makes DRF's UniqueTogetherValidator require both
+        # fields on every write. Nested product update_content patches omit them; enforce
+        # uniqueness in validate() / model constraints instead.
+        validators = []
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        product = attrs.get("product", serializers.empty)
+        if product is serializers.empty:
+            product = getattr(self.instance, "product", None) if self.instance else None
+        slug = attrs.get("slug", serializers.empty)
+        if slug is serializers.empty:
+            slug = getattr(self.instance, "slug", None) if self.instance else None
+        if product is not None and slug:
+            qs = ProductArticle.objects.filter(product=product, slug=slug)
+            if self.instance is not None:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise serializers.ValidationError(
+                    {"slug": "An article with this slug already exists for this product."}
+                )
+        if product is None and slug:
+            qs = ProductArticle.objects.filter(product__isnull=True, slug=slug)
+            if self.instance is not None:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise serializers.ValidationError(
+                    {"slug": "A standalone article with this slug already exists."}
+                )
+        return attrs
 
     def get_product_name(self, obj):
         if obj.product_id and getattr(obj, "product", None) is not None:
