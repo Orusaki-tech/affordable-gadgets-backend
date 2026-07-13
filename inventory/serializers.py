@@ -402,6 +402,13 @@ class CustomerRegistrationSerializer(serializers.Serializer):
     phone_number = serializers.CharField(max_length=20, required=False, allow_blank=True)
     address = serializers.CharField(max_length=255, required=False, allow_blank=True)
 
+    # Soft-gate attribution (optional; ignored if blank)
+    session_key = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    utm_source = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    utm_medium = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    utm_campaign = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    utm_content = serializers.CharField(required=False, allow_blank=True, write_only=True)
+
     def validate_email(self, value):
         """Check that the email is not already in use."""
         if User.objects.filter(email=value).exists():
@@ -421,16 +428,25 @@ class CustomerRegistrationSerializer(serializers.Serializer):
         """
         from inventory.services.email_verification_service import send_verification_email
 
-        # 1. Pop fields intended for the User model
+        # 1. Pop fields intended for the User model / attribution
         username = validated_data.pop("username")
         email = validated_data.pop("email")
         password = validated_data.pop("password")
+        session_key = validated_data.pop("session_key", "") or ""
+        utm_source = validated_data.pop("utm_source", "") or ""
+        utm_medium = validated_data.pop("utm_medium", "") or ""
+        utm_campaign = validated_data.pop("utm_campaign", "") or ""
+        utm_content = validated_data.pop("utm_content", "") or ""
 
-        # 2. Create the User instance with password hashing
+        # 2. Create the User instance with password hashing + first-touch UTMs
         user = User.objects.create_user(
             username=username,
             email=email,
             password=password,
+            utm_source=utm_source,
+            utm_medium=utm_medium,
+            utm_campaign=utm_campaign,
+            utm_content=utm_content,
             # Note: is_staff defaults to False, which is correct for a Customer
         )
 
@@ -452,6 +468,25 @@ class CustomerRegistrationSerializer(serializers.Serializer):
         # 4. Generate email verification token + send email
         customer.issue_email_verification()
         send_verification_email(customer)
+
+        # 5. Attach anonymous browse/cart activity from soft-gate session
+        if session_key:
+            try:
+                from inventory.services.analytics_service import (
+                    attach_session_activity_to_user,
+                    get_client_ip,
+                )
+
+                request = self.context.get("request")
+                brand_code = (
+                    request.headers.get("X-Brand-Code", "AFFORDABLE_GADGETS")
+                    if request is not None
+                    else "AFFORDABLE_GADGETS"
+                )
+                request_ip = get_client_ip(request) if request is not None else ""
+                attach_session_activity_to_user(user, session_key, brand_code, request_ip)
+            except Exception:
+                pass
 
         # Return the Customer instance
         return customer

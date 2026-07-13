@@ -4780,6 +4780,19 @@ class CustomerLoginView(generics.GenericAPIView):
                 brand_code=brand_code,
                 metadata={"method": "email_password"},
             )
+            # Capture first-touch UTMs if the account has none yet (soft-gate browse → login).
+            update_fields = []
+            if request.data.get("utm_source") and not user.utm_source:
+                user.utm_source = request.data.get("utm_source", "") or ""
+                user.utm_medium = request.data.get("utm_medium", "") or ""
+                user.utm_campaign = request.data.get("utm_campaign", "") or ""
+                user.utm_content = request.data.get("utm_content", "") or ""
+                update_fields.extend(
+                    ["utm_source", "utm_medium", "utm_campaign", "utm_content"]
+                )
+            if update_fields:
+                user.save(update_fields=update_fields)
+
             session_key = request.data.get("session_key", "")
             if session_key:
                 attach_session_activity_to_user(
