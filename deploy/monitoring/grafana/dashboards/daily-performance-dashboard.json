@@ -1605,7 +1605,8 @@
     },
     {
       "id": 32,
-      "title": "Registered Users With Active Carts",
+      "title": "Users With Cart Adds Since June",
+      "description": "Registered users who successfully added to cart since 2026-06-01",
       "type": "stat",
       "gridPos": {
         "x": 16,
@@ -1623,7 +1624,7 @@
           "type": "json",
           "source": "url",
           "format": "table",
-          "url": "/api/inventory/analytics/registered-users-carts/",
+          "url": "/api/inventory/analytics/registered-users-carts/?since=2026-06-01",
           "parser": "backend",
           "url_options": {
             "method": "GET",
@@ -1632,8 +1633,8 @@
           },
           "columns": [
             {
-              "selector": "users_with_active_carts",
-              "text": "users_with_active_carts",
+              "selector": "users_with_cart_adds_since",
+              "text": "users_with_cart_adds_since",
               "type": "number"
             }
           ],
@@ -1652,8 +1653,8 @@
     },
     {
       "id": 33,
-      "title": "Registered Users — Carts & Items",
-      "description": "Per registered user: active cart count, item count, and products currently in cart",
+      "title": "Registered Users — Cart Adds Since June",
+      "description": "All registered users who successfully added items to cart since 2026-06-01 (includes users whose carts are no longer active)",
       "type": "table",
       "gridPos": {
         "x": 0,
@@ -1671,7 +1672,7 @@
           "type": "json",
           "source": "url",
           "format": "table",
-          "url": "/api/inventory/analytics/registered-users-carts/",
+          "url": "/api/inventory/analytics/registered-users-carts/?since=2026-06-01",
           "parser": "backend",
           "url_options": {
             "method": "GET",
@@ -1749,13 +1750,25 @@
                 "value": "date_time"
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "last_cart_add"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "date_time"
+              }
+            ]
           }
         ]
       },
       "options": {
         "sortBy": [
           {
-            "displayName": "cart_item_count",
+            "displayName": "cart_add_count",
             "desc": true
           }
         ]

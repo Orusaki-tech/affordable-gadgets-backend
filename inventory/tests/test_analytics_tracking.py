@@ -230,11 +230,82 @@ def test_registered_users_carts_endpoint(brand, available_unit):
     assert data["summary"]["anonymous_active_carts"] == 0
     assert data["summary"]["user_linked_active_carts"] == 1
     assert data["summary"]["users_with_active_carts"] == 1
+    assert data["summary"]["since"] == "2026-06-01"
     assert len(data["users"]) == 1
     shopper_row = data["users"][0]
     assert shopper_row["email"] == "shopper@test.com"
     assert shopper_row["active_cart_count"] == 1
     assert shopper_row["cart_item_count"] == 1
+
+
+@pytest.mark.django_db
+def test_registered_users_carts_includes_cart_add_events_since_june(brand, available_unit):
+    """Users who added to cart since June appear even if their cart is empty now."""
+    from django.utils import timezone
+    from datetime import timedelta
+
+    admin = User.objects.create_user(username="adminhist", email="adminhist@test.com", password="pass")
+    admin.is_staff = True
+    admin.save()
+    token, _ = Token.objects.get_or_create(user=admin)
+
+    past_shopper = User.objects.create_user(
+        username="pastshop", email="pastshop@test.com", password="pass"
+    )
+    Customer.objects.create(
+        user=past_shopper,
+        email=past_shopper.email,
+        phone="254700000001",
+        email_verified=True,
+    )
+    ObservabilityEvent.objects.create(
+        user=past_shopper,
+        event_type="cart_add",
+        brand_code=brand.code,
+        product=available_unit.product_template,
+        metadata={"quantity": 1},
+    )
+    # Force created_at into the since window (auto_now_add can't be set on create)
+    ObservabilityEvent.objects.filter(user=past_shopper, event_type="cart_add").update(
+        created_at=timezone.now() - timedelta(days=10)
+    )
+
+    old_shopper = User.objects.create_user(
+        username="oldshop", email="oldshop@test.com", password="pass"
+    )
+    Customer.objects.create(
+        user=old_shopper,
+        email=old_shopper.email,
+        phone="254700000002",
+        email_verified=True,
+    )
+    ObservabilityEvent.objects.create(
+        user=old_shopper,
+        event_type="cart_add",
+        brand_code=brand.code,
+        product=available_unit.product_template,
+        metadata={"quantity": 1},
+    )
+    ObservabilityEvent.objects.filter(user=old_shopper, event_type="cart_add").update(
+        created_at=timezone.now().replace(year=2026, month=5, day=1)
+    )
+
+    client = APIClient()
+    client.credentials(HTTP_AUTHORIZATION=f"Token {token.key}")
+    response = client.get(
+        "/api/inventory/analytics/registered-users-carts/",
+        {"since": "2026-06-01"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    emails = {row["email"] for row in data["users"]}
+    assert "pastshop@test.com" in emails
+    assert "oldshop@test.com" not in emails
+    assert data["summary"]["users_with_cart_adds_since"] == 1
+    past_row = next(row for row in data["users"] if row["email"] == "pastshop@test.com")
+    assert past_row["cart_add_count"] == 1
+    assert past_row["active_cart_count"] == 0
+    assert available_unit.product_template.product_name in past_row["cart_products"]
 
 
 @pytest.mark.django_db

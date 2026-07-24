@@ -2,7 +2,7 @@ import base64
 import csv
 import io
 import logging
-from datetime import timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 from urllib.parse import urlencode
 
@@ -517,12 +517,33 @@ def _merge_active_cart_phone_into_activity(user_data, brand_code: str):
 
 
 class RegisteredUsersCartsView(APIView):
-    """Registered users with active cart counts, item totals, and product names."""
+    """Registered users who added to cart since a date (default 2026-06-01).
+
+    Includes users with cart_add events in range and/or currently active carts.
+    Active cart fields remain for users who still have items in cart.
+    """
     permission_classes = [IsAuthenticated]
 
+    DEFAULT_CART_ADDS_SINCE = date(2026, 6, 1)
+
     def get(self, request):
+        from datetime import datetime as dt
+        from inventory.services.whatsapp_lead_service import resolve_user_contact
+
         brand_code = getattr(request, "brand", None)
         brand_code = brand_code.code if brand_code else "AFFORDABLE_GADGETS"
+
+        since_raw = (request.query_params.get("since") or "").strip()
+        if since_raw:
+            try:
+                since = dt.strptime(since_raw, "%Y-%m-%d").date()
+            except ValueError:
+                return Response(
+                    {"detail": "Invalid since date. Use YYYY-MM-DD."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        else:
+            since = self.DEFAULT_CART_ADDS_SINCE
 
         active_carts_qs = _active_carts_with_items_queryset(brand_code)
         total_active_carts = active_carts_qs.count()
@@ -547,38 +568,95 @@ class RegisteredUsersCartsView(APIView):
             entry["carts"].append(cart)
             entry["items"].extend(cart.items.all())
 
+        cart_add_events = (
+            ObservabilityEvent.objects.filter(
+                event_type="cart_add",
+                brand_code=brand_code,
+                created_at__date__gte=since,
+            )
+            .exclude(user__isnull=True)
+            .select_related("user", "user__customer", "product")
+            .order_by("-created_at")
+        )
+
+        adds_by_user = {}
+        for event in cart_add_events:
+            uid = event.user_id
+            entry = adds_by_user.setdefault(
+                uid,
+                {
+                    "user": event.user,
+                    "cart_add_count": 0,
+                    "last_cart_add": "",
+                    "products": [],
+                    "seen_products": set(),
+                },
+            )
+            entry["cart_add_count"] += 1
+            if not entry["last_cart_add"]:
+                entry["last_cart_add"] = event.created_at.isoformat()
+            product_name = _product_display_name(event.product)
+            if product_name and product_name not in entry["seen_products"]:
+                entry["products"].append(product_name)
+                entry["seen_products"].add(product_name)
+
+        user_ids = set(adds_by_user.keys()) | set(carts_by_user.keys())
+        users_by_id = {
+            u.id: u
+            for u in User.objects.select_related("customer").filter(id__in=user_ids)
+        }
+
         users_list = []
         users_with_carts = 0
-        for user in User.objects.select_related("customer").order_by("-date_joined"):
-            user_carts = carts_by_user.get(user.id, {"carts": [], "items": []})
-            cart_count = len(user_carts["carts"])
-            item_count = sum(item.quantity for item in user_carts["items"])
-            if cart_count == 0:
+        for uid in user_ids:
+            user = users_by_id.get(uid) or adds_by_user.get(uid, {}).get("user")
+            if not user:
                 continue
 
-            from inventory.services.whatsapp_lead_service import resolve_user_contact
+            user_carts = carts_by_user.get(uid, {"carts": [], "items": []})
+            cart_count = len(user_carts["carts"])
+            item_count = sum(item.quantity for item in user_carts["items"])
+            if cart_count:
+                users_with_carts += 1
+
+            add_info = adds_by_user.get(uid, {})
+            event_products = list(add_info.get("products") or [])
+            active_summary = _cart_product_summary(user_carts["items"])
+            # Prefer live cart line items when present; otherwise event product names.
+            cart_products = active_summary or ", ".join(event_products)
 
             phone, _ = resolve_user_contact(user, user_carts["carts"])
 
-            users_with_carts += 1
             users_list.append({
                 "user_id": user.id,
                 "email": user.email,
                 "phone": phone,
                 "date_joined": user.date_joined.isoformat() if user.date_joined else "",
                 "last_login": user.last_login.isoformat() if user.last_login else "",
+                "last_cart_add": add_info.get("last_cart_add") or "",
+                "cart_add_count": add_info.get("cart_add_count") or 0,
                 "active_cart_count": cart_count,
                 "cart_item_count": item_count,
-                "cart_products": _cart_product_summary(user_carts["items"]),
+                "cart_products": cart_products,
             })
 
         users_list.sort(
-            key=lambda row: (-row["cart_item_count"], -row["active_cart_count"], row["email"])
+            key=lambda row: (
+                -row["cart_add_count"],
+                -row["cart_item_count"],
+                -row["active_cart_count"],
+                row["email"] or "",
+            )
         )
 
         return Response({
             "summary": {
                 "registered_users": User.objects.count(),
+                "since": since.isoformat(),
+                "users_with_cart_adds_since": len(adds_by_user),
+                "cart_add_events_since": sum(
+                    info["cart_add_count"] for info in adds_by_user.values()
+                ),
                 "users_with_active_carts": users_with_carts,
                 "total_active_carts": total_active_carts,
                 "user_linked_active_carts": user_linked_active_carts,
