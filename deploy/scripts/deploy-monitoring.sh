@@ -3,14 +3,14 @@
 #
 # Required env:
 #   GRAFANA_ADMIN_PASSWORD
-#   CLOUDFLARE_TUNNEL_TOKEN (when DEPLOY_TUNNEL_ON_MONITORING=1)
 #   DJANGO_ADMIN_PASSWORD or DJANGO_API_TOKEN
 #
 # Optional:
 #   AWS_REGION (default eu-north-1)
 #   MONITORING_INSTANCE_ID (from terraform output)
 #   API_PRIVATE_IP (for prometheus scrape target)
-#   DEPLOY_TUNNEL_ON_MONITORING=1
+#   DEPLOY_TUNNEL_ON_MONITORING=0 (default; tunnel runs on API EC2)
+#   GRAFANA_RENDERER_ENABLED=0 (default; saves RAM on t3.small)
 
 set -euo pipefail
 
@@ -20,13 +20,16 @@ TF_DIR="$REPO_ROOT/deploy/terraform"
 DEPLOY_DIR="$REPO_ROOT/deploy/ansible"
 COMPOSE_ROOT="${COMPOSE_ROOT:-/opt/affordable-gadgets}"
 RENDERER_SCRIPT="$REPO_ROOT/scripts/render_monitoring_templates.py"
+WATCHDOG_SCRIPT="$SCRIPT_DIR/monitoring-watchdog.sh"
 
 AWS_REGION="${AWS_REGION:-eu-north-1}"
 GRAFANA_ADMIN_PASSWORD="${GRAFANA_ADMIN_PASSWORD?GRAFANA_ADMIN_PASSWORD not set}"
 CLOUDFLARE_TUNNEL_TOKEN="${CLOUDFLARE_TUNNEL_TOKEN:-}"
 DJANGO_ADMIN_PASSWORD="${DJANGO_ADMIN_PASSWORD:-}"
 DJANGO_API_TOKEN="${DJANGO_API_TOKEN:-}"
-DEPLOY_TUNNEL_ON_MONITORING="${DEPLOY_TUNNEL_ON_MONITORING:-1}"
+DEPLOY_TUNNEL_ON_MONITORING="${DEPLOY_TUNNEL_ON_MONITORING:-0}"
+GRAFANA_RENDERER_ENABLED="${GRAFANA_RENDERER_ENABLED:-0}"
+export DEPLOY_TUNNEL_ON_MONITORING GRAFANA_RENDERER_ENABLED
 
 if [[ -z "${MONITORING_INSTANCE_ID:-}" ]] && [[ -d "$TF_DIR" ]]; then
   MONITORING_INSTANCE_ID="$(terraform -chdir="$TF_DIR" output -raw monitoring_instance_id 2>/dev/null || true)"
@@ -37,6 +40,11 @@ if [[ -z "${API_PRIVATE_IP:-}" ]] && [[ -d "$TF_DIR" ]]; then
   API_PRIVATE_IP="$(terraform -chdir="$TF_DIR" output -raw api_private_ip 2>/dev/null || true)"
 fi
 API_PRIVATE_IP="${API_PRIVATE_IP:-127.0.0.1}"
+
+if [[ -z "${MONITORING_PRIVATE_IP:-}" ]] && [[ -d "$TF_DIR" ]]; then
+  MONITORING_PRIVATE_IP="$(terraform -chdir="$TF_DIR" output -raw monitoring_private_ip 2>/dev/null || true)"
+fi
+MONITORING_PRIVATE_IP="${MONITORING_PRIVATE_IP:-}"
 
 if [[ "$DEPLOY_TUNNEL_ON_MONITORING" == "1" && -z "$CLOUDFLARE_TUNNEL_TOKEN" ]]; then
   echo "CLOUDFLARE_TUNNEL_TOKEN required when DEPLOY_TUNNEL_ON_MONITORING=1" >&2
@@ -97,14 +105,17 @@ if [[ -n "$DJANGO_ADMIN_PASSWORD" ]]; then
 fi
 API_TOKEN="${API_TOKEN:-$DJANGO_API_TOKEN}"
 if [[ -z "$API_TOKEN" ]]; then
-  echo "WARN: No Django API token; Grafana JSON panels may fail until API is up"
-  API_TOKEN="placeholder"
+  echo "ERROR: No Django API token. Set DJANGO_API_TOKEN or DJANGO_ADMIN_PASSWORD." >&2
+  exit 1
+fi
+if [[ "$API_TOKEN" == "placeholder" ]]; then
+  echo "ERROR: Refusing to deploy monitoring with placeholder API token." >&2
+  exit 1
 fi
 
 WORK_DIR=$(mktemp -d)
 trap 'rm -rf "$WORK_DIR"' EXIT
 
-# Render templates (prometheus uses API private IP via env override in rendered file)
 python3 "$RENDERER_SCRIPT" \
   "$DEPLOY_DIR/roles/monitoring_compose/templates" \
   "$WORK_DIR" \
@@ -119,11 +130,7 @@ python3 "$RENDERER_SCRIPT" \
   "${API_PRIVATE_IP}:8000" \
   "production"
 
-# Legacy sed patch kept for GCP renders; no-op for AWS static prometheus.yml
 sed -i.bak "s|127.0.0.1:8000|${API_PRIVATE_IP}:8000|g" "$WORK_DIR/prometheus.yml" 2>/dev/null || true
-
-# Use AWS datasource (no Stackdriver)
-cp "$DEPLOY_DIR/roles/monitoring_compose/files/datasource.yml" "$WORK_DIR/datasource.yml"
 
 BUCKET="${AWS_DEPLOY_CONFIG_BUCKET:-}"
 if [[ -z "$BUCKET" ]] && [[ -d "$TF_DIR" ]]; then
@@ -134,19 +141,21 @@ if [[ -n "$BUCKET" ]]; then
   echo "→ Uploading monitoring configs to s3://$BUCKET/production/monitoring/"
   aws s3 cp "$WORK_DIR/prometheus.yml" "s3://$BUCKET/production/monitoring/monitoring/prometheus/prometheus.yml"
   aws s3 cp "$WORK_DIR/grafana.env" "s3://$BUCKET/production/monitoring/monitoring/grafana.env"
-  aws s3 cp "$WORK_DIR/tunnel.env" "s3://$BUCKET/production/monitoring/monitoring/tunnel/tunnel.env"
   aws s3 cp "$WORK_DIR/docker-compose.monitoring.yml" "s3://$BUCKET/production/monitoring/docker-compose.monitoring.yml"
-  aws s3 cp "$WORK_DIR/docker-compose.tunnel.yml" "s3://$BUCKET/production/monitoring/docker-compose.tunnel.yml"
   aws s3 cp "$WORK_DIR/datasource.yml" "s3://$BUCKET/production/monitoring/monitoring/grafana/datasources/datasource.yml"
   aws s3 cp "$DEPLOY_DIR/roles/monitoring_compose/files/dashboards.yml" "s3://$BUCKET/production/monitoring/monitoring/grafana/dashboards/dashboards.yml"
   aws s3 cp "$DEPLOY_DIR/roles/monitoring_compose/files/alerts.yml" "s3://$BUCKET/production/monitoring/monitoring/prometheus/alerts.yml"
+  aws s3 cp "$WATCHDOG_SCRIPT" "s3://$BUCKET/production/monitoring/scripts/monitoring-watchdog.sh"
+  if [[ "$DEPLOY_TUNNEL_ON_MONITORING" == "1" ]]; then
+    aws s3 cp "$WORK_DIR/tunnel.env" "s3://$BUCKET/production/monitoring/monitoring/tunnel/tunnel.env"
+    aws s3 cp "$WORK_DIR/docker-compose.tunnel.yml" "s3://$BUCKET/production/monitoring/docker-compose.tunnel.yml"
+  fi
   for dash in django-dashboard executive-kpi-dashboard marketing-funnel daily-performance-dashboard; do
     aws s3 cp "$DEPLOY_DIR/roles/monitoring_compose/files/${dash}.json" \
       "s3://$BUCKET/production/monitoring/monitoring/grafana/dashboards/${dash}.json" 2>/dev/null || true
   done
 fi
 
-# Stage files on instance via SSM + base64 chunks would be heavy; use S3 sync on VM
 REMOTE_SCRIPT=$(cat <<EOF
 set -eu
 if ! docker compose version >/dev/null 2>&1; then
@@ -157,11 +166,10 @@ if ! docker compose version >/dev/null 2>&1; then
   chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 fi
 COMPOSE_ROOT="$COMPOSE_ROOT"
-mkdir -p "\$COMPOSE_ROOT/monitoring/prometheus" "\$COMPOSE_ROOT/monitoring/grafana/datasources" "\$COMPOSE_ROOT/monitoring/grafana/dashboards" "\$COMPOSE_ROOT/monitoring/tunnel"
+mkdir -p "\$COMPOSE_ROOT/monitoring/prometheus" "\$COMPOSE_ROOT/monitoring/grafana/datasources" "\$COMPOSE_ROOT/monitoring/grafana/dashboards" "\$COMPOSE_ROOT/scripts"
 if [ -n "$BUCKET" ]; then
   aws s3 sync "s3://$BUCKET/production/monitoring/" "\$COMPOSE_ROOT/"
 fi
-# Normalize legacy sync paths from earlier deploy attempts
 if [ -f "\$COMPOSE_ROOT/grafana.env" ] && [ ! -f "\$COMPOSE_ROOT/monitoring/grafana.env" ]; then
   mv "\$COMPOSE_ROOT/grafana.env" "\$COMPOSE_ROOT/monitoring/grafana.env"
 fi
@@ -173,27 +181,71 @@ if [ -d "\$COMPOSE_ROOT/prometheus" ] && [ ! -f "\$COMPOSE_ROOT/monitoring/prome
   mkdir -p "\$COMPOSE_ROOT/monitoring/prometheus"
   cp -a "\$COMPOSE_ROOT/prometheus/." "\$COMPOSE_ROOT/monitoring/prometheus/"
 fi
-if [ -f "\$COMPOSE_ROOT/tunnel/tunnel.env" ] && [ ! -f "\$COMPOSE_ROOT/monitoring/tunnel/tunnel.env" ]; then
-  mkdir -p "\$COMPOSE_ROOT/monitoring/tunnel"
-  cp "\$COMPOSE_ROOT/tunnel/tunnel.env" "\$COMPOSE_ROOT/monitoring/tunnel/tunnel.env"
+# 2 GB swap if missing
+if ! swapon --show | grep -q '/swapfile'; then
+  fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+  grep -q '/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+fi
+sysctl -w vm.swappiness=10 2>/dev/null || true
+# Install on-host watchdog
+if [ -f "\$COMPOSE_ROOT/scripts/monitoring-watchdog.sh" ]; then
+  chmod +x "\$COMPOSE_ROOT/scripts/monitoring-watchdog.sh"
+  if [ ! -f /etc/systemd/system/ag-monitoring-watchdog.timer ]; then
+    cat >/etc/systemd/system/ag-monitoring-watchdog.service <<'WUNIT'
+[Unit]
+Description=Monitoring stack health watchdog
+[Service]
+Type=oneshot
+Environment=COMPOSE_ROOT=/opt/affordable-gadgets
+ExecStart=/opt/affordable-gadgets/scripts/monitoring-watchdog.sh
+WUNIT
+    cat >/etc/systemd/system/ag-monitoring-watchdog.timer <<'WUNIT'
+[Unit]
+Description=Run monitoring watchdog every 2 minutes
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=2min
+Persistent=true
+[Install]
+WantedBy=timers.target
+WUNIT
+    systemctl daemon-reload
+    systemctl enable --now ag-monitoring-watchdog.timer
+  fi
 fi
 docker rm -f ag-grafana ag-prometheus ag-grafana-renderer ag-cloudflared 2>/dev/null || true
 docker compose -f "\$COMPOSE_ROOT/docker-compose.monitoring.yml" --env-file "\$COMPOSE_ROOT/monitoring/grafana.env" up -d --remove-orphans
 if [ "$DEPLOY_TUNNEL_ON_MONITORING" = "1" ]; then
   docker compose -f "\$COMPOSE_ROOT/docker-compose.tunnel.yml" --env-file "\$COMPOSE_ROOT/monitoring/tunnel/tunnel.env" up -d
+else
+  docker rm -f ag-cloudflared 2>/dev/null || true
 fi
 for i in 1 2 3 4 5 6; do
-  curl -sf http://localhost:3000/login >/dev/null && echo Grafana OK && exit 0
+  curl -sf http://localhost:3000/login >/dev/null && echo Grafana OK && break
   sleep 10
 done
-echo "Grafana health check failed"
-exit 1
+if ! curl -sf http://localhost:3000/login >/dev/null; then
+  echo "Grafana health check failed"
+  exit 1
+fi
+# Verify Infinity datasource can reach Django over VPC (same path as Prometheus)
+HEALTH_JSON=\$(curl -sf --max-time 15 \\
+  -H "Authorization: Token ${API_TOKEN}" \\
+  "http://${API_PRIVATE_IP}:8000/api/inventory/analytics/datasource-health/" \\
+  || echo "")
+if ! echo "\$HEALTH_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d.get('summary',{}).get('status')=='ok'; assert d.get('summary',{}).get('grafana_token_valid')=='true'"; then
+  echo "Datasource health check failed (VPC path or token invalid)"
+  echo "\$HEALTH_JSON"
+  exit 1
+fi
+echo "Datasource health OK"
+exit 0
 EOF
 )
 
 ssm_run "$REMOTE_SCRIPT"
 
 echo "✓ Monitoring deployed on $MONITORING_INSTANCE_ID"
-echo "  Configure Cloudflare tunnel routes:"
-echo "    api.affordable-gadgetske.com → http://${API_PRIVATE_IP}:8000"
-echo "    grafana.affordable-gadgetske.com → http://localhost:3000"
+echo "  Cloudflare tunnel runs on API EC2 (no dashboard change needed — grafana-proxy forwards :3000)."
+echo "    api.affordable-gadgetske.com → http://localhost:8000"
+echo "    grafana.affordable-gadgetske.com → http://localhost:3000 (socat → monitoring Grafana)"

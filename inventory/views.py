@@ -862,7 +862,7 @@ class DatasourceHealthView(APIView):
             .exclude(user__isnull=True)
         )
 
-        return Response({
+        payload = {
             "summary": {
                 "status": status,
                 "grafana_token_valid": "true" if grafana_token_valid else "false",
@@ -871,14 +871,21 @@ class DatasourceHealthView(APIView):
             "status": status,
             "authenticated_as": authenticated_as,
             "grafana_token_valid": "true" if grafana_token_valid else "false",
-            "total_users": User.objects.count(),
-            "total_events_today": events_today.count(),
-            "events_today_by_type": dict(
-                events_today.values_list("event_type")
-                .annotate(count=Count("id"))
-                .order_by()
-            ),
-        })
+        }
+
+        # Heavy DB stats are optional — Grafana health panels only need summary fields.
+        if request.query_params.get("stats") == "1":
+            payload.update({
+                "total_users": User.objects.count(),
+                "total_events_today": events_today.count(),
+                "events_today_by_type": dict(
+                    events_today.values_list("event_type")
+                    .annotate(count=Count("id"))
+                    .order_by()
+                ),
+            })
+
+        return Response(payload)
 
 
 class WhatsAppLeadsView(APIView):

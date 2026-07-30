@@ -1,0 +1,91 @@
+name: Monitoring uptime watchdog
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: monitoring-watchdog
+  cancel-in-progress: false
+
+jobs:
+  recover:
+    name: Check and recover Grafana/API
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    environment: production
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: eu-north-1
+
+      - name: Probe public endpoints and recover via SSM
+        env:
+          AWS_API_INSTANCE_ID: ${{ secrets.AWS_API_INSTANCE_ID }}
+          AWS_MONITORING_INSTANCE_ID: ${{ secrets.AWS_MONITORING_INSTANCE_ID }}
+        run: |
+          set -euo pipefail
+          API_OK=0
+          GRAFANA_OK=0
+          DATASOURCE_OK=0
+          curl -sf --max-time 20 "https://api.affordable-gadgetske.com/health/" && API_OK=1 || true
+          curl -sf --max-time 20 "https://grafana.affordable-gadgetske.com/login" && GRAFANA_OK=1 || true
+          curl -sf --max-time 20 "https://api.affordable-gadgetske.com/api/inventory/analytics/datasource-health/" \
+            | python3 -c "import sys,json; d=json.load(sys.stdin); assert d.get('summary',{}).get('status')=='ok'" \
+            && DATASOURCE_OK=1 || true
+          echo "API=$API_OK GRAFANA=$GRAFANA_OK DATASOURCE=$DATASOURCE_OK"
+
+          if [[ "$API_OK" -eq 1 && "$GRAFANA_OK" -eq 1 && "$DATASOURCE_OK" -eq 1 ]]; then
+            echo "All endpoints healthy"
+            exit 0
+          fi
+
+          run_ssm() {
+            local instance="$1"
+            local script="$2"
+            local cmd_id status
+            cmd_id=$(aws ssm send-command \
+              --region eu-north-1 \
+              --instance-ids "$instance" \
+              --document-name AWS-RunShellScript \
+              --comment "monitoring-watchdog" \
+              --parameters "commands=[\"$script\"]" \
+              --query 'Command.CommandId' --output text)
+            for _ in $(seq 1 18); do
+              status=$(aws ssm get-command-invocation \
+                --region eu-north-1 \
+                --command-id "$cmd_id" \
+                --instance-id "$instance" \
+                --query 'Status' --output text 2>/dev/null || echo Pending)
+              [[ "$status" == "Success" || "$status" == "Failed" || "$status" == "Cancelled" ]] && break
+              sleep 5
+            done
+            aws ssm get-command-invocation \
+              --region eu-north-1 \
+              --command-id "$cmd_id" \
+              --instance-id "$instance" \
+              --query '[Status,StandardOutputContent,StandardErrorContent]' --output text
+          }
+
+          if [[ "$GRAFANA_OK" -eq 0 ]]; then
+            echo "→ Recovering monitoring stack"
+            run_ssm "$AWS_MONITORING_INSTANCE_ID" "cd /opt/affordable-gadgets && COMPOSE_ROOT=/opt/affordable-gadgets ./scripts/monitoring-watchdog.sh || docker compose -f docker-compose.monitoring.yml --env-file monitoring/grafana.env up -d --remove-orphans"
+          fi
+
+          if [[ "$API_OK" -eq 0 ]]; then
+            echo "→ Recovering API + tunnel"
+            run_ssm "$AWS_API_INSTANCE_ID" "cd /opt/affordable-gadgets && aws s3 sync s3://${{ secrets.AWS_DEPLOY_CONFIG_BUCKET }}/production/api/ . && docker compose -f docker-compose.api.yml up -d && if [ -f docker-compose.tunnel.yml ]; then docker compose -f docker-compose.tunnel.yml --env-file tunnel/tunnel.env up -d; fi"
+          fi
+
+          sleep 30
+          curl -sf --max-time 20 "https://api.affordable-gadgetske.com/health/" && API_OK=1 || API_OK=0
+          curl -sf --max-time 20 "https://grafana.affordable-gadgetske.com/login" && GRAFANA_OK=1 || GRAFANA_OK=0
+          curl -sf --max-time 20 "https://api.affordable-gadgetske.com/api/inventory/analytics/datasource-health/" \
+            | python3 -c "import sys,json; d=json.load(sys.stdin); assert d.get('summary',{}).get('status')=='ok'" \
+            && DATASOURCE_OK=1 || DATASOURCE_OK=0
+          echo "After recovery: API=$API_OK GRAFANA=$GRAFANA_OK DATASOURCE=$DATASOURCE_OK"
+          [[ "$API_OK" -eq 1 && "$GRAFANA_OK" -eq 1 && "$DATASOURCE_OK" -eq 1 ]]

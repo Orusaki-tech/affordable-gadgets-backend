@@ -3,6 +3,7 @@ Render Jinja2-style templates for the monitoring stack.
 Called by deploy-monitoring.sh — avoids sed escaping issues with passwords/tokens.
 """
 
+import os
 import re
 import shutil
 import sys
@@ -20,6 +21,8 @@ CLOUDFLARE_TUNNEL_TOKEN = sys.argv[9]
 DJANGO_API_TOKEN = sys.argv[10]
 PROMETHEUS_API_TARGET = sys.argv[11] if len(sys.argv) > 11 else "127.0.0.1:8000"
 DEPLOY_ENV = sys.argv[12] if len(sys.argv) > 12 else "production"
+GRAFANA_RENDERER_ENABLED = os.environ.get("GRAFANA_RENDERER_ENABLED", "0") == "1"
+API_PRIVATE_IP = PROMETHEUS_API_TARGET.split(":")[0]
 
 
 def render_j2(src, dst, subs):
@@ -93,28 +96,90 @@ render_j2(
         "grafana_smtp_password": GRAFANA_SMTP_PASSWORD,
         "grafana_smtp_from": GRAFANA_SMTP_FROM,
         "django_admin_token": DJANGO_API_TOKEN,
+        "api_private_ip": API_PRIVATE_IP,
     },
 )
 
-# ── tunnel.env ───────────────────────────────────────────────────────────────
-with open(f"{WORK_DIR}/tunnel.env", "w") as f:
-    f.write(f"CLOUDFLARE_TUNNEL_TOKEN={CLOUDFLARE_TUNNEL_TOKEN}\n")
+# ── tunnel.env (monitoring tunnel optional — ingress runs on API EC2) ────────
+DEPLOY_TUNNEL_ON_MONITORING = os.environ.get("DEPLOY_TUNNEL_ON_MONITORING", "0") == "1"
+if DEPLOY_TUNNEL_ON_MONITORING:
+    with open(f"{WORK_DIR}/tunnel.env", "w") as f:
+        f.write(f"CLOUDFLARE_TUNNEL_TOKEN={CLOUDFLARE_TUNNEL_TOKEN}\n")
 
 # ── docker-compose files ─────────────────────────────────────────────────────
-render_j2(
-    f"{TEMPLATES_DIR}/docker-compose.monitoring.yml.j2",
-    f"{WORK_DIR}/docker-compose.monitoring.yml",
-    {"compose_root": COMPOSE_ROOT},
-)
+renderer_env = ""
+renderer_service = ""
+if GRAFANA_RENDERER_ENABLED:
+    renderer_env = """      - GF_RENDERING_SERVER_URL=http://grafana-renderer:8081/render
+      - GF_RENDERING_CALLBACK_URL=http://grafana:3000/
+"""
+    renderer_service = f"""
+  grafana-renderer:
+    image: grafana/grafana-image-renderer:latest
+    container_name: ag-grafana-renderer
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    env_file:
+      - {COMPOSE_ROOT}/monitoring/grafana.env
+    environment:
+      - AUTH_TOKEN=${{GF_RENDERING_RENDERER_TOKEN}}
+"""
 
+monitoring_compose = f"""services:
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: ag-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - {COMPOSE_ROOT}/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - {COMPOSE_ROOT}/monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=7d"
+      - "--web.enable-remote-write-receiver"
+
+  grafana:
+    image: grafana/grafana:13.0.1
+    container_name: ag-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_INSTALL_PLUGINS=yesoreyeram-infinity-datasource
+{renderer_env}    env_file:
+      - {COMPOSE_ROOT}/monitoring/grafana.env
+    volumes:
+      - {COMPOSE_ROOT}/monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - {COMPOSE_ROOT}/monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - grafana_data:/var/lib/grafana
+{renderer_service}
+volumes:
+  prometheus_data:
+  grafana_data:
+"""
+with open(f"{WORK_DIR}/docker-compose.monitoring.yml", "w") as f:
+    f.write(monitoring_compose)
+
+if DEPLOY_TUNNEL_ON_MONITORING:
+    render_j2(
+        f"{TEMPLATES_DIR}/tunnel-compose.yml.j2",
+        f"{WORK_DIR}/docker-compose.tunnel.yml",
+        {"compose_root": COMPOSE_ROOT},
+    )
+
+# ── datasource.yml (VPC-private API — avoids Cloudflare/tunnel flakiness) ─────
 render_j2(
-    f"{TEMPLATES_DIR}/tunnel-compose.yml.j2",
-    f"{WORK_DIR}/docker-compose.tunnel.yml",
-    {"compose_root": COMPOSE_ROOT},
+    f"{TEMPLATES_DIR}/datasource.yml.j2",
+    f"{WORK_DIR}/datasource.yml",
+    {"api_private_ip": API_PRIVATE_IP},
 )
 
 # ── static files ─────────────────────────────────────────────────────────────
-shutil.copy2(f"{TEMPLATES_DIR}/../files/datasource.yml", f"{WORK_DIR}/datasource.yml")
 shutil.copy2(f"{TEMPLATES_DIR}/../files/dashboards.yml", f"{WORK_DIR}/dashboards.yml")
 shutil.copy2(f"{TEMPLATES_DIR}/../files/alerts.yml", f"{WORK_DIR}/alerts.yml")
 shutil.copy2(f"{TEMPLATES_DIR}/../files/django-dashboard.json", f"{WORK_DIR}/django-dashboard.json")

@@ -18,7 +18,8 @@ datasources:
   - name: Django API
     type: yesoreyeram-infinity-datasource
     uid: json-api
-    url: https://api.affordable-gadgetske.com
+    # Rendered at deploy time with API_PRIVATE_IP — see datasource.yml.j2
+    url: http://127.0.0.1:8000
     access: proxy
     basicAuth: false
     isDefault: false
@@ -26,6 +27,6 @@ datasources:
     jsonData:
       httpHeaderName1: "Authorization"
       allowedHosts:
-        - "https://api.affordable-gadgetske.com"
+        - "http://127.0.0.1:8000"
     secureJsonData:
       httpHeaderValue1: "Token $__env{GF_JSON_API_TOKEN}"
