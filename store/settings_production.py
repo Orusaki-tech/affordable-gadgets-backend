@@ -62,6 +62,15 @@ def _parse_database_url(url: str) -> dict:
     for key, value in parse_qsl(query, keep_blank_values=False):
         options[key] = value
 
+    # Auto-set sslmode for remote hosts (Supabase requires SSL on port 6543)
+    _local_hosts = ("localhost", "127.0.0.1", "0.0.0.0")
+    if host not in _local_hosts and "sslmode" not in options:
+        options["sslmode"] = "require"
+
+    # URL-decode the password (in case % characters were percent-encoded in the URL)
+    from urllib.parse import unquote
+    password = unquote(password)
+
     return {
         "host": host,
         "port": port,
