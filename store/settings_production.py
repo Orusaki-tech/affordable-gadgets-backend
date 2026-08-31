@@ -9,6 +9,68 @@ from urllib.parse import parse_qsl, urlparse
 
 from store.database_urls import database_config_from_url
 
+
+def _parse_database_url(url: str) -> dict:
+    """Parse a DATABASE_URL without relying on urlparse for passwords with special chars.
+
+    urlparse in Python 3.13+ raises on invalid percent-encoding (e.g. %gb in a password).
+    We manually extract components by splitting on known delimiters.
+    """
+    # Strip scheme (postgresql:// or postgres://)
+    if "://" in url:
+        rest = url.split("://", 1)[1]
+    else:
+        rest = url
+
+    # Separate query string
+    if "?" in rest:
+        rest, query = rest.split("?", 1)
+    else:
+        query = ""
+
+    # Split off database name (after last /)
+    if "/" in rest:
+        rest, db_name = rest.rsplit("/", 1)
+    else:
+        db_name = ""
+
+    # Separate userinfo from host:port (split on last @)
+    if "@" in rest:
+        userinfo, hostport = rest.rsplit("@", 1)
+    else:
+        userinfo, hostport = "", rest
+
+    # Parse userinfo (username:password)
+    if ":" in userinfo:
+        username, password = userinfo.split(":", 1)
+    else:
+        username, password = userinfo, ""
+
+    # Parse host:port
+    if ":" in hostport:
+        host, port_str = hostport.rsplit(":", 1)
+        try:
+            port = int(port_str)
+        except ValueError:
+            port = 5432
+    else:
+        host = hostport
+        port = 5432
+
+    # Parse query params into options dict
+    options = {"connect_timeout": 10}
+    for key, value in parse_qsl(query, keep_blank_values=False):
+        options[key] = value
+
+    return {
+        "host": host,
+        "port": port,
+        "username": username,
+        "password": password,
+        "db_name": db_name,
+        "options": options,
+    }
+
 from .settings import *  # noqa: F403 - Import all base settings first
 
 # Security settings
@@ -49,33 +111,26 @@ FRONTEND_BASE_URL = frontend_base_url.rstrip("/")
 # Support both DATABASE_URL (Render/Heroku style) and individual DB_* variables
 database_url = os.environ.get("DATABASE_URL", "").strip()
 if database_url:
-    # Parse DATABASE_URL: postgresql://user:password@host:port/dbname
-    # or postgres://user:password@host:port/dbname
+    # Parse DATABASE_URL manually to avoid urlparse issues with special chars in passwords
     try:
-        parsed = urlparse(database_url)
-        # Carry URL query params (e.g. ?sslmode=require) into Django DB OPTIONS.
-        db_options = {"connect_timeout": 10}
-        for key, value in parse_qsl(parsed.query, keep_blank_values=False):
-            db_options[key] = value
-        # Set default PostgreSQL runtime params (can be overridden via URL query)
+        parsed_db = _parse_database_url(database_url)
+        db_options = parsed_db["options"]
         db_options.setdefault("options", f"-c statement_timeout={int(os.environ.get('DB_STATEMENT_TIMEOUT', '30000'))}")
 
         DATABASES = {
             "default": {
                 "ENGINE": "django.db.backends.postgresql",
-                "NAME": parsed.path[1:],  # Remove leading '/'
-                "USER": parsed.username,
-                "PASSWORD": parsed.password,
-                "HOST": parsed.hostname,
-                "PORT": parsed.port or "5432",
+                "NAME": parsed_db["db_name"],
+                "USER": parsed_db["username"],
+                "PASSWORD": parsed_db["password"],
+                "HOST": parsed_db["host"],
+                "PORT": str(parsed_db["port"]),
                 "CONN_MAX_AGE": int(os.environ.get("CONN_MAX_AGE", "300") or "300"),
                 "OPTIONS": db_options,
             }
         }
     except Exception as e:
-        # Fall back to individual variables if DATABASE_URL parsing fails
         import logging
-
         logger = logging.getLogger(__name__)
         logger.warning(
             f"Failed to parse DATABASE_URL: {e}. Falling back to individual DB_* variables."
