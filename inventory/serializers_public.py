@@ -306,6 +306,7 @@ class PublicProductArticleSerializer(serializers.ModelSerializer):
     product_slug = serializers.SerializerMethodField()
     product_name = serializers.SerializerMethodField()
     products = serializers.SerializerMethodField()
+    thumbnail_image = serializers.SerializerMethodField()
 
     class Meta:
         model = ProductArticle
@@ -325,6 +326,13 @@ class PublicProductArticleSerializer(serializers.ModelSerializer):
             "products",
         )
         read_only_fields = fields
+
+    @extend_schema_field(serializers.URLField(allow_null=True))
+    def get_thumbnail_image(self, obj):
+        if obj.thumbnail_image:
+            from inventory.cloudinary_utils import get_optimized_image_url
+            return get_optimized_image_url(obj.thumbnail_image)
+        return None
 
     def get_product_slug(self, obj):
         return obj.product.slug if obj.product_id else None
@@ -348,6 +356,7 @@ class PublicArticleCardSerializer(serializers.ModelSerializer):
     product_brand = serializers.SerializerMethodField()
     product_primary_image = serializers.SerializerMethodField()
     products = serializers.SerializerMethodField()
+    thumbnail_image = serializers.SerializerMethodField()
 
     class Meta:
         model = ProductArticle
@@ -366,6 +375,13 @@ class PublicArticleCardSerializer(serializers.ModelSerializer):
             "products",
         )
         read_only_fields = fields
+
+    @extend_schema_field(serializers.URLField(allow_null=True))
+    def get_thumbnail_image(self, obj):
+        if obj.thumbnail_image:
+            from inventory.cloudinary_utils import get_optimized_image_url
+            return get_optimized_image_url(obj.thumbnail_image)
+        return None
 
     def get_product_slug(self, obj):
         return obj.product.slug if obj.product_id else None
