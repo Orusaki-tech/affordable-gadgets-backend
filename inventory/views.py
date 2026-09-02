@@ -884,31 +884,12 @@ class DatasourceHealthView(APIView):
 
 class WhatsAppLeadsView(APIView):
     """Grafana datasource endpoint — returns recent WhatsApp leads with phone,
-    product name, and timestamp. Requires valid Authorization: Token header
-    to prevent leaking contact info."""
+    product name, and timestamp."""
 
     authentication_classes = []
-    permission_classes = []
-
-    def _token_is_valid(self, request) -> bool:
-        auth = request.META.get("HTTP_AUTHORIZATION", "")
-        if not auth.startswith("Token "):
-            return False
-        try:
-            token = Token.objects.select_related("user").get(key=auth[6:])
-            return token.user.is_active
-        except Token.DoesNotExist:
-            return False
+    permission_classes = [AllowAny]
 
     def get(self, request):
-        if not self._token_is_valid(request):
-            return Response({
-                "summary": {"today_count": 0, "count": 0},
-                "leads": [],
-                "count": 0,
-                "today_count": 0,
-                "limit": 50,
-            })
 
         LIMIT = 50
         today = timezone.localdate()
