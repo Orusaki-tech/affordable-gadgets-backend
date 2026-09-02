@@ -691,6 +691,12 @@ class ProductArticle(models.Model):
         choices=ArticleCategory.choices,
         default=ArticleCategory.BUYING_GUIDE,
     )
+    tags = models.ManyToManyField(
+        "Tag",
+        related_name="articles",
+        blank=True,
+        help_text="Tags for filtering featured product blogs (e.g. featured, trending)",
+    )
     thumbnail_image = models.ImageField(
         upload_to="article_thumbnails/%Y/%m/",
         null=True,

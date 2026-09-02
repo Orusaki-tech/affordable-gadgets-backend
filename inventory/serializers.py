@@ -996,6 +996,10 @@ class ProductArticleSerializer(serializers.ModelSerializer):
     """Full blog / buying guide (staff). Product association is optional (many products)."""
 
     images = ArticleImageSerializer(many=True, read_only=True)
+    tags = TagSerializer(many=True, read_only=True)
+    tag_ids = serializers.PrimaryKeyRelatedField(
+        queryset=Tag.objects.all(), source="tags", many=True, write_only=True, required=False
+    )
     product_id = serializers.PrimaryKeyRelatedField(
         source="product",
         queryset=Product.objects.all(),
@@ -1037,6 +1041,8 @@ class ProductArticleSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "images",
+            "tags",
+            "tag_ids",
         )
         read_only_fields = (
             "id",

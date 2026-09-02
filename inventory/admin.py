@@ -27,6 +27,7 @@ from .models import (
     ProductVariant,
     Promotion,
     Review,
+    Tag,
     UnitAcquisitionSource,
 )
 
@@ -248,11 +249,17 @@ class ProductArticleAdmin(admin.ModelAdmin):
         "is_published",
         "published_at",
         "updated_at",
+        "tag_list",
     )
-    list_filter = ("category", "is_published", "created_at")
-    search_fields = ("product__product_name", "headline", "body")
+    list_filter = ("category", "is_published", "created_at", "tags")
+    search_fields = ("product__product_name", "headline", "body", "tags__name")
+    filter_horizontal = ("tags", "products")
     inlines = [ArticleImageInline]
     readonly_fields = ("published_at", "created_at", "updated_at", "thumbnail_preview")
+
+    def tag_list(self, obj):
+        return ", ".join(t.name for t in obj.tags.all()) or "-"
+    tag_list.short_description = "Tags"
 
     fieldsets = (
         (
@@ -281,6 +288,13 @@ class ProductArticleAdmin(admin.ModelAdmin):
             },
         ),
         (
+            "Tags",
+            {
+                "fields": ("tags",),
+                "description": "Add tags like 'featured' to control which blogs appear on featured products. Like Product tags.",
+            },
+        ),
+        (
             "SEO & Meta",
             {
                 "fields": ("seo_title", "seo_description"),
@@ -290,7 +304,7 @@ class ProductArticleAdmin(admin.ModelAdmin):
         (
             "Linkage",
             {
-                "fields": ("product",),
+                "fields": ("product", "products"),
             },
         ),
         (
@@ -388,6 +402,13 @@ class AdminProfileAdmin(admin.ModelAdmin):
 
 
 # --- LOOKUP TABLES / UTILITIES ---
+
+
+@admin.register(Tag)
+class TagAdmin(admin.ModelAdmin):
+    list_display = ("name", "slug", "created_at")
+    search_fields = ("name", "slug")
+    prepopulated_fields = {"slug": ("name",)}
 
 
 @admin.register(Color)
