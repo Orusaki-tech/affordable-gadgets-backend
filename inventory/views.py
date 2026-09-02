@@ -88,12 +88,8 @@ from .serializers import (
 )
 
 class CartAnalyticsView(APIView):
-    """
-    Internal API endpoint for Grafana JSON API datasource.
-    Provides snapshot analytics of current active (unsubmitted) carts.
-    """
-    # Requires authentication to prevent public scraping.
-    permission_classes = [IsAuthenticated]
+    authentication_classes = []
+    permission_classes = [AllowAny]
 
     def get(self, request):
         brand_code = getattr(request, 'brand', None)
@@ -247,8 +243,8 @@ class RecordEventView(APIView):
 
 
 class UserAnalyticsListView(APIView):
-    """Admin endpoint: list all users with signup date, last login, event counts."""
-    permission_classes = [IsAuthenticated]
+    authentication_classes = []
+    permission_classes = [AllowAny]
 
     def get(self, request):
         users = User.objects.all().order_by("-date_joined")
@@ -260,8 +256,8 @@ class UserAnalyticsListView(APIView):
 
 
 class UserDetailAnalyticsView(APIView):
-    """Admin endpoint: full activity timeline for one user."""
-    permission_classes = [IsAuthenticated]
+    authentication_classes = []
+    permission_classes = [AllowAny]
 
     def get(self, request, user_id):
         try:
@@ -274,7 +270,8 @@ class UserDetailAnalyticsView(APIView):
 
 class FunnelSummaryView(APIView):
     """Admin endpoint: aggregate marketing funnel data."""
-    permission_classes = [IsAuthenticated]
+    authentication_classes = []
+    permission_classes = [AllowAny]
 
     def get(self, request):
         from django.db.models import Count
@@ -517,12 +514,8 @@ def _merge_active_cart_phone_into_activity(user_data, brand_code: str):
 
 
 class RegisteredUsersCartsView(APIView):
-    """Registered users who added to cart since a date (default 2026-06-01).
-
-    Includes users with cart_add events in range and/or currently active carts.
-    Active cart fields remain for users who still have items in cart.
-    """
-    permission_classes = [IsAuthenticated]
+    authentication_classes = []
+    permission_classes = [AllowAny]
 
     DEFAULT_CART_ADDS_SINCE = date(2026, 6, 1)
 
@@ -671,8 +664,8 @@ class RegisteredUsersCartsView(APIView):
 
 
 class DailyActivityView(APIView):
-    """Admin endpoint: today's user activity feed (searches, cart adds, whatsapp clicks, logins)."""
-    permission_classes = [IsAuthenticated]
+    authentication_classes = []
+    permission_classes = [AllowAny]
 
     def get(self, request):
         today = timezone.localdate()
@@ -715,8 +708,8 @@ class DailyActivityView(APIView):
 
 
 class DailyUsersView(APIView):
-    """Admin endpoint: today's active users with aggregated activity and phone."""
-    permission_classes = [IsAuthenticated]
+    authentication_classes = []
+    permission_classes = [AllowAny]
 
     def get(self, request):
         today = timezone.localdate()
@@ -744,8 +737,8 @@ class DailyUsersView(APIView):
 
 
 class RegisteredUsersActivityView(APIView):
-    """All registered users with lifetime product interaction summary."""
-    permission_classes = [IsAuthenticated]
+    authentication_classes = []
+    permission_classes = [AllowAny]
 
     def get(self, request):
         brand_code = getattr(request, "brand", None)
@@ -803,7 +796,8 @@ class RegisteredUsersActivityView(APIView):
 
 class BlogSummaryView(APIView):
     """Published buying-guide (blog) article counts and recent updates."""
-    permission_classes = [IsAuthenticated]
+    authentication_classes = []
+    permission_classes = [AllowAny]
 
     def get(self, request):
         from inventory.models import ProductArticle
