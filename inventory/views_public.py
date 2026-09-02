@@ -3600,7 +3600,7 @@ class PublicArticleViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
             ProductArticle.objects.filter(is_published=True)
             .filter(Q(product__isnull=True) | Q(product__is_published=True))
             .select_related("product")
-            .prefetch_related("product__images", "products")
+            .prefetch_related("product__images", "products", "tags")
             .order_by("-published_at", "-is_primary", "id")
         )
         if brand:
@@ -3641,7 +3641,18 @@ class PublicArticleViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
             if product_type in valid_types:
                 queryset = queryset.filter(product__product_type=product_type)
 
+        tag = self.request.query_params.get("tag") or self.request.query_params.get("tags")
+        if tag:
+            # Support comma-separated tags (e.g., ?tag=featured,trending)
+            tag_slugs = [t.strip() for t in tag.split(",") if t.strip()]
+            if tag_slugs:
+                queryset = queryset.filter(tags__slug__in=tag_slugs).distinct()
+
         if self.request.query_params.get("featured") in ("1", "true", "yes"):
+            tagged_articles_qs = queryset.filter(tags__name__iexact="Featured").distinct()
+            if tagged_articles_qs.exists():
+                return tagged_articles_qs.order_by("-published_at", "-is_primary", "id")
+
             from inventory.product_ordering import apply_product_ordering
 
             featured_products = Product.objects.filter(
