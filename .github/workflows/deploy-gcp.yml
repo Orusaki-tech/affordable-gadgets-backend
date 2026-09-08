@@ -1,10 +1,8 @@
-name: CI
+name: Deploy to GCP VM
 
 on:
-  pull_request:
-    branches: [main, master]
   push:
-    branches: [main, master]
+    branches: [main]
     paths-ignore:
       - 'AGENTS.md'
       - 'README.md'
@@ -12,6 +10,11 @@ on:
       - '.github/workflows/validate-*.yml'
       - '.github/workflows/health-cron.yml'
       - '.github/workflows/monitoring-watchdog.yml'
+
+env:
+  GCP_VM_IP: 34.26.82.94
+  GCP_VM_USER: shwariaccessories
+  DEPLOY_PATH: /opt/affordable-gadgets
 
 jobs:
   test:
@@ -75,3 +78,61 @@ jobs:
 
       - name: Build Docker image
         run: docker build -t ag-api:ci .
+
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: test
+    runs-on: ubuntu-latest
+    concurrency:
+      group: production-api-deploy
+      cancel-in-progress: false
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.GCP_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ env.GCP_VM_IP }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Deploy to GCP VM
+        env:
+          SSH_KEY: ~/.ssh/deploy_key
+        run: |
+          SSH_CMD="ssh -i $SSH_KEY -o StrictHostKeyChecking=no ${{ env.GCP_VM_USER }}@${{ env.GCP_VM_IP }}"
+
+          echo "==> Pulling latest code..."
+          $SSH_CMD "
+            cd ${{ env.DEPLOY_PATH }}/app &&
+            git pull origin main
+          "
+
+          echo "==> Rebuilding Docker containers..."
+          $SSH_CMD "
+            cd ${{ env.DEPLOY_PATH }} &&
+            docker compose -f docker-compose.yml build web
+          "
+
+          echo "==> Restarting services..."
+          $SSH_CMD "
+            cd ${{ env.DEPLOY_PATH }} &&
+            docker compose -f docker-compose.yml up -d
+          "
+
+          echo "==> Waiting for health check..."
+          sleep 30
+
+          echo "==> Verifying deployment..."
+          curl -sf --max-time 15 "http://${{ env.GCP_VM_IP }}:8000/health/" || {
+            echo "Health check failed!"
+            exit 1
+          }
+
+          echo "==> Deployment successful!"
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
