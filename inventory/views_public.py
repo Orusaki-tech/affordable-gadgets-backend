@@ -1423,8 +1423,7 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
             )
 
             # Apply lightweight query-param filters early so they affect the list path too.
-            # NOTE: Some other filters (e.g. min/max price) rely on annotations not present on the
-            # list path; keep this block to fields that exist on Product.
+            # Price filters for list use inventory-unit Exists below (list path has no min/max annotations).
             product_type = self.request.query_params.get("type")
             if product_type:
                 queryset = queryset.filter(product_type=product_type)
@@ -1434,6 +1433,31 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
                 queryset = queryset.filter(brand__icontains=brand_filter)
 
             if is_list:
+                min_price_param = self.request.query_params.get("min_price")
+                max_price_param = self.request.query_params.get("max_price")
+                if min_price_param or max_price_param:
+                    try:
+                        unit_price_q = Q(
+                            sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+                            available_online=True,
+                            quantity__gt=0,
+                        )
+                        if min_price_param:
+                            unit_price_q &= Q(selling_price__gte=float(min_price_param))
+                        if max_price_param:
+                            unit_price_q &= Q(selling_price__lte=float(max_price_param))
+                        if brand:
+                            unit_price_q &= Q(brands=brand) | Q(brands__isnull=True)
+                        queryset = queryset.filter(
+                            Exists(
+                                InventoryUnit.objects.filter(
+                                    product_template_id=OuterRef("pk")
+                                ).filter(unit_price_q)
+                            )
+                        )
+                    except (ValueError, TypeError):
+                        pass
+
                 # List path: add annotations so serializer avoids Python iteration over prefetched rows.
                 now = django_timezone.now()
                 bundle_date_filter = (
@@ -1940,7 +1964,9 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
             if brand_filter:
                 queryset = queryset.filter(brand__icontains=brand_filter)
 
-            # Price range filtering
+            # Price range filtering (non-list paths that annotate min/max).
+            # Prefer starting-price band when annotations exist; keep overlap-friendly unit filter
+            # already applied earlier for the list path.
             min_price = self.request.query_params.get("min_price")
             max_price = self.request.query_params.get("max_price")
             if min_price:
@@ -1950,7 +1976,7 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
                     pass
             if max_price:
                 try:
-                    queryset = queryset.filter(max_price__lte=float(max_price))
+                    queryset = queryset.filter(min_price__lte=float(max_price))
                 except (ValueError, TypeError):
                     pass
 
