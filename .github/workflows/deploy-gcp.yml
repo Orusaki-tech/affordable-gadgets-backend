@@ -104,22 +104,26 @@ jobs:
         run: |
           SSH_CMD="ssh -i $SSH_KEY -o StrictHostKeyChecking=no ${{ env.GCP_VM_USER }}@${{ env.GCP_VM_IP }}"
 
+          echo "==> Configuring git safe directory..."
+          $SSH_CMD "sudo git config --global --add safe.directory ${{ env.DEPLOY_PATH }}/app"
+
           echo "==> Pulling latest code..."
           $SSH_CMD "
             cd ${{ env.DEPLOY_PATH }}/app &&
-            git pull origin main
+            sudo git fetch origin main &&
+            sudo git checkout -f origin/main
           "
 
           echo "==> Rebuilding Docker containers..."
           $SSH_CMD "
             cd ${{ env.DEPLOY_PATH }} &&
-            docker compose -f docker-compose.yml build web
+            sudo docker compose -f docker-compose.yml build web
           "
 
           echo "==> Restarting services..."
           $SSH_CMD "
             cd ${{ env.DEPLOY_PATH }} &&
-            docker compose -f docker-compose.yml up -d
+            sudo docker compose -f docker-compose.yml up -d
           "
 
           echo "==> Waiting for health check..."
