@@ -25,6 +25,7 @@ from inventory.models import (
     ProductArticle,
     ProductImage,
     ProductVariant,
+    ProductVideo,
     Promotion,
     Review,
     WishlistItem,
@@ -445,6 +446,7 @@ class PublicProductSerializer(serializers.ModelSerializer):
     average_rating = serializers.SerializerMethodField()
     primary_image = serializers.SerializerMethodField()
     product_video_file_url = serializers.SerializerMethodField()
+    videos = serializers.SerializerMethodField()
     tags = serializers.SerializerMethodField()
     has_active_bundle = serializers.SerializerMethodField()
     bundle_price_preview = serializers.SerializerMethodField()
@@ -483,6 +485,7 @@ class PublicProductSerializer(serializers.ModelSerializer):
             "slug",
             "product_video_url",
             "product_video_file_url",
+            "videos",
             "tags",
             "has_active_bundle",
             "bundle_price_preview",
@@ -535,6 +538,26 @@ class PublicProductSerializer(serializers.ModelSerializer):
 
             return get_video_url(obj.product_video_file)
         return None
+
+    @extend_schema_field(serializers.ListField(child=serializers.DictField()))
+    def get_videos(self, obj):
+        """Return ordered external video links for this product."""
+        rows = list(obj.videos.all()) if hasattr(obj, "videos") else []
+        if rows:
+            return [
+                {
+                    "id": video.id,
+                    "url": video.url,
+                    "title": video.title or "",
+                    "display_order": video.display_order,
+                }
+                for video in rows
+            ]
+        # Legacy fallback until backfill / related rows exist
+        legacy = (obj.product_video_url or "").strip()
+        if legacy:
+            return [{"id": None, "url": legacy, "title": "", "display_order": 0}]
+        return []
 
     @extend_schema_field(serializers.ListField(child=serializers.CharField()))
     def get_tags(self, obj):
@@ -1010,6 +1033,7 @@ class PublicProductListSerializer(PublicProductSerializer):
             "slug",
             "product_video_url",
             "product_video_file_url",
+            "videos",
             "has_active_bundle",
             "bundle_price_preview",
             "has_published_article",

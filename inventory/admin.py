@@ -25,6 +25,7 @@ from .models import (
     ProductImage,
     ProductReleaseDate,
     ProductVariant,
+    ProductVideo,
     Promotion,
     Review,
     Tag,
@@ -37,15 +38,17 @@ from .models import (
 class ProductImageInline(admin.TabularInline):
     """Inline for editing the images linked to a Product."""
 
-    # This model is the intermediate table (the images themselves)
     model = ProductImage
-    # Sets how many blank forms to show
     extra = 1
-    # Assuming ProductImage has a field named 'image' which holds the file.
-    # You can list other fields here too, like 'caption' or 'sort_order'.
-    fields = [
-        "image",
-    ]
+    fields = ["image"]
+
+
+class ProductVideoInline(admin.TabularInline):
+    """Inline for multiple YouTube/Vimeo links on a Product."""
+
+    model = ProductVideo
+    extra = 1
+    fields = ("url", "title", "display_order")
 
 
 class InventoryUnitImageInline(admin.TabularInline):
@@ -150,7 +153,13 @@ class ProductAdmin(admin.ModelAdmin):
     )
 
     # ADDED ProductImageInline and ProductArticleInline to the list of inlines
-    inlines = [ProductAccessoryInline, ProductImageInline, ProductArticleInline, ProductVariantInline]
+    inlines = [
+        ProductAccessoryInline,
+        ProductImageInline,
+        ProductVideoInline,
+        ProductArticleInline,
+        ProductVariantInline,
+    ]
 
     class Media:
         js = ("admin/js/char_counter.js",)

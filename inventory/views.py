@@ -1158,7 +1158,7 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                 Product.objects.filter(pk=pk)
                 .order_by("product_name")
                 .annotate(available_stock=available_stock_expr)
-                .prefetch_related("images", "brands", "tags", "articles")
+                .prefetch_related("images", "brands", "tags", "articles", "videos")
             )
 
         queryset = super().get_queryset()
@@ -1342,7 +1342,7 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
         # Reduce N+1: prefetch relations used by ProductSerializer (images, brands, tags)
         # Skip prefetch for stock_summary — only needs id, product_name, product_type; avoids 3 extra queries
         if self.action != "stock_summary":
-            queryset = queryset.prefetch_related("images", "brands", "tags", "articles")
+            queryset = queryset.prefetch_related("images", "brands", "tags", "articles", "videos")
         elif self.action == "stock_summary":
             queryset = queryset.only("id", "product_name", "product_type")
         return queryset
@@ -1775,6 +1775,7 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
             "is_published",
             "product_video_url",
             "product_video_file",
+            "videos",
             "tag_ids",
             "article",
         }

@@ -883,6 +883,7 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
         return Product.objects.filter(pk=pk).prefetch_related(
             "tags",
             "images",
+            "videos",
             available_units_prefetch,
             primary_images_prefetch,
             Prefetch("reviews", queryset=Review.objects.all(), to_attr="reviews_for_aggregates"),
@@ -1243,7 +1244,8 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
                 tagged_video = queryset.filter(tags__name__iexact="Video").distinct()
                 has_url = Q(product_video_url__isnull=False) & ~Q(product_video_url="")
                 has_file = Q(product_video_file__isnull=False) & ~Q(product_video_file="")
-                queryset = tagged_video.filter(has_url | has_file)
+                has_related = Q(videos__url__isnull=False) & ~Q(videos__url="")
+                queryset = tagged_video.filter(has_url | has_file | has_related).distinct()
 
             # Attach a lightweight boolean for UI chips ("Financing available") on list responses.
             financing_exists = FinancingOffer.objects.filter(

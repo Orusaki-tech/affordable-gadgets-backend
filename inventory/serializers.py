@@ -40,6 +40,7 @@ from .models import (
     ProductArticle,
     ProductImage,
     ProductVariant,
+    ProductVideo,
     Promotion,
     ReservationRequest,
     ReturnRequest,
@@ -712,6 +713,15 @@ class DiscountCalculatorSerializer(serializers.Serializer):
 
 
 # --- PRODUCT TEMPLATE SERIALIZER ---
+class ProductVideoSerializer(serializers.ModelSerializer):
+    """External video links attached to a product (YouTube/Vimeo/etc.)."""
+
+    class Meta:
+        model = ProductVideo
+        fields = ("id", "url", "title", "display_order")
+        read_only_fields = ("id",)
+
+
 class ProductImageSerializer(serializers.ModelSerializer):
     """
     Serializer for Product images.
@@ -1204,6 +1214,7 @@ class ProductSerializer(serializers.ModelSerializer):
     product_type_display = serializers.CharField(source="get_product_type_display", read_only=True)
     # images is a reverse relation (one-to-many from ProductImage), so it's read-only
     images = serializers.SerializerMethodField(read_only=True)
+    videos = ProductVideoSerializer(many=True, required=False)
     tags = TagSerializer(many=True, read_only=True)
     tag_ids = serializers.PrimaryKeyRelatedField(
         queryset=Tag.objects.all(), source="tags", many=True, write_only=True, required=False
@@ -1276,6 +1287,7 @@ class ProductSerializer(serializers.ModelSerializer):
             "product_video_url",
             "product_video_file",
             "product_video_file_url",
+            "videos",
             # Tags
             "tags",
             "tag_ids",
@@ -1435,13 +1447,47 @@ class ProductSerializer(serializers.ModelSerializer):
             return [str(parsed).strip()] if str(parsed).strip() else []
         return []
 
+    @staticmethod
+    def _coerce_product_videos(raw):
+        """Accept videos from JSON body (list) or multipart (JSON string)."""
+        if raw is None or raw == "":
+            return []
+        if isinstance(raw, str):
+            try:
+                raw = json.loads(raw)
+            except json.JSONDecodeError:
+                url = raw.strip()
+                return [{"url": url, "title": "", "display_order": 0}] if url else []
+        if not isinstance(raw, list):
+            return []
+        rows = []
+        for index, item in enumerate(raw):
+            if isinstance(item, str):
+                url = item.strip()
+                if url:
+                    rows.append({"url": url, "title": "", "display_order": index})
+                continue
+            if not isinstance(item, dict):
+                continue
+            url = str(item.get("url") or "").strip()
+            if not url:
+                continue
+            title = str(item.get("title") or "").strip()
+            display_order = item.get("display_order", index)
+            try:
+                display_order = int(display_order)
+            except (TypeError, ValueError):
+                display_order = index
+            rows.append({"url": url, "title": title, "display_order": display_order})
+        return rows
+
     def to_internal_value(self, data):
         # Multipart clients often send JSONField values as strings (or repeated keys).
         # Convert QueryDict to a plain dict first so we can store a real list value.
         if hasattr(data, "lists"):
             plain = {}
             for key, values in data.lists():
-                if key == "product_highlights":
+                if key in ("product_highlights", "videos"):
                     continue
                 plain[key] = values[0] if len(values) == 1 else values
             if "product_highlights" in data:
@@ -1450,17 +1496,26 @@ class ProductSerializer(serializers.ModelSerializer):
                     plain["product_highlights"] = self._coerce_product_highlights(values[0])
                 else:
                     plain["product_highlights"] = self._coerce_product_highlights(values)
+            if "videos" in data:
+                values = data.getlist("videos")
+                plain["videos"] = self._coerce_product_videos(
+                    values[0] if len(values) == 1 else values
+                )
             data = plain
-        elif isinstance(data, dict) and "product_highlights" in data:
+        elif isinstance(data, dict):
             plain = dict(data)
-            plain["product_highlights"] = self._coerce_product_highlights(
-                plain.get("product_highlights")
-            )
+            if "product_highlights" in plain:
+                plain["product_highlights"] = self._coerce_product_highlights(
+                    plain.get("product_highlights")
+                )
+            if "videos" in plain:
+                plain["videos"] = self._coerce_product_videos(plain.get("videos"))
             data = plain
         return super().to_internal_value(data)
 
     def create(self, validated_data):
         article_data = validated_data.pop("article", serializers.empty)
+        videos_data = validated_data.pop("videos", serializers.empty)
         og_image = validated_data.pop("og_image", None)
         product_video_file = validated_data.pop("product_video_file", None)
 
@@ -1483,6 +1538,14 @@ class ProductSerializer(serializers.ModelSerializer):
         if og_image or product_video_file:
             instance.save()
 
+        if videos_data is not serializers.empty:
+            self._replace_product_videos(instance, videos_data)
+        elif instance.product_video_url:
+            # Keep legacy single-URL field in sync as the first related video.
+            self._replace_product_videos(
+                instance, [{"url": instance.product_video_url, "title": "", "display_order": 0}]
+            )
+
         if article_data is not serializers.empty:
             ser = ProductArticleSerializer(data=article_data)
             ser.is_valid(raise_exception=True)
@@ -1504,8 +1567,43 @@ class ProductSerializer(serializers.ModelSerializer):
             ser.is_valid(raise_exception=True)
             ser.save()
 
+    def _replace_product_videos(self, instance, videos_data):
+        """Replace all ProductVideo rows and sync legacy product_video_url."""
+        rows = videos_data if isinstance(videos_data, list) else []
+        instance.videos.all().delete()
+        to_create = []
+        for index, row in enumerate(rows):
+            if not isinstance(row, dict):
+                continue
+            url = str(row.get("url") or "").strip()
+            if not url:
+                continue
+            title = str(row.get("title") or "").strip()
+            display_order = row.get("display_order", index)
+            try:
+                display_order = int(display_order)
+            except (TypeError, ValueError):
+                display_order = index
+            to_create.append(
+                ProductVideo(
+                    product=instance,
+                    url=url,
+                    title=title,
+                    display_order=display_order,
+                )
+            )
+        if to_create:
+            ProductVideo.objects.bulk_create(to_create)
+        first = instance.videos.order_by("display_order", "id").first()
+        new_url = first.url if first else None
+        if instance.product_video_url != new_url:
+            instance.product_video_url = new_url
+            instance.save(update_fields=["product_video_url"])
+
     def update(self, instance, validated_data):
         article_data = validated_data.pop("article", serializers.empty)
+        videos_data = validated_data.pop("videos", serializers.empty)
+        legacy_url_updated = "product_video_url" in validated_data
         og_image = validated_data.pop("og_image", None)
         product_video_file = validated_data.pop("product_video_file", None)
 
@@ -1533,6 +1631,16 @@ class ProductSerializer(serializers.ModelSerializer):
 
         if og_image is not None or product_video_file is not None:
             instance.save()
+
+        if videos_data is not serializers.empty:
+            self._replace_product_videos(instance, videos_data)
+        elif legacy_url_updated and not instance.videos.exists():
+            # Legacy single-field write: seed related videos when none exist yet.
+            url = (instance.product_video_url or "").strip()
+            if url:
+                self._replace_product_videos(
+                    instance, [{"url": url, "title": "", "display_order": 0}]
+                )
 
         if article_data is not serializers.empty:
             self._upsert_primary_article(instance, article_data)

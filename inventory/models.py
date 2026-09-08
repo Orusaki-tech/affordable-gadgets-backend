@@ -953,6 +953,35 @@ class ProductImage(models.Model):
         return f"Image for {self.product.product_name} (ID: {self.id})"
 
 
+class ProductVideo(models.Model):
+    """Stores one external video link (YouTube/Vimeo/etc.) for a Product."""
+
+    product = models.ForeignKey(Product, related_name="videos", on_delete=models.CASCADE)
+    url = models.URLField(
+        max_length=500,
+        help_text="Link to product video (YouTube, Shorts, youtu.be, Vimeo, etc.)",
+    )
+    title = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Optional label shown with the video",
+    )
+    display_order = models.IntegerField(
+        default=0,
+        help_text="Order in which videos should be displayed (lower numbers first)",
+    )
+
+    class Meta:
+        ordering = ["display_order", "id"]
+        indexes = [
+            models.Index(fields=["product", "display_order"]),
+        ]
+
+    def __str__(self):
+        label = self.title or self.url
+        return f"Video for {self.product.product_name}: {label}"
+
+
 class ProductAccessory(models.Model):
     """Links a product TEMPLATE to an Accessory TEMPLATE.
     Allows all product types (phones, laptops, tablets, and accessories) to have accessories.
