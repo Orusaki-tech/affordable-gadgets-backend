@@ -12723,6 +12723,10 @@ components:
           readOnly: true
           nullable: true
           description: Product hero image fallback when article has no thumbnail
+        opening_words:
+          type: string
+          readOnly: true
+          description: First prose words of the article body for homepage card CTAs
     PublicBundle:
       type: object
       properties:
