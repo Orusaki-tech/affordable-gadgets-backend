@@ -1,6 +1,7 @@
 """Public API serializers for e-commerce frontend."""
 
 import logging
+import re
 from decimal import Decimal
 
 from django.core.exceptions import ObjectDoesNotExist
@@ -358,6 +359,7 @@ class PublicArticleCardSerializer(serializers.ModelSerializer):
     product_primary_image = serializers.SerializerMethodField()
     products = serializers.SerializerMethodField()
     thumbnail_image = serializers.SerializerMethodField()
+    opening_words = serializers.SerializerMethodField()
 
     class Meta:
         model = ProductArticle
@@ -374,6 +376,7 @@ class PublicArticleCardSerializer(serializers.ModelSerializer):
             "product_type",
             "product_brand",
             "products",
+            "opening_words",
         )
         read_only_fields = fields
 
@@ -401,6 +404,32 @@ class PublicArticleCardSerializer(serializers.ModelSerializer):
             {"id": p.id, "product_name": p.product_name, "slug": p.slug}
             for p in obj.associated_products()
         ]
+
+    @extend_schema_field(serializers.CharField())
+    def get_opening_words(self, obj):
+        """First prose words of the article body for card CTAs (not 'Read Guide')."""
+        body = (obj.body or "").strip()
+        if not body:
+            headline = (obj.headline or "").strip()
+            words = headline.split()[:7]
+            return " ".join(words) + ("…" if len(headline.split()) > 7 else "")
+
+        paragraphs = [
+            p.strip()
+            for p in re.split(r"\n\s*\n", body)
+            if p.strip() and not p.strip().startswith("#")
+        ]
+        first = paragraphs[0] if paragraphs else body
+        first = re.sub(r"^#+\s*", "", first, flags=re.M)
+        first = re.sub(r"!\[[^\]]*\]\([^)]*\)", " ", first)
+        first = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", first)
+        first = re.sub(r"[*_`>#]+", " ", first)
+        first = re.sub(r"\s+", " ", first).strip()
+        words = first.split()
+        if not words:
+            return "Read article"
+        take = words[:7]
+        return " ".join(take) + ("…" if len(words) > 7 else "")
 
     @extend_schema_field(serializers.URLField(allow_null=True))
     def get_product_primary_image(self, obj):
