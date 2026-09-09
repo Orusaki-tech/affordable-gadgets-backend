@@ -40,6 +40,7 @@ from inventory.models import (
     Customer,
     DeliveryRate,
     FinancingOffer,
+    FinancingProvider,
     InventoryUnit,
     InventoryUnitImage,
     Lead,
@@ -67,6 +68,7 @@ from inventory.serializers_public import (
     OrderOtpRequestSerializer,
     PublicBundleSerializer,
     PublicDeliveryRateSerializer,
+    PublicFinancingProviderSerializer,
     PublicInventoryUnitSerializer,
     PublicOrderSerializer,
     PublicProductArticleSerializer,
@@ -2788,6 +2790,22 @@ class ReviewOtpView(_PublicAPIMixin, APIView):
                 status_code = status.HTTP_503_SERVICE_UNAVAILABLE
             return Response(result, status=status_code)
         return Response(result)
+
+
+@extend_schema(
+    responses={200: PublicFinancingProviderSerializer(many=True)},
+)
+class PublicFinancingProviderListView(_PublicAPIMixin, APIView):
+    """List active BNPL financing partners for the storefront."""
+
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        providers = FinancingProvider.objects.filter(is_active=True).order_by("name")
+        serializer = PublicFinancingProviderSerializer(
+            providers, many=True, context={"request": request}
+        )
+        return Response(serializer.data)
 
 
 @extend_schema(request=FinancingInquiryRequestSerializer, responses=OpenApiTypes.OBJECT)

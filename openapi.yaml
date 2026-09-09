@@ -6834,6 +6834,23 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/v1/public/financing/providers/:
+    get:
+      operationId: api_v1_public_financing_providers_list
+      description: List active BNPL financing partners for the storefront.
+      tags:
+      - api
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PublicFinancingProvider'
+          description: ''
   /api/v1/public/financing/inquiry/:
     post:
       operationId: api_v1_public_financing_inquiry_create
@@ -8898,6 +8915,32 @@ components:
           readOnly: true
       required:
       - name
+    PublicFinancingProvider:
+      type: object
+      description: Active BNPL partners for the storefront homepage and financing pages.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 100
+          readOnly: true
+        slug:
+          type: string
+          maxLength: 120
+          pattern: ^[-a-zA-Z0-9_]+$
+          readOnly: true
+        logo_url:
+          type: string
+          format: uri
+          nullable: true
+          readOnly: true
+      required:
+      - id
+      - name
+      - slug
+      - logo_url
     FinancingProviderRequest:
       type: object
       description: Serializer for BNPL financing providers.

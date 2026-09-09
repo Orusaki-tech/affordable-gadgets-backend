@@ -17,6 +17,7 @@ from inventory.models import (
     CartItem,
     DeliveryRate,
     FinancingOffer,
+    FinancingProvider,
     InventoryUnit,
     Lead,
     LeadItem,
@@ -34,6 +35,24 @@ from inventory.models import (
 from inventory.services.interest_service import InterestService
 
 logger = logging.getLogger(__name__)
+
+
+class PublicFinancingProviderSerializer(serializers.ModelSerializer):
+    """Active BNPL partners for the storefront homepage and financing pages."""
+
+    logo_url = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = FinancingProvider
+        fields = ["id", "name", "slug", "logo_url"]
+
+    @extend_schema_field(serializers.URLField(allow_null=True))
+    def get_logo_url(self, obj):
+        if obj.logo:
+            from inventory.cloudinary_utils import get_optimized_image_url
+
+            return get_optimized_image_url(obj.logo, width=200, height=200, crop="fit")
+        return None
 
 
 class PublicFinancingOfferSerializer(serializers.ModelSerializer):

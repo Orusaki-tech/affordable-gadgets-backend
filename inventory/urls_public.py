@@ -26,6 +26,11 @@ urlpatterns = [
     # Public event recording (no auth required, for frontend analytics tracking)
     path("events/", views.RecordEventView.as_view(), name="public-record-event"),
     path(
+        "financing/providers/",
+        views_public.PublicFinancingProviderListView.as_view(),
+        name="public-financing-providers",
+    ),
+    path(
         "financing/inquiry/",
         views_public.PublicFinancingInquiryView.as_view(),
         name="public-financing-inquiry",
