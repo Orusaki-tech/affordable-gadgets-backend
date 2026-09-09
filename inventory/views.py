@@ -4749,6 +4749,15 @@ class SupabaseAuthView(APIView):
                 user.save(update_fields=["supabase_uid"])
 
         # Auto-create user for first-time Google sign-in
+        meta = supabase_user.get("user_metadata") or {}
+        full_name = (meta.get("full_name") or meta.get("name") or "").strip()
+        given_name = (meta.get("given_name") or meta.get("first_name") or "").strip()
+        family_name = (meta.get("family_name") or meta.get("last_name") or "").strip()
+        if not given_name and full_name:
+            parts = full_name.split()
+            given_name = parts[0] if parts else ""
+            family_name = family_name or (" ".join(parts[1:]) if len(parts) > 1 else "")
+
         if not user and email:
             username = email.split("@")[0]
             base_username = username
@@ -4760,6 +4769,8 @@ class SupabaseAuthView(APIView):
                 username=username,
                 email=email,
                 supabase_uid=supabase_id,
+                first_name=given_name[:150],
+                last_name=family_name[:150],
                 utm_source=request.data.get("utm_source", ""),
                 utm_medium=request.data.get("utm_medium", ""),
                 utm_campaign=request.data.get("utm_campaign", ""),
@@ -4767,6 +4778,17 @@ class SupabaseAuthView(APIView):
             )
             user.set_unusable_password()
             user.save()
+        elif user and (given_name or family_name):
+            # Backfill Google display name when the account has none yet.
+            name_updates = []
+            if given_name and not (user.first_name or "").strip():
+                user.first_name = given_name[:150]
+                name_updates.append("first_name")
+            if family_name and not (user.last_name or "").strip():
+                user.last_name = family_name[:150]
+                name_updates.append("last_name")
+            if name_updates:
+                user.save(update_fields=name_updates)
 
         if not user:
             return Response(
@@ -4810,6 +4832,8 @@ class SupabaseAuthView(APIView):
                 "id": user.id,
                 "username": user.username,
                 "email": user.email,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
                 "is_staff": user.is_staff,
                 "is_superuser": user.is_superuser,
             },
