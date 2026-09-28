@@ -1241,6 +1241,16 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
         if brand:
             queryset = queryset.filter(brand__icontains=brand)
 
+        tag = self.request.query_params.get("tag") or self.request.query_params.get("tags")
+        if tag:
+            # Studio section pickers: match tag by name or slug (e.g. Featured / featured).
+            tag_tokens = [t.strip() for t in str(tag).split(",") if t.strip()]
+            if tag_tokens:
+                tag_query = Q()
+                for token in tag_tokens:
+                    tag_query |= Q(tags__slug__iexact=token) | Q(tags__name__iexact=token)
+                queryset = queryset.filter(tag_query).distinct()
+
         stock_status = self.request.query_params.get("stock_status")
         if stock_status:
             if stock_status == "discontinued":
@@ -1832,6 +1842,58 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
 
         return Response(serializer.data)
 
+    @extend_schema(
+        request={
+            "application/json": {
+                "type": "object",
+                "properties": {
+                    "names": {"type": "array", "items": {"type": "string"}},
+                    "slugs": {"type": "array", "items": {"type": "string"}},
+                    "name": {"type": "string"},
+                    "slug": {"type": "string"},
+                },
+            }
+        }
+    )
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="remove_tags",
+        permission_classes=[IsContentCreatorOrInventoryManager],
+    )
+    def remove_tags(self, request, pk=None):
+        """
+        Remove tags by name and/or slug (case-insensitive).
+        Safer than PATCH tag_ids=[] for Studio Featured/Video Remove.
+        """
+        product = self.get_object()
+        names = [str(n).strip() for n in (request.data.get("names") or []) if str(n).strip()]
+        slugs = [str(s).strip() for s in (request.data.get("slugs") or []) if str(s).strip()]
+        if request.data.get("name"):
+            names.append(str(request.data.get("name")).strip())
+        if request.data.get("slug"):
+            slugs.append(str(request.data.get("slug")).strip())
+        names = [n for n in names if n]
+        slugs = [s for s in slugs if s]
+        if not names and not slugs:
+            raise exceptions.ValidationError(
+                {"detail": "Provide name(s) and/or slug(s) of tags to remove."}
+            )
+
+        match = Q()
+        for name in names:
+            match |= Q(name__iexact=name) | Q(slug__iexact=name)
+        for slug in slugs:
+            match |= Q(slug__iexact=slug) | Q(name__iexact=slug)
+        to_remove = list(product.tags.filter(match))
+        if to_remove:
+            product.tags.remove(*to_remove)
+            product.updated_by = request.user
+            product.save(update_fields=["updated_by", "updated_at"])
+
+        serializer = self.get_serializer(product)
+        return Response(serializer.data)
+
     @action(
         detail=True,
         methods=["get"],
@@ -1929,7 +1991,7 @@ class ProductImageViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
 class ProductArticleViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     """CRUD for product buying guides / blog articles."""
 
-    queryset = ProductArticle.objects.all().select_related("product").prefetch_related("images", "products")
+    queryset = ProductArticle.objects.all().select_related("product").prefetch_related("images", "products", "tags")
     serializer_class = ProductArticleSerializer
     permission_classes = [IsContentCreatorOrInventoryManagerOrReadOnly]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
@@ -1946,6 +2008,18 @@ class ProductArticleViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     def perform_create(self, serializer):
         article = serializer.save()
         ProductArticleTombstone.clear(product_id=article.product_id, slug=article.slug)
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        tag = self.request.query_params.get("tag") or self.request.query_params.get("tags")
+        if tag:
+            tag_tokens = [t.strip() for t in str(tag).split(",") if t.strip()]
+            if tag_tokens:
+                tag_query = Q()
+                for token in tag_tokens:
+                    tag_query |= Q(tags__slug__iexact=token) | Q(tags__name__iexact=token)
+                queryset = queryset.filter(tag_query).distinct()
+        return queryset
 
 
 class ArticleImageViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
