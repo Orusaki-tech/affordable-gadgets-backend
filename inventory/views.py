@@ -7275,7 +7275,13 @@ class PromotionViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                 if hasattr(self.request.data, "_mutable"):
                     self.request.data._mutable = False
 
-        valid_locations = ["stories_carousel", "special_offers", "flash_sales", "homepage_hero"]
+        valid_locations = [
+            "stories_carousel",
+            "special_offers",
+            "flash_sales",
+            "homepage_hero",
+            "cbd_ribbon",
+        ]
         invalid_locations = [loc for loc in display_locations if loc not in valid_locations]
         if invalid_locations:
             from rest_framework.exceptions import ValidationError

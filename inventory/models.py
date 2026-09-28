@@ -2546,7 +2546,7 @@ class Promotion(models.Model):
     )
     display_locations = models.JSONField(
         default=list,
-        help_text="List of display locations: 'stories_carousel', 'special_offers', 'flash_sales', 'homepage_hero'",
+        help_text="List of display locations: 'stories_carousel', 'special_offers', 'flash_sales', 'homepage_hero', 'cbd_ribbon'",
     )
     carousel_position = models.IntegerField(
         null=True,

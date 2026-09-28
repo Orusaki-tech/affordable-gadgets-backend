@@ -442,6 +442,7 @@ DISPLAY_LOCATION_CHOICES = [
     ("special_offers", "Special offers"),
     ("flash_sales", "Flash sales"),
     ("homepage_hero", "Homepage hero"),
+    ("cbd_ribbon", "CBD ribbon"),
 ]
 
 
