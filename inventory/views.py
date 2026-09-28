@@ -1374,8 +1374,8 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
             from .permissions import IsContentCreatorOrInventoryManager
 
             return [IsContentCreatorOrInventoryManager()]
-        if self.action == "update_content":
-            # Content Creators and Inventory Managers can update content fields
+        if self.action in ["update_content", "remove_tags"]:
+            # Content Creators and Inventory Managers can update content fields / section tags
             from .permissions import IsContentCreatorOrInventoryManager
 
             return [IsContentCreatorOrInventoryManager()]
