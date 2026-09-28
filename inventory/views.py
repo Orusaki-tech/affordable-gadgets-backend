@@ -7197,8 +7197,17 @@ class PromotionViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
         featured_product_id = self.request.data.get("featured_product")
         has_featured_product = bool(featured_product_id)
         product_types = self.request.data.get("product_types", "")
+        raw_locations = self.request.data.get("display_locations", [])
+        if isinstance(raw_locations, str):
+            try:
+                import json
 
-        if not has_products and not has_featured_product and not product_types:
+                raw_locations = json.loads(raw_locations)
+            except (json.JSONDecodeError, ValueError, TypeError):
+                raw_locations = []
+        is_brand_banner = isinstance(raw_locations, list) and "brand_banner" in raw_locations
+
+        if not has_products and not has_featured_product and not product_types and not is_brand_banner:
             from rest_framework.exceptions import ValidationError
 
             raise ValidationError(
@@ -7281,6 +7290,7 @@ class PromotionViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
             "flash_sales",
             "homepage_hero",
             "cbd_ribbon",
+            "brand_banner",
         ]
         invalid_locations = [loc for loc in display_locations if loc not in valid_locations]
         if invalid_locations:
@@ -7294,8 +7304,8 @@ class PromotionViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                 }
             )
 
-        # Validate: banner_image required for stories_carousel
-        if "stories_carousel" in display_locations:
+        # Validate: banner_image required for stories_carousel / brand_banner
+        if "stories_carousel" in display_locations or "brand_banner" in display_locations:
             banner_image = self.request.data.get("banner_image")
             if not banner_image and not serializer.instance:
                 from rest_framework.exceptions import ValidationError
@@ -7303,7 +7313,7 @@ class PromotionViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                 raise ValidationError(
                     {
                         "banner_image": [
-                            "Banner image is required when selecting Stories Carousel as a display location."
+                            "Banner image is required for Stories Carousel or Brand products banner."
                         ]
                     }
                 )
@@ -7313,7 +7323,7 @@ class PromotionViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                 raise ValidationError(
                     {
                         "banner_image": [
-                            "Banner image is required when selecting Stories Carousel as a display location."
+                            "Banner image is required for Stories Carousel or Brand products banner."
                         ]
                     }
                 )
@@ -7671,7 +7681,26 @@ class PromotionViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                     "product_types", instance.product_types if instance else ""
                 )
 
-                if not has_products and not has_featured_product and not product_types:
+                update_locations = self.request.data.get("display_locations")
+                if update_locations is None and instance:
+                    update_locations = instance.display_locations or []
+                elif isinstance(update_locations, str):
+                    try:
+                        import json
+
+                        update_locations = json.loads(update_locations)
+                    except (json.JSONDecodeError, ValueError, TypeError):
+                        update_locations = []
+                is_brand_banner = (
+                    isinstance(update_locations, list) and "brand_banner" in update_locations
+                )
+
+                if (
+                    not has_products
+                    and not has_featured_product
+                    and not product_types
+                    and not is_brand_banner
+                ):
                     from rest_framework.exceptions import ValidationError
 
                     raise ValidationError(
@@ -7775,7 +7804,24 @@ class PromotionViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
             "product_types", instance.product_types if instance else ""
         )
 
-        if not has_products and not has_featured_product and not product_types:
+        update_locations = self.request.data.get("display_locations")
+        if update_locations is None and instance:
+            update_locations = instance.display_locations or []
+        elif isinstance(update_locations, str):
+            try:
+                import json
+
+                update_locations = json.loads(update_locations)
+            except (json.JSONDecodeError, ValueError, TypeError):
+                update_locations = []
+        is_brand_banner = isinstance(update_locations, list) and "brand_banner" in update_locations
+
+        if (
+            not has_products
+            and not has_featured_product
+            and not product_types
+            and not is_brand_banner
+        ):
             from rest_framework.exceptions import ValidationError
 
             raise ValidationError(

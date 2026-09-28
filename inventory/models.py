@@ -2546,7 +2546,16 @@ class Promotion(models.Model):
     )
     display_locations = models.JSONField(
         default=list,
-        help_text="List of display locations: 'stories_carousel', 'special_offers', 'flash_sales', 'homepage_hero', 'cbd_ribbon'",
+        help_text=(
+            "List of display locations: 'stories_carousel', 'special_offers', 'flash_sales', "
+            "'homepage_hero', 'cbd_ribbon', 'brand_banner'"
+        ),
+    )
+    listing_brand = models.CharField(
+        max_length=64,
+        blank=True,
+        default="",
+        help_text="Product brand filter for brand_banner (e.g. Apple, Samsung). Matches /products?brand_filter=…",
     )
     carousel_position = models.IntegerField(
         null=True,

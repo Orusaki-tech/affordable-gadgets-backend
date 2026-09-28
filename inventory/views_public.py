@@ -3520,6 +3520,10 @@ class PublicPromotionViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOn
                     location_query |= Q(display_locations__contains=[location])
                 queryset = queryset.filter(location_query)
 
+        listing_brand = (self.request.query_params.get("listing_brand") or "").strip()
+        if listing_brand:
+            queryset = queryset.filter(listing_brand__iexact=listing_brand)
+
         return queryset
 
 

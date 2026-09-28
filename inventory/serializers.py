@@ -4282,6 +4282,7 @@ class PromotionSerializer(serializers.ModelSerializer):
             "banner_image_url",
             "promotion_code",
             "display_locations",
+            "listing_brand",
             "carousel_position",
             "discount_percentage",
             "discount_amount",

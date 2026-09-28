@@ -1428,6 +1428,7 @@ class PublicPromotionSerializer(serializers.ModelSerializer):
             "is_currently_active",
             "product_types",
             "display_locations",
+            "listing_brand",
             "carousel_position",
             "products",
             "featured_product",

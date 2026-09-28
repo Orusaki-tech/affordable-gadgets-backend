@@ -443,6 +443,7 @@ DISPLAY_LOCATION_CHOICES = [
     ("flash_sales", "Flash sales"),
     ("homepage_hero", "Homepage hero"),
     ("cbd_ribbon", "CBD ribbon"),
+    ("brand_banner", "Brand products banner"),
 ]
 
 
@@ -514,8 +515,8 @@ class PromotionAdmin(admin.ModelAdmin):
         (
             "Display & placement",
             {
-                "fields": ("display_locations", "carousel_position", "promotion_code"),
-                "description": "Tick 'Homepage hero' to show this promotion in the homepage hero carousel. Use carousel_position to control order (lower = earlier).",
+                "fields": ("display_locations", "listing_brand", "carousel_position", "promotion_code"),
+                "description": "Tick 'Homepage hero' or 'Brand products banner'. For brand banners, set listing_brand to Apple/Samsung/etc.",
             },
         ),
     )
