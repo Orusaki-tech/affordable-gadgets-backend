@@ -38,9 +38,10 @@ Shop deploy needs GCP billing enabled on the Artifact Registry project. If push 
 - Batch `038-apple-m5-ai-guide` — M5 AI guide on MacBook/iPad products
 
 ## Studio curation notes
-- Homepage Featured products / videos / blogs are **tag-driven** (`Featured`, `Video` on products; `Featured` on articles)
-- Studio Remove uses `POST /api/inventory/products/{id}/remove_tags/` (by name/slug) so clears stick
-- Public `featured=1` / `homepage_videos=1` do **not** invent untagged fallbacks
+- Homepage Featured products / videos / blogs are **tag-driven only** (`Featured`, `Video` on products; `Featured` on articles)
+- The Featured Product Highlights carousel and Studio “Currently featured” list both use public `?featured=1` — never invent untagged products
+- Studio Remove uses `POST /api/inventory/products/{id}/remove_tags/` (by name/slug), with `update_content` tag_ids fallback if that route is not live yet
+- Public `featured=1` / `homepage_videos=1` do **not** fall back to untagged catalog rows
 
 ## Datasource auth fix
 If Grafana panels show **Datasource Reachable / Auth Token Valid = Unreachable**:
