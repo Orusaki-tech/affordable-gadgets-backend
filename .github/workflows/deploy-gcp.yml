@@ -12,7 +12,7 @@ on:
       - '.github/workflows/monitoring-watchdog.yml'
 
 env:
-  GCP_VM_IP: 34.26.82.94
+  GCP_VM_IP: 35.237.10.17
   GCP_VM_USER: shwariaccessories
   DEPLOY_PATH: /opt/affordable-gadgets
 
