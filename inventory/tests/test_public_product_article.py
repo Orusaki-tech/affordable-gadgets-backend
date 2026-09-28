@@ -86,7 +86,7 @@ class PublicArticleListApiTests(APITestCase):
             slug="carousel-product",
             is_published=True,
         )
-        ProductArticle.objects.create(
+        self.article = ProductArticle.objects.create(
             product=self.product,
             slug=slugify("Carousel headline"),
             headline="Carousel headline",
@@ -103,42 +103,32 @@ class PublicArticleListApiTests(APITestCase):
         results = response.data.get("results") or response.data
         self.assertTrue(any(row["headline"] == "Carousel headline" for row in results))
 
-    def test_featured_articles_match_featured_products(self):
+    def test_featured_articles_require_article_tag(self):
+        """featured=1 returns only articles tagged Featured — not product-tag fallback."""
         featured_tag, _ = Tag.objects.get_or_create(name="Featured", defaults={"slug": "featured"})
-        non_featured = Product.objects.create(
-            product_name="Non Featured Phone",
-            brand="OtherBrand",
-            model_series="NF",
-            product_type=Product.ProductType.PHONE,
-            slug="non-featured-phone",
-            is_published=True,
-        )
-        ProductArticle.objects.create(
-            product=non_featured,
-            slug="non-featured-guide",
-            headline="Non featured guide",
+        untagged = ProductArticle.objects.create(
+            product=self.product,
+            slug="untagged-guide",
+            headline="Untagged guide",
             body="body",
             is_published=True,
-            is_primary=True,
+            is_primary=False,
         )
         self.product.tags.add(featured_tag)
-        featured_only = Product.objects.create(
-            product_name="Featured No Article",
-            brand="CarouselBrand",
-            model_series="M2",
-            product_type=Product.ProductType.PHONE,
-            slug="featured-no-article",
-            is_published=True,
-        )
-        featured_only.tags.add(featured_tag)
 
         url = reverse("public-article-list")
-        response = self.client.get(url, {"featured": "1"})
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        results = response.data.get("results") or response.data
+        empty = self.client.get(url, {"featured": "1"})
+        self.assertEqual(empty.status_code, status.HTTP_200_OK)
+        empty_results = empty.data.get("results") or empty.data
+        self.assertEqual(len(empty_results), 0)
+
+        self.article.tags.add(featured_tag)
+        tagged = self.client.get(url, {"featured": "1"})
+        self.assertEqual(tagged.status_code, status.HTTP_200_OK)
+        results = tagged.data.get("results") or tagged.data
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0]["headline"], "Carousel headline")
-        self.assertEqual(results[0]["product_slug"], "carousel-product")
+        self.assertNotIn(untagged.id, [row["id"] for row in results])
 
     def test_slug_uniqueness_per_product(self):
         ProductArticle.objects.create(

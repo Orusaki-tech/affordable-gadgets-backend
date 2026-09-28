@@ -1236,11 +1236,15 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
             # Normal queryset filtering for list views
             queryset = super().get_queryset()
             brand = getattr(self.request, "brand", None)
-            # Featured: only products tagged "Featured" (no untagged fallback).
+            # Featured: only products tagged "Featured" (name or slug; no untagged fallback).
             if self.request.query_params.get("featured") in ("1", "true", "yes"):
-                queryset = queryset.filter(tags__name__iexact="Featured").distinct()
+                queryset = queryset.filter(
+                    Q(tags__name__iexact="Featured") | Q(tags__slug__iexact="featured")
+                ).distinct()
             elif self.request.query_params.get("homepage_videos") in ("1", "true", "yes"):
-                tagged_video = queryset.filter(tags__name__iexact="Video").distinct()
+                tagged_video = queryset.filter(
+                    Q(tags__name__iexact="Video") | Q(tags__slug__iexact="video")
+                ).distinct()
                 has_url = Q(product_video_url__isnull=False) & ~Q(product_video_url="")
                 has_file = Q(product_video_file__isnull=False) & ~Q(product_video_file="")
                 has_related = Q(videos__url__isnull=False) & ~Q(videos__url="")
@@ -3609,7 +3613,7 @@ class PublicProductAccessoryViewSet(_PublicAPIMixin, inventory_views.ProductAcce
                 "featured",
                 OpenApiTypes.BOOL,
                 OpenApiParameter.QUERY,
-                description='If true, return one published article per product tagged "Featured", in the same order as the featured products carousel.',
+                description='If true, return only articles tagged "Featured" (no product-tag fallback).',
             ),
         ]
     )
@@ -3690,57 +3694,23 @@ class PublicArticleViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
 
         tag = self.request.query_params.get("tag") or self.request.query_params.get("tags")
         if tag:
-            # Support comma-separated tags (e.g., ?tag=featured,trending)
-            tag_slugs = [t.strip() for t in tag.split(",") if t.strip()]
-            if tag_slugs:
-                queryset = queryset.filter(tags__slug__in=tag_slugs).distinct()
+            # Support comma-separated tags; match slug OR name (Studio uses Featured/featured).
+            tag_tokens = [t.strip() for t in tag.split(",") if t.strip()]
+            if tag_tokens:
+                tag_query = Q()
+                for token in tag_tokens:
+                    tag_query |= Q(tags__slug__iexact=token) | Q(tags__name__iexact=token)
+                queryset = queryset.filter(tag_query).distinct()
 
         if self.request.query_params.get("featured") in ("1", "true", "yes"):
-            tagged_articles_qs = queryset.filter(tags__name__iexact="Featured").distinct()
-            if tagged_articles_qs.exists():
-                return tagged_articles_qs.order_by("-published_at", "-is_primary", "id")
-
-            from inventory.product_ordering import apply_product_ordering
-
-            featured_products = Product.objects.filter(
-                is_published=True, tags__name__iexact="Featured"
-            ).distinct()
-            if brand:
-                featured_products = featured_products.filter(
-                    Q(brands=brand) | Q(is_global=True) | Q(brands__isnull=True)
-                ).distinct()
-            featured_product_ids = list(
-                apply_product_ordering(
-                    featured_products, self.request.query_params.get("ordering")
-                ).values_list("id", flat=True)
-            )
-            if not featured_product_ids:
-                return queryset.none()
-
-            article_ids: list[int] = []
-            for product_id in featured_product_ids:
-                article_id = (
-                    queryset.filter(product_id=product_id)
-                    .order_by("-is_primary", "-published_at", "id")
-                    .values_list("id", flat=True)
-                    .first()
+            # Studio curation only — no fallback to "one article per Featured product".
+            return (
+                queryset.filter(
+                    Q(tags__name__iexact="Featured") | Q(tags__slug__iexact="featured")
                 )
-                if article_id is not None:
-                    article_ids.append(article_id)
-
-            if not article_ids:
-                return queryset.none()
-
-            preserved = Case(
-                *[
-                    When(pk=article_id, then=position)
-                    for position, article_id in enumerate(article_ids)
-                ],
-                output_field=IntegerField(),
+                .distinct()
+                .order_by("-published_at", "-is_primary", "id")
             )
-            return queryset.filter(id__in=article_ids).annotate(
-                _featured_order=preserved
-            ).order_by("_featured_order")
 
         ordering = self.request.query_params.get("ordering")
         if ordering in {"release_date", "-release_date", "published_at", "-published_at"}:
