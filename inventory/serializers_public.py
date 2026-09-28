@@ -332,6 +332,7 @@ class PublicProductArticleSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductArticle
         fields = (
+            "id",
             "slug",
             "category",
             "headline",
@@ -383,6 +384,7 @@ class PublicArticleCardSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductArticle
         fields = (
+            "id",
             "slug",
             "headline",
             "category",
