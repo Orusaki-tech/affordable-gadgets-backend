@@ -119,13 +119,17 @@ class PublicArticleListApiTests(APITestCase):
         url = reverse("public-article-list")
         empty = self.client.get(url, {"featured": "1"})
         self.assertEqual(empty.status_code, status.HTTP_200_OK)
-        empty_results = empty.data.get("results") or empty.data
+        empty_results = empty.data.get("results") if isinstance(empty.data, dict) else empty.data
+        if empty_results is None:
+            empty_results = empty.data
         self.assertEqual(len(empty_results), 0)
 
         self.article.tags.add(featured_tag)
         tagged = self.client.get(url, {"featured": "1"})
         self.assertEqual(tagged.status_code, status.HTTP_200_OK)
-        results = tagged.data.get("results") or tagged.data
+        results = tagged.data.get("results") if isinstance(tagged.data, dict) else tagged.data
+        if results is None:
+            results = tagged.data
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0]["headline"], "Carousel headline")
         self.assertNotIn(untagged.id, [row["id"] for row in results])
