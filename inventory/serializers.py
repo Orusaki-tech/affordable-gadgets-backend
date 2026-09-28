@@ -1008,7 +1008,12 @@ class ProductArticleSerializer(serializers.ModelSerializer):
     images = ArticleImageSerializer(many=True, read_only=True)
     tags = TagSerializer(many=True, read_only=True)
     tag_ids = serializers.PrimaryKeyRelatedField(
-        queryset=Tag.objects.all(), source="tags", many=True, write_only=True, required=False
+        queryset=Tag.objects.all(),
+        source="tags",
+        many=True,
+        write_only=True,
+        required=False,
+        allow_empty=True,
     )
     product_id = serializers.PrimaryKeyRelatedField(
         source="product",
@@ -1217,7 +1222,12 @@ class ProductSerializer(serializers.ModelSerializer):
     videos = ProductVideoSerializer(many=True, required=False)
     tags = TagSerializer(many=True, read_only=True)
     tag_ids = serializers.PrimaryKeyRelatedField(
-        queryset=Tag.objects.all(), source="tags", many=True, write_only=True, required=False
+        queryset=Tag.objects.all(),
+        source="tags",
+        many=True,
+        write_only=True,
+        required=False,
+        allow_empty=True,
     )
     # Brand association fields
     brands = serializers.SerializerMethodField(read_only=True)

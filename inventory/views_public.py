@@ -1236,12 +1236,9 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
             # Normal queryset filtering for list views
             queryset = super().get_queryset()
             brand = getattr(self.request, "brand", None)
-            # Featured: prefer products with tag "Featured"; fallback to first N by name if none tagged (for homepage; use page_size=5)
+            # Featured: only products tagged "Featured" (no untagged fallback).
             if self.request.query_params.get("featured") in ("1", "true", "yes"):
-                featured_tagged = queryset.filter(tags__name__iexact="Featured").distinct()
-                # Use tagged set if any exist; otherwise leave queryset as-is (later filters + ordering will apply)
-                if featured_tagged.exists():
-                    queryset = featured_tagged
+                queryset = queryset.filter(tags__name__iexact="Featured").distinct()
             elif self.request.query_params.get("homepage_videos") in ("1", "true", "yes"):
                 tagged_video = queryset.filter(tags__name__iexact="Video").distinct()
                 has_url = Q(product_video_url__isnull=False) & ~Q(product_video_url="")
