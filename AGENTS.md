@@ -22,14 +22,14 @@
 | `GET /api/inventory/analytics/daily-users/` | Today's active users |
 | `POST /api/auth/token/login/` | Admin / Studio token exchange |
 
-## CI/CD (GCP)
+## CI/CD (GCP + Vercel)
 | What | Trigger | Mechanism |
 |------|---------|-----------|
-| **API** | Push to `main` | `.github/workflows/deploy-gcp.yml` — tests, then SSH to API VM → `git fetch` + `docker compose build/up` |
-| **Shop (frontend)** | Push to `main` | `affordable-gadgets-frontend` `.github/workflows/ci.yml` — build image → Artifact Registry → MIG recreate |
+| **API** | Push to `main` | `.github/workflows/deploy-gcp.yml` — tests, then SSH to API VM `35.237.10.17` → `git fetch` + `docker compose build/up` |
+| **Shop (frontend)** | Push to `main` | **Vercel** project `affordable-gadgets-frontend` (production). GitHub Actions GCP MIG/Artifact Registry path is legacy and currently fails without billing on project `#111963419931`. |
 | **Terraform (GCP)** | Manual | `deploy/gcp/terraform/` (`project-bc0f5694-0e96-4989-861`) |
 
-Shop deploy needs GCP billing enabled on the Artifact Registry project. If push fails with “billing must be enabled”, fix billing before Studio/storefront UI changes reach production.
+Do not treat dead VM `34.26.82.94` as production. Live API health: `http://35.237.10.17:8000/api/inventory/analytics/datasource-health/`.
 
 ## Blog content
 - Fixtures: `blog_content/batches/`
