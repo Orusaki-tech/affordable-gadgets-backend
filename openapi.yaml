@@ -13208,6 +13208,27 @@ components:
           format: uri
           nullable: true
           readOnly: true
+        images:
+          type: array
+          description: All product gallery images for detail/slug responses. Primary first.
+          readOnly: true
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              image_url:
+                type: string
+                format: uri
+                nullable: true
+              is_primary:
+                type: boolean
+              alt_text:
+                type: string
+              image_caption:
+                type: string
+              display_order:
+                type: integer
         slug:
           type: string
           description: URL-friendly slug (auto-generated from product_name if not
