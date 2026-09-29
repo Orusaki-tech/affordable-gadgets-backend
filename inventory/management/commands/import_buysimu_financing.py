@@ -173,7 +173,6 @@ class Command(BaseCommand):
                     defaults = {
                         "deposit_amount": deposit,
                         "retail_amount": cash,
-                        "term_unit": FinancingOffer.TermUnit.WEEK,
                         "weekly_payment": weekly,
                         "daily_payment": None,
                         "monthly_payment": None,
@@ -261,6 +260,9 @@ class Command(BaseCommand):
         if exact:
             for key, value in defaults.items():
                 setattr(exact, key, value)
+            exact.term_unit = FinancingOffer.TermUnit.WEEK
+            exact.term_count = term_count
+            exact.is_active = True
             exact.save()
             return exact, False
 
@@ -283,6 +285,7 @@ class Command(BaseCommand):
                 setattr(legacy, key, value)
             legacy.term_unit = FinancingOffer.TermUnit.WEEK
             legacy.term_count = term_count
+            legacy.is_active = True
             legacy.save()
             return legacy, False
 
@@ -293,7 +296,12 @@ class Command(BaseCommand):
             rom_gb=rom_gb,
             term_unit=FinancingOffer.TermUnit.WEEK,
             term_count=term_count,
-            **defaults,
+            deposit_amount=defaults["deposit_amount"],
+            retail_amount=defaults["retail_amount"],
+            weekly_payment=defaults["weekly_payment"],
+            daily_payment=defaults.get("daily_payment"),
+            monthly_payment=defaults.get("monthly_payment"),
+            is_active=True,
         )
         return obj, True
 
