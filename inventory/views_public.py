@@ -1024,7 +1024,11 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
                 )
 
                 queryset = queryset.prefetch_related(
-                    available_units_prefetch, primary_images_prefetch
+                    "images",
+                    "videos",
+                    "tags",
+                    available_units_prefetch,
+                    primary_images_prefetch,
                 )
 
                 # For slug lookups, annotate aggregate fields for the detail serializer

@@ -495,6 +495,7 @@ class PublicProductSerializer(serializers.ModelSerializer):
     review_count = serializers.SerializerMethodField()
     average_rating = serializers.SerializerMethodField()
     primary_image = serializers.SerializerMethodField()
+    images = serializers.SerializerMethodField()
     product_video_file_url = serializers.SerializerMethodField()
     videos = serializers.SerializerMethodField()
     tags = serializers.SerializerMethodField()
@@ -532,6 +533,7 @@ class PublicProductSerializer(serializers.ModelSerializer):
             "review_count",
             "average_rating",
             "primary_image",
+            "images",
             "slug",
             "product_video_url",
             "product_video_file_url",
@@ -1058,6 +1060,67 @@ class PublicProductSerializer(serializers.ModelSerializer):
                     return absolute_url
             return _optimized_url()
         return None
+
+    @extend_schema_field(serializers.ListField(child=serializers.DictField()))
+    def get_images(self, obj):
+        """
+        Return all product gallery images (primary first, then display_order / id).
+
+        Catalog list responses omit this field via PublicProductListSerializer.
+        """
+        from inventory.cloudinary_utils import get_optimized_image_url
+
+        rows = list(obj.images.all())
+        if not rows:
+            return []
+
+        rows.sort(
+            key=lambda img: (
+                0 if getattr(img, "is_primary", False) else 1,
+                getattr(img, "display_order", 0) or 0,
+                getattr(img, "id", 0) or 0,
+            )
+        )
+
+        request = self.context.get("request")
+        url_cache = self.context.get("_image_url_cache")
+        result = []
+        for img in rows:
+            if not getattr(img, "image", None):
+                continue
+
+            cache_key = None
+            if url_cache is not None:
+                cache_key = getattr(img.image, "name", None) or getattr(img.image, "url", None)
+
+            if cache_key is not None and cache_key in url_cache:
+                image_url = url_cache[cache_key]
+            else:
+                image_url = get_optimized_image_url(img.image)
+                if request:
+                    original_url = img.image.url
+                    if original_url.startswith("/media/") or original_url.startswith("/static/"):
+                        cloudinary_url = image_url
+                        if not (
+                            cloudinary_url
+                            and cloudinary_url != original_url
+                            and "cloudinary.com" in (cloudinary_url or "")
+                        ):
+                            image_url = request.build_absolute_uri(original_url)
+                if cache_key is not None:
+                    url_cache[cache_key] = image_url
+
+            result.append(
+                {
+                    "id": img.id,
+                    "image_url": image_url,
+                    "is_primary": bool(img.is_primary),
+                    "alt_text": img.alt_text or "",
+                    "image_caption": img.image_caption or "",
+                    "display_order": img.display_order,
+                }
+            )
+        return result
 
 
 class PublicProductListSerializer(PublicProductSerializer):

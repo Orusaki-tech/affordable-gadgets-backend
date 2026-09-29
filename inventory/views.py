@@ -1464,6 +1464,16 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
         from .cloudinary_utils import upload_image_to_cloudinary
 
         created = []
+        # Auto-continue display_order after existing images when not explicitly provided
+        if start_display_order_int is None:
+            last = (
+                ProductImage.objects.filter(product=product)
+                .order_by("-display_order", "-id")
+                .values_list("display_order", flat=True)
+                .first()
+            )
+            start_display_order_int = (last + 1) if last is not None else 0
+
         for idx, f in enumerate(files):
             saved_name, _ = upload_image_to_cloudinary(f, "product_photos")
             if not saved_name:
@@ -1472,9 +1482,7 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            display_order = (
-                (start_display_order_int + idx) if start_display_order_int is not None else 0
-            )
+            display_order = start_display_order_int + idx
 
             created.append(
                 ProductImage.objects.create(
