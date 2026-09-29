@@ -216,10 +216,11 @@ class Command(BaseCommand):
                             f"dep={deposit} weekly={weekly} (id={obj.id})"
                         )
 
-                if touched and publish and not product.is_published:
+                if touched and publish and (not product.is_published or product.is_discontinued):
                     if not dry_run:
                         product.is_published = True
-                        product.save(update_fields=["is_published", "updated_at"])
+                        product.is_discontinued = False
+                        product.save(update_fields=["is_published", "is_discontinued", "updated_at"])
                     published += 1
                     self.stdout.write(
                         self.style.SUCCESS(f"Published {product.product_name} (id={product.id})")
