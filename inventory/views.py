@@ -7287,9 +7287,18 @@ class PromotionViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                 raw_locations = json.loads(raw_locations)
             except (json.JSONDecodeError, ValueError, TypeError):
                 raw_locations = []
-        is_brand_banner = isinstance(raw_locations, list) and "brand_banner" in raw_locations
+        # Placement creatives (hero / CBD / brand banners) don't need product targeting.
+        placement_only_locations = {"brand_banner", "homepage_hero", "cbd_ribbon"}
+        is_placement_creative = isinstance(raw_locations, list) and bool(
+            placement_only_locations.intersection(raw_locations)
+        )
 
-        if not has_products and not has_featured_product and not product_types and not is_brand_banner:
+        if (
+            not has_products
+            and not has_featured_product
+            and not product_types
+            and not is_placement_creative
+        ):
             from rest_framework.exceptions import ValidationError
 
             raise ValidationError(
@@ -7386,8 +7395,12 @@ class PromotionViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                 }
             )
 
-        # Validate: banner_image required for stories_carousel / brand_banner
-        if "stories_carousel" in display_locations or "brand_banner" in display_locations:
+        # Validate: banner_image required for stories_carousel / brand_banner / homepage_hero
+        if (
+            "stories_carousel" in display_locations
+            or "brand_banner" in display_locations
+            or "homepage_hero" in display_locations
+        ):
             banner_image = self.request.data.get("banner_image")
             if not banner_image and not serializer.instance:
                 from rest_framework.exceptions import ValidationError
@@ -7395,7 +7408,7 @@ class PromotionViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                 raise ValidationError(
                     {
                         "banner_image": [
-                            "Banner image is required for Stories Carousel or Brand products banner."
+                            "Banner image is required for Stories Carousel, Homepage hero, or Brand products banner."
                         ]
                     }
                 )
@@ -7405,7 +7418,7 @@ class PromotionViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                 raise ValidationError(
                     {
                         "banner_image": [
-                            "Banner image is required for Stories Carousel or Brand products banner."
+                            "Banner image is required for Stories Carousel, Homepage hero, or Brand products banner."
                         ]
                     }
                 )
@@ -7776,12 +7789,16 @@ class PromotionViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                 is_brand_banner = (
                     isinstance(update_locations, list) and "brand_banner" in update_locations
                 )
+                placement_only_locations = {"brand_banner", "homepage_hero", "cbd_ribbon"}
+                is_placement_creative = isinstance(update_locations, list) and bool(
+                    placement_only_locations.intersection(update_locations)
+                )
 
                 if (
                     not has_products
                     and not has_featured_product
                     and not product_types
-                    and not is_brand_banner
+                    and not is_placement_creative
                 ):
                     from rest_framework.exceptions import ValidationError
 
@@ -7897,12 +7914,16 @@ class PromotionViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
             except (json.JSONDecodeError, ValueError, TypeError):
                 update_locations = []
         is_brand_banner = isinstance(update_locations, list) and "brand_banner" in update_locations
+        placement_only_locations = {"brand_banner", "homepage_hero", "cbd_ribbon"}
+        is_placement_creative = isinstance(update_locations, list) and bool(
+            placement_only_locations.intersection(update_locations)
+        )
 
         if (
             not has_products
             and not has_featured_product
             and not product_types
-            and not is_brand_banner
+            and not is_placement_creative
         ):
             from rest_framework.exceptions import ValidationError
 
