@@ -11,6 +11,43 @@ from inventory.services.customer_service import CustomerService
 
 class CartService:
     @staticmethod
+    def clear_open_carts_for_order(order) -> int:
+        """
+        Delete open (unsubmitted) carts for a fully paid order's customer/brand.
+
+        Prefer the authenticated customer cart; phone match only clears carts that
+        belong to the same customer or have no customer yet (guest carts). Never
+        clears carts from another brand.
+        """
+        from django.db.models import Q
+
+        brand = getattr(order, "brand", None)
+        customer = getattr(order, "customer", None)
+        phone = ""
+        if customer is not None:
+            phone = (getattr(customer, "phone", None) or "").strip()
+        if not phone:
+            phone = (getattr(order, "customer_phone", None) or "").strip()
+
+        qs = Cart.objects.filter(is_submitted=False)
+        if brand is not None:
+            qs = qs.filter(brand=brand)
+
+        cart_ids: set[int] = set()
+        if customer is not None:
+            cart_ids.update(qs.filter(customer=customer).values_list("id", flat=True))
+        if phone:
+            phone_q = Q(customer_phone=phone) & (
+                Q(customer__isnull=True) | Q(customer=customer)
+            )
+            cart_ids.update(qs.filter(phone_q).values_list("id", flat=True))
+
+        if not cart_ids:
+            return 0
+        Cart.objects.filter(id__in=cart_ids).delete()
+        return len(cart_ids)
+
+    @staticmethod
     def _validate_unit_for_cart(cart, inventory_unit):
         """Ensure inventory unit is available and allowed for cart's brand."""
         if inventory_unit.sale_status != InventoryUnit.SaleStatusChoices.AVAILABLE:

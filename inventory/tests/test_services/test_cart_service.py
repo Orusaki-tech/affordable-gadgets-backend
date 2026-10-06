@@ -3,10 +3,59 @@ from decimal import Decimal
 import pytest
 from django.utils import timezone
 
-from inventory.models import AdminRole, Cart, CartItem, InventoryUnit, Notification
+from inventory.models import AdminRole, Cart, CartItem, Customer, InventoryUnit, Notification, Order
 from inventory.services.cart_service import CartService
 
 pytestmark = pytest.mark.django_db
+
+
+class TestClearOpenCartsForOrder:
+    def test_clears_customer_cart_for_brand(self, brand, other_brand, customer, available_unit):
+        cart = Cart.objects.create(customer=customer, brand=brand, is_submitted=False)
+        CartItem.objects.create(
+            cart=cart, inventory_unit=available_unit, quantity=1, unit_price=available_unit.selling_price
+        )
+        other = Cart.objects.create(customer=customer, brand=other_brand, is_submitted=False)
+        order = Order.objects.create(
+            customer=customer,
+            brand=brand,
+            total_amount=available_unit.selling_price,
+            status=Order.StatusChoices.PAID,
+            order_source=Order.OrderSourceChoices.ONLINE,
+        )
+
+        cleared = CartService.clear_open_carts_for_order(order)
+        assert cleared == 1
+        assert not Cart.objects.filter(id=cart.id).exists()
+        assert Cart.objects.filter(id=other.id).exists()
+
+    def test_does_not_clear_other_customer_same_phone(
+        self, brand, customer, available_unit, django_user_model
+    ):
+        other_user = django_user_model.objects.create_user(
+            username="other-cust", email="other@example.com", password="x"
+        )
+        other_customer = Customer.objects.create(
+            user=other_user, name="Other", phone=customer.phone, email="other@example.com"
+        )
+        own = Cart.objects.create(customer=customer, brand=brand, is_submitted=False)
+        foreign = Cart.objects.create(
+            customer=other_customer,
+            brand=brand,
+            customer_phone=customer.phone,
+            is_submitted=False,
+        )
+        order = Order.objects.create(
+            customer=customer,
+            brand=brand,
+            total_amount=Decimal("1.00"),
+            status=Order.StatusChoices.PAID,
+            order_source=Order.OrderSourceChoices.ONLINE,
+        )
+
+        CartService.clear_open_carts_for_order(order)
+        assert not Cart.objects.filter(id=own.id).exists()
+        assert Cart.objects.filter(id=foreign.id).exists()
 
 
 @pytest.fixture

@@ -2908,18 +2908,29 @@ class OrderSerializer(serializers.ModelSerializer):
 
         # Online shop checkout: rebuild lines from the open cart when present so
         # clients cannot swap cheaper SKUs into the order payload.
+        request = self.context.get("request")
+        order_brand = validated_data.get("brand") or getattr(request, "brand", None)
         if order_source == Order.OrderSourceChoices.ONLINE and customer is not None:
-            from django.db.models import Q
-
             from inventory.models import Cart
 
             phone = (getattr(customer, "phone", None) or "").strip()
-            cart_qs = Cart.objects.filter(is_submitted=False).filter(Q(customer=customer))
-            if phone:
-                cart_qs = Cart.objects.filter(is_submitted=False).filter(
-                    Q(customer=customer) | Q(customer_phone=phone)
+            cart_qs = Cart.objects.filter(is_submitted=False)
+            if order_brand is not None:
+                cart_qs = cart_qs.filter(brand=order_brand)
+            # Prefer the authenticated customer's cart; only then match by phone.
+            open_cart = (
+                cart_qs.filter(customer=customer)
+                .prefetch_related("items__inventory_unit")
+                .order_by("-id")
+                .first()
+            )
+            if open_cart is None and phone:
+                open_cart = (
+                    cart_qs.filter(customer_phone=phone)
+                    .prefetch_related("items__inventory_unit")
+                    .order_by("-id")
+                    .first()
                 )
-            open_cart = cart_qs.prefetch_related("items__inventory_unit").order_by("-id").first()
             if open_cart is not None:
                 cart_items = [
                     item
@@ -3066,8 +3077,6 @@ class OrderSerializer(serializers.ModelSerializer):
                         inventory_unit.save()
 
                     # Prefer open cart promo/bundle price; never trust client payloads.
-                    from django.db.models import Q
-
                     from inventory.models import CartItem
                     from inventory.services.cart_service import CartService
 
@@ -3076,13 +3085,21 @@ class OrderSerializer(serializers.ModelSerializer):
                         inventory_unit=inventory_unit,
                         cart__is_submitted=False,
                     )
+                    if order_brand is not None:
+                        cart_qs = cart_qs.filter(cart__brand=order_brand)
+                    cart_item = None
                     if customer is not None:
-                        phone = (getattr(customer, "phone", None) or "").strip()
-                        customer_q = Q(cart__customer=customer)
-                        if phone:
-                            customer_q |= Q(cart__customer_phone=phone)
-                        cart_qs = cart_qs.filter(customer_q)
-                    cart_item = cart_qs.order_by("-id").first()
+                        cart_item = (
+                            cart_qs.filter(cart__customer=customer).order_by("-id").first()
+                        )
+                        if cart_item is None:
+                            phone = (getattr(customer, "phone", None) or "").strip()
+                            if phone:
+                                cart_item = (
+                                    cart_qs.filter(cart__customer_phone=phone)
+                                    .order_by("-id")
+                                    .first()
+                                )
                     if cart_item is not None:
                         unit_price = CartService.trusted_cart_item_unit_price(cart_item)
                     else:

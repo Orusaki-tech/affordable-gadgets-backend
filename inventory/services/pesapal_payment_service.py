@@ -644,6 +644,23 @@ class PesapalPaymentService:
                             )
                             print(f"[PESAPAL] WARNING: Receipt generation failed: {e}")
                             # Don't fail payment confirmation if receipt generation fails
+
+                        # Clear shop cart only after the order is fully PAID.
+                        if payment.order.status == Order.StatusChoices.PAID:
+                            try:
+                                from inventory.services.cart_service import CartService
+
+                                cleared = CartService.clear_open_carts_for_order(payment.order)
+                                if cleared:
+                                    print(
+                                        f"[PESAPAL] Cleared {cleared} open cart(s) after full payment"
+                                    )
+                            except Exception as cart_err:
+                                logger.warning(
+                                    "Could not clear cart after Pesapal payment for order %s: %s",
+                                    payment.order.order_id,
+                                    cart_err,
+                                )
             elif status_error:
                 print(f"[PESAPAL] WARNING: Status verification failed: {status_error}")
 
@@ -961,6 +978,23 @@ class PesapalPaymentService:
                                     f"Failed to generate receipt for order {payment.order.order_id}: {e}"
                                 )
                                 print(f"[PESAPAL] WARNING: Receipt generation failed: {e}")
+
+                            # Clear shop cart only after the order is fully PAID.
+                            if payment.order.status == Order.StatusChoices.PAID:
+                                try:
+                                    from inventory.services.cart_service import CartService
+
+                                    cleared = CartService.clear_open_carts_for_order(payment.order)
+                                    if cleared:
+                                        print(
+                                            f"[PESAPAL] Cleared {cleared} open cart(s) after full payment"
+                                        )
+                                except Exception as cart_err:
+                                    logger.warning(
+                                        "Could not clear cart after Pesapal payment for order %s: %s",
+                                        payment.order.order_id,
+                                        cart_err,
+                                    )
 
                     payment.save()
                     print("[PESAPAL] Payment status updated in database")

@@ -125,6 +125,78 @@ class TestOrderCreation:
         assert len(data["order_items"]) == 1
         assert data["order_items"][0]["inventory_unit"] == available_unit.id
 
+    def test_online_order_ignores_other_brand_cart_same_phone(
+        self,
+        sales_api_client: APIClient,
+        customer: Any,
+        available_unit: InventoryUnit,
+        make_unit: Any,
+        product: Product,
+        brand: Brand,
+        other_brand: Brand,
+    ) -> None:
+        """Phone match must not pull lines from another brand's open cart."""
+        from inventory.models import Cart, CartItem
+
+        other_unit = make_unit(product)
+        Cart.objects.create(
+            customer_phone=customer.phone,
+            brand=other_brand,
+            is_submitted=False,
+        )
+        other_cart = Cart.objects.filter(brand=other_brand, customer_phone=customer.phone).first()
+        CartItem.objects.create(
+            cart=other_cart,
+            inventory_unit=other_unit,
+            quantity=1,
+            unit_price=other_unit.selling_price,
+        )
+        # No open cart on the order brand — order should use the requested unit only.
+        url = "/api/inventory/orders/"
+        payload = {
+            "customer": customer.id,
+            "customer_id": customer.id,
+            "customer_name": "Test Customer",
+            "customer_phone": customer.phone,
+            "order_source": "ONLINE",
+            "fulfillment_method": "PICKUP",
+            "brand_id": brand.id,
+            "order_items": [
+                {
+                    "inventory_unit_id": available_unit.id,
+                    "quantity": 1,
+                }
+            ],
+        }
+        response = sales_api_client.post(url, payload, format="json")
+        assert response.status_code == status.HTTP_201_CREATED, response.content
+        data = response.json()
+        assert len(data["order_items"]) == 1
+        assert data["order_items"][0]["inventory_unit"] == available_unit.id
+
+    def test_confirm_payment_sets_partial_paid_flags(
+        self,
+        sales_api_client: APIClient,
+        order_with_units: Order,
+        available_unit: InventoryUnit,
+    ) -> None:
+        available_unit.sale_status = InventoryUnit.SaleStatusChoices.PENDING_PAYMENT
+        available_unit.save(update_fields=["sale_status"])
+        order_with_units.is_items_paid = False
+        order_with_units.is_delivery_paid = False
+        order_with_units.status = Order.StatusChoices.PENDING
+        order_with_units.save(
+            update_fields=["is_items_paid", "is_delivery_paid", "status"]
+        )
+
+        url = f"/api/inventory/orders/{order_with_units.order_id}/confirm_payment/"
+        response = sales_api_client.post(url, {"payment_method": "CASH"}, format="json")
+        assert response.status_code == status.HTTP_200_OK, response.content
+        order_with_units.refresh_from_db()
+        assert order_with_units.status == Order.StatusChoices.PAID
+        assert order_with_units.is_items_paid is True
+        assert order_with_units.is_delivery_paid is True
+
     def test_online_delivery_without_county_rejected(
         self,
         sales_api_client: APIClient,

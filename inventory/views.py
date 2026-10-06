@@ -4244,9 +4244,11 @@ class OrderViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                     }
                 )
 
-            # Update order status to PAID (now visible to Order Manager)
+            # Update order status to PAID and sync partial-payment flags (manual cash = full settle).
             order.status = Order.StatusChoices.PAID
-            order.save(update_fields=["status"])
+            order.is_items_paid = True
+            order.is_delivery_paid = True
+            order.save(update_fields=["status", "is_items_paid", "is_delivery_paid"])
 
             # Generate and send receipt automatically (email + WhatsApp)
             try:
@@ -4269,10 +4271,13 @@ class OrderViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                 )
                 # Don't fail payment confirmation if receipt generation fails
 
-            # Clear the associated cart if it exists (cart is linked to lead, which is linked to order)
-            # This ensures the customer's cart is cleared once payment is confirmed
+            # Clear open shop carts for this customer/brand (and legacy lead-linked cart).
             cart_cleared = False
             try:
+                from inventory.services.cart_service import CartService
+
+                cleared = CartService.clear_open_carts_for_order(order)
+                cart_cleared = cleared > 0
                 if hasattr(order, "source_lead") and order.source_lead:
                     lead = order.source_lead
                     if hasattr(lead, "cart") and lead.cart:
