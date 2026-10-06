@@ -28,11 +28,13 @@ frontend_base_url: "https://www.affordable-gadgetske.com"
 csrf_trusted_origins: "https://api.affordable-gadgetske.com,https://www.affordable-gadgetske.com"
 
 pesapal_environment: production
-pesapal_callback_url: "https://api.affordable-gadgetske.com/api/payments/pesapal/callback/"
-pesapal_ipn_url: "https://api.affordable-gadgetske.com/api/payments/pesapal/ipn/"
+pesapal_callback_url: "https://www.affordable-gadgetske.com/payment/callback"
+pesapal_ipn_url: "https://api.affordable-gadgetske.com/api/inventory/pesapal/ipn/"
 
 prometheus_api_target: "{{ api_private_ip }}:8000"
 
-deploy_tunnel_on_monitoring: true
+deploy_tunnel_on_monitoring: false
+deploy_tunnel_on_api: true
+grafana_renderer_enabled: false
 
 common_force_docker_install: false
