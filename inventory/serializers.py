@@ -2906,6 +2906,35 @@ class OrderSerializer(serializers.ModelSerializer):
         fulfillment_method = validated_data.pop("fulfillment_method", None)
         order_source = validated_data.get("order_source", Order.OrderSourceChoices.ONLINE)
 
+        # Online shop checkout: rebuild lines from the open cart when present so
+        # clients cannot swap cheaper SKUs into the order payload.
+        if order_source == Order.OrderSourceChoices.ONLINE and customer is not None:
+            from django.db.models import Q
+
+            from inventory.models import Cart
+
+            phone = (getattr(customer, "phone", None) or "").strip()
+            cart_qs = Cart.objects.filter(is_submitted=False).filter(Q(customer=customer))
+            if phone:
+                cart_qs = Cart.objects.filter(is_submitted=False).filter(
+                    Q(customer=customer) | Q(customer_phone=phone)
+                )
+            open_cart = cart_qs.prefetch_related("items__inventory_unit").order_by("-id").first()
+            if open_cart is not None:
+                cart_items = [
+                    item
+                    for item in open_cart.items.all()
+                    if item.inventory_unit_id is not None
+                ]
+                if cart_items:
+                    order_items_data = [
+                        {
+                            "inventory_unit": item.inventory_unit,
+                            "quantity": item.quantity,
+                        }
+                        for item in cart_items
+                    ]
+
         # Online: require county/ward + a configured rate for DELIVERY; PICKUP is fee=0.
         # Walk-in keeps the loose get_delivery_fee path for POS flexibility.
         if order_source == Order.OrderSourceChoices.ONLINE:

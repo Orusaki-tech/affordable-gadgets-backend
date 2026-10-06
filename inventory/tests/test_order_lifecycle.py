@@ -82,6 +82,49 @@ class TestOrderCreation:
         item = data["order_items"][0]
         assert Decimal(str(item["unit_price_at_purchase"])) == available_unit.selling_price
 
+    def test_online_order_uses_cart_items_not_client_sku_swap(
+        self,
+        sales_api_client: APIClient,
+        customer: Any,
+        available_unit: InventoryUnit,
+        make_unit: Any,
+        product: Product,
+        brand: Brand,
+    ) -> None:
+        """If an open cart exists, order lines come from the cart — not a swapped unit id."""
+        from inventory.models import Cart, CartItem
+
+        cheap_unit = make_unit(product)
+        cart = Cart.objects.create(customer=customer, brand=brand, is_submitted=False)
+        CartItem.objects.create(
+            cart=cart,
+            inventory_unit=available_unit,
+            quantity=1,
+            unit_price=available_unit.selling_price,
+        )
+
+        url = "/api/inventory/orders/"
+        payload = {
+            "customer": customer.id,
+            "customer_id": customer.id,
+            "customer_name": "Test Customer",
+            "customer_phone": "+254700000000",
+            "order_source": "ONLINE",
+            "fulfillment_method": "PICKUP",
+            "brand_id": brand.id,
+            "order_items": [
+                {
+                    "inventory_unit_id": cheap_unit.id,
+                    "quantity": 1,
+                }
+            ],
+        }
+        response = sales_api_client.post(url, payload, format="json")
+        assert response.status_code == status.HTTP_201_CREATED, response.content
+        data = response.json()
+        assert len(data["order_items"]) == 1
+        assert data["order_items"][0]["inventory_unit"] == available_unit.id
+
     def test_online_delivery_without_county_rejected(
         self,
         sales_api_client: APIClient,
