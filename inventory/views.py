@@ -3903,12 +3903,30 @@ class OrderViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
             )
             user = customer.user if customer and customer.user else None
         elif self.request.user.is_authenticated:
-            # Authenticated customer - use existing customer profile
+            # Authenticated customer - use existing customer profile, but sync
+            # checkout form contact/address so receipts aren't empty.
             try:
                 customer = Customer.objects.get(user=self.request.user)
                 user = self.request.user
             except Customer.DoesNotExist:
                 raise exceptions.PermissionDenied("Cannot place order without a Customer profile.")
+            customer_updates = []
+            if customer_name:
+                customer.name = customer_name
+                customer_updates.append("name")
+            if customer_phone:
+                customer.phone = customer_phone
+                customer_updates.append("phone")
+            if customer_email:
+                customer.email = customer_email
+                customer_updates.append("email")
+            if delivery_address:
+                customer.delivery_address = delivery_address
+                customer_updates.append("delivery_address")
+            if customer_updates:
+                customer.save(update_fields=customer_updates)
+            if delivery_address and "delivery_address" not in serializer.validated_data:
+                serializer.validated_data["delivery_address"] = delivery_address
         else:
             # Guest customer - create/get customer from form data
             if not customer_name or not customer_phone:

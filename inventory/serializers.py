@@ -2629,7 +2629,9 @@ class OrderItemSerializer(serializers.ModelSerializer):
         # FIX: Removed 'inventory_unit' from read_only_fields.
         # The 'inventory_unit_id' field handles the write, and the 'inventory_unit'
         # field (the model FK itself) is required internally for saving.
-        read_only_fields = ("id", "unit_id", "serial_number", "imei", "unit_price_at_purchase")
+        # unit_price_at_purchase is writable on create so online checkout can honor
+        # cart/promo prices instead of always charging list selling_price.
+        read_only_fields = ("id", "unit_id", "serial_number", "imei")
 
     # Note: If you want to calculate sub_total on the fly for viewing, you need a get_sub_total method,
     # but since the field is read-only, DRF will use the value stored in the database.
@@ -2741,7 +2743,10 @@ class OrderSerializer(serializers.ModelSerializer):
     customer_email = serializers.SerializerMethodField(read_only=True)
     gcr_eligible = serializers.SerializerMethodField(read_only=True)
     gcr_reason = serializers.SerializerMethodField(read_only=True)
-    delivery_address = serializers.SerializerMethodField(read_only=True)
+    # Writable on create; representation still falls back via to_representation.
+    delivery_address = serializers.CharField(
+        required=False, allow_blank=True, allow_null=True
+    )
     delivery_county = serializers.CharField(required=False, allow_blank=True)
     delivery_ward = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     delivery_fee = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
@@ -2814,18 +2819,20 @@ class OrderSerializer(serializers.ModelSerializer):
         _, reason = self._compute_gcr_eligibility(obj)
         return reason
 
-    @extend_schema_field(serializers.CharField())
-    def get_delivery_address(self, obj):
-        """Get delivery address - prefer from source_lead for online orders, otherwise from customer."""
+    def _resolve_delivery_address(self, obj):
+        """Prefer order address, then lead, then customer profile."""
         if getattr(obj, "delivery_address", None):
             return obj.delivery_address or ""
-        # For online orders, get address from the lead
         if hasattr(obj, "source_lead") and obj.source_lead:
             return obj.source_lead.delivery_address or ""
-        # Otherwise, get from customer
         if obj.customer:
             return obj.customer.delivery_address or obj.customer.address or ""
         return ""
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data["delivery_address"] = self._resolve_delivery_address(instance)
+        return data
 
     @extend_schema_field(serializers.CharField(allow_null=True))
     def get_brand_name(self, obj):
@@ -3002,7 +3009,36 @@ class OrderSerializer(serializers.ModelSerializer):
                         inventory_unit.reserved_until = None
                         inventory_unit.save()
 
-                    unit_price = inventory_unit.selling_price
+                    list_price = Decimal(str(inventory_unit.selling_price))
+                    provided_price = item_data.get("unit_price_at_purchase")
+                    if provided_price is not None:
+                        unit_price = Decimal(str(provided_price))
+                        if unit_price < 0 or unit_price > list_price:
+                            raise serializers.ValidationError(
+                                {
+                                    "unit_price_at_purchase": (
+                                        f"Price for unit {inventory_unit.id} must be between "
+                                        f"0 and {list_price}."
+                                    )
+                                }
+                            )
+                    else:
+                        # Prefer the shopper's cart promo/bundle price when available.
+                        from inventory.models import CartItem
+
+                        cart_item = (
+                            CartItem.objects.filter(
+                                inventory_unit=inventory_unit,
+                                cart__customer=customer,
+                                cart__is_submitted=False,
+                            )
+                            .order_by("-id")
+                            .first()
+                        )
+                        if cart_item is not None:
+                            unit_price = Decimal(str(cart_item.get_unit_price()))
+                        else:
+                            unit_price = list_price
                     OrderItem.objects.create(
                         order=order,
                         inventory_unit=inventory_unit,
