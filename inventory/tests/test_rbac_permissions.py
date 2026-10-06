@@ -306,6 +306,7 @@ def _payload_for_endpoint(endpoint: str, brand: Any) -> dict:
             "delivery_address": "123 Test Street, Nairobi",
             "total_amount": "1000.00",
             "order_source": "ONLINE",
+            "fulfillment_method": "PICKUP",
             "order_items": [],
         }
     if endpoint == BRANDS:
