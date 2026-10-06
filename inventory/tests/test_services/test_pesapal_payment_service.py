@@ -20,6 +20,38 @@ def pesapal_payment_settings(settings):
     return settings
 
 
+class TestValidatePesapalAmount:
+    def test_missing_amount_fails_closed(self, order_with_units):
+        payment = PesapalPayment.objects.create(
+            order=order_with_units,
+            amount=order_with_units.total_amount,
+            status=PesapalPayment.StatusChoices.PENDING,
+        )
+        ok, err = PesapalPaymentService.validate_pesapal_amount(payment, {"payment_status_description": "COMPLETED"})
+        assert ok is False
+        assert "amount" in (err or "").lower()
+
+    def test_mismatch_fails(self, order_with_units):
+        payment = PesapalPayment.objects.create(
+            order=order_with_units,
+            amount=Decimal("1000.00"),
+            status=PesapalPayment.StatusChoices.PENDING,
+        )
+        ok, err = PesapalPaymentService.validate_pesapal_amount(payment, {"amount": "1.00"})
+        assert ok is False
+        assert "mismatch" in (err or "").lower()
+
+    def test_matching_amount_passes(self, order_with_units):
+        payment = PesapalPayment.objects.create(
+            order=order_with_units,
+            amount=Decimal("1000.00"),
+            status=PesapalPayment.StatusChoices.PENDING,
+        )
+        ok, err = PesapalPaymentService.validate_pesapal_amount(payment, {"amount": "1000.00"})
+        assert ok is True
+        assert err is None
+
+
 class TestGetEffectiveOrderTotal:
     def test_items_only(self, order_with_units):
         total = PesapalPaymentService.get_effective_order_total(order_with_units, "ITEMS_ONLY")

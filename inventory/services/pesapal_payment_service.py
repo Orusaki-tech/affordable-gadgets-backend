@@ -48,6 +48,36 @@ class PesapalPaymentService:
             return delivery_fee
         return items_total + delivery_fee
 
+    @staticmethod
+    def validate_pesapal_amount(payment: PesapalPayment, status_result: dict | None):
+        """
+        Fail closed: Pesapal status must include an amount matching payment.amount.
+
+        Returns (ok, error_message). ok=False means do not mark the payment completed.
+        """
+        if not status_result:
+            return False, "Missing Pesapal status payload for amount validation."
+
+        pesapal_amount_str = status_result.get("amount")
+        if pesapal_amount_str is None or str(pesapal_amount_str).strip() == "":
+            return False, "Pesapal status response did not include a payment amount."
+
+        try:
+            pesapal_amount = Decimal(str(pesapal_amount_str))
+        except (ValueError, TypeError, ArithmeticError):
+            return False, f"Could not parse Pesapal amount: {pesapal_amount_str!r}"
+
+        expected = Decimal(str(payment.amount))
+        if abs(pesapal_amount - expected) > Decimal("0.01"):
+            return (
+                False,
+                (
+                    f"Amount mismatch for order {payment.order.order_id}: "
+                    f"expected {expected}, Pesapal {pesapal_amount}."
+                ),
+            )
+        return True, None
+
     @transaction.atomic
     def initiate_payment(
         self,
@@ -417,69 +447,31 @@ class PesapalPaymentService:
                 )
                 payment.api_response_data = status_result
 
-                # SECURITY FIX: Validate payment amount matches order amount before marking as paid
-                pesapal_amount_str = status_result.get("amount")
-                amount_validated = False
-                if pesapal_amount_str:
-                    try:
-                        pesapal_amount = Decimal(str(pesapal_amount_str))
-                        expected_amount = payment.amount
-                        # Allow small rounding differences (0.01 KES)
-                        amount_diff = abs(pesapal_amount - expected_amount)
-                        if amount_diff > Decimal("0.01"):
-                            error_msg = (
-                                f"SECURITY ALERT: Amount mismatch for order {payment.order.order_id}. "
-                                f"Expected amount: {expected_amount}, Pesapal amount: {pesapal_amount}, "
-                                f"Difference: {amount_diff}"
-                            )
-                            print("[PESAPAL] ========== SECURITY: AMOUNT MISMATCH ==========")
-                            print(f"[PESAPAL] {error_msg}")
-                            print("[PESAPAL] ============================================\n")
-                            logger.error(error_msg)
-                            # Don't mark as paid if amounts don't match
-                            payment.status = PesapalPayment.StatusChoices.FAILED
-                            payment.save()
-                            return {
-                                "success": False,
-                                "message": "Payment amount mismatch. Payment rejected for security.",
-                                "error": "Amount validation failed",
-                            }
-                        amount_validated = True
-                        print(
-                            f"[PESAPAL] ✓ Amount validation passed: {pesapal_amount} == {expected_amount}"
-                        )
-                    except (ValueError, TypeError) as e:
-                        logger.warning(f"Could not validate amount from Pesapal response: {e}")
-                        print(f"[PESAPAL] WARNING: Could not parse amount from Pesapal: {e}")
-                        # If we can't validate amount, be cautious but don't fail completely
-                        # Log the warning and continue (Pesapal should always send amount)
+                # SECURITY: require amount match before marking paid (fail closed if missing).
+                amount_ok, amount_error = self.validate_pesapal_amount(payment, status_result)
+                if not amount_ok:
+                    error_msg = f"SECURITY ALERT: {amount_error}"
+                    print("[PESAPAL] ========== SECURITY: AMOUNT VALIDATION FAILED ==========")
+                    print(f"[PESAPAL] {error_msg}")
+                    print("[PESAPAL] ======================================================\n")
+                    logger.error(error_msg)
+                    payment.status = PesapalPayment.StatusChoices.FAILED
+                    payment.save(update_fields=["status", "api_response_data"])
+                    return {
+                        "success": False,
+                        "message": "Payment amount validation failed. Payment rejected for security.",
+                        "error": amount_error or "Amount validation failed",
+                    }
+                print(
+                    f"[PESAPAL] ✓ Amount validation passed: "
+                    f"{status_result.get('amount')} == {payment.amount}"
+                )
 
                 payment_status = status_result.get("payment_status_description", "").upper()
                 if payment_status in status_mapping:
                     payment.status = status_mapping[payment_status]
                     print(f"[PESAPAL] Updated payment status from verification: {payment.status}")
                     if payment.status == PesapalPayment.StatusChoices.COMPLETED:
-                        # Double-check amount before marking as paid (if not already validated above)
-                        if not amount_validated:
-                            pesapal_amount_str = status_result.get("amount")
-                            if pesapal_amount_str:
-                                try:
-                                    pesapal_amount = Decimal(str(pesapal_amount_str))
-                                    if abs(pesapal_amount - payment.amount) > Decimal("0.01"):
-                                        error_msg = f"SECURITY ALERT: Final amount check failed for order {payment.order.order_id}"
-                                        logger.error(error_msg)
-                                        payment.status = PesapalPayment.StatusChoices.FAILED
-                                        payment.save()
-                                        return {
-                                            "success": False,
-                                            "message": "Payment amount validation failed",
-                                            "error": "Amount mismatch",
-                                        }
-                                except (ValueError, TypeError):
-                                    # If we can't parse amount, log warning but proceed
-                                    # (Pesapal should always send valid amount)
-                                    logger.warning("Could not validate amount in final check")
-
                         # All validations passed - mark as paid
                         payment.completed_at = timezone.now()
                         payment.is_verified = True
@@ -867,81 +859,100 @@ class PesapalPaymentService:
                         payment.payment_method = payment_method_from_api
                         print(f"[PESAPAL] Payment method set: {payment_method_from_api}")
 
-                    # If completed, update order and payment timestamps
+                    # If completed, require amount match (fail closed) before marking paid.
                     if new_status == PesapalPayment.StatusChoices.COMPLETED:
-                        payment.completed_at = timezone.now()
-                        payment.is_verified = True
-                        payment.verified_at = timezone.now()
-                        purpose = (payment.payment_purpose or "BOTH").strip().upper()
-                        if purpose in ["ITEMS_ONLY", "BOTH"]:
-                            payment.order.is_items_paid = True
-                        if purpose in ["DELIVERY_ONLY", "BOTH"]:
-                            payment.order.is_delivery_paid = True
-                        if payment.order.is_items_paid and payment.order.is_delivery_paid:
-                            payment.order.status = Order.StatusChoices.PAID
+                        amount_ok, amount_error = self.validate_pesapal_amount(
+                            payment, status_result
+                        )
+                        if not amount_ok:
+                            error_msg = f"SECURITY ALERT: {amount_error}"
                             print(
-                                "[PESAPAL] ✓ Payment verified - Order marked as PAID (items + delivery paid)"
+                                "[PESAPAL] ========== SECURITY: AMOUNT VALIDATION FAILED =========="
                             )
+                            print(f"[PESAPAL] {error_msg}")
+                            print(
+                                "[PESAPAL] ======================================================\n"
+                            )
+                            logger.error(error_msg)
+                            payment.status = PesapalPayment.StatusChoices.FAILED
+                            payment.save()
+                            new_status = payment.status
                         else:
-                            print(
-                                "[PESAPAL] ✓ Payment verified - Order is PARTIALLY paid "
-                                f"(items_paid={payment.order.is_items_paid}, delivery_paid={payment.order.is_delivery_paid})"
+                            payment.completed_at = timezone.now()
+                            payment.is_verified = True
+                            payment.verified_at = timezone.now()
+                            purpose = (payment.payment_purpose or "BOTH").strip().upper()
+                            if purpose in ["ITEMS_ONLY", "BOTH"]:
+                                payment.order.is_items_paid = True
+                            if purpose in ["DELIVERY_ONLY", "BOTH"]:
+                                payment.order.is_delivery_paid = True
+                            if payment.order.is_items_paid and payment.order.is_delivery_paid:
+                                payment.order.status = Order.StatusChoices.PAID
+                                print(
+                                    "[PESAPAL] ✓ Payment verified - Order marked as PAID (items + delivery paid)"
+                                )
+                            else:
+                                print(
+                                    "[PESAPAL] ✓ Payment verified - Order is PARTIALLY paid "
+                                    f"(items_paid={payment.order.is_items_paid}, delivery_paid={payment.order.is_delivery_paid})"
+                                )
+                            payment.order.save(
+                                update_fields=["is_items_paid", "is_delivery_paid", "status"]
                             )
-                        payment.order.save(
-                            update_fields=["is_items_paid", "is_delivery_paid", "status"]
-                        )
 
-                        # Transition units from PENDING_PAYMENT to SOLD
-                        for order_item in payment.order.order_items.all():
-                            unit = order_item.inventory_unit
-                            if (
-                                unit
-                                and unit.sale_status
-                                == InventoryUnit.SaleStatusChoices.PENDING_PAYMENT
-                            ):
-                                unit.sale_status = InventoryUnit.SaleStatusChoices.SOLD
-                                unit.save(update_fields=["sale_status"])
+                            # Transition units from PENDING_PAYMENT to SOLD
+                            for order_item in payment.order.order_items.all():
+                                unit = order_item.inventory_unit
+                                if (
+                                    unit
+                                    and unit.sale_status
+                                    == InventoryUnit.SaleStatusChoices.PENDING_PAYMENT
+                                ):
+                                    unit.sale_status = InventoryUnit.SaleStatusChoices.SOLD
+                                    unit.save(update_fields=["sale_status"])
 
-                        # Track payment completion via callback
-                        from inventory.observability import (
-                            ORDERS_TOTAL,
-                            PAYMENTS_TOTAL,
-                            REVENUE_EARNED,
-                        )
-
-                        try:
-                            brand_code = (
-                                payment.order.brand.code if payment.order.brand else "unknown"
+                            # Track payment completion via callback
+                            from inventory.observability import (
+                                ORDERS_TOTAL,
+                                PAYMENTS_TOTAL,
+                                REVENUE_EARNED,
                             )
-                            pm = payment.payment_method or "pesapal"
-                            PAYMENTS_TOTAL.labels(
-                                method=pm, status=new_status, brand=brand_code
-                            ).inc()
-                            REVENUE_EARNED.labels(brand=brand_code).inc(float(payment.amount))
-                            if payment.order.status == Order.StatusChoices.PAID:
-                                ORDERS_TOTAL.labels(
-                                    status="Paid", payment_method=pm, brand=brand_code
+
+                            try:
+                                brand_code = (
+                                    payment.order.brand.code if payment.order.brand else "unknown"
+                                )
+                                pm = payment.payment_method or "pesapal"
+                                PAYMENTS_TOTAL.labels(
+                                    method=pm, status=new_status, brand=brand_code
                                 ).inc()
-                        except Exception:
-                            pass
+                                REVENUE_EARNED.labels(brand=brand_code).inc(float(payment.amount))
+                                if payment.order.status == Order.StatusChoices.PAID:
+                                    ORDERS_TOTAL.labels(
+                                        status="Paid", payment_method=pm, brand=brand_code
+                                    ).inc()
+                            except Exception:
+                                pass
 
-                        print("[PESAPAL] ✓ Payment verified as completed - Order marked as PAID")
-
-                        # Generate and send receipt automatically (email + WhatsApp)
-                        try:
-                            from inventory.services.receipt_service import ReceiptService
-
-                            receipt, email_sent, whatsapp_sent = (
-                                ReceiptService.generate_and_send_receipt(payment.order)
-                            )
                             print(
-                                f"[PESAPAL] Receipt generated: {receipt.receipt_number}, Email sent: {email_sent}, WhatsApp sent: {whatsapp_sent}"
+                                "[PESAPAL] ✓ Payment verified as completed - Order marked as PAID"
                             )
-                        except Exception as e:
-                            logger.error(
-                                f"Failed to generate receipt for order {payment.order.order_id}: {e}"
-                            )
-                            print(f"[PESAPAL] WARNING: Receipt generation failed: {e}")
+
+                            # Generate and send receipt automatically (email + WhatsApp)
+                            try:
+                                from inventory.services.receipt_service import ReceiptService
+
+                                receipt, email_sent, whatsapp_sent = (
+                                    ReceiptService.generate_and_send_receipt(payment.order)
+                                )
+                                print(
+                                    f"[PESAPAL] Receipt generated: {receipt.receipt_number}, Email sent: {email_sent}, WhatsApp sent: {whatsapp_sent}"
+                                )
+                            except Exception as e:
+                                logger.error(
+                                    f"Failed to generate receipt for order {payment.order.order_id}: {e}"
+                                )
+                                print(f"[PESAPAL] WARNING: Receipt generation failed: {e}")
 
                     payment.save()
                     print("[PESAPAL] Payment status updated in database")
