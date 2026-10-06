@@ -146,6 +146,13 @@ jobs:
 
           echo "==> Deployment successful!"
 
+          echo "==> Releasing abandoned pending orders..."
+          $SSH_CMD "
+            cd ${{ env.DEPLOY_PATH }} &&
+            sudo docker compose -f docker-compose.yml exec -T web \
+              python manage.py release_abandoned_pending_orders --hours 2 || true
+          "
+
       - name: Cleanup SSH key
         if: always()
         run: rm -f ~/.ssh/deploy_key

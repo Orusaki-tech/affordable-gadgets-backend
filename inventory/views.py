@@ -3720,6 +3720,24 @@ class OrderViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                             print(f"[DEBUG] Failed to write log: {e}")
                         # #endregion
 
+                        from inventory.services.order_idempotency import order_matches_request
+
+                        if not order_matches_request(existing_order, request.data):
+                            logger.warning(
+                                "Idempotency-Key reused with a different payload "
+                                f"(existing={existing_order.order_id})"
+                            )
+                            return Response(
+                                {
+                                    "error": (
+                                        "Idempotency-Key was reused with a different order "
+                                        "payload. Start a new checkout or omit the key."
+                                    ),
+                                    "existing_order_id": str(existing_order.order_id),
+                                },
+                                status=status.HTTP_409_CONFLICT,
+                            )
+
                         # Order with this idempotency key already exists - return it (idempotent)
                         logger.info(
                             f"Idempotent order request - returning existing order {existing_order.order_id} for key {idempotency_key}"
@@ -3810,6 +3828,8 @@ class OrderViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
 
         # Continue with normal order creation flow
         try:
+            from django.db import IntegrityError, transaction
+
             logger.info(
                 "About to call super().create()",
                 extra={
@@ -3819,7 +3839,44 @@ class OrderViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                 },
             )
 
-            result = super().create(request, *args, **kwargs)
+            # Nested atomic so an idempotency unique violation can roll back a
+            # savepoint and we can safely replay the existing order.
+            try:
+                with transaction.atomic():
+                    result = super().create(request, *args, **kwargs)
+            except IntegrityError:
+                if not idempotency_key:
+                    raise
+                existing_order = (
+                    Order.objects.select_related("customer", "user")
+                    .prefetch_related("order_items")
+                    .filter(idempotency_key=idempotency_key)
+                    .first()
+                )
+                if existing_order is None:
+                    raise
+                from inventory.services.order_idempotency import order_matches_request
+
+                if not order_matches_request(existing_order, request.data):
+                    return Response(
+                        {
+                            "error": (
+                                "Idempotency-Key was reused with a different order "
+                                "payload. Start a new checkout or omit the key."
+                            ),
+                            "existing_order_id": str(existing_order.order_id),
+                        },
+                        status=status.HTTP_409_CONFLICT,
+                    )
+                logger.info(
+                    "Idempotent race recovered - returning existing order %s",
+                    existing_order.order_id,
+                )
+                response_serializer = self.get_serializer(existing_order)
+                headers = self.get_success_headers(response_serializer.data)
+                return Response(
+                    response_serializer.data, status=status.HTTP_200_OK, headers=headers
+                )
 
             logger.info(
                 "super().create() completed successfully",

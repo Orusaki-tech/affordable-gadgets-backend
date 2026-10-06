@@ -3013,6 +3013,19 @@ class OrderSerializer(serializers.ModelSerializer):
                         "order_source", Order.OrderSourceChoices.ONLINE
                     )
 
+                    if (
+                        inventory_unit.product_template.product_type
+                        != Product.ProductType.ACCESSORY
+                    ):
+                        # Unique SKUs: free abandoned unpaid claims before availability check
+                        # so a shopper who left Pesapal can check out again after the TTL.
+                        from inventory.services.order_release_service import OrderReleaseService
+
+                        OrderReleaseService.release_conflicting_claims_for_unit(
+                            inventory_unit, older_than_hours=2.0
+                        )
+                        inventory_unit.refresh_from_db()
+
                     if inventory_unit.sale_status not in [
                         InventoryUnit.SaleStatusChoices.RESERVED,
                         InventoryUnit.SaleStatusChoices.AVAILABLE,
@@ -3027,8 +3040,6 @@ class OrderSerializer(serializers.ModelSerializer):
                         inventory_unit.product_template.product_type
                         != Product.ProductType.ACCESSORY
                     ):
-                        # Unique SKUs: block double-sell when already on another open order
-                        # or stuck in PENDING_PAYMENT from a prior checkout.
                         open_claim = (
                             OrderItem.objects.filter(
                                 inventory_unit=inventory_unit,
@@ -3037,11 +3048,7 @@ class OrderSerializer(serializers.ModelSerializer):
                             .exclude(order=order)
                             .exists()
                         )
-                        if (
-                            open_claim
-                            or inventory_unit.sale_status
-                            == InventoryUnit.SaleStatusChoices.PENDING_PAYMENT
-                        ):
+                        if open_claim:
                             raise serializers.ValidationError(
                                 f"Unit ID {inventory_unit.id} is already reserved for another "
                                 f"pending order and cannot be checked out again."

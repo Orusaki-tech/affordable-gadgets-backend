@@ -1,0 +1,30 @@
+name: Release abandoned pending orders
+
+on:
+  schedule:
+    # Every hour — free unique units stuck after abandoned Pesapal checkouts.
+    - cron: "20 * * * *"
+  workflow_dispatch:
+
+env:
+  GCP_VM_IP: 35.237.10.17
+  GCP_VM_USER: shwariaccessories
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.GCP_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ env.GCP_VM_IP }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Run release_abandoned_pending_orders
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            ${{ env.GCP_VM_USER }}@${{ env.GCP_VM_IP }} \
+            "cd /opt/affordable-gadgets && sudo docker compose -f docker-compose.yml exec -T web \
+              python manage.py release_abandoned_pending_orders --hours 2"
