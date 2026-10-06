@@ -4237,12 +4237,23 @@ class OrderViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                         units_updated.append(unit.id)
 
             if not units_updated:
-                return Response(
-                    {
-                        "message": "No units with PENDING_PAYMENT status found. Payment may already be confirmed.",
-                        "units_updated": 0,
-                    }
+                # After items-only Pesapal, units may already be SOLD while delivery
+                # remains unpaid — allow cash to close the remaining balance.
+                units = [
+                    item.inventory_unit
+                    for item in order_items
+                    if item.inventory_unit_id is not None
+                ]
+                inventory_settled = bool(units) and all(
+                    unit.sale_status == InventoryUnit.SaleStatusChoices.SOLD for unit in units
                 )
+                if not (inventory_settled or order.is_items_paid):
+                    return Response(
+                        {
+                            "message": "No units with PENDING_PAYMENT status found. Payment may already be confirmed.",
+                            "units_updated": 0,
+                        }
+                    )
 
             # Update order status to PAID and sync partial-payment flags (manual cash = full settle).
             order.status = Order.StatusChoices.PAID
@@ -4458,13 +4469,29 @@ class OrderViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                 )
 
             payment_mode = request.data.get("payment_mode") or "BOTH"
+            payment_mode = service.resolve_effective_payment_mode(order, payment_mode)
             payable_amount = service.get_effective_order_total(order, payment_mode=payment_mode)
+            if order.is_items_paid and order.is_delivery_paid:
+                return Response(
+                    {"error": "Order is already fully paid. Cannot initiate payment."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if payment_mode == "ITEMS_ONLY" and order.is_items_paid:
+                return Response(
+                    {"error": "Items are already paid for this order."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if payment_mode == "DELIVERY_ONLY" and order.is_delivery_paid:
+                return Response(
+                    {"error": "Delivery is already paid for this order."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
             if payable_amount <= 0:
                 print("[PESAPAL] ========== VIEW: INITIATE PAYMENT FAILED ==========")
-                print("[PESAPAL] ERROR: Order total amount must be greater than 0")
+                print("[PESAPAL] ERROR: Nothing left to pay for this order")
                 print("[PESAPAL] ==================================================\n")
                 return Response(
-                    {"error": "Order total amount must be greater than 0"},
+                    {"error": "Nothing left to pay for this order."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 

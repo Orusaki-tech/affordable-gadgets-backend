@@ -3015,7 +3015,6 @@ class OrderSerializer(serializers.ModelSerializer):
 
                     if inventory_unit.sale_status not in [
                         InventoryUnit.SaleStatusChoices.RESERVED,
-                        InventoryUnit.SaleStatusChoices.PENDING_PAYMENT,
                         InventoryUnit.SaleStatusChoices.AVAILABLE,
                     ]:
                         raise serializers.ValidationError(
@@ -3023,6 +3022,30 @@ class OrderSerializer(serializers.ModelSerializer):
                             f"Current status: {inventory_unit.get_sale_status_display()}. "
                             f"Unit must be AVAILABLE or RESERVED."
                         )
+
+                    if (
+                        inventory_unit.product_template.product_type
+                        != Product.ProductType.ACCESSORY
+                    ):
+                        # Unique SKUs: block double-sell when already on another open order
+                        # or stuck in PENDING_PAYMENT from a prior checkout.
+                        open_claim = (
+                            OrderItem.objects.filter(
+                                inventory_unit=inventory_unit,
+                                order__status=Order.StatusChoices.PENDING,
+                            )
+                            .exclude(order=order)
+                            .exists()
+                        )
+                        if (
+                            open_claim
+                            or inventory_unit.sale_status
+                            == InventoryUnit.SaleStatusChoices.PENDING_PAYMENT
+                        ):
+                            raise serializers.ValidationError(
+                                f"Unit ID {inventory_unit.id} is already reserved for another "
+                                f"pending order and cannot be checked out again."
+                            )
 
                     if (
                         order_source == Order.OrderSourceChoices.ONLINE

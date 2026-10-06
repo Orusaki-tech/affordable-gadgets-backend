@@ -70,6 +70,32 @@ class TestGetEffectiveOrderTotal:
         total_explicit = PesapalPaymentService.get_effective_order_total(order_with_units, "BOTH")
         assert total == total_explicit
 
+    def test_both_after_items_paid_charges_delivery_only(self, order_with_units):
+        order_with_units.delivery_fee = Decimal("500.00")
+        order_with_units.is_items_paid = True
+        order_with_units.is_delivery_paid = False
+        order_with_units.save(
+            update_fields=["delivery_fee", "is_items_paid", "is_delivery_paid"]
+        )
+        total = PesapalPaymentService.get_effective_order_total(order_with_units, "BOTH")
+        assert total == Decimal("500.00")
+        assert (
+            PesapalPaymentService.resolve_effective_payment_mode(order_with_units, "BOTH")
+            == "DELIVERY_ONLY"
+        )
+
+    def test_items_only_rejected_when_already_paid(self, order_with_units, pesapal_payment_settings):
+        order_with_units.is_items_paid = True
+        order_with_units.save(update_fields=["is_items_paid"])
+        service = PesapalPaymentService()
+        result = service.initiate_payment(
+            order_with_units,
+            callback_url="https://example.com/callback",
+            payment_mode="ITEMS_ONLY",
+        )
+        assert result["success"] is False
+        assert "already paid" in result.get("error", "").lower()
+
 
 class TestInitiatePayment:
     def test_returns_existing_payment(self, order_with_units, pesapal_payment_settings):

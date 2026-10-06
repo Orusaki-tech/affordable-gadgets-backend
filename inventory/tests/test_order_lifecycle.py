@@ -125,6 +125,38 @@ class TestOrderCreation:
         assert len(data["order_items"]) == 1
         assert data["order_items"][0]["inventory_unit"] == available_unit.id
 
+    def test_rejects_unique_unit_already_on_pending_order(
+        self,
+        sales_api_client: APIClient,
+        customer: Any,
+        available_unit: InventoryUnit,
+        brand: Brand,
+    ) -> None:
+        """A unique SKU on one pending order cannot be sold on a second pending order."""
+        url = "/api/inventory/orders/"
+        payload = {
+            "customer": customer.id,
+            "customer_id": customer.id,
+            "customer_name": "Test Customer",
+            "customer_phone": "+254700000000",
+            "order_source": "ONLINE",
+            "fulfillment_method": "PICKUP",
+            "brand_id": brand.id,
+            "order_items": [
+                {
+                    "inventory_unit_id": available_unit.id,
+                    "quantity": 1,
+                }
+            ],
+        }
+        first = sales_api_client.post(url, payload, format="json")
+        assert first.status_code == status.HTTP_201_CREATED, first.content
+        available_unit.refresh_from_db()
+        assert available_unit.sale_status == InventoryUnit.SaleStatusChoices.PENDING_PAYMENT
+
+        second = sales_api_client.post(url, payload, format="json")
+        assert second.status_code == status.HTTP_400_BAD_REQUEST, second.content
+
     def test_online_order_ignores_other_brand_cart_same_phone(
         self,
         sales_api_client: APIClient,
@@ -244,6 +276,31 @@ class TestOrderCreation:
         order_with_units.status = Order.StatusChoices.PENDING
         order_with_units.save(
             update_fields=["is_items_paid", "is_delivery_paid", "status"]
+        )
+
+        url = f"/api/inventory/orders/{order_with_units.order_id}/confirm_payment/"
+        response = sales_api_client.post(url, {"payment_method": "CASH"}, format="json")
+        assert response.status_code == status.HTTP_200_OK, response.content
+        order_with_units.refresh_from_db()
+        assert order_with_units.status == Order.StatusChoices.PAID
+        assert order_with_units.is_items_paid is True
+        assert order_with_units.is_delivery_paid is True
+
+    def test_confirm_payment_closes_delivery_after_items_sold(
+        self,
+        sales_api_client: APIClient,
+        order_with_units: Order,
+        available_unit: InventoryUnit,
+    ) -> None:
+        """Cash confirm must settle delivery when items were already paid via Pesapal."""
+        available_unit.sale_status = InventoryUnit.SaleStatusChoices.SOLD
+        available_unit.save(update_fields=["sale_status"])
+        order_with_units.is_items_paid = True
+        order_with_units.is_delivery_paid = False
+        order_with_units.status = Order.StatusChoices.PENDING
+        order_with_units.delivery_fee = Decimal("500.00")
+        order_with_units.save(
+            update_fields=["is_items_paid", "is_delivery_paid", "status", "delivery_fee"]
         )
 
         url = f"/api/inventory/orders/{order_with_units.order_id}/confirm_payment/"

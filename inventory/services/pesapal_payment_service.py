@@ -32,21 +32,38 @@ class PesapalPaymentService:
         print("[PESAPAL] PesapalPaymentService initialized")
 
     @staticmethod
+    def resolve_effective_payment_mode(order: Order, payment_mode: str = "BOTH") -> str:
+        """
+        Narrow BOTH to the unpaid remainder so we never re-charge a settled leg.
+        """
+        mode = (payment_mode or "BOTH").strip().upper()
+        if mode not in {"ITEMS_ONLY", "DELIVERY_ONLY", "BOTH"}:
+            mode = "BOTH"
+        if mode == "BOTH":
+            if order.is_items_paid and not order.is_delivery_paid:
+                return "DELIVERY_ONLY"
+            if order.is_delivery_paid and not order.is_items_paid:
+                return "ITEMS_ONLY"
+        return mode
+
+    @staticmethod
     def get_effective_order_total(order: Order, payment_mode: str = "BOTH") -> Decimal:
         """
-        Compute payable total for gateway submission based on payment_mode:
-        - ITEMS_ONLY: only order items
-        - DELIVERY_ONLY: only delivery fee
-        - BOTH: items + delivery (default)
+        Compute remaining payable total for gateway submission based on payment_mode:
+        - ITEMS_ONLY: unpaid order items (0 if items already paid)
+        - DELIVERY_ONLY: unpaid delivery fee (0 if delivery already paid)
+        - BOTH: sum of unpaid legs (auto-narrowed via resolve_effective_payment_mode)
         """
         items_total = sum((item.sub_total for item in order.order_items.all()), Decimal("0.00"))
         delivery_fee = order.delivery_fee or Decimal("0.00")
-        mode = (payment_mode or "BOTH").strip().upper()
+        items_due = Decimal("0.00") if order.is_items_paid else items_total
+        delivery_due = Decimal("0.00") if order.is_delivery_paid else delivery_fee
+        mode = PesapalPaymentService.resolve_effective_payment_mode(order, payment_mode)
         if mode == "ITEMS_ONLY":
-            return items_total
+            return items_due
         if mode == "DELIVERY_ONLY":
-            return delivery_fee
-        return items_total + delivery_fee
+            return delivery_due
+        return items_due + delivery_due
 
     @staticmethod
     def validate_pesapal_amount(payment: PesapalPayment, status_result: dict | None):
@@ -166,19 +183,40 @@ class PesapalPaymentService:
         payment_mode: str = "BOTH",
     ) -> dict:
         """Initiate Pesapal payment for an order."""
-        payable_amount = self.get_effective_order_total(order, payment_mode=payment_mode)
+        mode = self.resolve_effective_payment_mode(order, payment_mode)
+        payable_amount = self.get_effective_order_total(order, payment_mode=mode)
 
         print("\n[PESAPAL] ========== INITIATE PAYMENT START ==========")
         print(f"[PESAPAL] Order ID: {order.order_id}")
         print(f"[PESAPAL] Order Amount: {payable_amount}")
         print(f"[PESAPAL] Order Status: {order.status}")
-        print(f"[PESAPAL] Payment Mode: {payment_mode}")
+        print(f"[PESAPAL] Payment Mode (requested/effective): {payment_mode}/{mode}")
         print(f"[PESAPAL] Callback URL: {callback_url}")
         print(f"[PESAPAL] Cancellation URL: {cancellation_url}")
         print(f"[PESAPAL] Customer: {json.dumps(customer, indent=2) if customer else 'None'}")
 
         try:
-            mode = (payment_mode or "BOTH").strip().upper()
+            if order.is_items_paid and order.is_delivery_paid:
+                return {
+                    "success": False,
+                    "error": "Order is already fully paid. Cannot initiate payment.",
+                }
+            if mode == "ITEMS_ONLY" and order.is_items_paid:
+                return {
+                    "success": False,
+                    "error": "Items are already paid for this order.",
+                }
+            if mode == "DELIVERY_ONLY" and order.is_delivery_paid:
+                return {
+                    "success": False,
+                    "error": "Delivery is already paid for this order.",
+                }
+            if payable_amount <= 0:
+                return {
+                    "success": False,
+                    "error": "Nothing left to pay for this order.",
+                }
+
             # Only reuse an in-flight PENDING session for the same purpose + amount.
             # Never reuse COMPLETED rows — that blocks ITEMS_ONLY → DELIVERY_ONLY split pay.
             existing_payment = (
@@ -373,7 +411,7 @@ class PesapalPaymentService:
                     pesapal_order_tracking_id=order_tracking_id,
                     amount=payable_amount,
                     currency="KES",
-                    payment_purpose=(payment_mode or "BOTH").strip().upper(),
+                    payment_purpose=mode,
                     redirect_url=redirect_url,
                     callback_url=callback_url,
                     customer_email=customer.get("email") if customer else None,
@@ -628,22 +666,22 @@ class PesapalPaymentService:
                                 f"(purpose={purpose}, is_items_paid={payment.order.is_items_paid})"
                             )
 
-                        # Generate and send receipt automatically (email + WhatsApp)
-                        try:
-                            from inventory.services.receipt_service import ReceiptService
+                        # Full receipt only when the order is fully PAID (not on partial legs).
+                        if payment.order.status == Order.StatusChoices.PAID:
+                            try:
+                                from inventory.services.receipt_service import ReceiptService
 
-                            receipt, email_sent, whatsapp_sent = (
-                                ReceiptService.generate_and_send_receipt(payment.order)
-                            )
-                            print(
-                                f"[PESAPAL] Receipt generated: {receipt.receipt_number}, Email sent: {email_sent}, WhatsApp sent: {whatsapp_sent}"
-                            )
-                        except Exception as e:
-                            logger.error(
-                                f"Failed to generate receipt for order {payment.order.order_id}: {e}"
-                            )
-                            print(f"[PESAPAL] WARNING: Receipt generation failed: {e}")
-                            # Don't fail payment confirmation if receipt generation fails
+                                receipt, email_sent, whatsapp_sent = (
+                                    ReceiptService.generate_and_send_receipt(payment.order)
+                                )
+                                print(
+                                    f"[PESAPAL] Receipt generated: {receipt.receipt_number}, Email sent: {email_sent}, WhatsApp sent: {whatsapp_sent}"
+                                )
+                            except Exception as e:
+                                logger.error(
+                                    f"Failed to generate receipt for order {payment.order.order_id}: {e}"
+                                )
+                                print(f"[PESAPAL] WARNING: Receipt generation failed: {e}")
 
                         # Clear shop cart only after the order is fully PAID.
                         if payment.order.status == Order.StatusChoices.PAID:
@@ -963,21 +1001,22 @@ class PesapalPaymentService:
                                 "[PESAPAL] ✓ Payment verified as completed - Order marked as PAID"
                             )
 
-                            # Generate and send receipt automatically (email + WhatsApp)
-                            try:
-                                from inventory.services.receipt_service import ReceiptService
+                            # Full receipt only when the order is fully PAID (not on partial legs).
+                            if payment.order.status == Order.StatusChoices.PAID:
+                                try:
+                                    from inventory.services.receipt_service import ReceiptService
 
-                                receipt, email_sent, whatsapp_sent = (
-                                    ReceiptService.generate_and_send_receipt(payment.order)
-                                )
-                                print(
-                                    f"[PESAPAL] Receipt generated: {receipt.receipt_number}, Email sent: {email_sent}, WhatsApp sent: {whatsapp_sent}"
-                                )
-                            except Exception as e:
-                                logger.error(
-                                    f"Failed to generate receipt for order {payment.order.order_id}: {e}"
-                                )
-                                print(f"[PESAPAL] WARNING: Receipt generation failed: {e}")
+                                    receipt, email_sent, whatsapp_sent = (
+                                        ReceiptService.generate_and_send_receipt(payment.order)
+                                    )
+                                    print(
+                                        f"[PESAPAL] Receipt generated: {receipt.receipt_number}, Email sent: {email_sent}, WhatsApp sent: {whatsapp_sent}"
+                                    )
+                                except Exception as e:
+                                    logger.error(
+                                        f"Failed to generate receipt for order {payment.order.order_id}: {e}"
+                                    )
+                                    print(f"[PESAPAL] WARNING: Receipt generation failed: {e}")
 
                             # Clear shop cart only after the order is fully PAID.
                             if payment.order.status == Order.StatusChoices.PAID:
