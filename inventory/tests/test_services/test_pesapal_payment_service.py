@@ -73,12 +73,14 @@ class TestGetEffectiveOrderTotal:
 
 class TestInitiatePayment:
     def test_returns_existing_payment(self, order_with_units, pesapal_payment_settings):
-        payment = PesapalPayment.objects.create(
+        amount = PesapalPaymentService.get_effective_order_total(order_with_units, "BOTH")
+        PesapalPayment.objects.create(
             order=order_with_units,
             pesapal_order_tracking_id="TRACK-EXISTING",
             redirect_url="https://pay.pesapal.com/checkout",
             status=PesapalPayment.StatusChoices.PENDING,
-            amount=order_with_units.total_amount,
+            amount=amount,
+            payment_purpose="BOTH",
         )
         with patch.object(PesapalPaymentService, "pesapal_service", create=True):
             service = PesapalPaymentService()
@@ -87,6 +89,40 @@ class TestInitiatePayment:
             )
             assert result["success"] is True
             assert result["order_tracking_id"] == "TRACK-EXISTING"
+
+    def test_does_not_reuse_completed_payment_for_split(
+        self, order_with_units, pesapal_payment_settings
+    ):
+        """COMPLETED ITEMS_ONLY must not block a new DELIVERY_ONLY initiation."""
+        PesapalPayment.objects.create(
+            order=order_with_units,
+            pesapal_order_tracking_id="TRACK-ITEMS",
+            redirect_url="https://pay.pesapal.com/items",
+            status=PesapalPayment.StatusChoices.COMPLETED,
+            amount=Decimal("1000.00"),
+            payment_purpose="ITEMS_ONLY",
+        )
+        order_with_units.delivery_fee = Decimal("500.00")
+        order_with_units.save(update_fields=["delivery_fee"])
+
+        with patch("inventory.services.pesapal_payment_service.PesapalService") as mock_cls:
+            mock_service = MagicMock()
+            mock_service.submit_order_request.return_value = (
+                {
+                    "order_tracking_id": "TRACK-DELIVERY",
+                    "redirect_url": "https://pay.pesapal.com/delivery",
+                },
+                None,
+            )
+            mock_cls.return_value = mock_service
+            service = PesapalPaymentService()
+            result = service.initiate_payment(
+                order_with_units,
+                callback_url="https://example.com/callback",
+                payment_mode="DELIVERY_ONLY",
+            )
+            assert result["success"] is True
+            assert result["order_tracking_id"] == "TRACK-DELIVERY"
 
     def test_no_ipn_url_returns_error(self, order_with_units, settings):
         settings.PESAPAL_IPN_URL = ""

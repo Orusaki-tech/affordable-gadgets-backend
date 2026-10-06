@@ -78,6 +78,83 @@ class PesapalPaymentService:
             )
         return True, None
 
+    def _mark_order_units_sold(self, payment: PesapalPayment) -> list[int]:
+        """Mark/decrement inventory for an order whose items are now paid."""
+        from inventory.models import Admin, Product, ReservationRequest
+
+        units_updated: list[int] = []
+        for order_item in payment.order.order_items.all():
+            unit = order_item.inventory_unit
+            if not unit:
+                continue
+
+            if unit.product_template.product_type == Product.ProductType.ACCESSORY:
+                reserved_consumed = 0
+                try:
+                    admin = (
+                        Admin.objects.get(user=payment.order.user) if payment.order.user else None
+                    )
+                except Admin.DoesNotExist:
+                    admin = None
+                if admin:
+                    remaining_to_consume = order_item.quantity
+                    reservation_requests = ReservationRequest.objects.filter(
+                        requesting_salesperson=admin,
+                        status=ReservationRequest.StatusChoices.APPROVED,
+                        inventory_units=unit,
+                    ).order_by("approved_at", "requested_at")
+                    for req in reservation_requests:
+                        unit_quantities = req.inventory_unit_quantities or {}
+                        qty = (
+                            unit_quantities.get(str(unit.id))
+                            or unit_quantities.get(unit.id)
+                            or 0
+                        )
+                        if qty <= 0:
+                            continue
+                        consume = min(remaining_to_consume, qty)
+                        unit_quantities[str(unit.id)] = qty - consume
+                        req.inventory_unit_quantities = unit_quantities
+                        if all(v == 0 for v in unit_quantities.values()):
+                            req.status = ReservationRequest.StatusChoices.RETURNED
+                            req.expires_at = timezone.now()
+                        req.save(
+                            update_fields=[
+                                "inventory_unit_quantities",
+                                "status",
+                                "expires_at",
+                            ]
+                        )
+                        reserved_consumed += consume
+                        remaining_to_consume -= consume
+                        if remaining_to_consume == 0:
+                            break
+
+                decrement_qty = max(0, order_item.quantity - reserved_consumed)
+                if decrement_qty > 0:
+                    unit.quantity = max(0, unit.quantity - decrement_qty)
+                if unit.quantity == 0:
+                    unit.sale_status = InventoryUnit.SaleStatusChoices.SOLD
+                else:
+                    unit.sale_status = InventoryUnit.SaleStatusChoices.AVAILABLE
+                unit.save(update_fields=["quantity", "sale_status"])
+                units_updated.append(unit.id)
+                print(
+                    f"[PESAPAL] ✓ Accessory unit {unit.id} reserved_consumed={reserved_consumed}, "
+                    f"decremented={decrement_qty}, new quantity: {unit.quantity}, "
+                    f"status: {unit.get_sale_status_display()}"
+                )
+            else:
+                if unit.sale_status == InventoryUnit.SaleStatusChoices.PENDING_PAYMENT:
+                    unit.sale_status = InventoryUnit.SaleStatusChoices.SOLD
+                    unit.save(update_fields=["sale_status"])
+                    units_updated.append(unit.id)
+                    print(
+                        f"[PESAPAL] ✓ Unit {unit.id} updated from PENDING_PAYMENT to SOLD"
+                    )
+
+        return units_updated
+
     @transaction.atomic
     def initiate_payment(
         self,
@@ -101,30 +178,37 @@ class PesapalPaymentService:
         print(f"[PESAPAL] Customer: {json.dumps(customer, indent=2) if customer else 'None'}")
 
         try:
+            mode = (payment_mode or "BOTH").strip().upper()
+            # Only reuse an in-flight PENDING session for the same purpose + amount.
+            # Never reuse COMPLETED rows — that blocks ITEMS_ONLY → DELIVERY_ONLY split pay.
             existing_payment = (
-                PesapalPayment.objects.filter(order=order, pesapal_order_tracking_id__isnull=False)
+                PesapalPayment.objects.filter(
+                    order=order,
+                    pesapal_order_tracking_id__isnull=False,
+                    status=PesapalPayment.StatusChoices.PENDING,
+                    payment_purpose=mode,
+                )
                 .order_by("-initiated_at")
                 .first()
             )
 
-            if existing_payment and existing_payment.status not in [
-                PesapalPayment.StatusChoices.FAILED,
-                PesapalPayment.StatusChoices.CANCELLED,
-                PesapalPayment.StatusChoices.EXPIRED,
-            ]:
-                if existing_payment.redirect_url:
-                    print("[PESAPAL] Found existing payment - returning it")
-                    print(
-                        f"[PESAPAL] Existing Tracking ID: {existing_payment.pesapal_order_tracking_id}"
-                    )
-                    print(f"[PESAPAL] Existing Status: {existing_payment.status}")
-                    logger.info(f"Returning existing payment for order {order.order_id}")
-                    return {
-                        "success": True,
-                        "redirect_url": existing_payment.redirect_url,
-                        "order_tracking_id": existing_payment.pesapal_order_tracking_id,
-                        "payment_id": str(existing_payment.id),
-                    }
+            if (
+                existing_payment
+                and existing_payment.redirect_url
+                and abs(Decimal(str(existing_payment.amount)) - payable_amount) <= Decimal("0.01")
+            ):
+                print("[PESAPAL] Found matching PENDING payment - returning it")
+                print(
+                    f"[PESAPAL] Existing Tracking ID: {existing_payment.pesapal_order_tracking_id}"
+                )
+                print(f"[PESAPAL] Existing Status: {existing_payment.status}")
+                logger.info(f"Returning existing payment for order {order.order_id}")
+                return {
+                    "success": True,
+                    "redirect_url": existing_payment.redirect_url,
+                    "order_tracking_id": existing_payment.pesapal_order_tracking_id,
+                    "payment_id": str(existing_payment.id),
+                }
 
             ipn_url = getattr(settings, "PESAPAL_IPN_URL", "")
             if not ipn_url:
@@ -521,101 +605,27 @@ class PesapalPaymentService:
                         except Exception:
                             pass
 
-                        # Update inventory units: For accessories, decrement quantity and mark as SOLD if quantity reaches 0
-                        # For unique items, mark as SOLD
-                        from inventory.models import InventoryUnit, Product
-
-                        units_updated = []
-                        for order_item in payment.order.order_items.all():
-                            unit = order_item.inventory_unit
-                            if not unit:
-                                continue
-
-                            if unit.product_template.product_type == Product.ProductType.ACCESSORY:
-                                # Accessory: consume reserved quantities first (if any), then decrement remaining
-                                from inventory.models import Admin, ReservationRequest
-
-                                reserved_consumed = 0
-                                try:
-                                    admin = (
-                                        Admin.objects.get(user=payment.order.user)
-                                        if payment.order.user
-                                        else None
-                                    )
-                                except Admin.DoesNotExist:
-                                    admin = None
-                                if admin:
-                                    remaining_to_consume = order_item.quantity
-                                    reservation_requests = ReservationRequest.objects.filter(
-                                        requesting_salesperson=admin,
-                                        status=ReservationRequest.StatusChoices.APPROVED,
-                                        inventory_units=unit,
-                                    ).order_by("approved_at", "requested_at")
-                                    for req in reservation_requests:
-                                        unit_quantities = req.inventory_unit_quantities or {}
-                                        qty = (
-                                            unit_quantities.get(str(unit.id))
-                                            or unit_quantities.get(unit.id)
-                                            or 0
-                                        )
-                                        if qty <= 0:
-                                            continue
-                                        consume = min(remaining_to_consume, qty)
-                                        unit_quantities[str(unit.id)] = qty - consume
-                                        req.inventory_unit_quantities = unit_quantities
-                                        if all(v == 0 for v in unit_quantities.values()):
-                                            req.status = ReservationRequest.StatusChoices.RETURNED
-                                            req.expires_at = timezone.now()
-                                        req.save(
-                                            update_fields=[
-                                                "inventory_unit_quantities",
-                                                "status",
-                                                "expires_at",
-                                            ]
-                                        )
-                                        reserved_consumed += consume
-                                        remaining_to_consume -= consume
-                                        if remaining_to_consume == 0:
-                                            break
-
-                                decrement_qty = max(0, order_item.quantity - reserved_consumed)
-                                if decrement_qty > 0:
-                                    unit.quantity = max(0, unit.quantity - decrement_qty)
-                                if unit.quantity == 0:
-                                    unit.sale_status = InventoryUnit.SaleStatusChoices.SOLD
-                                else:
-                                    unit.sale_status = InventoryUnit.SaleStatusChoices.AVAILABLE
-                                unit.save(update_fields=["quantity", "sale_status"])
-                                units_updated.append(unit.id)
+                        # Inventory only moves when items are paid — never on DELIVERY_ONLY alone.
+                        if purpose in ["ITEMS_ONLY", "BOTH"] and payment.order.is_items_paid:
+                            units_updated = self._mark_order_units_sold(payment)
+                            if units_updated:
+                                logger.info(
+                                    f"Updated {len(units_updated)} inventory units to SOLD for order {payment.order.order_id}"
+                                )
                                 print(
-                                    f"[PESAPAL] ✓ Accessory unit {unit.id} reserved_consumed={reserved_consumed}, decremented={decrement_qty}, new quantity: {unit.quantity}, status: {unit.get_sale_status_display()}"
+                                    f"[PESAPAL] ✓ Updated {len(units_updated)} inventory units to SOLD"
                                 )
                             else:
-                                # Unique item (Phone/Laptop/Tablet): Mark as SOLD
-                                if (
-                                    unit.sale_status
-                                    == InventoryUnit.SaleStatusChoices.PENDING_PAYMENT
-                                ):
-                                    unit.sale_status = InventoryUnit.SaleStatusChoices.SOLD
-                                    unit.save(update_fields=["sale_status"])
-                                    units_updated.append(unit.id)
-                                    print(
-                                        f"[PESAPAL] ✓ Unit {unit.id} updated from PENDING_PAYMENT to SOLD"
-                                    )
-
-                        if units_updated:
-                            logger.info(
-                                f"Updated {len(units_updated)} inventory units to SOLD for order {payment.order.order_id}"
-                            )
-                            print(
-                                f"[PESAPAL] ✓ Updated {len(units_updated)} inventory units to SOLD"
-                            )
+                                logger.warning(
+                                    f"No units with PENDING_PAYMENT status found for order {payment.order.order_id}"
+                                )
+                                print(
+                                    "[PESAPAL] ⚠ No units with PENDING_PAYMENT status found - units may already be SOLD"
+                                )
                         else:
-                            logger.warning(
-                                f"No units with PENDING_PAYMENT status found for order {payment.order.order_id}"
-                            )
                             print(
-                                "[PESAPAL] ⚠ No units with PENDING_PAYMENT status found - units may already be SOLD"
+                                "[PESAPAL] Skipping inventory SOLD update "
+                                f"(purpose={purpose}, is_items_paid={payment.order.is_items_paid})"
                             )
 
                         # Generate and send receipt automatically (email + WhatsApp)
@@ -900,16 +910,14 @@ class PesapalPaymentService:
                                 update_fields=["is_items_paid", "is_delivery_paid", "status"]
                             )
 
-                            # Transition units from PENDING_PAYMENT to SOLD
-                            for order_item in payment.order.order_items.all():
-                                unit = order_item.inventory_unit
-                                if (
-                                    unit
-                                    and unit.sale_status
-                                    == InventoryUnit.SaleStatusChoices.PENDING_PAYMENT
-                                ):
-                                    unit.sale_status = InventoryUnit.SaleStatusChoices.SOLD
-                                    unit.save(update_fields=["sale_status"])
+                            # Inventory only when items are paid — never on DELIVERY_ONLY alone.
+                            if purpose in ["ITEMS_ONLY", "BOTH"] and payment.order.is_items_paid:
+                                self._mark_order_units_sold(payment)
+                            else:
+                                print(
+                                    "[PESAPAL] Skipping inventory SOLD update "
+                                    f"(purpose={purpose}, is_items_paid={payment.order.is_items_paid})"
+                                )
 
                             # Track payment completion via callback
                             from inventory.observability import (
