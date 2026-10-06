@@ -5,6 +5,9 @@ These are the most critical money-moving code paths in the system.
 
 from __future__ import annotations
 
+from decimal import Decimal
+from typing import Any
+
 import pytest
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -46,6 +49,68 @@ class TestOrderCreation:
         data = response.json()
         assert "order_id" in data
         assert data["status"] == "Pending"
+
+    def test_ignores_client_unit_price_undercut(
+        self,
+        sales_api_client: APIClient,
+        customer: Any,
+        available_unit: InventoryUnit,
+        brand: Brand,
+    ) -> None:
+        """Client-supplied unit_price_at_purchase must not undercut list/cart price."""
+        url = "/api/inventory/orders/"
+        payload = {
+            "customer": customer.id,
+            "customer_id": customer.id,
+            "customer_name": "Test Customer",
+            "customer_phone": "+254700000000",
+            "order_source": "ONLINE",
+            "fulfillment_method": "PICKUP",
+            "brand_id": brand.id,
+            "order_items": [
+                {
+                    "inventory_unit_id": available_unit.id,
+                    "quantity": 1,
+                    "unit_price_at_purchase": "0.00",
+                }
+            ],
+        }
+        response = sales_api_client.post(url, payload, format="json")
+        assert response.status_code == status.HTTP_201_CREATED, response.content
+        data = response.json()
+        assert Decimal(str(data["total_amount"])) == available_unit.selling_price
+        item = data["order_items"][0]
+        assert Decimal(str(item["unit_price_at_purchase"])) == available_unit.selling_price
+
+    def test_online_delivery_without_county_rejected(
+        self,
+        sales_api_client: APIClient,
+        customer: Any,
+        available_unit: InventoryUnit,
+        brand: Brand,
+    ) -> None:
+        """Address-only online orders must not silently get free delivery."""
+        url = "/api/inventory/orders/"
+        payload = {
+            "customer": customer.id,
+            "customer_id": customer.id,
+            "customer_name": "Test Customer",
+            "customer_phone": "+254700000000",
+            "order_source": "ONLINE",
+            "delivery_address": "Westlands, Nairobi",
+            "brand_id": brand.id,
+            "order_items": [
+                {
+                    "inventory_unit_id": available_unit.id,
+                    "quantity": 1,
+                }
+            ],
+        }
+        response = sales_api_client.post(url, payload, format="json")
+        assert response.status_code == status.HTTP_400_BAD_REQUEST, response.content
+        body = response.json()
+        details = body.get("details") or body
+        assert "delivery_county" in details
 
     def test_create_order_with_empty_items_allowed(
         self,

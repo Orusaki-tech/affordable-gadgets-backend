@@ -4478,6 +4478,14 @@ class OrderViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
             customer = request.data.get("customer", None)
             billing_address = request.data.get("billing_address", None)
 
+            # Ignore blank customer payloads from the shop (e.g. Pay now with empty form).
+            if isinstance(customer, dict):
+                customer = {
+                    key: value
+                    for key, value in customer.items()
+                    if value is not None and str(value).strip() != ""
+                } or None
+
             # For walk-in orders, build customer details from the order if not provided
             if not customer and order.customer:
                 customer = {}

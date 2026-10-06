@@ -193,7 +193,14 @@ class PesapalPaymentService:
                 }
 
             if customer:
-                order_data["customer"] = customer
+                # Drop blank strings — empty phone_number/email makes Pesapal return 400.
+                cleaned_customer = {
+                    key: value
+                    for key, value in customer.items()
+                    if value is not None and str(value).strip() != ""
+                }
+                if cleaned_customer:
+                    order_data["customer"] = cleaned_customer
 
             print(f"[PESAPAL] Order Data to submit: {json.dumps(order_data, indent=2)}")
             print("[PESAPAL] Calling PesapalService.submit_order_request...")

@@ -3,9 +3,62 @@ from decimal import Decimal
 import pytest
 
 from inventory.models import DeliveryRate
-from inventory.services.delivery_service import get_delivery_fee
+from inventory.services.delivery_service import (
+    DeliveryResolutionError,
+    get_delivery_fee,
+    resolve_online_delivery,
+)
 
 pytestmark = pytest.mark.django_db
+
+
+class TestResolveOnlineDelivery:
+    def test_pickup_explicit_zero_fee(self):
+        fulfillment, fee = resolve_online_delivery(fulfillment_method="PICKUP")
+        assert fulfillment == "PICKUP"
+        assert fee == Decimal("0.00")
+
+    def test_inferred_pickup_when_no_delivery_fields(self):
+        fulfillment, fee = resolve_online_delivery()
+        assert fulfillment == "PICKUP"
+        assert fee == Decimal("0.00")
+
+    def test_address_without_county_rejected(self):
+        with pytest.raises(DeliveryResolutionError) as exc:
+            resolve_online_delivery(delivery_address="Somewhere in Nairobi")
+        assert "delivery_county" in exc.value.errors
+
+    def test_delivery_requires_configured_rate(self):
+        with pytest.raises(DeliveryResolutionError) as exc:
+            resolve_online_delivery(
+                fulfillment_method="DELIVERY", delivery_county="Nowhereville"
+            )
+        assert "delivery_county" in exc.value.errors
+
+    def test_delivery_with_rate(self):
+        DeliveryRate.objects.create(
+            county="Nairobi", ward=None, price=Decimal("500.00"), is_active=True
+        )
+        DeliveryRate.objects.create(
+            county="Nairobi", ward="Westlands", price=Decimal("300.00"), is_active=True
+        )
+        fulfillment, fee = resolve_online_delivery(
+            fulfillment_method="DELIVERY",
+            delivery_county="Nairobi",
+            delivery_ward="Westlands",
+        )
+        assert fulfillment == "DELIVERY"
+        assert fee == Decimal("300.00")
+
+    def test_nairobi_requires_ward(self):
+        DeliveryRate.objects.create(
+            county="Nairobi", ward=None, price=Decimal("500.00"), is_active=True
+        )
+        with pytest.raises(DeliveryResolutionError) as exc:
+            resolve_online_delivery(
+                fulfillment_method="DELIVERY", delivery_county="Nairobi"
+            )
+        assert "delivery_ward" in exc.value.errors
 
 
 class TestGetDeliveryFee:

@@ -86,9 +86,9 @@ class TestAddItemToCart:
         item = CartService.add_item_to_cart(cart, available_unit, quantity=2)
         assert item.quantity == 3
 
-    def test_custom_unit_price(self, cart, available_unit):
+    def test_client_unit_price_undercut_ignored(self, cart, available_unit):
         item = CartService.add_item_to_cart(cart, available_unit, unit_price=Decimal("500"))
-        assert item.unit_price == Decimal("500")
+        assert item.unit_price == available_unit.selling_price
 
 
 class TestCheckoutCart:
@@ -104,7 +104,7 @@ class TestCheckoutCart:
         lead = self._checkout(cart)
         assert lead is not None
         assert lead.customer_name == "John"
-        assert lead.total_value >= Decimal("1000")
+        assert lead.total_value == available_unit.selling_price
 
     def test_marks_cart_as_submitted(self, cart, available_unit):
         CartService.add_item_to_cart(cart, available_unit)
@@ -138,4 +138,4 @@ class TestCheckoutCart:
     def test_includes_delivery_fee_in_total(self, cart, available_unit):
         CartService.add_item_to_cart(cart, available_unit, unit_price=Decimal("1000"))
         lead = self._checkout(cart, delivery_fee=Decimal("500"))
-        assert lead.total_value == Decimal("1500")
+        assert lead.total_value == available_unit.selling_price + Decimal("500")

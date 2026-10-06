@@ -2629,9 +2629,9 @@ class OrderItemSerializer(serializers.ModelSerializer):
         # FIX: Removed 'inventory_unit' from read_only_fields.
         # The 'inventory_unit_id' field handles the write, and the 'inventory_unit'
         # field (the model FK itself) is required internally for saving.
-        # unit_price_at_purchase is writable on create so online checkout can honor
-        # cart/promo prices instead of always charging list selling_price.
-        read_only_fields = ("id", "unit_id", "serial_number", "imei")
+        # unit_price_at_purchase stays read-only — create() resolves price server-side
+        # from cart promo/bundle or list selling_price (never trust the client).
+        read_only_fields = ("id", "unit_id", "serial_number", "imei", "unit_price_at_purchase")
 
     # Note: If you want to calculate sub_total on the fly for viewing, you need a get_sub_total method,
     # but since the field is read-only, DRF will use the value stored in the database.
@@ -2753,6 +2753,13 @@ class OrderSerializer(serializers.ModelSerializer):
     delivery_window_start = serializers.DateTimeField(required=False, allow_null=True)
     delivery_window_end = serializers.DateTimeField(required=False, allow_null=True)
     delivery_notes = serializers.CharField(required=False, allow_blank=True)
+    # Write-only: not persisted (no model column yet). Drives online fee validation.
+    fulfillment_method = serializers.ChoiceField(
+        choices=["PICKUP", "DELIVERY"],
+        required=False,
+        allow_null=True,
+        write_only=True,
+    )
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     order_source = serializers.CharField(required=False)  # Writable for creation, set by view
     order_source_display = serializers.CharField(source="get_order_source_display", read_only=True)
@@ -2854,6 +2861,7 @@ class OrderSerializer(serializers.ModelSerializer):
             "delivery_county",
             "delivery_ward",
             "delivery_fee",
+            "fulfillment_method",
             "is_items_paid",
             "is_delivery_paid",
             "delivery_window_start",
@@ -2884,13 +2892,37 @@ class OrderSerializer(serializers.ModelSerializer):
                 self.fields["order_items"].required = False
 
     def create(self, validated_data):
-        from inventory.services.delivery_service import get_delivery_fee
+        from inventory.services.delivery_service import (
+            DeliveryResolutionError,
+            get_delivery_fee,
+            resolve_online_delivery,
+        )
 
         # 1. Pop nested items and FKs set by the view
         # We pop the field mapped to the source: 'order_items'
         order_items_data = validated_data.pop("order_items")
         customer = validated_data.pop("customer")
         user = validated_data.pop("user")
+        fulfillment_method = validated_data.pop("fulfillment_method", None)
+        order_source = validated_data.get("order_source", Order.OrderSourceChoices.ONLINE)
+
+        # Online: require county/ward + a configured rate for DELIVERY; PICKUP is fee=0.
+        # Walk-in keeps the loose get_delivery_fee path for POS flexibility.
+        if order_source == Order.OrderSourceChoices.ONLINE:
+            try:
+                _fulfillment, delivery_fee = resolve_online_delivery(
+                    fulfillment_method=fulfillment_method,
+                    delivery_county=validated_data.get("delivery_county"),
+                    delivery_ward=validated_data.get("delivery_ward"),
+                    delivery_address=validated_data.get("delivery_address"),
+                    delivery_window_start=validated_data.get("delivery_window_start"),
+                )
+            except DeliveryResolutionError as exc:
+                raise serializers.ValidationError(exc.errors) from exc
+        else:
+            delivery_fee, _ = get_delivery_fee(
+                validated_data.get("delivery_county"), validated_data.get("delivery_ward")
+            )
 
         # 2. Use transaction to ensure atomic operations (inventory + order creation)
         with transaction.atomic():
@@ -2905,14 +2937,11 @@ class OrderSerializer(serializers.ModelSerializer):
 
                 NEW_ORDERS_TOTAL.labels(
                     brand=order.brand.code if order.brand else "unknown",
-                    order_source=validated_data.get("order_source", "unknown"),
+                    order_source=order_source or "unknown",
                 ).inc()
             except Exception:
                 pass
 
-            delivery_fee, _ = get_delivery_fee(
-                validated_data.get("delivery_county"), validated_data.get("delivery_ward")
-            )
             order.delivery_fee = delivery_fee
             final_total = Decimal("0.00")
 
@@ -2927,9 +2956,7 @@ class OrderSerializer(serializers.ModelSerializer):
                         raise serializers.ValidationError(
                             f"Variant-based items must have quantity 1."
                         )
-                    unit_price = item_data.get(
-                        "unit_price_at_purchase", variant.default_selling_price
-                    )
+                    unit_price = Decimal(str(variant.default_selling_price))
                     OrderItem.objects.create(
                         order=order,
                         variant=variant,
@@ -3009,36 +3036,28 @@ class OrderSerializer(serializers.ModelSerializer):
                         inventory_unit.reserved_until = None
                         inventory_unit.save()
 
-                    list_price = Decimal(str(inventory_unit.selling_price))
-                    provided_price = item_data.get("unit_price_at_purchase")
-                    if provided_price is not None:
-                        unit_price = Decimal(str(provided_price))
-                        if unit_price < 0 or unit_price > list_price:
-                            raise serializers.ValidationError(
-                                {
-                                    "unit_price_at_purchase": (
-                                        f"Price for unit {inventory_unit.id} must be between "
-                                        f"0 and {list_price}."
-                                    )
-                                }
-                            )
-                    else:
-                        # Prefer the shopper's cart promo/bundle price when available.
-                        from inventory.models import CartItem
+                    # Prefer open cart promo/bundle price; never trust client payloads.
+                    from django.db.models import Q
 
-                        cart_item = (
-                            CartItem.objects.filter(
-                                inventory_unit=inventory_unit,
-                                cart__customer=customer,
-                                cart__is_submitted=False,
-                            )
-                            .order_by("-id")
-                            .first()
-                        )
-                        if cart_item is not None:
-                            unit_price = Decimal(str(cart_item.get_unit_price()))
-                        else:
-                            unit_price = list_price
+                    from inventory.models import CartItem
+                    from inventory.services.cart_service import CartService
+
+                    list_price = Decimal(str(inventory_unit.selling_price))
+                    cart_qs = CartItem.objects.filter(
+                        inventory_unit=inventory_unit,
+                        cart__is_submitted=False,
+                    )
+                    if customer is not None:
+                        phone = (getattr(customer, "phone", None) or "").strip()
+                        customer_q = Q(cart__customer=customer)
+                        if phone:
+                            customer_q |= Q(cart__customer_phone=phone)
+                        cart_qs = cart_qs.filter(customer_q)
+                    cart_item = cart_qs.order_by("-id").first()
+                    if cart_item is not None:
+                        unit_price = CartService.trusted_cart_item_unit_price(cart_item)
+                    else:
+                        unit_price = list_price
                     OrderItem.objects.create(
                         order=order,
                         inventory_unit=inventory_unit,

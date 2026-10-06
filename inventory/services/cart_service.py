@@ -107,6 +107,79 @@ class CartService:
         return cart
 
     @staticmethod
+    def resolve_unit_price(inventory_unit, brand=None, promotion_id=None, promotion=None):
+        """Server-authoritative unit price (list or active promotion). Never trusts the client."""
+        list_price = Decimal(str(inventory_unit.selling_price))
+        product = inventory_unit.product_template
+        promo = promotion
+
+        if promo is None and promotion_id is not None:
+            from inventory.models import Promotion
+
+            promo_qs = Promotion.objects.filter(id=promotion_id, is_active=True)
+            if brand is not None:
+                promo_qs = promo_qs.filter(brand=brand)
+            promo = promo_qs.first()
+
+        if promo is None:
+            return list_price, None
+
+        now = timezone.now()
+        if not (promo.start_date <= now <= promo.end_date):
+            return list_price, None
+
+        is_eligible = False
+        if promo.products.exists() and product in promo.products.all():
+            is_eligible = True
+        elif promo.product_types and product.product_type == promo.product_types:
+            is_eligible = True
+        elif promo.featured_product_id == product.id:
+            is_eligible = True
+
+        if not is_eligible:
+            return list_price, None
+
+        final_price = list_price
+        if (
+            promo.featured_product_id == product.id
+            and promo.featured_sale_price is not None
+        ):
+            final_price = Decimal(str(promo.featured_sale_price))
+        elif promo.discount_percentage:
+            discount = (list_price * Decimal(str(promo.discount_percentage))) / Decimal("100")
+            final_price = max(Decimal("0.00"), list_price - discount)
+        elif promo.discount_amount:
+            final_price = max(
+                Decimal("0.00"),
+                list_price - Decimal(str(promo.discount_amount)),
+            )
+
+        return final_price, promo
+
+    @staticmethod
+    def trusted_cart_item_unit_price(cart_item):
+        """Price for checkout from a cart line — recompute promos; trust server-set bundle prices."""
+        inventory_unit = cart_item.inventory_unit
+        list_price = Decimal(str(inventory_unit.selling_price))
+
+        if cart_item.bundle_id:
+            price = Decimal(str(cart_item.get_unit_price()))
+            # Bundle lines are written by CartService.add_bundle_to_cart; reject negatives only.
+            return price if price >= 0 else list_price
+
+        if cart_item.promotion_id:
+            brand = getattr(cart_item.cart, "brand", None)
+            price, _ = CartService.resolve_unit_price(
+                inventory_unit,
+                brand=brand,
+                promotion_id=cart_item.promotion_id,
+            )
+            return price
+
+        # No promo/bundle: ignore any stored unit_price (may have been client-tampered).
+        return list_price
+
+    @staticmethod
     def add_item_to_cart(
         cart, inventory_unit, quantity=1, promotion_id=None, unit_price=None, ip_address=None
     ):
@@ -133,54 +206,14 @@ class CartService:
             # If product has no company brands and is not global, allow it
             # (default behavior - available to all company brands)
 
-        # Calculate promotion price if promotion is provided
-        promotion = None
-        final_price = inventory_unit.selling_price
-
-        if promotion_id:
-            try:
-                from inventory.models import Promotion
-
-                promotion = Promotion.objects.get(id=promotion_id, brand=cart.brand, is_active=True)
-                now = timezone.now()
-
-                # Check if promotion is currently active
-                if promotion.start_date <= now <= promotion.end_date:
-                    # Check if product is eligible
-                    is_eligible = False
-
-                    if promotion.products.exists() and product in promotion.products.all():
-                        is_eligible = True
-                    elif (
-                        promotion.product_types and product.product_type == promotion.product_types
-                    ):
-                        is_eligible = True
-
-                    if is_eligible:
-                        # Calculate discounted price
-                        if (
-                            promotion.featured_product_id == product.id
-                            and promotion.featured_sale_price is not None
-                        ):
-                            final_price = Decimal(str(promotion.featured_sale_price))
-                        elif promotion.discount_percentage:
-                            discount = (
-                                inventory_unit.selling_price * promotion.discount_percentage
-                            ) / 100
-                            final_price = max(
-                                Decimal("0.00"), inventory_unit.selling_price - discount
-                            )
-                        elif promotion.discount_amount:
-                            final_price = max(
-                                Decimal("0.00"),
-                                inventory_unit.selling_price - promotion.discount_amount,
-                            )
-            except Promotion.DoesNotExist:
-                pass
-
-        # Use provided unit_price if given (from frontend calculation)
-        if unit_price is not None:
-            final_price = Decimal(str(unit_price))
+        # Pricing is server-authoritative. `unit_price` from the client is ignored so
+        # checkout cannot be undercut via crafted cart/order payloads.
+        final_price, promotion = CartService.resolve_unit_price(
+            inventory_unit,
+            brand=cart.brand,
+            promotion_id=promotion_id,
+        )
+        _ = unit_price  # kept for API compatibility; intentionally unused
 
         # Create or update cart item
         cart_item, created = CartItem.objects.get_or_create(
@@ -423,10 +456,10 @@ class CartService:
             cart.delivery_notes = delivery_notes or ""
             cart.is_submitted = True
 
-            # Calculate total value using stored promotion prices
+            # Calculate total value using trusted (server-derived) prices
             total_value = Decimal("0.00")
             for item in cart.items.all():
-                unit_price = item.get_unit_price()  # Use stored promotion price
+                unit_price = CartService.trusted_cart_item_unit_price(item)
                 total_value += unit_price * item.quantity
 
             # Create Lead
@@ -455,14 +488,14 @@ class CartService:
             except Exception:
                 pass
 
-            # Create LeadItems with stored promotion prices
+            # Create LeadItems with trusted prices
             for cart_item in cart.items.all():
-                unit_price = cart_item.get_unit_price()  # Use stored promotion price
+                unit_price = CartService.trusted_cart_item_unit_price(cart_item)
                 LeadItem.objects.create(
                     lead=lead,
                     inventory_unit=cart_item.inventory_unit,
                     quantity=cart_item.quantity,
-                    unit_price=unit_price,  # Store promotion price
+                    unit_price=unit_price,
                     bundle=cart_item.bundle,
                     bundle_group_id=cart_item.bundle_group_id,
                 )
