@@ -59,11 +59,21 @@ class CustomerService:
 
     @staticmethod
     def get_or_create_customer(name, phone, email=None, delivery_address=None):
-        """Get existing customer or create new one."""
-        customer, created = Customer.objects.get_or_create(
-            phone=phone,
-            defaults={"name": name, "email": email, "delivery_address": delivery_address},
-        )
+        """Get existing customer or create new one.
+
+        Phone is not unique in the DB historically, so look up with filter().first()
+        instead of get_or_create(phone=...) which 500s on duplicates.
+        """
+        customer = Customer.objects.filter(phone=phone).order_by("id").first()
+        created = False
+        if customer is None:
+            customer = Customer.objects.create(
+                phone=phone,
+                name=name,
+                email=email,
+                delivery_address=delivery_address,
+            )
+            created = True
 
         # Track new customer registration
         if created:

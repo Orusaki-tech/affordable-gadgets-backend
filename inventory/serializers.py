@@ -2925,8 +2925,9 @@ class OrderSerializer(serializers.ModelSerializer):
                 .first()
             )
             if open_cart is None and phone:
+                # Guest / unlinked carts only — never rebuild from another customer's cart.
                 open_cart = (
-                    cart_qs.filter(customer_phone=phone)
+                    cart_qs.filter(customer_phone=phone, customer__isnull=True)
                     .prefetch_related("items__inventory_unit")
                     .order_by("-id")
                     .first()
@@ -3096,7 +3097,10 @@ class OrderSerializer(serializers.ModelSerializer):
                             phone = (getattr(customer, "phone", None) or "").strip()
                             if phone:
                                 cart_item = (
-                                    cart_qs.filter(cart__customer_phone=phone)
+                                    cart_qs.filter(
+                                        cart__customer_phone=phone,
+                                        cart__customer__isnull=True,
+                                    )
                                     .order_by("-id")
                                     .first()
                                 )

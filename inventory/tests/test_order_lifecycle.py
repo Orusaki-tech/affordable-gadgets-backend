@@ -174,6 +174,63 @@ class TestOrderCreation:
         assert len(data["order_items"]) == 1
         assert data["order_items"][0]["inventory_unit"] == available_unit.id
 
+    def test_online_order_ignores_other_customer_cart_same_phone(
+        self,
+        customer: Any,
+        available_unit: InventoryUnit,
+        make_unit: Any,
+        product: Product,
+        brand: Brand,
+        django_user_model: Any,
+    ) -> None:
+        """Same phone on another customer's cart must not rebuild this order."""
+        from inventory.models import Cart, CartItem, Customer
+
+        other_user = django_user_model.objects.create_user(
+            username="phone-twin", email="twin@example.com", password="x"
+        )
+        other_customer = Customer.objects.create(
+            user=other_user, name="Twin", phone=customer.phone, email="twin@example.com"
+        )
+        other_unit = make_unit(product)
+        other_cart = Cart.objects.create(
+            customer=other_customer,
+            customer_phone=customer.phone,
+            brand=brand,
+            is_submitted=False,
+        )
+        CartItem.objects.create(
+            cart=other_cart,
+            inventory_unit=other_unit,
+            quantity=1,
+            unit_price=other_unit.selling_price,
+        )
+
+        # Authenticate as the ordering customer (not staff) so phone get_or_create
+        # cannot reassign the order to the phone-twin account.
+        client = APIClient()
+        client.force_authenticate(user=customer.user)
+        url = "/api/inventory/orders/"
+        payload = {
+            "customer": customer.id,
+            "customer_id": customer.id,
+            "customer_name": "Test Customer",
+            "customer_phone": customer.phone,
+            "order_source": "ONLINE",
+            "fulfillment_method": "PICKUP",
+            "brand_id": brand.id,
+            "order_items": [
+                {
+                    "inventory_unit_id": available_unit.id,
+                    "quantity": 1,
+                }
+            ],
+        }
+        response = client.post(url, payload, format="json", HTTP_X_BRAND_CODE=brand.code)
+        assert response.status_code == status.HTTP_201_CREATED, response.content
+        data = response.json()
+        assert data["order_items"][0]["inventory_unit"] == available_unit.id
+
     def test_confirm_payment_sets_partial_paid_flags(
         self,
         sales_api_client: APIClient,
