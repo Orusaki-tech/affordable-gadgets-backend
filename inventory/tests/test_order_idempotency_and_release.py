@@ -203,3 +203,70 @@ class TestAbandonedPendingRelease:
         order.refresh_from_db()
         assert order.status == Order.StatusChoices.CANCELED
         assert second.json()["order_id"] != str(order.order_id)
+
+    def test_online_idempotency_matches_cart_rebuilt_lines(
+        self,
+        sales_api_client: APIClient,
+        customer: Any,
+        available_unit: InventoryUnit,
+        make_unit: Any,
+        product: Product,
+        brand: Brand,
+    ) -> None:
+        """Retry with swapped client SKU still matches when open cart owns the lines."""
+        from inventory.models import Cart, CartItem
+
+        decoy = make_unit(product)
+        cart = Cart.objects.create(customer=customer, brand=brand, is_submitted=False)
+        CartItem.objects.create(
+            cart=cart,
+            inventory_unit=available_unit,
+            quantity=1,
+            unit_price=available_unit.selling_price,
+        )
+        url = "/api/inventory/orders/"
+        payload = {
+            "customer": customer.id,
+            "customer_id": customer.id,
+            "customer_name": "Test Customer",
+            "customer_phone": customer.phone,
+            "order_source": "ONLINE",
+            "fulfillment_method": "PICKUP",
+            "brand_id": brand.id,
+            "order_items": [{"inventory_unit_id": decoy.id, "quantity": 1}],
+        }
+        r1 = sales_api_client.post(
+            url, payload, format="json", HTTP_IDEMPOTENCY_KEY="cart-rebuild-key"
+        )
+        assert r1.status_code == status.HTTP_201_CREATED, r1.content
+        assert r1.json()["order_items"][0]["inventory_unit"] == available_unit.id
+
+        r2 = sales_api_client.post(
+            url, payload, format="json", HTTP_IDEMPOTENCY_KEY="cart-rebuild-key"
+        )
+        assert r2.status_code == status.HTTP_200_OK, r2.content
+        assert r2.json()["order_id"] == r1.json()["order_id"]
+
+    def test_guest_online_order_persists_request_brand(
+        self,
+        api_client: APIClient,
+        customer: Any,
+        available_unit: InventoryUnit,
+        brand: Brand,
+    ) -> None:
+        # Guest path: no staff auth, brand only via X-Brand-Code middleware.
+        url = "/api/inventory/orders/"
+        payload = {
+            "customer_name": "Guest Buyer",
+            "customer_phone": "+254711111111",
+            "delivery_address": "Nairobi CBD",
+            "order_source": "ONLINE",
+            "fulfillment_method": "PICKUP",
+            "order_items": [{"inventory_unit_id": available_unit.id, "quantity": 1}],
+        }
+        response = api_client.post(
+            url, payload, format="json", HTTP_X_BRAND_CODE=brand.code
+        )
+        assert response.status_code == status.HTTP_201_CREATED, response.content
+        order = Order.objects.get(order_id=response.json()["order_id"])
+        assert order.brand_id == brand.id

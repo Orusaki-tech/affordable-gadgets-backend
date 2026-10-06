@@ -757,12 +757,32 @@ class PesapalPaymentService:
         print("\n[PESAPAL] ========== GET PAYMENT STATUS START ==========")
         print(f"[PESAPAL] Order ID: {order.order_id}")
 
-        payment = PesapalPayment.objects.filter(order=order).order_by("-initiated_at").first()
+        payments = PesapalPayment.objects.filter(order=order)
+        pending_payment = (
+            payments.filter(status=PesapalPayment.StatusChoices.PENDING)
+            .order_by("-initiated_at")
+            .first()
+        )
+        completed_payment = (
+            payments.filter(status=PesapalPayment.StatusChoices.COMPLETED)
+            .order_by("-completed_at", "-initiated_at")
+            .first()
+        )
+        latest_payment = payments.order_by("-initiated_at").first()
+
+        # Prefer in-flight PENDING (active Pesapal session), else COMPLETED, else latest.
+        payment = pending_payment or completed_payment or latest_payment
 
         if not payment:
             print("[PESAPAL] No payment found for this order")
             print("[PESAPAL] ===========================================\n")
-            return {"status": "NO_PAYMENT", "message": "No payment initiated for this order"}
+            return {
+                "status": "NO_PAYMENT",
+                "message": "No payment initiated for this order",
+                "order_status": order.status,
+                "is_items_paid": bool(order.is_items_paid),
+                "is_delivery_paid": bool(order.is_delivery_paid),
+            }
 
         print(f"[PESAPAL] Payment found - ID: {payment.id}")
         print(f"[PESAPAL] Payment Status: {payment.status}")
@@ -1065,8 +1085,9 @@ class PesapalPaymentService:
 
         print("[PESAPAL] ===========================================\n")
 
-        # Refresh payment from database to get updated status
+        # Refresh payment + order from database to get updated status/flags
         payment.refresh_from_db()
+        payment.order.refresh_from_db()
         receipt_email_sent = None
         receipt_whatsapp_sent = None
         try:
@@ -1082,20 +1103,41 @@ class PesapalPaymentService:
         initiated_at_str = payment.initiated_at.isoformat() if payment.initiated_at else None
         completed_at_str = payment.completed_at.isoformat() if payment.completed_at else None
 
+        # Aggregate display status for split-pay: full PAID wins; else active PENDING;
+        # else any COMPLETED leg.
+        order_obj = payment.order
+        has_completed_leg = (
+            payment.status == PesapalPayment.StatusChoices.COMPLETED
+            or PesapalPayment.objects.filter(
+                order=order_obj, status=PesapalPayment.StatusChoices.COMPLETED
+            ).exists()
+        )
+        if order_obj.status == Order.StatusChoices.PAID:
+            status_out = PesapalPayment.StatusChoices.COMPLETED
+        elif payment.status == PesapalPayment.StatusChoices.PENDING:
+            status_out = PesapalPayment.StatusChoices.PENDING
+        elif has_completed_leg:
+            status_out = PesapalPayment.StatusChoices.COMPLETED
+        else:
+            status_out = payment.status
+
         return {
-            "status": payment.status,
-            "order_status": payment.order.status,
+            "status": status_out,
+            "order_status": order_obj.status,
             "order_tracking_id": payment.pesapal_order_tracking_id,
             "payment_id": payment.pesapal_payment_id,
             "payment_reference": payment.pesapal_reference,
             "amount": str(payment.amount),
             "currency": payment.currency,
             "payment_method": payment.payment_method,
+            "payment_purpose": payment.payment_purpose,
             "redirect_url": payment.redirect_url,
             "initiated_at": initiated_at_str,
             "completed_at": completed_at_str,
             "is_verified": payment.is_verified,
             "ipn_received": payment.ipn_received,
+            "is_items_paid": bool(order_obj.is_items_paid),
+            "is_delivery_paid": bool(order_obj.is_delivery_paid),
             "receipt_email_sent": receipt_email_sent,
             "receipt_whatsapp_sent": receipt_whatsapp_sent,
         }

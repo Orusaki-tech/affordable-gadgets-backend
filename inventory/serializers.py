@@ -2910,28 +2910,14 @@ class OrderSerializer(serializers.ModelSerializer):
         # clients cannot swap cheaper SKUs into the order payload.
         request = self.context.get("request")
         order_brand = validated_data.get("brand") or getattr(request, "brand", None)
+        if order_brand is not None and not validated_data.get("brand"):
+            validated_data["brand"] = order_brand
         if order_source == Order.OrderSourceChoices.ONLINE and customer is not None:
-            from inventory.models import Cart
+            from inventory.services.cart_service import CartService
 
-            phone = (getattr(customer, "phone", None) or "").strip()
-            cart_qs = Cart.objects.filter(is_submitted=False)
-            if order_brand is not None:
-                cart_qs = cart_qs.filter(brand=order_brand)
-            # Prefer the authenticated customer's cart; only then match by phone.
-            open_cart = (
-                cart_qs.filter(customer=customer)
-                .prefetch_related("items__inventory_unit")
-                .order_by("-id")
-                .first()
+            open_cart = CartService.resolve_open_cart_for_customer(
+                customer, brand=order_brand
             )
-            if open_cart is None and phone:
-                # Guest / unlinked carts only — never rebuild from another customer's cart.
-                open_cart = (
-                    cart_qs.filter(customer_phone=phone, customer__isnull=True)
-                    .prefetch_related("items__inventory_unit")
-                    .order_by("-id")
-                    .first()
-                )
             if open_cart is not None:
                 cart_items = [
                     item
@@ -3011,6 +2997,14 @@ class OrderSerializer(serializers.ModelSerializer):
                     # Existing flow: inventory_unit-based order
                     order_source = validated_data.get(
                         "order_source", Order.OrderSourceChoices.ONLINE
+                    )
+
+                    # Lock the unit row so concurrent checkouts cannot double-reserve.
+                    unit_id = getattr(inventory_unit, "pk", inventory_unit)
+                    inventory_unit = (
+                        InventoryUnit.objects.select_for_update()
+                        .select_related("product_template")
+                        .get(pk=unit_id)
                     )
 
                     if (

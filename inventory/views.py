@@ -3722,7 +3722,11 @@ class OrderViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
 
                         from inventory.services.order_idempotency import order_matches_request
 
-                        if not order_matches_request(existing_order, request.data):
+                        if not order_matches_request(
+                            existing_order,
+                            request.data,
+                            brand=getattr(request, "brand", None),
+                        ):
                             logger.warning(
                                 "Idempotency-Key reused with a different payload "
                                 f"(existing={existing_order.order_id})"
@@ -3857,7 +3861,11 @@ class OrderViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                     raise
                 from inventory.services.order_idempotency import order_matches_request
 
-                if not order_matches_request(existing_order, request.data):
+                if not order_matches_request(
+                    existing_order,
+                    request.data,
+                    brand=getattr(request, "brand", None),
+                ):
                     return Response(
                         {
                             "error": (
@@ -4051,6 +4059,9 @@ class OrderViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                 # If 0 or 2+ brands, allow order to proceed without brand (ONLINE orders don't require brand)
                 # brand will remain None, which is acceptable for ONLINE orders
 
+        # Shop / guest online orders: persist brand from X-Brand-Code middleware.
+        if brand is None:
+            brand = getattr(self.request, "brand", None)
         logger.info(
             "About to save order",
             extra={

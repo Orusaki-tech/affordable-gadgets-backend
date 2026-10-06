@@ -104,18 +104,51 @@ def fingerprint_existing_order(order) -> str:
     return fingerprint_order_payload(payload)
 
 
-def order_matches_request(order, request_data: dict | None) -> bool:
-    request_data = dict(request_data or {})
-    # Align request fulfillment with how we infer it from persisted orders.
-    fulfillment = _as_str(request_data.get("fulfillment_method")).upper()
+def effective_request_payload(
+    request_data: dict | None,
+    *,
+    customer=None,
+    brand=None,
+) -> dict:
+    """
+    Normalize a create payload for idempotency matching.
+
+    Online shop create rebuilds lines from the open cart when present — use those
+    lines for the fingerprint so retries don't 409 against cart-backed orders.
+    """
+    data = dict(request_data or {})
+    fulfillment = _as_str(data.get("fulfillment_method")).upper()
     if not fulfillment:
         has_delivery = bool(
-            _as_str(request_data.get("delivery_county"))
-            or _as_str(request_data.get("delivery_ward"))
-            or _as_str(request_data.get("delivery_address"))
+            _as_str(data.get("delivery_county"))
+            or _as_str(data.get("delivery_ward"))
+            or _as_str(data.get("delivery_address"))
         )
-        if request_data.get("order_source") == "ONLINE" or _as_str(
-            request_data.get("order_source")
-        ).upper() == "ONLINE":
-            request_data["fulfillment_method"] = "DELIVERY" if has_delivery else "PICKUP"
-    return fingerprint_existing_order(order) == fingerprint_order_payload(request_data)
+        if _as_str(data.get("order_source")).upper() == "ONLINE":
+            data["fulfillment_method"] = "DELIVERY" if has_delivery else "PICKUP"
+
+    if (
+        _as_str(data.get("order_source")).upper() == "ONLINE"
+        and customer is not None
+    ):
+        from inventory.services.cart_service import CartService
+
+        cart_items = CartService.open_cart_order_item_payloads(customer, brand=brand)
+        if cart_items:
+            data["order_items"] = cart_items
+    return data
+
+
+def order_matches_request(
+    order,
+    request_data: dict | None,
+    *,
+    customer=None,
+    brand=None,
+) -> bool:
+    customer = customer or getattr(order, "customer", None)
+    brand = brand or getattr(order, "brand", None)
+    effective = effective_request_payload(
+        request_data, customer=customer, brand=brand
+    )
+    return fingerprint_existing_order(order) == fingerprint_order_payload(effective)

@@ -11,6 +11,58 @@ from inventory.services.customer_service import CustomerService
 
 class CartService:
     @staticmethod
+    def resolve_open_cart_for_customer(customer, brand=None):
+        """
+        Find the open (unsubmitted) cart for checkout rebuild.
+
+        Prefer the authenticated customer's cart for the brand; only then match
+        guest carts by phone (never another customer's cart).
+        """
+        if customer is None:
+            return None
+
+        cart_qs = Cart.objects.filter(is_submitted=False)
+        if brand is not None:
+            cart_qs = cart_qs.filter(brand=brand)
+
+        open_cart = (
+            cart_qs.filter(customer=customer)
+            .prefetch_related("items__inventory_unit")
+            .order_by("-id")
+            .first()
+        )
+        if open_cart is not None:
+            return open_cart
+
+        phone = (getattr(customer, "phone", None) or "").strip()
+        if not phone:
+            return None
+        return (
+            cart_qs.filter(customer_phone=phone, customer__isnull=True)
+            .prefetch_related("items__inventory_unit")
+            .order_by("-id")
+            .first()
+        )
+
+    @staticmethod
+    def open_cart_order_item_payloads(customer, brand=None) -> list[dict]:
+        """Cart lines as order_item dicts ({inventory_unit_id, quantity}) for idempotency."""
+        open_cart = CartService.resolve_open_cart_for_customer(customer, brand=brand)
+        if open_cart is None:
+            return []
+        payloads = []
+        for item in open_cart.items.all():
+            if item.inventory_unit_id is None:
+                continue
+            payloads.append(
+                {
+                    "inventory_unit_id": item.inventory_unit_id,
+                    "quantity": item.quantity or 1,
+                }
+            )
+        return payloads
+
+    @staticmethod
     def clear_open_carts_for_order(order) -> int:
         """
         Delete open (unsubmitted) carts for a fully paid order's customer/brand.

@@ -71,7 +71,7 @@ class CustomerService:
                 phone=phone,
                 name=name,
                 email=email,
-                delivery_address=delivery_address,
+                delivery_address=delivery_address or "",
             )
             created = True
 
