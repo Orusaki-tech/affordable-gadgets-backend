@@ -7508,6 +7508,7 @@ class PromotionViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
             "homepage_hero",
             "cbd_ribbon",
             "brand_banner",
+            "watch_offers",
         ]
         invalid_locations = [loc for loc in display_locations if loc not in valid_locations]
         if invalid_locations:

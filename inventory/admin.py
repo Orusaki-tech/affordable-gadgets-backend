@@ -444,6 +444,7 @@ DISPLAY_LOCATION_CHOICES = [
     ("homepage_hero", "Homepage hero"),
     ("cbd_ribbon", "CBD ribbon"),
     ("brand_banner", "Brand products banner"),
+    ("watch_offers", "Watch offers"),
 ]
 
 

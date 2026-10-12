@@ -2548,7 +2548,7 @@ class Promotion(models.Model):
         default=list,
         help_text=(
             "List of display locations: 'stories_carousel', 'special_offers', 'flash_sales', "
-            "'homepage_hero', 'cbd_ribbon', 'brand_banner'"
+            "'homepage_hero', 'cbd_ribbon', 'brand_banner', 'watch_offers'"
         ),
     )
     listing_brand = models.CharField(
