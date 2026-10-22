@@ -1618,10 +1618,52 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
                 if default_brand:
                     product_instance.brands.set([default_brand])
 
+    def _detach_product_articles(self, product):
+        """Keep buying guides by turning them into standalone articles.
+
+        ProductArticle.product uses PROTECT so deleting a product cannot
+        cascade-wipe SEO content. An explicit Studio delete still has to
+        succeed, so those guides stay in the catalog with no primary product.
+        """
+        articles = list(ProductArticle.objects.filter(product=product).only("id", "slug"))
+        for article in articles:
+            slug = (article.slug or f"article-{article.pk}")[:255]
+            standalone = ProductArticle.objects.filter(product__isnull=True, slug=slug).exclude(
+                pk=article.pk
+            )
+            if standalone.exists():
+                id_suffix = f"-{product.pk}"
+                base = slug[: 255 - len(id_suffix)]
+                candidate = f"{base}{id_suffix}"
+                n = 2
+                while (
+                    ProductArticle.objects.filter(product__isnull=True, slug=candidate)
+                    .exclude(pk=article.pk)
+                    .exists()
+                ):
+                    extra = f"-{n}"
+                    room = 255 - len(id_suffix) - len(extra)
+                    candidate = f"{base[:room]}{id_suffix}{extra}"
+                    n += 1
+                slug = candidate
+            ProductArticle.objects.filter(pk=article.pk).update(
+                product=None, is_primary=False, slug=slug
+            )
+
+    def _clear_protected_product_links(self, product):
+        """Remove PROTECT foreign keys that block an explicit product delete."""
+        self._detach_product_articles(product)
+        # Bundle.main_product and BundleItem.product are PROTECT.
+        product.bundles.all().delete()
+        product.bundle_items.all().delete()
+        # InventoryUnit.product_template is PROTECT. Sold/reserved rows are
+        # removed here; available stock is rejected before this runs.
+        product.inventory_units.all().delete()
+
     def perform_destroy(self, instance):
         """
         Override destroy to check for related objects before deletion.
-        Prevents deletion if product has inventory units (PROTECT constraint).
+        Prevents deletion if product has available inventory units.
         """
         # Check for AVAILABLE inventory units only
         available_units = instance.inventory_units.filter(
@@ -1642,43 +1684,35 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
             # DRF ValidationError with a dict returns it as {"detail": "message"} which is easier to parse
             raise ValidationError({"detail": error_message})
 
-        # Check for other related objects that might prevent deletion
-        # ProductAccessory (CASCADE - will be deleted automatically)
-        # ProductImage (CASCADE - will be deleted automatically)
-        # Review (CASCADE - will be deleted automatically)
-        # created_by/updated_by (PROTECT - but these are users, not products)
+        from django.db.models.deletion import ProtectedError
+        from rest_framework.exceptions import ValidationError
 
-        # Clear protected relations that can block deletion when no available units exist
         try:
-            if instance.bundle_items.exists():
-                instance.bundle_items.all().delete()
-            if instance.inventory_units.exists():
-                instance.inventory_units.all().delete()
-        except Exception as e:
-            logger.error(
-                f"Error cleaning related data for product {instance.id}: {str(e)}", exc_info=True
+            with transaction.atomic():
+                self._clear_protected_product_links(instance)
+                instance.delete()
+        except ProtectedError as e:
+            logger.error(f"Error deleting product {instance.id}: {e}", exc_info=True)
+            blockers = ", ".join(
+                sorted({obj.__class__.__name__ for obj in e.protected_objects})
+            ) or "related records"
+            raise ValidationError(
+                {
+                    "detail": (
+                        f'Unable to delete product "{instance.product_name}" because it is '
+                        f"still linked to: {blockers}."
+                    )
+                }
             )
-            from rest_framework.exceptions import ValidationError
-
-            raise ValidationError(f"Failed to delete product: {str(e)}")
-
-        # Attempt deletion
-        try:
-            instance.delete()
+        except ValidationError:
+            raise
         except Exception as e:
-            # Log the error for debugging
-            logger.error(f"Error deleting product {instance.id}: {str(e)}", exc_info=True)
-            # Re-raise with a user-friendly message
-            from rest_framework.exceptions import ValidationError
-
-            raise ValidationError(f"Failed to delete product: {str(e)}")
+            logger.error(f"Error deleting product {instance.id}: {e}", exc_info=True)
+            raise ValidationError({"detail": f"Failed to delete product: {e}"})
 
     def _force_delete_product(self, product):
-        """Delete a single product and its protected relations (bundle_items, inventory_units). Used by bulk_destroy."""
-        if product.bundle_items.exists():
-            product.bundle_items.all().delete()
-        if product.inventory_units.exists():
-            product.inventory_units.all().delete()
+        """Delete a single product and its protected relations. Used by bulk_destroy."""
+        self._clear_protected_product_links(product)
         product.delete()
 
     @action(detail=False, methods=["post"], url_path="bulk-destroy")
