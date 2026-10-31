@@ -263,6 +263,11 @@ class Product(models.Model):
     is_discontinued = models.BooleanField(
         default=False, help_text="Mark product as discontinued (no longer in catalog)"
     )
+    is_out_of_stock = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Show an Out of stock label on the storefront and block online purchase.",
+    )
     release_date = models.DateField(
         null=True,
         blank=True,

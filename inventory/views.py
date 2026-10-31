@@ -1825,6 +1825,7 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
             "og_image",
             "product_highlights",
             "is_published",
+            "is_out_of_stock",
             "product_video_url",
             "product_video_file",
             "videos",

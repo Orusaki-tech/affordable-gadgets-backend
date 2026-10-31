@@ -139,6 +139,13 @@ class TestAddItemToCart:
         item = CartService.add_item_to_cart(cart, available_unit, unit_price=Decimal("500"))
         assert item.unit_price == available_unit.selling_price
 
+    def test_rejects_out_of_stock_product(self, cart, available_unit):
+        product = available_unit.product_template
+        product.is_out_of_stock = True
+        product.save(update_fields=["is_out_of_stock"])
+        with pytest.raises(ValueError, match="out of stock"):
+            CartService.add_item_to_cart(cart, available_unit)
+
 
 class TestCheckoutCart:
     def _checkout(self, cart, **kw):
@@ -160,6 +167,16 @@ class TestCheckoutCart:
         self._checkout(cart)
         cart.refresh_from_db()
         assert cart.is_submitted is True
+
+    def test_checkout_rejects_out_of_stock(self, cart, available_unit):
+        CartService.add_item_to_cart(cart, available_unit)
+        product = available_unit.product_template
+        product.is_out_of_stock = True
+        product.save(update_fields=["is_out_of_stock"])
+        with pytest.raises(ValueError, match="out of stock"):
+            self._checkout(cart)
+        cart.refresh_from_db()
+        assert cart.is_submitted is False
 
     def test_raises_on_submitted_cart(self, cart, available_unit):
         CartService.add_item_to_cart(cart, available_unit)

@@ -1271,6 +1271,7 @@ class ProductSerializer(serializers.ModelSerializer):
             "storage_gb",
             "ram_gb",
             "is_discontinued",
+            "is_out_of_stock",
             "release_date",
             "created_at",
             "updated_at",
@@ -2950,6 +2951,27 @@ class OrderSerializer(serializers.ModelSerializer):
             delivery_fee, _ = get_delivery_fee(
                 validated_data.get("delivery_county"), validated_data.get("delivery_ward")
             )
+
+        if order_source == Order.OrderSourceChoices.ONLINE:
+            for item_data in order_items_data:
+                product = None
+                variant = item_data.get("variant")
+                inventory_unit = item_data.get("inventory_unit")
+                if variant is not None:
+                    product = getattr(variant, "product", None)
+                elif inventory_unit is not None:
+                    product = getattr(inventory_unit, "product_template", None)
+                    if product is None:
+                        unit_id = getattr(inventory_unit, "pk", inventory_unit)
+                        product = (
+                            Product.objects.filter(inventory_units__id=unit_id)
+                            .only("id", "product_name", "is_out_of_stock")
+                            .first()
+                        )
+                if product is not None and product.is_out_of_stock:
+                    raise serializers.ValidationError(
+                        {"detail": f"{product.product_name} is out of stock."}
+                    )
 
         # 2. Use transaction to ensure atomic operations (inventory + order creation)
         with transaction.atomic():

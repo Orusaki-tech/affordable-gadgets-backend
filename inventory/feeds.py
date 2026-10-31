@@ -269,6 +269,7 @@ def google_products_feed(request: HttpRequest) -> HttpResponse:
             sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
             product_template__is_published=True,
             product_template__is_discontinued=False,
+            product_template__is_out_of_stock=False,
         )
         .prefetch_related(
             Prefetch(

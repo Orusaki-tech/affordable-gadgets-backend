@@ -108,6 +108,8 @@ class CartService:
             raise ValueError(f"Unit {inventory_unit.id} is not available for online purchase")
 
         product = inventory_unit.product_template
+        if product.is_out_of_stock:
+            raise ValueError(f"{product.product_name} is out of stock")
         unit_has_company_brands = inventory_unit.brands.exists()
         product_has_company_brands = product.brands.exists()
 
@@ -519,6 +521,14 @@ class CartService:
 
         if cart.is_submitted:
             raise ValueError("Cart already submitted")
+
+        out_of_stock_name = (
+            cart.items.filter(inventory_unit__product_template__is_out_of_stock=True)
+            .values_list("inventory_unit__product_template__product_name", flat=True)
+            .first()
+        )
+        if out_of_stock_name:
+            raise ValueError(f"{out_of_stock_name} is out of stock")
 
         with transaction.atomic():
             # Get or create customer
