@@ -128,11 +128,7 @@ jobs:
 
           echo "==> Pointing compose at the loaded image..."
           override="$(mktemp)"
-          cat > "$override" <<EOF
-services:
-  web:
-    image: ${IMAGE}
-EOF
+          printf 'services:\n  web:\n    image: %s\n' "$IMAGE" > "$override"
           $SCP_CMD "$override" "${{ env.GCP_VM_USER }}@${{ env.GCP_VM_IP }}:/tmp/docker-compose.image.yml"
           rm -f "$override"
           $SSH_CMD "sudo mv /tmp/docker-compose.image.yml ${{ env.DEPLOY_PATH }}/docker-compose.image.yml"
