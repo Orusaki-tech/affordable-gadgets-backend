@@ -76,9 +76,6 @@ jobs:
           DATABASE_URL: postgresql://postgres:test_password@127.0.0.1:5432/test_db
           FRONTEND_BASE_URL: https://shop.affordable-gadgetske.com
 
-      - name: Build Docker image
-        run: docker build -t ag-api:ci .
-
   deploy:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     needs: test
@@ -91,6 +88,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Build on the runner. The production VM is an e2-small; compiling
+      # this image there (pip + layer export) takes about 40 minutes.
+      - name: Build API image
+        run: docker build -t "ag-api:${{ github.sha }}" .
+
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
@@ -101,8 +103,12 @@ jobs:
       - name: Deploy to GCP VM
         env:
           SSH_KEY: ~/.ssh/deploy_key
+          IMAGE: ag-api:${{ github.sha }}
         run: |
-          SSH_CMD="ssh -i $SSH_KEY -o StrictHostKeyChecking=no ${{ env.GCP_VM_USER }}@${{ env.GCP_VM_IP }}"
+          set -euo pipefail
+          SSH_OPTS="-i $SSH_KEY -o StrictHostKeyChecking=no -o ServerAliveInterval=30"
+          SSH_CMD="ssh -T $SSH_OPTS ${{ env.GCP_VM_USER }}@${{ env.GCP_VM_IP }}"
+          SCP_CMD="scp $SSH_OPTS"
 
           echo "==> Configuring git safe directory..."
           $SSH_CMD "sudo git config --global --add safe.directory ${{ env.DEPLOY_PATH }}/app"
@@ -114,16 +120,28 @@ jobs:
             sudo git checkout -f origin/main
           "
 
-          echo "==> Rebuilding Docker containers..."
-          $SSH_CMD "
-            cd ${{ env.DEPLOY_PATH }} &&
-            sudo docker compose -f docker-compose.yml build web
-          "
+          echo "==> Freeing Docker build cache on the VM..."
+          $SSH_CMD "sudo docker builder prune -af || true; df -h /"
 
-          echo "==> Restarting services..."
+          echo "==> Streaming image ${IMAGE} to the VM..."
+          docker save "$IMAGE" | gzip -1 | $SSH_CMD "sudo --non-interactive sh -c 'gunzip | docker load'"
+
+          echo "==> Pointing compose at the loaded image..."
+          override="$(mktemp)"
+          cat > "$override" <<EOF
+services:
+  web:
+    image: ${IMAGE}
+EOF
+          $SCP_CMD "$override" "${{ env.GCP_VM_USER }}@${{ env.GCP_VM_IP }}:/tmp/docker-compose.image.yml"
+          rm -f "$override"
+          $SSH_CMD "sudo mv /tmp/docker-compose.image.yml ${{ env.DEPLOY_PATH }}/docker-compose.image.yml"
+
+          echo "==> Recreating the API container from the loaded image..."
           $SSH_CMD "
             cd ${{ env.DEPLOY_PATH }} &&
-            sudo docker compose -f docker-compose.yml up -d
+            sudo docker compose -f docker-compose.yml -f docker-compose.image.yml up -d --no-build --force-recreate --no-deps web &&
+            sudo docker image prune -f
           "
 
           echo "==> Waiting for health check..."
