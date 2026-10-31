@@ -15,6 +15,8 @@ env:
   GCP_VM_IP: 35.237.10.17
   GCP_VM_USER: shwariaccessories
   DEPLOY_PATH: /opt/affordable-gadgets
+  AR_HOST: us-east1-docker.pkg.dev
+  AR_IMAGE: us-east1-docker.pkg.dev/project-bc0f5694-0e96-4989-861/ag-api/ag-api
 
 jobs:
   test:
@@ -84,14 +86,42 @@ jobs:
       group: production-api-deploy
       cancel-in-progress: false
     environment: production
+    permissions:
+      contents: read
+      id-token: write
 
     steps:
       - uses: actions/checkout@v4
 
-      # Build on the runner. The production VM is an e2-small; compiling
-      # this image there (pip + layer export) takes about 40 minutes.
-      - name: Build API image
-        run: docker build -t "ag-api:${{ github.sha }}" .
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SA }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker "$AR_HOST" --quiet
+          gcloud auth print-access-token | docker login -u oauth2accesstoken --password-stdin "https://$AR_HOST"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Dependency layers stay in the registry and on the VM.
+      # A code-only push uploads and pulls the small application layer.
+      - name: Build and push API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.AR_IMAGE }}:${{ github.sha }}
+            ${{ env.AR_IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Setup SSH key
         run: |
@@ -103,7 +133,7 @@ jobs:
       - name: Deploy to GCP VM
         env:
           SSH_KEY: ~/.ssh/deploy_key
-          IMAGE: ag-api:${{ github.sha }}
+          IMAGE: ${{ env.AR_IMAGE }}:${{ github.sha }}
         run: |
           set -euo pipefail
           SSH_OPTS="-i $SSH_KEY -o StrictHostKeyChecking=no -o ServerAliveInterval=30"
@@ -120,20 +150,24 @@ jobs:
             sudo git checkout -f origin/main
           "
 
-          echo "==> Freeing Docker build cache on the VM..."
-          $SSH_CMD "sudo docker builder prune -af || true; df -h /"
+          echo "==> Logging the VM into Artifact Registry..."
+          token_file="$(mktemp)"
+          gcloud auth print-access-token > "$token_file"
+          $SCP_CMD "$token_file" "${{ env.GCP_VM_USER }}@${{ env.GCP_VM_IP }}:/tmp/ar-token"
+          rm -f "$token_file"
+          $SSH_CMD "sudo --non-interactive sh -c 'docker login -u oauth2accesstoken --password-stdin ${{ env.AR_HOST }} < /tmp/ar-token' && rm -f /tmp/ar-token"
 
-          echo "==> Streaming image ${IMAGE} to the VM..."
-          docker save "$IMAGE" | gzip -1 | $SSH_CMD "sudo --non-interactive sh -c 'gunzip | docker load'"
+          echo "==> Pulling ${IMAGE}..."
+          $SSH_CMD "sudo docker pull '$IMAGE'"
 
-          echo "==> Pointing compose at the loaded image..."
+          echo "==> Pointing compose at the pulled image..."
           override="$(mktemp)"
           printf 'services:\n  web:\n    image: %s\n' "$IMAGE" > "$override"
           $SCP_CMD "$override" "${{ env.GCP_VM_USER }}@${{ env.GCP_VM_IP }}:/tmp/docker-compose.image.yml"
           rm -f "$override"
           $SSH_CMD "sudo mv /tmp/docker-compose.image.yml ${{ env.DEPLOY_PATH }}/docker-compose.image.yml"
 
-          echo "==> Recreating the API container from the loaded image..."
+          echo "==> Recreating the API container..."
           $SSH_CMD "
             cd ${{ env.DEPLOY_PATH }} &&
             sudo docker compose -f docker-compose.yml -f docker-compose.image.yml up -d --no-build --force-recreate --no-deps web &&
