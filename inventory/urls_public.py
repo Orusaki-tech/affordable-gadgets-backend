@@ -4,6 +4,7 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from . import views, views_public
+from .homepage_campaign import PublicHomepageCampaignView
 
 router = DefaultRouter()
 router.register(r"products", views_public.PublicProductViewSet, basename="public-product")
@@ -47,6 +48,11 @@ urlpatterns = [
         name="public-review-submit",
     ),
     path("orders/otp/", views_public.OrderOtpView.as_view(), name="public-order-otp"),
+    path(
+        "homepage-campaign/",
+        PublicHomepageCampaignView.as_view(),
+        name="public-homepage-campaign",
+    ),
     path(
         "orders/history/",
         views_public.PublicOrderHistoryView.as_view(),

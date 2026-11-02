@@ -2933,6 +2933,59 @@ class ObservabilityEvent(models.Model):
         return f"{self.event_type} by user {self.user_id or 'anon'} at {self.created_at.isoformat()}"
 
 
+class HomepageCampaign(models.Model):
+    """Singleton storefront campaign (seasonal heading + ordered products)."""
+
+    class Animation(models.TextChoices):
+        NONE = "none", "None"
+        TITLE_SHIMMER = "title_shimmer", "Title shimmer"
+
+    SEASONAL_KEY = "seasonal"
+
+    key = models.CharField(max_length=40, unique=True, default=SEASONAL_KEY)
+    title = models.CharField(max_length=80, default="Black November")
+    is_active = models.BooleanField(default=True)
+    starts_at = models.DateTimeField(null=True, blank=True)
+    ends_at = models.DateTimeField(null=True, blank=True)
+    animation = models.CharField(
+        max_length=32,
+        choices=Animation.choices,
+        default=Animation.NONE,
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Homepage campaign"
+        verbose_name_plural = "Homepage campaigns"
+
+    def __str__(self):
+        return f"{self.title} ({self.key})"
+
+
+class HomepageCampaignProduct(models.Model):
+    """Ordered product membership for a homepage campaign. Removing a row does not delete the product."""
+
+    campaign = models.ForeignKey(
+        HomepageCampaign, on_delete=models.CASCADE, related_name="items"
+    )
+    product = models.ForeignKey(
+        Product, on_delete=models.CASCADE, related_name="homepage_campaign_items"
+    )
+    position = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["position", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["campaign", "product"],
+                name="unique_homepage_campaign_product",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.campaign_id} · {self.product_id} @ {self.position}"
+
+
 # -------------------------------------------------------------------------
 # ENUM CHOICES (module-level exports for drf-spectacular overrides)
 # -------------------------------------------------------------------------

@@ -2,6 +2,7 @@ from django.urls import include, path, re_path
 from rest_framework.routers import DefaultRouter
 
 from . import views
+from .homepage_campaign import StaffHomepageCampaignView
 
 # Initialize the DefaultRouter
 # The router automatically generates URL patterns for your ViewSets
@@ -117,6 +118,11 @@ urlpatterns = [
     # matched as a detail pk by the router's {pk} pattern.
     path(
         "units/available/", views.PublicAvailableUnitsView.as_view(), name="public-available-units"
+    ),
+    path(
+        "homepage-campaign/",
+        StaffHomepageCampaignView.as_view(),
+        name="homepage-campaign",
     ),
     # --- Order Receipt Endpoint (Clean implementation) ---
     receipt_pattern,
