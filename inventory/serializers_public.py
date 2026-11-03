@@ -567,9 +567,11 @@ class PublicProductSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(PublicProductVariantSerializer(many=True))
     def get_variants(self, obj):
-        return PublicProductVariantSerializer(
-            obj.variants.filter(is_active=True), many=True, context=self.context
-        ).data
+        # `.filter()` skips the prefetch cache and queries once per product.
+        variants = getattr(obj, "active_variants_list", None)
+        if variants is None:
+            variants = obj.variants.filter(is_active=True)
+        return PublicProductVariantSerializer(variants, many=True, context=self.context).data
 
     @extend_schema_field(serializers.CharField(allow_null=True))
     def get_article_headline(self, obj):
@@ -1272,17 +1274,15 @@ class PublicBundleItemSerializer(serializers.ModelSerializer):
         ]
 
     def _get_price_range(self, product: Product):
-        # Check if min_price and max_price annotations exist (from queryset annotations)
-        if hasattr(product, "min_price") and hasattr(product, "max_price"):
-            if product.min_price is not None and product.max_price is not None:
-                return product.min_price, product.max_price
-        # Fallback: query units directly to calculate price range
+        # Annotated on the public bundle queryset so list responses skip per-item queries.
+        if getattr(product, "min_price", None) is not None and getattr(product, "max_price", None) is not None:
+            return product.min_price, product.max_price
         units = InventoryUnit.objects.filter(
             product_template=product, sale_status="AV", available_online=True
         )
-        if not units.exists():
-            return None, None
         prices = list(units.values_list("selling_price", flat=True))
+        if not prices:
+            return None, None
         return min(prices), max(prices)
 
     @extend_schema_field(OpenApiTypes.NUMBER)
@@ -1299,7 +1299,13 @@ class PublicBundleItemSerializer(serializers.ModelSerializer):
     def get_primary_image(self, obj):
         from inventory.cloudinary_utils import get_optimized_image_url
 
-        primary_image = ProductImage.objects.filter(product=obj.product, is_primary=True).first()
+        prefetched = getattr(obj.product, "_prefetched_objects_cache", {}).get("images")
+        if prefetched is not None:
+            primary_image = next(
+                (img for img in prefetched if getattr(img, "is_primary", False)), None
+            ) or (prefetched[0] if prefetched else None)
+        else:
+            primary_image = ProductImage.objects.filter(product=obj.product, is_primary=True).first()
         if primary_image and primary_image.image:
             original_url = primary_image.image.url
             cloudinary_url = get_optimized_image_url(primary_image.image)
@@ -1511,7 +1517,15 @@ class PublicPromotionSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(serializers.URLField(allow_null=True))
     def get_banner_image(self, obj):
-        """Return optimized banner image URL (prefer Cloudinary, fallback to absolute URL)"""
+        """Return optimized banner image URL (prefer Cloudinary, fallback to absolute URL)."""
+        if getattr(obj, "_public_banner_url_cached", False):
+            return obj._public_banner_url
+        url = self._build_banner_image(obj)
+        obj._public_banner_url = url
+        obj._public_banner_url_cached = True
+        return url
+
+    def _build_banner_image(self, obj):
         if obj.banner_image:
             import os
 
@@ -1695,23 +1709,34 @@ class PublicPromotionSerializer(serializers.ModelSerializer):
     @extend_schema_field(serializers.URLField(allow_null=True))
     def get_banner_image_url(self, obj):
         """Return optimized banner image URL for public API"""
-        # Use the same logic as get_banner_image
         return self.get_banner_image(obj)
 
     @extend_schema_field(serializers.ListField(child=serializers.IntegerField()))
     def get_products(self, obj):
         """Return list of product IDs associated with this promotion."""
+        prefetched = getattr(obj, "_prefetched_objects_cache", {}).get("products")
+        if prefetched is not None:
+            return [product.id for product in prefetched]
         return list(obj.products.values_list("id", flat=True))
 
     def _get_promo_card_product(self, obj):
         if getattr(obj, "featured_product", None):
             return obj.featured_product
+        prefetched = getattr(obj, "_prefetched_objects_cache", {}).get("products")
+        if prefetched is not None:
+            return min(prefetched, key=lambda product: product.id) if prefetched else None
         return obj.products.order_by("id").first()
 
     def _get_product_image_url(self, product):
         from inventory.cloudinary_utils import get_optimized_image_url
 
-        primary_image = product.images.filter(is_primary=True).first() or product.images.first()
+        prefetched = getattr(product, "_prefetched_objects_cache", {}).get("images")
+        if prefetched is not None:
+            primary_image = next(
+                (img for img in prefetched if getattr(img, "is_primary", False)), None
+            ) or (prefetched[0] if prefetched else None)
+        else:
+            primary_image = product.images.filter(is_primary=True).first() or product.images.first()
         if primary_image and primary_image.image:
             request = self.context.get("request")
             original_url = primary_image.image.url
@@ -1729,6 +1754,9 @@ class PublicPromotionSerializer(serializers.ModelSerializer):
         return None
 
     def _get_available_product_units(self, product):
+        prefetched = getattr(product, "promo_available_units", None)
+        if prefetched is not None:
+            return list(prefetched)
         brand = self.context.get("brand")
         units = product.inventory_units.filter(
             sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,

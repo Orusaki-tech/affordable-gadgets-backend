@@ -1882,6 +1882,9 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
         serializer = self.get_serializer(product, data=content_data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save(updated_by=request.user)
+        from inventory.views_public import bump_public_catalog_cache
+
+        bump_public_catalog_cache()
 
         return Response(serializer.data)
 
@@ -1933,6 +1936,9 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
             product.tags.remove(*to_remove)
             product.updated_by = request.user
             product.save(update_fields=["updated_by", "updated_at"])
+            from inventory.views_public import bump_public_catalog_cache
+
+            bump_public_catalog_cache()
 
         serializer = self.get_serializer(product)
         return Response(serializer.data)

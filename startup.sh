@@ -30,6 +30,7 @@ if [ -n "${PROMETHEUS_MULTIPROC_DIR:-}" ]; then
 fi
 
 WORKERS="${GUNICORN_WORKERS:-2}"
+THREADS="${GUNICORN_THREADS:-4}"
 TIMEOUT="${GUNICORN_TIMEOUT:-120}"
-echo "🚀 Starting Gunicorn (workers=${WORKERS}, timeout=${TIMEOUT})..."
-exec gunicorn store.wsgi:application --bind "0.0.0.0:${PORT}" --workers "${WORKERS}" --timeout "${TIMEOUT}"
+echo "🚀 Starting Gunicorn (workers=${WORKERS}, threads=${THREADS}, timeout=${TIMEOUT})..."
+exec gunicorn store.wsgi:application --bind "0.0.0.0:${PORT}" --workers "${WORKERS}" --threads "${THREADS}" --timeout "${TIMEOUT}"

@@ -36,6 +36,7 @@ from rest_framework.views import APIView
 
 from inventory.models import (
     Bundle,
+    BundleItem,
     Cart,
     Customer,
     DeliveryRate,
@@ -48,8 +49,10 @@ from inventory.models import (
     OrderItem,
     Product,
     ProductArticle,
+    Tag,
     ProductImage,
     ProductVariant,
+    ProductVideo,
     Promotion,
     Review,
     WishlistItem,
@@ -124,6 +127,37 @@ def _safe_cache_delete(key):
         cache.delete(key)
     except Exception:
         return None
+
+
+_PUBLIC_CATALOG_CACHE_VERSION_KEY = "public_catalog_cache_version"
+
+
+def public_catalog_cache_version() -> int:
+    """Monotonic version so catalog edits drop stale list/detail payloads without a full flush."""
+    value = _safe_cache_get(_PUBLIC_CATALOG_CACHE_VERSION_KEY)
+    try:
+        return int(value) if value is not None else 1
+    except (TypeError, ValueError):
+        return 1
+
+
+def bump_public_catalog_cache() -> None:
+    """Call after a product content or tag change so the next public read rebuilds once."""
+    try:
+        cache.incr(_PUBLIC_CATALOG_CACHE_VERSION_KEY)
+    except ValueError:
+        try:
+            cache.set(_PUBLIC_CATALOG_CACHE_VERSION_KEY, 2, timeout=None)
+        except Exception:
+            return None
+    except Exception:
+        return None
+
+
+def _public_list_cache_params(query_params) -> str:
+    """Stable cache key. Ignore `_`, which clients use only to bust caches."""
+    pairs = [(key, value) for key, value in sorted(query_params.items()) if key != "_"]
+    return urlencode(pairs)
 # Optional Silk profiling: when SILKY_ENABLED, wrap views so the Silk "Profiling" tab has data
 try:
     if getattr(settings, "SILKY_ENABLED", False):
@@ -632,10 +666,12 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
         if cache_enabled:
             # v3: bump when list semantics change (e.g. include out-of-stock) so Redis is not stuck on old payloads.
             cache_key = (
-                "public_products_list:v3:"
+                "public_products_list:v4:"
+                + str(public_catalog_cache_version())
+                + ":"
                 + request.headers.get("X-Brand-Code", "")
                 + ":"
-                + urlencode(sorted(request.query_params.items()))
+                + _public_list_cache_params(request.query_params)
             )
             cached = _safe_cache_get(cache_key)
             if cached is not None:
@@ -881,6 +917,7 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
         variants_prefetch = Prefetch(
             "variants",
             queryset=ProductVariant.objects.filter(is_active=True),
+            to_attr="active_variants_list",
         )
         return Product.objects.filter(pk=pk).prefetch_related(
             "tags",
@@ -900,6 +937,8 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
         if cache_enabled:
             cache_key = (
                 "public_product_detail:"
+                + str(public_catalog_cache_version())
+                + ":"
                 + request.headers.get("X-Brand-Code", "")
                 + ":"
                 + str(kwargs.get("pk"))
@@ -1106,82 +1145,6 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
                     ),
                 )
 
-                # #region agent log
-                try:
-                    import json
-                    import os
-                    import time
-                    import traceback
-
-                    os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
-                    accessory_sample = queryset.filter(
-                        product_type=Product.ProductType.ACCESSORY
-                    ).first()
-                    if accessory_sample:
-                        accessory_units = accessory_sample.inventory_units.filter(
-                            available_units_filter
-                        )
-                        sum_qty = (
-                            accessory_units.aggregate(total_qty=Sum("quantity"))["total_qty"] or 0
-                        )
-                        count_units = accessory_units.count()
-                        with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
-                            f.write(
-                                json.dumps(
-                                    {
-                                        "sessionId": "debug-session",
-                                        "runId": "pre-fix",
-                                        "hypothesisId": "H2",
-                                        "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(slug)",
-                                        "message": "Public slug count vs quantity",
-                                        "data": {
-                                            "product_id": accessory_sample.id,
-                                            "count_units": count_units,
-                                            "sum_quantity": sum_qty,
-                                            "available_units_count": accessory_sample.available_units_count,
-                                        },
-                                        "timestamp": int(time.time() * 1000),
-                                    }
-                                )
-                                + "\n"
-                            )
-                    else:
-                        with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
-                            f.write(
-                                json.dumps(
-                                    {
-                                        "sessionId": "debug-session",
-                                        "runId": "pre-fix",
-                                        "hypothesisId": "H2",
-                                        "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(slug)",
-                                        "message": "No accessory found in queryset",
-                                        "data": {"queryset_count": queryset.count()},
-                                        "timestamp": int(time.time() * 1000),
-                                    }
-                                )
-                                + "\n"
-                            )
-                except Exception as e:
-                    import os
-
-                    os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
-                    with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
-                        f.write(
-                            json.dumps(
-                                {
-                                    "sessionId": "debug-session",
-                                    "runId": "pre-fix",
-                                    "hypothesisId": "H2",
-                                    "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(slug)",
-                                    "message": "Exception in logging",
-                                    "data": {"error": str(e)},
-                                    "timestamp": int(time.time() * 1000),
-                                }
-                            )
-                            + "\n"
-                        )
-                # #endregion
-
                 # Stable ordering for pagination (avoids UnorderedObjectListWarning when slug returns 1 row).
                 return queryset.order_by("id")
 
@@ -1240,19 +1203,31 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
             # Normal queryset filtering for list views
             queryset = super().get_queryset()
             brand = getattr(self.request, "brand", None)
-            # Featured: only products tagged "Featured" (name or slug; no untagged fallback).
+            # Featured / video tags use EXISTS so the list does not JOIN+DISTINCT the whole catalog.
             if self.request.query_params.get("featured") in ("1", "true", "yes"):
                 queryset = queryset.filter(
-                    Q(tags__name__iexact="Featured") | Q(tags__slug__iexact="featured")
-                ).distinct()
+                    Exists(
+                        Tag.objects.filter(
+                            Q(name__iexact="Featured") | Q(slug__iexact="featured"),
+                            products=OuterRef("pk"),
+                        )
+                    )
+                )
             elif self.request.query_params.get("homepage_videos") in ("1", "true", "yes"):
                 tagged_video = queryset.filter(
-                    Q(tags__name__iexact="Video") | Q(tags__slug__iexact="video")
-                ).distinct()
+                    Exists(
+                        Tag.objects.filter(
+                            Q(name__iexact="Video") | Q(slug__iexact="video"),
+                            products=OuterRef("pk"),
+                        )
+                    )
+                )
                 has_url = Q(product_video_url__isnull=False) & ~Q(product_video_url="")
                 has_file = Q(product_video_file__isnull=False) & ~Q(product_video_file="")
-                has_related = Q(videos__url__isnull=False) & ~Q(videos__url="")
-                queryset = tagged_video.filter(has_url | has_file | has_related).distinct()
+                has_related = Exists(
+                    ProductVideo.objects.filter(product_id=OuterRef("pk")).exclude(url="")
+                )
+                queryset = tagged_video.filter(has_url | has_file | has_related)
 
             # Attach a lightweight boolean for UI chips ("Financing available") on list responses.
             financing_exists = FinancingOffer.objects.filter(
@@ -1516,23 +1491,27 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
                     "bundles", queryset=bundles_qs, to_attr="active_bundles_list"
                 )
 
-                reviews_prefetch_list = Prefetch(
-                    "reviews",
-                    queryset=Review.objects.only("product_id", "rating"),
-                    to_attr="reviews_for_aggregates",
-                )
                 # Omit tags/brands prefetch for list; PublicProductListSerializer does not expose them.
+                # Ratings are annotated below so the list does not load every review row.
                 variants_prefetch = Prefetch(
                     "variants",
                     queryset=ProductVariant.objects.filter(is_active=True),
+                    to_attr="active_variants_list",
+                )
+                videos_prefetch = Prefetch(
+                    "videos",
+                    queryset=ProductVideo.objects.only(
+                        "id", "url", "title", "display_order", "product_id"
+                    ),
                 )
                 queryset = queryset.prefetch_related(
                     primary_images_prefetch_list,
                     available_units_prefetch,
                     bundles_prefetch,
-                    reviews_prefetch_list,
                     variants_prefetch,
+                    videos_prefetch,
                 )
+                review_base = Review.objects.filter(product_id=OuterRef("pk"))
                 queryset = queryset.annotate(
                     has_published_article=Exists(
                         ProductArticle.objects.filter(product_id=OuterRef("pk"), is_published=True)
@@ -1550,6 +1529,24 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
                         ),
                         Value(0),
                         output_field=IntegerField(),
+                    ),
+                    review_count=Coalesce(
+                        Subquery(
+                            review_base.order_by()
+                            .values("product_id")
+                            .annotate(total=Count("id"))
+                            .values("total")[:1],
+                            output_field=IntegerField(),
+                        ),
+                        Value(0),
+                        output_field=IntegerField(),
+                    ),
+                    average_rating=Subquery(
+                        review_base.order_by()
+                        .values("product_id")
+                        .annotate(avg=Avg("rating"))
+                        .values("avg")[:1],
+                        output_field=DecimalField(max_digits=4, decimal_places=2),
                     ),
                 )
                 return apply_public_ordering(queryset)
@@ -1620,30 +1617,30 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
             # Don't filter by brand in annotation - let prefetch handle it
             # This ensures units with no brands are included (they're available to all brands)
 
-            # #region agent log - Before annotations
-            try:
-                os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
-                with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
-                    f.write(
-                        json.dumps(
-                            {
-                                "sessionId": "debug-session",
-                                "runId": "run1",
-                                "hypothesisId": "H4",
-                                "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(before_annotate)",
-                                "message": "Before annotations",
-                                "data": {
-                                    "queryset_exists": queryset.exists(),
-                                    "has_brand": brand is not None,
-                                },
-                                "timestamp": int(time.time() * 1000),
-                            }
+            # Debug exists() is an extra query. Keep it behind the explicit debug flag.
+            if _run_debug_checks:
+                try:
+                    os.makedirs("/tmp/affordable-gadgets-debug", exist_ok=True)
+                    with open("/tmp/affordable-gadgets-debug/debug.log", "a") as f:
+                        f.write(
+                            json.dumps(
+                                {
+                                    "sessionId": "debug-session",
+                                    "runId": "run1",
+                                    "hypothesisId": "H4",
+                                    "location": "inventory/views_public.py:PublicProductViewSet.get_queryset(before_annotate)",
+                                    "message": "Before annotations",
+                                    "data": {
+                                        "queryset_exists": queryset.exists(),
+                                        "has_brand": brand is not None,
+                                    },
+                                    "timestamp": int(time.time() * 1000),
+                                }
+                            )
+                            + "\n"
                         )
-                        + "\n"
-                    )
-            except Exception:
-                pass
-            # #endregion
+                except Exception:
+                    pass
 
             # For accessories, sum quantities; for phones/laptops/tablets, count units
             try:
@@ -3491,6 +3488,23 @@ class PublicPromotionViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOn
     permission_classes = [permissions.AllowAny]
     pagination_class = PublicPromotionPagination
 
+    def list(self, request, *args, **kwargs):
+        cache_key = (
+            "public_promotions:v1:"
+            + str(public_catalog_cache_version())
+            + ":"
+            + request.headers.get("X-Brand-Code", "")
+            + ":"
+            + _public_list_cache_params(request.query_params)
+        )
+        cached = _safe_cache_get(cache_key)
+        if cached is not None:
+            return Response(cached)
+        response = super().list(request, *args, **kwargs)
+        if getattr(response, "status_code", None) == 200 and hasattr(response, "data"):
+            _safe_cache_set(cache_key, response.data, 120)
+        return response
+
     def get_queryset(self):
         brand = getattr(self.request, "brand", None)
         if not brand:
@@ -3500,6 +3514,14 @@ class PublicPromotionViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOn
         from django.utils import timezone
 
         now = timezone.now()
+        available_units = InventoryUnit.objects.filter(
+            sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+            available_online=True,
+        ).select_related("product_color")
+        if brand:
+            available_units = available_units.filter(
+                Q(brands=brand) | Q(brands__isnull=True)
+            ).distinct()
         queryset = (
             Promotion.objects.filter(
                 brand=brand, is_active=True, start_date__lte=now, end_date__gte=now
@@ -3507,8 +3529,15 @@ class PublicPromotionViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOn
             .select_related("featured_product")
             .prefetch_related(
                 "products",
-                "featured_product__images",
-                "featured_product__inventory_units__product_color",
+                Prefetch(
+                    "featured_product__images",
+                    queryset=ProductImage.objects.filter(is_primary=True),
+                ),
+                Prefetch(
+                    "featured_product__inventory_units",
+                    queryset=available_units,
+                    to_attr="promo_available_units",
+                ),
             )
         )
 
@@ -3560,10 +3589,30 @@ class PublicBundleViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnlyM
         from django.utils import timezone
 
         now = timezone.now()
+        unit_price_filter = Q(
+            inventory_units__sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+            inventory_units__available_online=True,
+        )
+        priced_products = Product.objects.annotate(
+            min_price=Min("inventory_units__selling_price", filter=unit_price_filter),
+            max_price=Max("inventory_units__selling_price", filter=unit_price_filter),
+        ).prefetch_related(
+            Prefetch(
+                "images",
+                queryset=ProductImage.objects.filter(is_primary=True),
+            )
+        )
         queryset = (
             Bundle.objects.filter(brand=brand, is_active=True)
             .select_related("main_product")
-            .prefetch_related("items")
+            .prefetch_related(
+                Prefetch(
+                    "items",
+                    queryset=BundleItem.objects.prefetch_related(
+                        Prefetch("product", queryset=priced_products)
+                    ),
+                )
+            )
         )
 
         # Date window filtering (if set)

@@ -6,7 +6,7 @@ import logging
 from datetime import timedelta
 
 from django.contrib.contenttypes.models import ContentType
-from django.db.models.signals import post_save, pre_save
+from django.db.models.signals import post_delete, post_save, pre_save
 from django.dispatch import receiver
 from django.utils import timezone
 
@@ -14,11 +14,13 @@ from .models import (
     Admin,
     AdminRole,
     AuditLog,
+    Bundle,
     InventoryUnit,
     Notification,
     Order,
     Product,
     ProductReleaseDate,
+    Promotion,
     ReservationRequest,
     ReturnRequest,
     UnitTransfer,
@@ -38,6 +40,17 @@ def infer_product_release_date(sender, instance, **kwargs):
     inferred = infer_release_date(instance.product_name)
     if inferred:
         instance.release_date = inferred
+
+
+@receiver(post_save, sender=Promotion)
+@receiver(post_delete, sender=Promotion)
+@receiver(post_save, sender=Bundle)
+@receiver(post_delete, sender=Bundle)
+def bump_public_catalog_on_merchandising_change(sender, **kwargs):
+    """Drop cached public promotion and bundle payloads after a studio edit."""
+    from inventory.views_public import bump_public_catalog_cache
+
+    bump_public_catalog_cache()
 
 
 @receiver(post_save, sender=ProductReleaseDate)
