@@ -13,4 +13,5 @@ echo "AWS_API_INSTANCE_ID=$(terraform output -raw api_instance_id 2>/dev/null ||
 echo "AWS_MONITORING_INSTANCE_ID=$(terraform output -raw monitoring_instance_id 2>/dev/null || echo '<run terraform apply first>')"
 echo "AWS_API_PRIVATE_IP=$(terraform output -raw api_private_ip 2>/dev/null || echo '<run terraform apply first>')"
 echo "AWS_RDS_ENDPOINT=$(terraform output -raw rds_endpoint 2>/dev/null || echo '<run terraform apply first>')"
+echo "AWS_MONITORING_PRIVATE_IP=$(terraform output -raw monitoring_private_ip 2>/dev/null || echo '<run terraform apply first>')"
 echo "AWS_ANSIBLE_VAULT_PASSWORD=<your ansible-vault password>"

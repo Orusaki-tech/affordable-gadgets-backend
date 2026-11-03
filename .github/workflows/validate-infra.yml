@@ -88,5 +88,5 @@ jobs:
           MONITORING_INSTANCE_ID: ${{ secrets.AWS_MONITORING_INSTANCE_ID }}
           API_PRIVATE_IP: ${{ secrets.AWS_API_PRIVATE_IP }}
           AWS_DEPLOY_CONFIG_BUCKET: ${{ secrets.AWS_DEPLOY_CONFIG_BUCKET }}
-          DEPLOY_TUNNEL_ON_MONITORING: "1"
+          DEPLOY_TUNNEL_ON_MONITORING: "0"
         run: bash deploy/scripts/deploy-monitoring.sh

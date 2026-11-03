@@ -54,7 +54,7 @@ variable "api_instance_type" {
 
 variable "monitoring_instance_type" {
   type    = string
-  default = "t3.micro"
+  default = "t3.small"
 }
 
 variable "api_volume_size_gb" {

@@ -24,6 +24,25 @@
   delegate_to: localhost
   become: false
 
+- name: Render tunnel.env locally
+  template:
+    src: tunnel.env.j2
+    dest: "/tmp/ag-deploy/{{ env_name }}/api/tunnel/tunnel.env"
+    mode: "0600"
+  no_log: true
+  delegate_to: localhost
+  become: false
+  when: deploy_tunnel_on_api | default(false) | bool
+
+- name: Render docker-compose.tunnel.yml locally
+  template:
+    src: docker-compose.tunnel.yml.j2
+    dest: "/tmp/ag-deploy/{{ env_name }}/api/docker-compose.tunnel.yml"
+    mode: "0644"
+  delegate_to: localhost
+  become: false
+  when: deploy_tunnel_on_api | default(false) | bool
+
 - name: Upload API config to S3
   command: >-
     aws s3 cp
@@ -44,6 +63,28 @@
   when:
     - deploy_config_bucket | length > 0
 
+- name: Upload tunnel.env to S3
+  command: >-
+    aws s3 cp
+    /tmp/ag-deploy/{{ env_name }}/api/tunnel/tunnel.env
+    s3://{{ deploy_config_bucket }}/{{ deploy_s3_prefix | default(env_name) }}/api/tunnel/tunnel.env
+  delegate_to: localhost
+  become: false
+  when:
+    - deploy_config_bucket | length > 0
+    - deploy_tunnel_on_api | default(false) | bool
+
+- name: Upload tunnel docker-compose to S3
+  command: >-
+    aws s3 cp
+    /tmp/ag-deploy/{{ env_name }}/api/docker-compose.tunnel.yml
+    s3://{{ deploy_config_bucket }}/{{ deploy_s3_prefix | default(env_name) }}/api/docker-compose.tunnel.yml
+  delegate_to: localhost
+  become: false
+  when:
+    - deploy_config_bucket | length > 0
+    - deploy_tunnel_on_api | default(false) | bool
+
 - name: Restart API via SSM (AWS)
   command: >-
     aws ssm send-command
@@ -51,7 +92,7 @@
     --instance-ids {{ api_instance_id }}
     --document-name AWS-RunShellScript
     --comment "Deploy API compose"
-    --parameters commands="cd {{ compose_root }} && aws s3 sync s3://{{ deploy_config_bucket }}/{{ deploy_s3_prefix | default(env_name) }}/api/ . && aws ecr get-login-password --region {{ aws_region }} | docker login --username AWS --password-stdin {{ api_image | regex_replace('/[^/]+$','') }} && docker compose -f docker-compose.api.yml pull && docker compose -f docker-compose.api.yml up -d"
+    --parameters commands="cd {{ compose_root }} && aws s3 sync s3://{{ deploy_config_bucket }}/{{ deploy_s3_prefix | default(env_name) }}/api/ . && aws ecr get-login-password --region {{ aws_region }} | docker login --username AWS --password-stdin {{ api_image | regex_replace('/[^/]+$','') }} && docker compose -f docker-compose.api.yml pull && docker compose -f docker-compose.api.yml up -d && if [ -f docker-compose.tunnel.yml ]; then docker compose -f docker-compose.tunnel.yml --env-file tunnel/tunnel.env up -d; fi"
   delegate_to: localhost
   become: false
   when:

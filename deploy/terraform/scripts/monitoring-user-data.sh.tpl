@@ -19,15 +19,30 @@ chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 systemctl enable docker
 systemctl start docker
 
+# 2 GB swap — prevents OOM kills on Prometheus + Grafana
+if ! swapon --show | grep -q '/swapfile'; then
+  fallocate -l 2G /swapfile
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+  grep -q '/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+fi
+sysctl -w vm.swappiness=10
+grep -q 'vm.swappiness' /etc/sysctl.conf || echo 'vm.swappiness=10' >> /etc/sysctl.conf
+
 COMPOSE_ROOT="/opt/affordable-gadgets"
 mkdir -p "$${COMPOSE_ROOT}/monitoring/prometheus" \
          "$${COMPOSE_ROOT}/monitoring/grafana/datasources" \
          "$${COMPOSE_ROOT}/monitoring/grafana/dashboards" \
-         "$${COMPOSE_ROOT}/monitoring/tunnel"
+         "$${COMPOSE_ROOT}/scripts"
 
 S3_PREFIX="s3://${deploy_config_bucket}/${environment}/monitoring"
 if aws s3 ls "$${S3_PREFIX}/docker-compose.monitoring.yml" >/dev/null 2>&1; then
   aws s3 sync "$${S3_PREFIX}/" "$${COMPOSE_ROOT}/"
+fi
+if aws s3 ls "$${S3_PREFIX}/scripts/monitoring-watchdog.sh" >/dev/null 2>&1; then
+  aws s3 cp "$${S3_PREFIX}/scripts/monitoring-watchdog.sh" "$${COMPOSE_ROOT}/scripts/monitoring-watchdog.sh"
+  chmod +x "$${COMPOSE_ROOT}/scripts/monitoring-watchdog.sh"
 fi
 
 cat >/etc/systemd/system/ag-monitoring-compose.service <<'UNIT'
@@ -40,16 +55,43 @@ Requires=docker.service
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=/opt/affordable-gadgets
-ExecStart=/bin/bash -c '/usr/bin/docker compose -f docker-compose.monitoring.yml --env-file monitoring/grafana.env up -d --remove-orphans; /usr/bin/docker compose -f docker-compose.tunnel.yml --env-file monitoring/tunnel/tunnel.env up -d || true'
-ExecStop=/usr/bin/docker compose -f docker-compose.monitoring.yml -f docker-compose.tunnel.yml down
+ExecStart=/usr/bin/docker compose -f docker-compose.monitoring.yml --env-file monitoring/grafana.env up -d --remove-orphans
+ExecStop=/usr/bin/docker compose -f docker-compose.monitoring.yml down
 TimeoutStartSec=0
 
 [Install]
 WantedBy=multi-user.target
 UNIT
+
+cat >/etc/systemd/system/ag-monitoring-watchdog.service <<'UNIT'
+[Unit]
+Description=Monitoring stack health watchdog
+
+[Service]
+Type=oneshot
+Environment=COMPOSE_ROOT=/opt/affordable-gadgets
+ExecStart=/opt/affordable-gadgets/scripts/monitoring-watchdog.sh
+UNIT
+
+cat >/etc/systemd/system/ag-monitoring-watchdog.timer <<'UNIT'
+[Unit]
+Description=Run monitoring watchdog every 2 minutes
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=2min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+UNIT
+
 systemctl daemon-reload
-systemctl enable ag-monitoring-compose.service
+systemctl enable ag-monitoring-compose.service ag-monitoring-watchdog.timer
 
 if [[ -f "$${COMPOSE_ROOT}/docker-compose.monitoring.yml" ]]; then
   systemctl start ag-monitoring-compose.service || true
+fi
+if [[ -x "$${COMPOSE_ROOT}/scripts/monitoring-watchdog.sh" ]]; then
+  systemctl start ag-monitoring-watchdog.timer || true
 fi

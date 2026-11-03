@@ -1,0 +1,22 @@
+# GSC URL Inspection — request indexing (short list after Soft 404 + reparent fixes)
+# Resubmit sitemap first: https://www.affordable-gadgetske.com/sitemap.xml
+# Then request indexing for these canonicals (~10–20/day budget).
+
+# Soft 404 products (enriched SEO)
+https://www.affordable-gadgetske.com/products/apple-iphone-c-lightning-cable
+https://www.affordable-gadgetske.com/products/apple-watch-series-11-42mm
+https://www.affordable-gadgetske.com/products/apple-watch-ultra-3-2025-49mm
+https://www.affordable-gadgetske.com/products/samsung-galaxy-a41
+https://www.affordable-gadgetske.com/products/samsung-galaxy-note-20-ultra
+
+# Corrected article canonicals (misfiled parents now 308 → these)
+https://www.affordable-gadgetske.com/products/apple-iphone-15-pro-max/blog/iphone-15-pro-max-256gb-sim-dubai-review-affordable-apple-phone-in-kenya
+https://www.affordable-gadgetske.com/products/samsung-galaxy-a16/blog/samsung-galaxy-a16-256gb-8gb-ram-best-price-on-samsungs-latest-phone-in-kenya
+https://www.affordable-gadgetske.com/products/samsung-galaxy-a16/blog/is-the-samsung-galaxy-a16-128gb-4gb-ram-the-right-affordable-phone-for-you-in-kenya
+https://www.affordable-gadgetske.com/products/samsung-galaxy-a42-5g/blog/samsung-galaxy-a42-5g-review-affordable-5g-for-everyday-users-in-kenya
+https://www.affordable-gadgetske.com/products/samsung-galaxy-s26/blog/samsung-galaxy-s26-review-the-future-of-flagship-smartphones
+
+# Do NOT request indexing
+# https://www.affordable-gadgetske.com/budget-search
+# https://www.affordable-gadgetske.com/match-score
+# Wrong-parent blog URLs (they 308 to the canonicals above)

@@ -1,0 +1,20 @@
+services:
+  grafana-proxy:
+    image: alpine/socat
+    container_name: ag-grafana-proxy
+    restart: always
+    network_mode: host
+    command: TCP-LISTEN:3000,fork,reuseaddr TCP:{{ monitoring_private_ip }}:3000
+
+  cloudflared:
+    image: cloudflare/cloudflared:2024.2.1
+    container_name: ag-api-cloudflared
+    restart: always
+    network_mode: host
+    depends_on:
+      - grafana-proxy
+    env_file:
+      - {{ compose_root }}/tunnel/tunnel.env
+    environment:
+      CLOUDFLARE_TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    command: tunnel --no-autoupdate run --protocol http2 --token ${CLOUDFLARE_TUNNEL_TOKEN}

@@ -39,6 +39,42 @@ def get_seasonal_campaign() -> HomepageCampaign:
     return campaign
 
 
+def seasonal_unit_price(product, list_price) -> Decimal | None:
+    """Live campaign price for a unit. The catalog minimum keeps the set promo price; higher units keep the same discount."""
+    campaign = HomepageCampaign.objects.filter(key=HomepageCampaign.SEASONAL_KEY).first()
+    if campaign is None or not campaign_is_live(campaign):
+        return None
+    item = (
+        HomepageCampaignProduct.objects.filter(campaign=campaign, product=product)
+        .only("promo_price")
+        .first()
+    )
+    if item is None or item.promo_price is None:
+        return None
+    try:
+        list_amount = Decimal(str(list_price))
+        promo_amount = Decimal(str(item.promo_price))
+    except (InvalidOperation, TypeError):
+        return None
+    anchor = (
+        InventoryUnit.objects.filter(
+            product_template=product,
+            sale_status=InventoryUnit.SaleStatusChoices.AVAILABLE,
+            available_online=True,
+        )
+        .order_by("selling_price")
+        .values_list("selling_price", flat=True)
+        .first()
+    )
+    anchor_amount = Decimal(str(anchor)) if anchor is not None else list_amount
+    if anchor_amount <= 0 or promo_amount >= anchor_amount:
+        return None
+    scaled = (list_amount * promo_amount / anchor_amount).quantize(Decimal("0.01"))
+    if scaled >= list_amount:
+        return None
+    return scaled
+
+
 def campaign_is_live(campaign: HomepageCampaign, now=None) -> bool:
     now = now or timezone.now()
     if not campaign.is_active:

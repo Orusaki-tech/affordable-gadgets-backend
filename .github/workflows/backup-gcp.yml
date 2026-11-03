@@ -1,0 +1,105 @@
+name: Backup GCP API to GCS
+
+on:
+  schedule:
+    # Daily 02:15 UTC
+    - cron: "15 2 * * *"
+  workflow_dispatch:
+    inputs:
+      prune_disk:
+        description: "Also prune docker/journals after upload"
+        type: boolean
+        default: true
+
+env:
+  GCP_VM_IP: 35.237.10.17
+  GCP_VM_USER: shwariaccessories
+  DEPLOY_PATH: /opt/affordable-gadgets
+  BACKUP_BUCKET: ag-backups-bc0f5694
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: gcp-api-backup
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.GCP_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ env.GCP_VM_IP }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Authenticate to Google Cloud (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SA }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Run backup on VM and stream archives to GCS
+        env:
+          SSH_KEY: ~/.ssh/deploy_key
+        run: |
+          set -euo pipefail
+          SSH_CMD="ssh -i $SSH_KEY -o StrictHostKeyChecking=no ${{ env.GCP_VM_USER }}@${{ env.GCP_VM_IP }}"
+          SCP_CMD="scp -i $SSH_KEY -o StrictHostKeyChecking=no"
+          STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+          REMOTE_TMP="/tmp/ag-backup-${STAMP}"
+          LOCAL_TMP="$(mktemp -d)"
+
+          echo "==> Copying backup script to VM"
+          $SCP_CMD deploy/scripts/backup-to-gcs.sh "${{ env.GCP_VM_USER }}@${{ env.GCP_VM_IP }}:/tmp/backup-to-gcs.sh"
+          $SSH_CMD "sudo mv /tmp/backup-to-gcs.sh ${{ env.DEPLOY_PATH }}/scripts/backup-to-gcs.sh 2>/dev/null || (sudo mkdir -p ${{ env.DEPLOY_PATH }}/scripts && sudo mv /tmp/backup-to-gcs.sh ${{ env.DEPLOY_PATH }}/scripts/backup-to-gcs.sh); sudo chmod +x ${{ env.DEPLOY_PATH }}/scripts/backup-to-gcs.sh"
+
+          echo "==> Creating local archives on VM (upload from runner — VM scope may be read-only storage)"
+          $SSH_CMD "
+            set -euo pipefail
+            sudo mkdir -p /var/backups/ag
+            sudo BACKUP_BUCKET='${{ env.BACKUP_BUCKET }}' \
+              DEPLOY_PATH='${{ env.DEPLOY_PATH }}' \
+              SKIP_UPLOAD=1 \
+              ${{ env.DEPLOY_PATH }}/scripts/backup-to-gcs.sh
+            LATEST=\$(sudo ls -1dt /var/backups/ag/20* | head -1)
+            echo \"LATEST=\$LATEST\"
+            sudo tar -C \"\$LATEST\" -czf ${REMOTE_TMP}.tar.gz .
+            sudo chown ${{ env.GCP_VM_USER }}:${{ env.GCP_VM_USER }} ${REMOTE_TMP}.tar.gz
+            df -h /
+          "
+
+          echo "==> Downloading archive to runner"
+          $SCP_CMD "${{ env.GCP_VM_USER }}@${{ env.GCP_VM_IP }}:${REMOTE_TMP}.tar.gz" "${LOCAL_TMP}/backup.tar.gz"
+
+          echo "==> Uploading to gs://${{ env.BACKUP_BUCKET }}/ag-api/${STAMP}/"
+          gcloud storage cp "${LOCAL_TMP}/backup.tar.gz" "gs://${{ env.BACKUP_BUCKET }}/ag-api/${STAMP}/backup.tar.gz"
+          echo "gs://${{ env.BACKUP_BUCKET }}/ag-api/${STAMP}/backup.tar.gz" | \
+            gcloud storage cp - "gs://${{ env.BACKUP_BUCKET }}/ag-api/LATEST.txt"
+
+          echo "==> Cleanup remote temp + optional prune"
+          $SSH_CMD "
+            rm -f ${REMOTE_TMP}.tar.gz
+            if [[ '${{ github.event.inputs.prune_disk || 'true' }}' == 'true' ]]; then
+              sudo journalctl --vacuum-size=80M || true
+              sudo find /var/lib/docker/containers -name '*-json.log' -size +20M -exec truncate -s 0 {} \; 2>/dev/null || true
+              sudo docker image prune -af || true
+              sudo docker builder prune -af || true
+              sudo find /var/backups/ag -mindepth 1 -maxdepth 1 -type d -mtime +2 -exec rm -rf {} + 2>/dev/null || true
+            fi
+            df -h /
+          "
+
+          echo "==> Backup stored at gs://${{ env.BACKUP_BUCKET }}/ag-api/${STAMP}/backup.tar.gz"
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key

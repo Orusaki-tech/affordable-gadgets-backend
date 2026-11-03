@@ -27,7 +27,7 @@ docker exec ag-api-web python manage.py seo_structural_maintenance $DRY_RUN_FLAG
 EOF
 )
 
-PARAMS=$(REMOTE_CMD | python3 -c 'import json,sys; print(json.dumps({"commands": [sys.stdin.read()]}))')
+PARAMS=$(printf '%s' "$REMOTE_CMD" | python3 -c 'import json,sys; print(json.dumps({"commands": [sys.stdin.read()]}))')
 
 CMD_ID=$(aws ssm send-command \
   --region "$REGION" \

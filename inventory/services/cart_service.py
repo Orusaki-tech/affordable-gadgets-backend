@@ -202,6 +202,11 @@ class CartService:
         """Server-authoritative unit price (list or active promotion). Never trusts the client."""
         list_price = Decimal(str(inventory_unit.selling_price))
         product = inventory_unit.product_template
+        from inventory.homepage_campaign import seasonal_unit_price
+
+        deal_price = seasonal_unit_price(product, list_price)
+        if deal_price is not None:
+            return deal_price, None
         promo = promotion
 
         if promo is None and promotion_id is not None:

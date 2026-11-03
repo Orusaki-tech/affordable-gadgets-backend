@@ -52,6 +52,16 @@ resource "aws_security_group_rule" "api_metrics_from_monitoring" {
   description              = "Prometheus scrape from monitoring VM"
 }
 
+resource "aws_security_group_rule" "grafana_from_api" {
+  type                     = "ingress"
+  from_port                = 3000
+  to_port                  = 3000
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.monitoring.id
+  source_security_group_id = aws_security_group.api.id
+  description              = "Grafana via API cloudflared tunnel"
+}
+
 resource "aws_security_group_rule" "rds_from_api" {
   type                     = "ingress"
   from_port                = 5432

@@ -10,7 +10,15 @@ from PIL import Image
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from inventory.models import Admin, AdminRole, HomepageCampaign, HomepageCampaignProduct, Product
+from inventory.homepage_campaign import seasonal_unit_price
+from inventory.models import (
+    Admin,
+    AdminRole,
+    HomepageCampaign,
+    HomepageCampaignProduct,
+    InventoryUnit,
+    Product,
+)
 
 
 class HomepageCampaignApiTests(APITestCase):
@@ -160,6 +168,34 @@ class HomepageCampaignApiTests(APITestCase):
             [item["id"] for item in public.data["products"]],
             [self.first.id, self.second.id],
         )
+
+    def test_campaign_price_is_the_checkout_price(self):
+        InventoryUnit.objects.create(
+            product_template=self.first,
+            selling_price=Decimal("21500.00"),
+            cost_of_unit=Decimal("10000.00"),
+            serial_number="CAMP-A-128",
+        )
+        higher = InventoryUnit.objects.create(
+            product_template=self.first,
+            selling_price=Decimal("25000.00"),
+            cost_of_unit=Decimal("12000.00"),
+            serial_number="CAMP-A-256",
+        )
+        self.client.force_authenticate(user=self.creator)
+        response = self.client.patch(
+            self.staff_url,
+            {"products": [{"product_id": self.first.id, "promo_price": "19500.00"}]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(seasonal_unit_price(self.first, Decimal("21500.00")), Decimal("19500.00"))
+        self.assertEqual(seasonal_unit_price(self.first, higher.selling_price), Decimal("22674.42"))
+
+        campaign = HomepageCampaign.objects.get(key="seasonal")
+        campaign.is_active = False
+        campaign.save(update_fields=["is_active"])
+        self.assertIsNone(seasonal_unit_price(self.first, Decimal("21500.00")))
 
     def test_salesperson_cannot_update(self):
         self.client.force_authenticate(user=self.salesperson)
