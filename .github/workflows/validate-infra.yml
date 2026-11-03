@@ -59,34 +59,3 @@ jobs:
         run: |
           ansible-lint playbooks/ --exclude secrets/ 2>&1 || true
         continue-on-error: true
-
-  deploy-monitoring:
-    name: Deploy Monitoring Stack
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    needs: [validate-monitoring, validate-ansible]
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
-    environment: production
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: eu-north-1
-
-      - name: Deploy monitoring stack
-        env:
-          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
-          CLOUDFLARE_TUNNEL_TOKEN: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
-          DJANGO_ADMIN_PASSWORD: ${{ secrets.DJANGO_ADMIN_PASSWORD }}
-          DJANGO_API_TOKEN: ${{ secrets.DJANGO_API_TOKEN }}
-          AWS_REGION: eu-north-1
-          MONITORING_INSTANCE_ID: ${{ secrets.AWS_MONITORING_INSTANCE_ID }}
-          API_PRIVATE_IP: ${{ secrets.AWS_API_PRIVATE_IP }}
-          AWS_DEPLOY_CONFIG_BUCKET: ${{ secrets.AWS_DEPLOY_CONFIG_BUCKET }}
-          DEPLOY_TUNNEL_ON_MONITORING: "0"
-        run: bash deploy/scripts/deploy-monitoring.sh
