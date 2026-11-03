@@ -2972,6 +2972,19 @@ class HomepageCampaignProduct(models.Model):
         Product, on_delete=models.CASCADE, related_name="homepage_campaign_items"
     )
     position = models.PositiveIntegerField(default=0)
+    promo_image = models.ImageField(
+        upload_to="campaigns/%Y/%m/",
+        blank=True,
+        null=True,
+        help_text="Optional image shown on this campaign card instead of the catalog photo.",
+    )
+    promo_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Optional price shown on this campaign card instead of the catalog price.",
+    )
 
     class Meta:
         ordering = ["position", "id"]

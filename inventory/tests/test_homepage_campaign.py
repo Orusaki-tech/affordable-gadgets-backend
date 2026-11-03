@@ -1,8 +1,12 @@
 from datetime import timedelta
+from decimal import Decimal
+from io import BytesIO
 
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 from django.utils import timezone
+from PIL import Image
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -111,6 +115,51 @@ class HomepageCampaignApiTests(APITestCase):
             .values_list("product_id", flat=True)
         )
         self.assertEqual(positions, [self.second.id, self.first.id])
+
+    def test_promo_price_and_image_are_returned_on_the_card(self):
+        image = BytesIO()
+        Image.new("RGB", (8, 8), color="black").save(image, "JPEG")
+        upload = SimpleUploadedFile("promo.jpg", image.getvalue(), content_type="image/jpeg")
+        self.client.force_authenticate(user=self.creator)
+        response = self.client.patch(
+            self.staff_url,
+            {
+                "title": "Black November",
+                "products": '[{"product_id": %d, "promo_price": "39999.00"}]' % self.first.id,
+                "promo_image_%d" % self.first.id: upload,
+            },
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        saved = response.data["products"][0]
+        self.assertEqual(saved["id"], self.first.id)
+        self.assertEqual(Decimal(str(saved["promo_price"])), Decimal("39999.00"))
+        self.assertIn("/campaigns/", saved["promo_image_url"])
+        self.assertTrue(saved["promo_image_url"].endswith(".jpg"))
+
+        self.client.force_authenticate(user=None)
+        public = self.client.get(self.public_url)
+        card = public.data["products"][0]
+        self.assertEqual(card["promo_price"], 39999.0)
+        self.assertIn("/campaigns/", card["promo_image_url"])
+        self.assertNotEqual(card["primary_image"], card["promo_image_url"])
+
+    def test_unpublished_chosen_product_still_appears(self):
+        self.second.is_published = False
+        self.second.save(update_fields=["is_published"])
+        self.client.force_authenticate(user=self.creator)
+        response = self.client.patch(
+            self.staff_url,
+            {"product_ids": [self.first.id, self.second.id]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.client.force_authenticate(user=None)
+        public = self.client.get(self.public_url)
+        self.assertEqual(
+            [item["id"] for item in public.data["products"]],
+            [self.first.id, self.second.id],
+        )
 
     def test_salesperson_cannot_update(self):
         self.client.force_authenticate(user=self.salesperson)
