@@ -46,11 +46,12 @@ def infer_product_release_date(sender, instance, **kwargs):
 @receiver(post_delete, sender=Promotion)
 @receiver(post_save, sender=Bundle)
 @receiver(post_delete, sender=Bundle)
+@receiver(post_delete, sender=Product)
 def bump_public_catalog_on_merchandising_change(sender, **kwargs):
-    """Drop cached public promotion and bundle payloads after a studio edit."""
-    from inventory.views_public import bump_public_catalog_cache
+    """Drop cached public catalog payloads after a product, promotion, or bundle change."""
+    from inventory.views_public import bump_public_catalog_cache_on_commit
 
-    bump_public_catalog_cache()
+    bump_public_catalog_cache_on_commit()
 
 
 @receiver(post_save, sender=ProductReleaseDate)

@@ -3,10 +3,20 @@
 from decimal import Decimal
 
 import pytest
+from django.core.cache import cache
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from inventory.models import Bundle, InventoryUnit, Product, ProductArticle, UnitAcquisitionSource
+from inventory.models import (
+    Bundle,
+    InventoryUnit,
+    OrderItem,
+    Product,
+    ProductArticle,
+    ProductVariant,
+    UnitAcquisitionSource,
+)
+from inventory.views_public import public_catalog_cache_version
 
 pytestmark = [pytest.mark.django_db]
 
@@ -105,3 +115,50 @@ def test_delete_still_blocks_when_available_stock_exists(
     assert "available inventory unit" in response.data["detail"]
     assert Product.objects.filter(pk=product.id).exists()
     assert ProductArticle.objects.filter(product=product, slug="still-here").exists()
+
+
+def test_delete_succeeds_when_an_order_protects_the_variant(
+    super_api_client: APIClient, product: Product, order
+) -> None:
+    variant = ProductVariant.objects.create(
+        product=product,
+        storage_gb=128,
+        ram_gb=8,
+        default_selling_price=Decimal("1000.00"),
+        default_cost_of_unit=Decimal("500.00"),
+    )
+    item = OrderItem.objects.create(
+        order=order,
+        variant=variant,
+        quantity=1,
+        unit_price_at_purchase=Decimal("1000.00"),
+    )
+
+    response = super_api_client.delete(f"/api/inventory/products/{product.id}/")
+
+    assert response.status_code == status.HTTP_204_NO_CONTENT
+    assert not Product.objects.filter(pk=product.id).exists()
+    assert not ProductVariant.objects.filter(pk=variant.id).exists()
+    item.refresh_from_db()
+    assert item.variant_id is None
+    assert item.order_id == order.order_id
+
+
+def test_delete_and_unpublish_bump_the_public_catalog_cache(
+    super_api_client: APIClient, product: Product, django_capture_on_commit_callbacks
+) -> None:
+    cache.set("public_catalog_cache_version", 5, timeout=None)
+
+    with django_capture_on_commit_callbacks(execute=True):
+        unpublished = super_api_client.patch(
+            f"/api/inventory/products/{product.id}/",
+            {"is_published": False},
+            format="json",
+        )
+    assert unpublished.status_code == status.HTTP_200_OK
+    assert public_catalog_cache_version() == 6
+
+    with django_capture_on_commit_callbacks(execute=True):
+        deleted = super_api_client.delete(f"/api/inventory/products/{product.id}/")
+    assert deleted.status_code == status.HTTP_204_NO_CONTENT
+    assert public_catalog_cache_version() == 7

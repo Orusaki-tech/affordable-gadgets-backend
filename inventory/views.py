@@ -1603,6 +1603,9 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     def perform_update(self, serializer):
         """Update updated_by and auto-assign to admin's brands if product has no brands."""
         product_instance = serializer.save(updated_by=self.request.user)
+        from inventory.views_public import bump_public_catalog_cache_on_commit
+
+        bump_public_catalog_cache_on_commit()
 
         # Auto-assign to admin's brands if product has no brands and admin has brands
         if not product_instance.brands.exists():
@@ -1653,11 +1656,14 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
     def _clear_protected_product_links(self, product):
         """Remove PROTECT foreign keys that block an explicit product delete."""
         self._detach_product_articles(product)
+        # OrderItem.variant is PROTECT. Keep the order line, drop the variant link
+        # so a past sale cannot block deleting the catalog row.
+        OrderItem.objects.filter(variant__product=product).update(variant=None)
         # Bundle.main_product and BundleItem.product are PROTECT.
         product.bundles.all().delete()
         product.bundle_items.all().delete()
-        # InventoryUnit.product_template is PROTECT. Sold/reserved rows are
-        # removed here; available stock is rejected before this runs.
+        # InventoryUnit.product_template and InventoryUnit.variant are PROTECT.
+        # Sold/reserved rows are removed here; available stock is rejected before this runs.
         product.inventory_units.all().delete()
 
     def perform_destroy(self, instance):
@@ -1882,9 +1888,9 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
         serializer = self.get_serializer(product, data=content_data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save(updated_by=request.user)
-        from inventory.views_public import bump_public_catalog_cache
+        from inventory.views_public import bump_public_catalog_cache_on_commit
 
-        bump_public_catalog_cache()
+        bump_public_catalog_cache_on_commit()
 
         return Response(serializer.data)
 
@@ -1936,9 +1942,9 @@ class ProductViewSet(_SilkProfileMixin, viewsets.ModelViewSet):
             product.tags.remove(*to_remove)
             product.updated_by = request.user
             product.save(update_fields=["updated_by", "updated_at"])
-            from inventory.views_public import bump_public_catalog_cache
+            from inventory.views_public import bump_public_catalog_cache_on_commit
 
-            bump_public_catalog_cache()
+            bump_public_catalog_cache_on_commit()
 
         serializer = self.get_serializer(product)
         return Response(serializer.data)

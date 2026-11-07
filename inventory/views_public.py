@@ -129,6 +129,17 @@ def _safe_cache_delete(key):
         return None
 
 
+def _with_private_catalog_cache(response):
+    """Keep catalog JSON out of the browser and CDN.
+
+    Redis already caches these payloads and drops them when the catalog version
+    bumps. A shared cache in front of that would keep a deleted product visible
+    until its own TTL, because the public URL does not change.
+    """
+    response["Cache-Control"] = "private, no-cache"
+    return response
+
+
 _PUBLIC_CATALOG_CACHE_VERSION_KEY = "public_catalog_cache_version"
 
 
@@ -152,6 +163,18 @@ def bump_public_catalog_cache() -> None:
             return None
     except Exception:
         return None
+
+
+def bump_public_catalog_cache_on_commit() -> None:
+    """Bump only after the write commits.
+
+    Product delete runs inside transaction.atomic(). Bumping during that
+    transaction lets a concurrent catalog read cache the still-present product
+    under the new version, so the shop keeps showing it until the TTL expires.
+    """
+    from django.db import transaction
+
+    transaction.on_commit(bump_public_catalog_cache)
 
 
 def _public_list_cache_params(query_params) -> str:
@@ -675,7 +698,7 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
             )
             cached = _safe_cache_get(cache_key)
             if cached is not None:
-                return Response(cached)
+                return _with_private_catalog_cache(Response(cached))
 
         try:
             # Debug pre-check only when explicitly enabled to avoid double get_queryset() and heavy count() on every request.
@@ -839,7 +862,7 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
             )
             if cache_enabled and hasattr(response, "data"):
                 _safe_cache_set(cache_key, response.data, PUBLIC_PRODUCTS_LIST_CACHE_TTL)
-            return response
+            return _with_private_catalog_cache(response)
         except Exception as e:
             # #region agent log - List exception
             try:
@@ -945,7 +968,7 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
             )
             cached = _safe_cache_get(cache_key)
             if cached is not None:
-                return Response(cached)
+                return _with_private_catalog_cache(Response(cached))
 
         pk = kwargs.get("pk")
         product = self._get_public_product_detail_queryset(pk).first()
@@ -955,7 +978,7 @@ class PublicProductViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOnly
         response = Response(serializer.data)
         if cache_enabled:
             _safe_cache_set(cache_key, response.data, PUBLIC_PRODUCT_DETAIL_CACHE_TTL)
-        return response
+        return _with_private_catalog_cache(response)
 
     def get_queryset(self):
         import json
@@ -3499,11 +3522,11 @@ class PublicPromotionViewSet(_PublicAPIMixin, _SilkProfileMixin, viewsets.ReadOn
         )
         cached = _safe_cache_get(cache_key)
         if cached is not None:
-            return Response(cached)
+            return _with_private_catalog_cache(Response(cached))
         response = super().list(request, *args, **kwargs)
         if getattr(response, "status_code", None) == 200 and hasattr(response, "data"):
             _safe_cache_set(cache_key, response.data, 120)
-        return response
+        return _with_private_catalog_cache(response)
 
     def get_queryset(self):
         brand = getattr(self.request, "brand", None)
